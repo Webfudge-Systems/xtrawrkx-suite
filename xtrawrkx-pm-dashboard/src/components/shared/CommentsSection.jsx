@@ -46,8 +46,7 @@ const CommentsSection = ({ task, subtask }) => {
   const entityType = isSubtask ? "SUBTASK" : "TASK";
 
   // Debug: Log component props and user
-  useEffect(() => {
-  }, [task, subtask, user, entityId, isSubtask, entityType]);
+  useEffect(() => {}, [task, subtask, user, entityId, isSubtask, entityType]);
 
   // Load users for mentions
   useEffect(() => {
@@ -415,7 +414,6 @@ const CommentsSection = ({ task, subtask }) => {
   };
 
   const handleAddComment = async () => {
-
     if (!newComment.trim() || !entityId || !user) {
       console.warn("Cannot add comment: missing data", {
         hasComment: !!newComment.trim(),
@@ -439,10 +437,6 @@ const CommentsSection = ({ task, subtask }) => {
 
       let createdComment;
       try {
-              return { mentionId: m, userName: user?.name || "Unknown" };
-            }) || [],
-        });
-
         if (isSubtask) {
           createdComment = await commentService.createSubtaskComment(
             entityId,
@@ -458,7 +452,6 @@ const CommentsSection = ({ task, subtask }) => {
             mentions, // Pass mentions array
           );
         }
-
       } catch (createError) {
         console.error("Error creating comment:", createError);
         console.error("Error details:", {
@@ -513,12 +506,10 @@ const CommentsSection = ({ task, subtask }) => {
         commentsData = [response.data];
       }
 
-
       // Since backend already filters correctly, we can trust the results
       // But add a safety check to ensure we only show comments for this entity
       const entityIdStr = String(entityId);
       const expectedType = isSubtask ? "SUBTASK" : "TASK";
-
 
       // Backend already filters, so we just do a simple safety check
       const filteredComments = commentsData.filter((comment) => {
@@ -558,14 +549,12 @@ const CommentsSection = ({ task, subtask }) => {
         return matches;
       });
 
-
       const rootComments = filteredComments.filter(
         (comment) => !comment.parentComment,
       );
       const transformedComments = rootComments
         .map(transformComment)
         .filter(Boolean);
-
 
       // If we have a created comment but it's not in the list, add it manually
       if (createdComment && transformedComments.length === comments.length) {
