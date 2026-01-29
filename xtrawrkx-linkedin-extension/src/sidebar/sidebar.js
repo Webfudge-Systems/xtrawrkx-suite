@@ -13,11 +13,21 @@ class SidebarController {
     }
 
     async init() {
-        // Check if we're on LinkedIn
-        await this.checkLinkedInTab();
+        // Check if we're on LinkedIn - close if not
+        const isLinkedIn = await this.checkLinkedInTab();
+        if (!isLinkedIn) {
+            this.closeSidePanel('not_linkedin');
+            return;
+        }
 
-        // Check authentication status
-        await this.checkAuthStatus();
+        // Check authentication status (with error handling)
+        try {
+            await this.checkAuthStatus();
+        } catch (error) {
+            console.error('Error checking auth status on init:', error);
+            // Don't fail completely - just assume not authenticated
+            this.isAuthenticated = false;
+        }
 
         // Update UI based on auth status
         await this.updateUI();
@@ -25,18 +35,84 @@ class SidebarController {
         // Set up event listeners
         this.setupEventListeners();
 
-        // Listen for messages from content script
+        // Listen for messages from content script and background
         chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            // Handle PAGE_DATA_FOR_SIDEBAR messages immediately
+            if (message.type === 'PAGE_DATA_FOR_SIDEBAR') {
+                const newUrl = message.url;
+                const oldUrl = this.lastKnownUrl || this.currentPageData?.url;
+                
+                // CRITICAL: Clear existing contact if URL changed
+                if (oldUrl && newUrl && oldUrl !== newUrl) {
+                    this.currentExistingContact = null;
+                    this.currentPageData = null;
+                }
+                
+                this.lastKnownUrl = newUrl;
+                
+                // Process the data
+                const formattedData = {
+                    data: message.data,
+                    url: newUrl,
+                    timestamp: message.timestamp
+                };
+                
+                this.currentPageData = formattedData;
+                
+                // Check for existing contact if authenticated
+                if (this.isAuthenticated && formattedData.data) {
+                    const linkedInUrl = formattedData.data.linkedInUrl || formattedData.data.profileUrl;
+                    if (linkedInUrl) {
+                        this.checkExistingContact(linkedInUrl).then((result) => {
+                            if (result && result.exists) {
+                                this.showExistingLeadDetails(result.contact, formattedData.data);
+                            } else {
+                                this.updateUI();
+                            }
+                        }).catch(() => {
+                            this.updateUI();
+                        });
+                    } else {
+                        this.updateUI();
+                    }
+                } else {
+                    this.updateUI();
+                }
+                
+                sendResponse({ success: true });
+                return true;
+            }
+            
+            // Handle other messages
             this.handleMessage(message, sender, sendResponse);
             return true;
         });
 
-        // Listen for tab updates
+        // Listen for tab updates and URL changes
         chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-            if (changeInfo.status === 'complete') {
-                this.checkLinkedInTab();
+            // Check on URL change or page complete
+            if (changeInfo.url || changeInfo.status === 'complete') {
+                this.checkAndCloseIfNotLinkedIn();
             }
         });
+
+        // Monitor tab visibility to detect navigation
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Tab is hidden, check when it becomes visible again
+                setTimeout(() => {
+                    this.checkAndCloseIfNotLinkedIn();
+                }, 100);
+            } else {
+                // Tab is visible, check immediately
+                this.checkAndCloseIfNotLinkedIn();
+            }
+        });
+
+        // Periodic check to ensure we're still on LinkedIn
+        setInterval(() => {
+            this.checkAndCloseIfNotLinkedIn();
+        }, 2000); // Check every 2 seconds
 
         // Request current page data from content script
         this.requestPageData();
@@ -70,6 +146,39 @@ class SidebarController {
         return true;
     }
 
+    async checkAndCloseIfNotLinkedIn() {
+        try {
+            const isLinkedIn = await this.checkLinkedInTab();
+            if (!isLinkedIn) {
+                this.closeSidePanel('not_linkedin');
+            }
+        } catch (error) {
+            console.error('Error checking LinkedIn status:', error);
+        }
+    }
+
+    async closeSidePanel(reason = 'unknown') {
+        
+        try {
+            // Try to close via sidePanel API
+            if (chrome.sidePanel && chrome.sidePanel.close) {
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tabs && tabs.length > 0) {
+                    await chrome.sidePanel.close({ tabId: tabs[0].id });
+                }
+            }
+        } catch (error) {
+        }
+
+        // Also try window.close as fallback
+        try {
+            if (window.close) {
+                window.close();
+            }
+        } catch (error) {
+        }
+    }
+
     showLinkedInOnlyMessage() {
         const content = document.querySelector('.xtrawrkx-sidebar-content');
         if (!content) return;
@@ -77,16 +186,14 @@ class SidebarController {
         content.innerHTML = `
             <div class="xtrawrkx-linkedin-only-message">
                 <div class="xtrawrkx-message-icon">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
-                    </svg>
+                    <i class="fab fa-linkedin"></i>
                 </div>
                 <h2>LinkedIn Required</h2>
                 <p>This extension only works on LinkedIn pages.</p>
                 <p class="xtrawrkx-message-hint">Navigate to LinkedIn to use the Xtrawrkx extension.</p>
             </div>
         `;
+        
     }
 
     setupEventListeners() {
@@ -94,9 +201,7 @@ class SidebarController {
         const logoBtn = document.getElementById('xtrawrkx-logo-btn');
         if (logoBtn) {
             logoBtn.addEventListener('click', async () => {
-                console.log('🔗 Logo clicked - redirecting to CRM');
-                const result = await chrome.storage.sync.get(['crmUrl']);
-                const crmUrl = result.crmUrl || 'http://localhost:3001';
+                const crmUrl = 'https://crm.xtrawrkx.com';
                 chrome.tabs.create({ url: crmUrl });
             });
         }
@@ -105,24 +210,176 @@ class SidebarController {
         const refreshBtn = document.getElementById('xtrawrkx-refresh-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', async () => {
-                console.log('🔄 Refresh button clicked - forcing complete data refresh');
+                
+                // Disable button and show loading state
                 refreshBtn.disabled = true;
+                refreshBtn.style.opacity = '0.6';
+                refreshBtn.style.cursor = 'not-allowed';
 
                 // Add rotation animation
                 refreshBtn.style.transform = 'rotate(360deg)';
                 refreshBtn.style.transition = 'transform 0.5s ease';
 
-                // Clear all cached data first
-                await this.clearCachedData();
+                try {
+                    // Show loading animation
+                    const loadingEl = document.getElementById('xtrawrkx-sidebar-loading');
+                    const bodyEl = document.getElementById('xtrawrkx-sidebar-body');
+                    const existingLeadEl = document.getElementById('xtrawrkx-existing-lead');
+                    const loginForm = document.getElementById('xtrawrkx-login-form');
+                    
+                    // Hide all content and show loading
+                    if (bodyEl) bodyEl.style.display = 'none';
+                    if (existingLeadEl) existingLeadEl.style.display = 'none';
+                    if (loginForm) loginForm.style.display = 'none';
+                    if (loadingEl) {
+                        loadingEl.style.display = 'flex';
+                        // Update loading message
+                        const loadingText = loadingEl.querySelector('p');
+                        if (loadingText) {
+                            loadingText.textContent = 'Refreshing data...';
+                        }
+                    }
+                    
+                    // Clear all cached data first
+                    await this.clearCachedData();
+                    
+                    // Get current tab to ensure we're on LinkedIn
+                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                    if (!tab || !tab.url || !tab.url.includes('linkedin.com')) {
+                        this.showNotification('Please navigate to a LinkedIn page first', 'error');
+                        if (loadingEl) loadingEl.style.display = 'none';
+                        refreshBtn.disabled = false;
+                        refreshBtn.style.opacity = '1';
+                        refreshBtn.style.cursor = 'pointer';
+                        refreshBtn.style.transform = '';
+                        return;
+                    }
+                    
+                    // Update last known URL
+                    this.lastKnownUrl = tab.url;
+                    
+                    // Force fresh data extraction from content script
+                    chrome.tabs.sendMessage(tab.id, {
+                        type: 'EXTRACT_CURRENT_PAGE'
+                    }, async (response) => {
+                        // Use outer scope loadingEl - don't redeclare
+                        try {
+                            if (chrome.runtime.lastError) {
+                                console.error('❌ Error sending message to content script:', chrome.runtime.lastError);
+                                this.showNotification('Failed to refresh data. Please try again.', 'error');
+                                
+                                // Hide loading on error
+                                if (loadingEl) loadingEl.style.display = 'none';
+                                
+                                refreshBtn.disabled = false;
+                                refreshBtn.style.opacity = '1';
+                                refreshBtn.style.cursor = 'pointer';
+                                refreshBtn.style.transform = '';
+                                return;
+                            }
 
-                // Force data extraction
-                await this.forceDataExtraction();
-
-                // Reset button state after a delay
-                setTimeout(() => {
+                            if (response && response.success && response.data) {
+                                
+                                // Update loading message
+                                if (loadingEl) {
+                                    const loadingText = loadingEl.querySelector('p');
+                                    if (loadingText) {
+                                        loadingText.textContent = 'Processing data...';
+                                    }
+                                }
+                                
+                                // CRITICAL: Clear existing contact view first
+                                this.currentExistingContact = null;
+                                
+                                // Clear any existing contact check interval
+                                if (this.existingContactCheckInterval) {
+                                    clearInterval(this.existingContactCheckInterval);
+                                    this.existingContactCheckInterval = null;
+                                }
+                                
+                                // Update current page data
+                                this.currentPageData = response.data;
+                                
+                                // Update last known URL
+                                if (response.data.url) {
+                                    this.lastKnownUrl = response.data.url;
+                                } else if (response.data.data?.linkedInUrl) {
+                                    this.lastKnownUrl = response.data.data.linkedInUrl;
+                                } else if (response.data.data?.profileUrl) {
+                                    this.lastKnownUrl = response.data.data.profileUrl;
+                                }
+                                
+                                
+                                // FORCE hide existing lead view if visible
+                                if (existingLeadEl) existingLeadEl.style.display = 'none';
+                                
+                                // FORCE show body element
+                                if (bodyEl) bodyEl.style.display = 'block';
+                                
+                                // Hide login form
+                                if (loginForm) loginForm.style.display = 'none';
+                                
+                                // Now check for existing contact if authenticated and update UI
+                                if (this.isAuthenticated && response.data.data) {
+                                    const linkedInUrl = response.data.data.linkedInUrl || response.data.data.profileUrl;
+                                    if (linkedInUrl) {
+                                        try {
+                                            const result = await this.checkExistingContact(linkedInUrl);
+                                            if (result && result.exists) {
+                                                // Hide loading before showing existing contact
+                                                if (loadingEl) loadingEl.style.display = 'none';
+                                                this.showExistingLeadDetails(result.contact, response.data.data);
+                                            } else {
+                                                // Hide loading before updating UI
+                                                if (loadingEl) loadingEl.style.display = 'none';
+                                                this.updatePageDataUI();
+                                            }
+                                        } catch (error) {
+                                            console.error('Error checking existing contact:', error);
+                                            // Hide loading on error
+                                            if (loadingEl) loadingEl.style.display = 'none';
+                                            this.updatePageDataUI();
+                                        }
+                                    } else {
+                                        // Hide loading before updating UI
+                                        if (loadingEl) loadingEl.style.display = 'none';
+                                        this.updatePageDataUI();
+                                    }
+                                } else {
+                                    // Hide loading before updating UI
+                                    if (loadingEl) loadingEl.style.display = 'none';
+                                    this.updatePageDataUI();
+                                }
+                                
+                                this.showNotification('Data refreshed successfully', 'success');
+                            } else {
+                                
+                                // Hide loading on error
+                                if (loadingEl) loadingEl.style.display = 'none';
+                                
+                                this.showNotification('No data available. Please ensure you are on a LinkedIn profile or company page.', 'error');
+                            }
+                        } catch (error) {
+                            console.error('Error in refresh callback:', error);
+                            // Hide loading on any error
+                            if (loadingEl) loadingEl.style.display = 'none';
+                            this.showNotification('Failed to refresh data. Please try again.', 'error');
+                        } finally {
+                            // Reset button state
+                            refreshBtn.disabled = false;
+                            refreshBtn.style.opacity = '1';
+                            refreshBtn.style.cursor = 'pointer';
+                            refreshBtn.style.transform = '';
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error refreshing data:', error);
+                    this.showNotification('Failed to refresh data. Please try again.', 'error');
                     refreshBtn.disabled = false;
+                    refreshBtn.style.opacity = '1';
+                    refreshBtn.style.cursor = 'pointer';
                     refreshBtn.style.transform = '';
-                }, 1000);
+                }
             });
         }
 
@@ -130,10 +387,8 @@ class SidebarController {
         const crmBtn = document.getElementById('xtrawrkx-crm-btn');
         if (crmBtn) {
             crmBtn.addEventListener('click', async () => {
-                console.log('🔗 CRM button clicked');
-                // Get CRM URL from storage or use default
-                const result = await chrome.storage.sync.get(['crmUrl']);
-                const crmUrl = result.crmUrl || 'http://localhost:3001';
+                // Navigate to CRM portal
+                const crmUrl = 'https://crm.xtrawrkx.com';
 
                 // Open CRM in new tab
                 chrome.tabs.create({ url: crmUrl });
@@ -169,11 +424,11 @@ class SidebarController {
             });
         }
 
-        // Open CRM button
+        // Open CRM button (duplicate handler - remove if not needed)
         const openCrmButton = document.getElementById('xtrawrkx-open-crm');
-        if (openCrmButton) {
+        if (openCrmButton && !openCrmBtn) {
             openCrmButton.addEventListener('click', () => {
-                window.open('http://localhost:3001/sales/lead-companies', '_blank');
+                chrome.tabs.create({ url: 'https://crm.xtrawrkx.com' });
             });
         }
 
@@ -190,7 +445,6 @@ class SidebarController {
         if (shareBtn) {
             shareBtn.addEventListener('click', () => {
                 // Share functionality can be added here
-                console.log('Share clicked');
             });
         }
 
@@ -199,10 +453,10 @@ class SidebarController {
         if (viewCrmBtn) {
             viewCrmBtn.addEventListener('click', () => {
                 if (this.currentExistingContact && this.currentExistingContact.id) {
-                    const crmUrl = `http://localhost:3001/sales/contacts/${this.currentExistingContact.id}`;
+                    const crmUrl = `https://crm.xtrawrkx.com/sales/contacts/${this.currentExistingContact.id}`;
                     chrome.tabs.create({ url: crmUrl });
                 } else {
-                    chrome.tabs.create({ url: 'http://localhost:3001/sales/contacts' });
+                    chrome.tabs.create({ url: 'https://crm.xtrawrkx.com/sales/contacts' });
                 }
             });
         }
@@ -211,7 +465,6 @@ class SidebarController {
         const testConnectionBtn = document.getElementById('xtrawrkx-test-connection');
         if (testConnectionBtn) {
             testConnectionBtn.addEventListener('click', async () => {
-                console.log('🔧 Manual connection test triggered');
                 await this.testServerConnectivity();
 
                 // Also test authentication endpoint specifically
@@ -222,14 +475,12 @@ class SidebarController {
 
     async checkExistingContact(linkedInUrl) {
         try {
-            console.log('🔍 Checking for existing contact:', linkedInUrl);
 
             const response = await chrome.runtime.sendMessage({
                 type: 'FIND_EXISTING_CONTACT',
                 linkedInUrl: linkedInUrl
             });
 
-            console.log('📋 Existing contact check response:', response);
             return response;
         } catch (error) {
             console.error('❌ Error checking existing contact:', error);
@@ -238,10 +489,52 @@ class SidebarController {
     }
 
     showExistingLeadDetails(contact, profileData) {
-        console.log('📋 Showing existing lead details:', contact);
+
+        // Store the LinkedIn URL for this contact to detect changes
+        const linkedInUrl = profileData?.linkedInUrl || profileData?.profileUrl || this.currentPageData?.data?.linkedInUrl || this.currentPageData?.data?.profileUrl;
+        const currentTabUrl = this.currentPageData?.url;
+        
+        // Use current tab URL if available (more reliable), otherwise use LinkedIn URL from profile
+        if (currentTabUrl) {
+            this.lastKnownUrl = currentTabUrl;
+        } else if (linkedInUrl) {
+            this.lastKnownUrl = linkedInUrl;
+        }
 
         // Store current existing contact for CRM link
         this.currentExistingContact = contact;
+        
+        // Set up a periodic check to detect URL changes even when showing existing contact
+        // Clear any existing interval first
+        if (this.existingContactCheckInterval) {
+            clearInterval(this.existingContactCheckInterval);
+        }
+        
+        // Check every 1.5 seconds if URL has changed
+        this.existingContactCheckInterval = setInterval(async () => {
+            try {
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tab && tab.url && tab.url.includes('linkedin.com')) {
+                    const currentUrl = tab.url;
+                    if (this.lastKnownUrl && currentUrl !== this.lastKnownUrl) {
+                        
+                        // Clear the interval
+                        clearInterval(this.existingContactCheckInterval);
+                        this.existingContactCheckInterval = null;
+                        
+                        // Clear existing contact
+                        this.currentExistingContact = null;
+                        this.currentPageData = null;
+                        this.lastKnownUrl = currentUrl;
+                        
+                        // Request fresh data
+                        await this.requestPageData();
+                    }
+                }
+            } catch (error) {
+                console.error('Error in existing contact URL check:', error);
+            }
+        }, 1500);
 
         // Hide other UI elements
         const loginForm = document.getElementById('xtrawrkx-login-form');
@@ -262,7 +555,6 @@ class SidebarController {
     }
 
     updateExistingLeadUI(contact, profileData) {
-        console.log('🎨 Updating existing lead UI with:', contact, profileData);
 
         // Update profile image
         const existingImage = document.getElementById('xtrawrkx-existing-image');
@@ -376,7 +668,6 @@ class SidebarController {
     }
 
     setupExistingLeadTabs() {
-        console.log('🔧 Setting up existing lead tabs...');
 
         // Get tab buttons
         const detailsTab = document.getElementById('xtrawrkx-details-tab');
@@ -409,33 +700,27 @@ class SidebarController {
 
         // Add click handlers
         newDetailsTab.addEventListener('click', () => {
-            console.log('📋 Details tab clicked');
             this.switchExistingLeadTab('details');
         });
 
         newRelatedTab.addEventListener('click', () => {
-            console.log('📊 Related tab clicked');
             this.switchExistingLeadTab('related');
         });
 
         newCompanyTab.addEventListener('click', () => {
-            console.log('🏢 Company tab clicked');
             this.switchExistingLeadTab('company');
         });
 
         newChatsTab.addEventListener('click', () => {
-            console.log('💬 Chats tab clicked');
             this.switchExistingLeadTab('chats');
         });
 
         // Setup expand/collapse for related sections
         this.setupRelatedSectionToggles();
 
-        console.log('✅ Existing lead tabs setup complete');
     }
 
     switchExistingLeadTab(tabName) {
-        console.log('🔄 Switching to tab:', tabName);
 
         // Update tab buttons
         const detailsTab = document.getElementById('xtrawrkx-details-tab');
@@ -515,17 +800,11 @@ class SidebarController {
     }
 
     async loadRelatedData() {
-        console.log('📊 Loading related data...');
 
         if (!this.currentExistingContact || !this.currentExistingContact.id) {
-            console.log('❌ No current contact to load related data for');
-            console.log('❌ Current contact:', this.currentExistingContact);
             return;
         }
 
-        console.log('🔍 Loading related data for contact:', this.currentExistingContact);
-        console.log('🔍 Contact ID:', this.currentExistingContact.id);
-        console.log('🔍 Contact name:', this.currentExistingContact.firstName, this.currentExistingContact.lastName);
 
         try {
             // Show loading state
@@ -538,7 +817,6 @@ class SidebarController {
             });
 
             if (response && response.success) {
-                console.log('✅ Related data loaded:', response.data);
                 this.displayRelatedData(response.data);
             } else {
                 console.error('❌ Failed to load related data:', response?.error);
@@ -570,7 +848,6 @@ class SidebarController {
     }
 
     displayRelatedData(data) {
-        console.log('🎨 Displaying related data:', data);
 
         // Calculate and display stats
         this.displayStats(data.deals);
@@ -763,10 +1040,8 @@ class SidebarController {
     }
 
     async loadCompanyData() {
-        console.log('🏢 Loading company data...');
 
         if (!this.currentExistingContact) {
-            console.log('❌ No current contact to load company data for');
             this.showCompanyDataError();
             return;
         }
@@ -778,20 +1053,10 @@ class SidebarController {
             // Get company data from contact's account, clientAccount, or leadCompany
             let companyData = null;
 
-            console.log('🏢 Contact data for company detection:', this.currentExistingContact);
-            console.log('🏢 Contact relationships check:', {
-                hasClientAccount: !!this.currentExistingContact.clientAccount,
-                hasAccount: !!this.currentExistingContact.account,
-                hasLeadCompany: !!this.currentExistingContact.leadCompany,
-                clientAccountId: this.currentExistingContact.clientAccount?.id,
-                accountId: this.currentExistingContact.account?.id,
-                leadCompanyId: this.currentExistingContact.leadCompany?.id
-            });
 
             // Priority order: clientAccount > account > leadCompany
             if (this.currentExistingContact.clientAccount) {
                 // Active client - fetch client account data (highest priority)
-                console.log('🏢 Detected clientAccount relationship (ACTIVE CLIENT):', this.currentExistingContact.clientAccount);
                 const response = await chrome.runtime.sendMessage({
                     type: 'GET_COMPANY_DATA',
                     companyId: this.currentExistingContact.clientAccount.id,
@@ -802,7 +1067,6 @@ class SidebarController {
                 }
             } else if (this.currentExistingContact.account) {
                 // Active client - fetch account data (legacy)
-                console.log('🏢 Detected account relationship (ACTIVE CLIENT - LEGACY):', this.currentExistingContact.account);
                 const response = await chrome.runtime.sendMessage({
                     type: 'GET_COMPANY_DATA',
                     companyId: this.currentExistingContact.account.id,
@@ -813,7 +1077,6 @@ class SidebarController {
                 }
             } else if (this.currentExistingContact.leadCompany) {
                 // Lead - but check if it has been converted to client account
-                console.log('🏢 Detected leadCompany relationship:', this.currentExistingContact.leadCompany);
 
                 // First try to fetch as lead company
                 let leadResponse = await chrome.runtime.sendMessage({
@@ -827,7 +1090,6 @@ class SidebarController {
 
                     // Check if this lead has been converted to a client account
                     if (leadResponse.data.convertedAccount && leadResponse.data.convertedAccount.id) {
-                        console.log('🔄 Lead has been converted to client account:', leadResponse.data.convertedAccount.id);
 
                         // Fetch the client account data instead
                         const clientResponse = await chrome.runtime.sendMessage({
@@ -837,16 +1099,12 @@ class SidebarController {
                         });
 
                         if (clientResponse && clientResponse.success && clientResponse.data) {
-                            console.log('✅ Using converted client account data');
                             companyData = clientResponse.data;
                         }
                     }
                 } else {
-                    console.log('❌ Failed to fetch lead company data');
                 }
             } else {
-                console.log('❌ No company relationships found for this contact');
-                console.log('🏢 Contact may not be linked to any company in the CRM');
 
                 // Last resort: try to find company by name from LinkedIn profile data
                 let companyNameToSearch = null;
@@ -861,7 +1119,6 @@ class SidebarController {
                 }
 
                 if (companyNameToSearch) {
-                    console.log('🔍 Attempting to find company by name:', companyNameToSearch);
 
                     // Search in lead companies first, then client accounts
                     const companySearchResponse = await chrome.runtime.sendMessage({
@@ -870,21 +1127,16 @@ class SidebarController {
                     });
 
                     if (companySearchResponse && companySearchResponse.success && companySearchResponse.data) {
-                        console.log('✅ Found company by name search:', companySearchResponse.data);
                         companyData = companySearchResponse.data;
                     } else {
-                        console.log('❌ Company not found by name search');
                     }
                 } else {
-                    console.log('❌ No company name available for search');
                 }
             }
 
             if (companyData) {
-                console.log('✅ Company data loaded successfully:', companyData);
                 this.displayCompanyData(companyData);
             } else {
-                console.log('❌ No company data available - showing error state');
                 this.showCompanyDataError();
             }
 
@@ -895,7 +1147,6 @@ class SidebarController {
     }
 
     displayCompanyData(company) {
-        console.log('🏢 Displaying company data:', company);
 
         // Determine if this is a client or lead
         // Priority: explicit type marking > specific fields > fallback logic
@@ -924,7 +1175,6 @@ class SidebarController {
             isLead = !isClient;
         }
 
-        console.log('🏢 Company type detection - isClient:', isClient, 'isLead:', isLead);
 
         // Update company name and status
         const companyName = document.getElementById('xtrawrkx-company-name');
@@ -1242,10 +1492,8 @@ class SidebarController {
     }
 
     async loadChatsData() {
-        console.log('💬 Loading chats data...');
 
         if (!this.currentExistingContact || !this.currentExistingContact.id) {
-            console.log('❌ No current contact to load chats for');
             return;
         }
 
@@ -1299,7 +1547,6 @@ class SidebarController {
 
     async testServerConnectivity() {
         try {
-            console.log('🔍 Testing server connectivity...');
 
             // Hardcode production URL
             const baseURL = 'https://xtrawrkxsuits-production.up.railway.app';
@@ -1316,13 +1563,9 @@ class SidebarController {
                 }
             });
 
-            console.log('📡 Server response status:', response.status);
-            console.log('📡 Server response headers:', [...response.headers.entries()]);
 
             if (response.ok) {
-                console.log('✅ Server is reachable');
             } else {
-                console.log('⚠️ Server responded with status:', response.status);
             }
 
         } catch (error) {
@@ -1334,7 +1577,6 @@ class SidebarController {
 
     async testAuthEndpoint() {
         try {
-            console.log('🔐 Testing authentication endpoint...');
 
             // Hardcode production URL
             const baseURL = 'https://xtrawrkxsuits-production.up.railway.app';
@@ -1355,18 +1597,12 @@ class SidebarController {
                 })
             });
 
-            console.log('🔐 Auth endpoint response status:', response.status);
-            console.log('🔐 Auth endpoint response headers:', [...response.headers.entries()]);
 
             const responseText = await response.text();
-            console.log('🔐 Auth endpoint response body:', responseText);
 
             if (response.status === 400 || response.status === 401) {
-                console.log('✅ Auth endpoint is working (returned expected error for invalid credentials)');
             } else if (response.status === 404) {
-                console.log('❌ Auth endpoint not found (404)');
             } else {
-                console.log('⚠️ Unexpected response from auth endpoint:', response.status);
             }
 
         } catch (error) {
@@ -1381,12 +1617,27 @@ class SidebarController {
             const response = await chrome.runtime.sendMessage({
                 type: 'VERIFY_AUTH'
             });
-            this.isAuthenticated = response?.authenticated || false;
+            
+            if (!response) {
+                console.warn('No response from VERIFY_AUTH');
+                this.isAuthenticated = false;
+                return false;
+            }
+            
+            this.isAuthenticated = response.authenticated === true;
+            
+            if (this.logger) {
+                this.logger.log('Auth status check:', this.isAuthenticated ? 'Authenticated' : 'Not authenticated');
+            }
+            
             return this.isAuthenticated;
         } catch (error) {
             console.error('Auth check failed:', error);
-            this.isAuthenticated = false;
-            return false;
+            // Don't immediately set to false on error - might be a temporary issue
+            // Only set to false if we're sure there's no token
+            const stored = await chrome.storage.sync.get(['authToken']);
+            this.isAuthenticated = !!stored.authToken;
+            return this.isAuthenticated;
         }
     }
 
@@ -1412,10 +1663,7 @@ class SidebarController {
         submitBtn.innerHTML = `
             <span>Signing in...</span>
             <div class="btn-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="xtrawrkx-spinner">
-                    <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2"/>
-                    <path d="M12 3C16.9706 3 21 7.02944 21 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
+                <i class="fas fa-spinner fa-spin"></i>
             </div>
         `;
 
@@ -1425,21 +1673,18 @@ class SidebarController {
         }
 
         try {
-            console.log('Sending authentication request...');
             const response = await chrome.runtime.sendMessage({
                 type: 'AUTHENTICATE',
                 email,
                 password
             });
 
-            console.log('Authentication response:', response);
 
             if (!response) {
                 throw new Error('No response from authentication service');
             }
 
             if (response.success) {
-                console.log('Login successful');
                 this.isAuthenticated = true;
                 passwordInput.value = '';
 
@@ -1496,17 +1741,10 @@ class SidebarController {
     }
 
     async updateUI() {
-        console.log('=== Updating UI ===');
-        console.log('Is authenticated:', this.isAuthenticated);
-        console.log('Current page data:', this.currentPageData);
 
         // Debug: Show detailed data structure
         if (this.currentPageData) {
-            console.log('📊 Data type:', this.currentPageData.type);
-            console.log('📊 Data URL:', this.currentPageData.url);
-            console.log('📊 Data content:', this.currentPageData.data);
             if (this.currentPageData.data?.allExperiences) {
-                console.log('💼 All experiences:', this.currentPageData.data.allExperiences);
             }
         }
 
@@ -1517,7 +1755,6 @@ class SidebarController {
 
         // Show login form if not authenticated
         if (!this.isAuthenticated) {
-            console.log('❌ User not authenticated, showing login form');
             if (loginForm) loginForm.style.display = 'block';
             if (loadingEl) loadingEl.style.display = 'none';
             if (bodyEl) bodyEl.style.display = 'none';
@@ -1528,24 +1765,20 @@ class SidebarController {
             return;
         }
 
-        console.log('✅ User authenticated, checking for existing contact');
 
         // Check if this contact already exists in CRM
         if (this.currentPageData && this.currentPageData.data) {
             const linkedInUrl = this.currentPageData.data.linkedInUrl || this.currentPageData.data.profileUrl;
             if (linkedInUrl) {
-                console.log('🔍 Checking for existing contact with LinkedIn URL:', linkedInUrl);
                 const existingContactResult = await this.checkExistingContact(linkedInUrl);
 
                 if (existingContactResult && existingContactResult.exists) {
-                    console.log('✅ Found existing contact, showing lead details');
                     this.showExistingLeadDetails(existingContactResult.contact, this.currentPageData.data);
                     return;
                 }
             }
         }
 
-        console.log('➕ No existing contact found, showing import UI');
 
         // Show data import UI if authenticated
         if (loginForm) loginForm.style.display = 'none';
@@ -1563,18 +1796,12 @@ class SidebarController {
     }
 
     updatePageDataUI() {
-        console.log('🎯 updatePageDataUI called');
-        console.log('🎯 currentPageData:', this.currentPageData);
 
         if (!this.currentPageData || !this.currentPageData.data) {
-            console.log('❌ No page data available for UI update');
             return;
         }
 
         const data = this.currentPageData.data;
-        console.log('🎯 Data for UI update:', data);
-        console.log('🎯 Name in data:', data.name);
-        console.log('🎯 All experiences in data:', data.allExperiences);
 
         const importBtn = document.getElementById('xtrawrkx-import-btn');
 
@@ -1583,6 +1810,29 @@ class SidebarController {
             const profileName = document.getElementById('xtrawrkx-profile-name');
             if (profileName) {
                 profileName.textContent = data.name || data.fullName || 'Name';
+            }
+
+            // Update compatibility score
+            const compatibilityScoreEl = document.getElementById('xtrawrkx-compatibility-score');
+            const scoreValueEl = document.getElementById('xtrawrkx-score-value');
+            if (data.compatibilityScore !== null && data.compatibilityScore !== undefined) {
+                if (compatibilityScoreEl) compatibilityScoreEl.style.display = 'flex';
+                if (scoreValueEl) {
+                    scoreValueEl.textContent = data.compatibilityScore;
+                    // Add color class based on score
+                    scoreValueEl.className = 'xtrawrkx-score-value';
+                    if (data.compatibilityScore >= 80) {
+                        scoreValueEl.classList.add('score-excellent');
+                    } else if (data.compatibilityScore >= 60) {
+                        scoreValueEl.classList.add('score-good');
+                    } else if (data.compatibilityScore >= 40) {
+                        scoreValueEl.classList.add('score-fair');
+                    } else {
+                        scoreValueEl.classList.add('score-poor');
+                    }
+                }
+            } else {
+                if (compatibilityScoreEl) compatibilityScoreEl.style.display = 'none';
             }
 
             // Update profile image - use new profilePhoto field
@@ -1645,12 +1895,6 @@ class SidebarController {
             const companySection = document.getElementById('xtrawrkx-company-section');
             const companyName = document.getElementById('xtrawrkx-profile-company-name');
 
-            console.log('🏢 Attempting to display company info...');
-            console.log('🏢 companySection element found:', !!companySection);
-            console.log('🏢 companyName element found:', !!companyName);
-            console.log('🏢 data.currentCompany:', data.currentCompany);
-            console.log('🏢 data.allExperiences:', data.allExperiences);
-            console.log('🏢 data.selectedExperience:', data.selectedExperience);
 
             if (!companySection) {
                 console.error('❌ Company section element not found!');
@@ -1665,16 +1909,13 @@ class SidebarController {
             // Priority 1: currentCompany from extracted data
             if (data.currentCompany && data.currentCompany.trim() && data.currentCompany.trim() !== '-') {
                 companyToDisplay = data.currentCompany;
-                console.log('✅ Using currentCompany from data:', companyToDisplay);
             }
             // Priority 2: From first experience (current/most recent)
             else if (data.allExperiences && data.allExperiences.length > 0) {
                 const firstExp = data.allExperiences[0];
-                console.log('🔍 First experience:', firstExp);
                 if (firstExp) {
                     companyToDisplay = firstExp.company || firstExp.companyName || null;
                     if (companyToDisplay && companyToDisplay.trim() && companyToDisplay.trim() !== '-') {
-                        console.log('✅ Using company from first experience:', companyToDisplay);
                     } else {
                         companyToDisplay = null;
                     }
@@ -1683,21 +1924,18 @@ class SidebarController {
             // Priority 3: From selected experience
             if (!companyToDisplay && data.selectedExperience && data.selectedExperience.company) {
                 companyToDisplay = data.selectedExperience.company;
-                console.log('✅ Using company from selected experience:', companyToDisplay);
             }
             // Priority 4: From headline if it contains company info
             if (!companyToDisplay && data.headline && data.headline.includes(' at ')) {
                 const headlineParts = data.headline.split(' at ');
                 if (headlineParts.length > 1) {
                     companyToDisplay = headlineParts[headlineParts.length - 1].trim();
-                    console.log('✅ Using company from headline:', companyToDisplay);
                 }
             }
 
             if (companyToDisplay && companyToDisplay.trim() && companyToDisplay.trim() !== '-') {
                 if (companySection) {
                     companySection.style.display = 'block';
-                    console.log('✅ Showing company section with:', companyToDisplay);
                 }
                 if (companyName) {
                     companyName.textContent = this.escapeHtml(companyToDisplay.trim());
@@ -1705,7 +1943,6 @@ class SidebarController {
             } else {
                 if (companySection) {
                     companySection.style.display = 'none';
-                    console.log('❌ Hiding company section - no company found');
                 }
             }
 
@@ -1747,17 +1984,12 @@ class SidebarController {
     }
 
     updateExperienceSelection(allExperiences) {
-        console.log('🎯 updateExperienceSelection called with:', allExperiences);
-        console.log('🎯 Experience count:', allExperiences ? allExperiences.length : 'undefined');
 
         const experienceSection = document.getElementById('xtrawrkx-experience-section');
         const experienceList = document.getElementById('xtrawrkx-experience-list');
         const experienceDivider = document.getElementById('xtrawrkx-experience-divider');
 
         if (!allExperiences || allExperiences.length === 0) {
-            console.log('❌ Hiding experience section - not enough experiences');
-            console.log('   - allExperiences exists:', !!allExperiences);
-            console.log('   - allExperiences length:', allExperiences ? allExperiences.length : 'N/A');
 
             // Hide experience selection if no experiences or only one experience
             if (experienceSection) experienceSection.style.display = 'none';
@@ -1765,7 +1997,6 @@ class SidebarController {
             return;
         }
 
-        console.log('✅ Showing experience section with', allExperiences.length, 'experiences');
 
         // Show experience selection section
         if (experienceSection) experienceSection.style.display = 'block';
@@ -1818,7 +2049,7 @@ class SidebarController {
             experienceList.appendChild(experienceItem);
         });
 
-        console.log(`✅ Experience selection UI updated with ${allExperiences.length} experiences`);
+        
     }
 
     selectExperience(index, allExperiences) {
@@ -1836,7 +2067,6 @@ class SidebarController {
         this.selectedExperienceIndex = index;
         this.selectedExperience = allExperiences[index];
 
-        console.log('✅ Experience selected:', this.selectedExperience);
 
         // Update the profile display with selected experience
         this.updateProfileWithSelectedExperience(this.selectedExperience);
@@ -1863,7 +2093,6 @@ class SidebarController {
             if (companySection) companySection.style.display = 'none';
         }
 
-        console.log('✅ Profile updated with selected experience');
     }
 
     escapeHtml(text) {
@@ -1890,7 +2119,6 @@ class SidebarController {
                 selectedExperience: this.selectedExperience,
                 selectedExperienceIndex: this.selectedExperienceIndex
             };
-            console.log('🎯 Importing with selected experience:', this.selectedExperience);
         }
 
         const importBtn = document.getElementById('xtrawrkx-import-btn');
@@ -1943,17 +2171,14 @@ class SidebarController {
     }
 
     async clearCachedData() {
-        console.log('🗑️ Clearing all cached data...');
 
         try {
             // Clear local storage
             await chrome.storage.local.clear();
-            console.log('✅ Local storage cleared');
 
             // Clear current page data
             this.currentPageData = null;
             this.currentExistingContact = null;
-            console.log('✅ Current page data cleared');
 
         } catch (error) {
             console.error('❌ Error clearing cached data:', error);
@@ -1962,7 +2187,6 @@ class SidebarController {
 
     async forceDataExtraction() {
         try {
-            console.log('🔄 Force data extraction from content script...');
 
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -1976,10 +2200,8 @@ class SidebarController {
                         return;
                     }
 
-                    console.log('🎯 Forced extraction response:', response);
 
                     if (response && response.success && response.data) {
-                        console.log('✅ Got forced extraction data:', response.data);
                         this.currentPageData = response.data;
                         this.updateUI();
                     }
@@ -1992,56 +2214,100 @@ class SidebarController {
 
     async requestPageData() {
         try {
-            console.log('=== Requesting page data ===');
+
+            // Get current tab URL first to check if it changed
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab || !tab.url || !tab.url.includes('linkedin.com')) {
+                return;
+            }
+
+            const currentTabUrl = tab.url;
+            
+            // IMPORTANT: Check if URL has changed - if so, clear existing contact
+            if (this.lastKnownUrl && currentTabUrl !== this.lastKnownUrl) {
+                this.currentExistingContact = null;
+                this.currentPageData = null;
+            }
+            
+            this.lastKnownUrl = currentTabUrl;
 
             // Get page data from storage (set by background worker)
             const result = await chrome.storage.local.get(['lastPageData', 'lastPageUrl', 'pageDataTimestamp']);
 
             if (result.lastPageData) {
-                console.log('📦 Found stored page data:', result.lastPageData);
-                console.log('🔗 URL:', result.lastPageUrl);
-                console.log('⏰ Timestamp:', result.pageDataTimestamp);
+                const storedUrl = result.lastPageData.url || result.lastPageUrl;
+                
+                // Only use stored data if it matches current tab URL
+                if (storedUrl === currentTabUrl) {
 
-                // Check if data is recent (within last 60 seconds)
-                const dataAge = Date.now() - (result.pageDataTimestamp || 0);
-                console.log('📅 Data age:', dataAge, 'ms');
+                    // Check if data is recent (within last 60 seconds)
+                    const dataAge = Date.now() - (result.pageDataTimestamp || 0);
 
-                if (dataAge < 60000) {
-                    this.currentPageData = result.lastPageData;
-                    console.log('✅ Using stored data (recent)');
-                    this.updateUI();
+                    if (dataAge < 60000) {
+                        this.currentPageData = result.lastPageData;
+                        
+                        // Check for existing contact if authenticated
+                        if (this.isAuthenticated && result.lastPageData.data) {
+                            const linkedInUrl = result.lastPageData.data.linkedInUrl || result.lastPageData.data.profileUrl;
+                            if (linkedInUrl) {
+                                this.checkExistingContact(linkedInUrl).then((result) => {
+                                    if (result && result.exists) {
+                                        this.showExistingLeadDetails(result.contact, result.lastPageData.data);
+                                    } else {
+                                        this.updateUI();
+                                    }
+                                }).catch(() => {
+                                    this.updateUI();
+                                });
+                            } else {
+                                this.updateUI();
+                            }
+                        } else {
+                            this.updateUI();
+                        }
+                        return;
+                    } else {
+                    }
                 } else {
-                    console.log('⚠️ Stored data is too old, requesting fresh data');
                 }
             } else {
-                console.log('❌ No stored page data found');
             }
 
-            // Also try to get from active tab
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            // Request fresh data from content script
+            chrome.tabs.sendMessage(tab.id, {
+                type: 'EXTRACT_CURRENT_PAGE'
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error('❌ Error sending message to content script:', chrome.runtime.lastError);
+                    return;
+                }
 
-            if (tab && tab.url?.includes('linkedin.com')) {
-                console.log('🔄 Requesting fresh data from content script');
-                // Request page data from content script
-                chrome.tabs.sendMessage(tab.id, {
-                    type: 'EXTRACT_CURRENT_PAGE'
-                }, (response) => {
-                    if (chrome.runtime.lastError) {
-                        console.error('❌ Error sending message to content script:', chrome.runtime.lastError);
-                        return;
-                    }
 
-                    console.log('📨 Response from content script:', response);
-
-                    if (response && response.success && response.data) {
-                        console.log('✅ Got fresh data from content script:', response.data);
-                        this.currentPageData = response.data;
-                        this.updateUI();
+                if (response && response.success && response.data) {
+                    this.currentPageData = response.data;
+                    
+                    // Check for existing contact if authenticated
+                    if (this.isAuthenticated && response.data.data) {
+                        const linkedInUrl = response.data.data.linkedInUrl || response.data.data.profileUrl;
+                        if (linkedInUrl) {
+                            this.checkExistingContact(linkedInUrl).then((result) => {
+                                if (result && result.exists) {
+                                    this.showExistingLeadDetails(result.contact, response.data.data);
+                                } else {
+                                    this.updateUI();
+                                }
+                            }).catch(() => {
+                                this.updateUI();
+                            });
+                        } else {
+                            this.updateUI();
+                        }
                     } else {
-                        console.log('⚠️ No data received from content script');
+                        this.updateUI();
                     }
-                });
-            }
+                } else {
+                }
+            });
         } catch (error) {
             console.error('Failed to request page data:', error);
         }
@@ -2049,42 +2315,168 @@ class SidebarController {
 
     // Set up automatic data refresh
     setupAutoRefresh() {
-        console.log('=== Setting up auto-refresh ===');
+
+        // Track last known URL to detect changes
+        this.lastKnownUrl = null;
 
         // Listen for storage changes (when new page data arrives)
         chrome.storage.onChanged.addListener((changes, namespace) => {
             if (namespace === 'local' && changes.lastPageData) {
-                console.log('🔄 Page data updated in storage, refreshing UI');
-                console.log('📊 Old data:', changes.lastPageData.oldValue);
-                console.log('📊 New data:', changes.lastPageData.newValue);
-
-                // Check if this is actually new data
                 const newData = changes.lastPageData.newValue;
                 const oldData = changes.lastPageData.oldValue;
 
-                if (newData && newData.url !== (oldData?.url)) {
-                    console.log('🔄 URL changed in data, updating UI');
-                    console.log('🔗 New URL:', newData.url);
-                    console.log('🔗 Old URL:', oldData?.url);
+                // Check if this is actually new data (different URL)
+                const newUrl = newData?.url;
+                const oldUrl = oldData?.url || this.lastKnownUrl;
+                
+                if (newData && newUrl && newUrl !== oldUrl) {
+                    
+                    // ALWAYS clear existing contact data when URL changes
+                    this.currentExistingContact = null;
+                    this.lastKnownUrl = newUrl;
+                    
+                    // Update with new data
+                    this.currentPageData = newData;
+                    
+                    // Check if this contact exists in CRM
+                    if (this.isAuthenticated && newData && newData.data) {
+                        const linkedInUrl = newData.data.linkedInUrl || newData.data.profileUrl;
+                        if (linkedInUrl) {
+                            // Check for existing contact
+                            this.checkExistingContact(linkedInUrl).then((result) => {
+                                if (result && result.exists) {
+                                    this.showExistingLeadDetails(result.contact, newData.data);
+                                } else {
+                                    this.updateUI();
+                                }
+                            }).catch(() => {
+                                this.updateUI();
+                            });
+                        } else {
+                            this.updateUI();
+                        }
+                    } else {
+                        this.updateUI();
+                    }
+                } else if (newData) {
+                    // Same URL but data might have been refreshed
+                    this.currentPageData = newData;
+                    if (newUrl) {
+                        this.lastKnownUrl = newUrl;
+                    }
+                    this.updateUI();
                 }
-
-                this.currentPageData = newData;
-                this.updateUI();
             }
         });
 
-        // Periodic refresh every 10 seconds (less frequent to avoid spam)
+        // Monitor tab URL changes directly (more reliable)
+        chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+            // Only process if URL changed and it's a LinkedIn page
+            if (changeInfo.url && tab.url && tab.url.includes('linkedin.com')) {
+                // Get current active tab
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs && tabs.length > 0 && tabs[0].id === tabId) {
+                        const currentUrl = tab.url;
+                        if (currentUrl !== this.lastKnownUrl) {
+                            this.lastKnownUrl = currentUrl;
+                            
+                            // Clear existing contact immediately
+                            this.currentExistingContact = null;
+                            this.currentPageData = null;
+                            
+                            // Request fresh data extraction
+                            setTimeout(() => {
+                                this.requestPageData();
+                            }, 800);
+                        }
+                    }
+                });
+            }
+        });
+
+        // More aggressive periodic refresh every 2 seconds to catch URL changes
         setInterval(() => {
-            console.log('⏰ Periodic data refresh');
-            this.requestPageData();
-        }, 10000);
+            this.checkAndRefreshIfUrlChanged();
+        }, 2000);
+    }
+
+    async checkAndRefreshIfUrlChanged() {
+        try {
+            // Get current tab URL
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab || !tab.url || !tab.url.includes('linkedin.com')) {
+                return;
+            }
+
+            const currentUrl = tab.url;
+            
+            // Check if URL has changed
+            if (this.lastKnownUrl && currentUrl !== this.lastKnownUrl) {
+                
+                // FORCE clear existing contact data - this is critical!
+                this.currentExistingContact = null;
+                this.currentPageData = null;
+                this.lastKnownUrl = currentUrl;
+                
+                // Immediately request fresh data
+                await this.requestPageData();
+            } else if (!this.lastKnownUrl) {
+                // First time, just set it
+                this.lastKnownUrl = currentUrl;
+            }
+        } catch (error) {
+            console.error('Error checking URL change:', error);
+        }
     }
 
     handleMessage(message, sender, sendResponse) {
+        if (!message || !message.type) {
+            console.warn('Received message without type:', message);
+            sendResponse({ success: false, error: 'Invalid message format' });
+            return;
+        }
+
         switch (message.type) {
             case 'PAGE_DATA_UPDATED':
-                this.currentPageData = message.data;
-                this.updateUI();
+            case 'PAGE_DATA_FOR_SIDEBAR':
+                const newData = message.data || message;
+                const newUrl = newData.url || message.url;
+                const oldUrl = this.currentPageData?.url || this.lastKnownUrl;
+                
+                // CRITICAL: Clear existing contact if URL changed
+                if (oldUrl && newUrl && oldUrl !== newUrl) {
+                    this.currentExistingContact = null;
+                    this.currentPageData = null;
+                }
+                
+                // Update last known URL
+                if (newUrl) {
+                    this.lastKnownUrl = newUrl;
+                }
+                
+                // Format data properly
+                const formattedData = newData.data ? newData : { data: newData, url: newUrl };
+                this.currentPageData = formattedData;
+                
+                // If authenticated, check for existing contact
+                if (this.isAuthenticated && formattedData.data) {
+                    const linkedInUrl = formattedData.data.linkedInUrl || formattedData.data.profileUrl;
+                    if (linkedInUrl) {
+                        this.checkExistingContact(linkedInUrl).then((result) => {
+                            if (result && result.exists) {
+                                this.showExistingLeadDetails(result.contact, formattedData.data);
+                            } else {
+                                this.updateUI();
+                            }
+                        }).catch(() => {
+                            this.updateUI();
+                        });
+                    } else {
+                        this.updateUI();
+                    }
+                } else {
+                    this.updateUI();
+                }
                 sendResponse({ success: true });
                 break;
 
@@ -2095,8 +2487,15 @@ class SidebarController {
                 });
                 break;
 
+            case 'CLOSE_SIDEPANEL':
+                // Close sidePanel when requested (e.g., when navigating away from LinkedIn)
+                this.closeSidePanel(message.reason || 'requested');
+                sendResponse({ success: true });
+                break;
+
             default:
-                sendResponse({ success: false, error: 'Unknown message type' });
+                // Don't show error for unknown message types - just log it
+                sendResponse({ success: true, note: 'Message type not handled by sidebar' });
         }
     }
 

@@ -9,7 +9,12 @@ import projectService from "../../lib/projectService";
 import apiClient from "../../lib/apiClient";
 import { useAuth } from "../../contexts/AuthContext";
 
-const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null }) => {
+const AddTaskModal = ({
+  isOpen,
+  onClose,
+  onTaskCreated,
+  initialProjectId = null,
+}) => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [projects, setProjects] = useState([]);
@@ -18,7 +23,7 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    project: "",
+    projects: [], // Changed to array for multiple projects
     assignees: [], // Changed to array for multiple assignees
     scheduledDate: "",
     priority: "MEDIUM",
@@ -29,7 +34,6 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
   // Debug: Log form data changes
   useEffect(() => {
     if (isOpen) {
-      console.log("Form data:", formData);
     }
   }, [formData, isOpen]);
   const [newTag, setNewTag] = useState("");
@@ -44,7 +48,7 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
       if (initialProjectId) {
         setFormData((prev) => ({
           ...prev,
-          project: String(initialProjectId),
+          projects: [String(initialProjectId)],
         }));
       }
     } else {
@@ -52,7 +56,7 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
       setFormData({
         title: "",
         description: "",
-        project: "",
+        projects: [], // Changed to array
         assignees: [], // Changed to array
         scheduledDate: "",
         priority: "MEDIUM",
@@ -179,12 +183,12 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
     // Set initial project after projects are loaded
     if (initialProjectId) {
       const projectExists = projectsData.some(
-        (p) => String(p.id) === String(initialProjectId)
+        (p) => String(p.id) === String(initialProjectId),
       );
       if (projectExists) {
         setFormData((prev) => ({
           ...prev,
-          project: String(initialProjectId),
+          projects: [String(initialProjectId)],
         }));
       }
     }
@@ -238,25 +242,30 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
       const assigneeIds = formData.assignees
         .map((id) => parseInt(id))
         .filter((id) => !isNaN(id));
-      
+
       // First assignee becomes the main assignee, and ALL selected users (including first) go to collaborators
       const primaryAssignee = assigneeIds.length > 0 ? assigneeIds[0] : null;
       // Include all assignees (including the first one) in collaborators
       const collaborators = assigneeIds.length > 0 ? assigneeIds : [];
-      
+
+      // Convert project IDs to integers
+      const projectIds = formData.projects
+        .map((id) => parseInt(id))
+        .filter((id) => !isNaN(id));
+
       const taskData = {
         title: formData.title,
         description: formData.description || "",
         // Projects is optional - only include if provided and not empty
         // Backend expects projects as an array
-        ...(formData.project && formData.project !== "" && { 
-          projects: [parseInt(formData.project)]
+        ...(projectIds.length > 0 && {
+          projects: projectIds,
         }),
         // Primary assignee (first selected)
         assignee: primaryAssignee,
         // All selected users (including first assignee) as collaborators
-        ...(collaborators.length > 0 && { 
-          collaborators: collaborators 
+        ...(collaborators.length > 0 && {
+          collaborators: collaborators,
         }),
         scheduledDate: formData.scheduledDate
           ? new Date(formData.scheduledDate + "T00:00:00").toISOString()
@@ -269,18 +278,8 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
         createdBy: user?.id || user?._id || user?.xtrawrkxUserId || 1,
       };
 
-      console.log("Creating task with data:", taskData);
-      console.log("Form data values:", {
-        project: formData.project,
-        assignees: formData.assignees,
-        projectParsed: formData.project ? parseInt(formData.project) : null,
-        assigneesParsed: assigneeIds,
-        primaryAssignee: primaryAssignee,
-        collaborators: collaborators,
-      });
-      
+
       const response = await taskService.createTask(taskData);
-      console.log("Task created response:", response);
 
       // Fetch the created task with populated relations to ensure assignee and project are included
       if (response?.id || response?.data?.id) {
@@ -292,8 +291,7 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
             "createdBy",
             "collaborators",
           ]);
-          console.log("Populated task:", populatedTask);
-          
+
           // Handle Strapi response format - response.data is already returned from taskService
           if (onTaskCreated) {
             onTaskCreated(populatedTask || response);
@@ -428,14 +426,99 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
                     />
                   </div>
 
-                  <Select
-                    label="Project"
-                    value={formData.project}
-                    onChange={(value) => handleInputChange("project", value)}
-                    options={projectOptions}
-                    placeholder="Select a project (optional)"
-                    error={errors.project}
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Projects
+                    </label>
+                    <div className="space-y-2">
+                      {/* Selected Projects */}
+                      {formData.projects.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {formData.projects.map((projectId) => {
+                            const selectedProject = projects.find(
+                              (p) => String(p.id) === String(projectId),
+                            );
+                            if (!selectedProject) return null;
+                            const projectName =
+                              selectedProject.name || "Unknown Project";
+                            return (
+                              <span
+                                key={projectId}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"
+                              >
+                                {projectName}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      projects: prev.projects.filter(
+                                        (id) => id !== projectId,
+                                      ),
+                                    }));
+                                    if (errors.projects) {
+                                      setErrors((prev) => ({
+                                        ...prev,
+                                        projects: "",
+                                      }));
+                                    }
+                                  }}
+                                  className="hover:bg-green-200 rounded-full p-0.5 transition-colors"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* Project Select Dropdown */}
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          if (
+                            selectedId &&
+                            !formData.projects.includes(selectedId)
+                          ) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              projects: [...prev.projects, selectedId],
+                            }));
+                            if (errors.projects) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                projects: "",
+                              }));
+                            }
+                          }
+                          e.target.value = ""; // Reset select
+                        }}
+                        className="block w-full rounded-lg border shadow-sm appearance-none px-3 py-2.5 pr-10 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 border-gray-300"
+                      >
+                        <option value="">
+                          {formData.projects.length === 0
+                            ? "Select projects..."
+                            : "Add another project..."}
+                        </option>
+                        {projectOptions
+                          .filter(
+                            (option) =>
+                              !formData.projects.includes(option.value),
+                          )
+                          .map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                      </select>
+                      {errors.projects && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.projects}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -447,7 +530,7 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
                         <div className="flex flex-wrap gap-2 mb-2">
                           {formData.assignees.map((assigneeId) => {
                             const selectedUser = users.find(
-                              (u) => String(u.id) === String(assigneeId)
+                              (u) => String(u.id) === String(assigneeId),
                             );
                             if (!selectedUser) return null;
                             const userName =
@@ -467,7 +550,7 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
                                     setFormData((prev) => ({
                                       ...prev,
                                       assignees: prev.assignees.filter(
-                                        (id) => id !== assigneeId
+                                        (id) => id !== assigneeId,
                                       ),
                                     }));
                                     if (errors.assignees) {
@@ -491,7 +574,10 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
                         value=""
                         onChange={(e) => {
                           const selectedId = e.target.value;
-                          if (selectedId && !formData.assignees.includes(selectedId)) {
+                          if (
+                            selectedId &&
+                            !formData.assignees.includes(selectedId)
+                          ) {
                             setFormData((prev) => ({
                               ...prev,
                               assignees: [...prev.assignees, selectedId],
@@ -515,7 +601,7 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
                         {userOptions
                           .filter(
                             (option) =>
-                              !formData.assignees.includes(option.value)
+                              !formData.assignees.includes(option.value),
                           )
                           .map((option) => (
                             <option key={option.value} value={option.value}>
@@ -657,7 +743,7 @@ const AddTaskModal = ({ isOpen, onClose, onTaskCreated, initialProjectId = null 
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="px-6 py-2 text-gray-800 bg-white border-2 border-gray-400 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 font-medium"
           >
             Cancel
           </button>

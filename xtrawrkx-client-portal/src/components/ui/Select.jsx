@@ -30,7 +30,7 @@ export function Select({
           className={clsx(
             "block w-full rounded-lg border shadow-sm appearance-none",
             "px-3 py-2.5 pr-10 text-gray-900",
-            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+            "focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent",
             "transition-colors duration-200",
             error ? "border-red-300" : "border-gray-300",
             className

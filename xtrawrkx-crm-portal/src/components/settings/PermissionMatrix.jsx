@@ -52,7 +52,6 @@ export default function PermissionMatrix({
   };
 
   const handleSave = () => {
-    console.log("Saving permission matrix:", matrix);
     setHasChanges(false);
     // Here you would typically send the matrix to your backend
   };

@@ -76,7 +76,6 @@ export default function BrandingForm() {
   };
 
   const handleSave = () => {
-    console.log("Saving branding data:", brandingData);
     setIsEditing(false);
   };
 

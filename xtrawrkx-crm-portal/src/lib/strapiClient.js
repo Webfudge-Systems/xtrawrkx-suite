@@ -58,7 +58,6 @@ class StrapiClient {
             config.body = JSON.stringify(config.body);
         }
 
-        console.log(`Making request to: ${url}`, { method: config.method || 'GET' });
 
         try {
             const response = await fetch(url, config);

@@ -26,7 +26,6 @@ class Logger {
 
     log(...args) {
         if (this.debugMode) {
-            console.log(...args);
         }
     }
 
@@ -49,7 +48,6 @@ class Logger {
 
     info(...args) {
         if (this.debugMode) {
-            console.info(...args);
         }
     }
 

@@ -30,6 +30,7 @@ import {
   Star,
   ArrowRight,
   UserCircle,
+  User,
   Award,
   CheckCircle2,
   XCircle,
@@ -274,19 +275,15 @@ const ClientAccountDetailPage = ({ params }) => {
   const fetchDeals = async (accountId) => {
     try {
       setDealsLoading(true);
-      console.log("Fetching deals for client account ID:", accountId);
 
       // Ensure we use the correct ID format (id or documentId)
       const accountIdToUse =
         accountId?.id || accountId?.documentId || accountId;
-      console.log("Using account ID:", accountIdToUse);
 
       const response = await dealService.getByClientAccount(accountIdToUse);
-      console.log("Deals response:", response);
 
       // Handle different response structures
       const dealsData = response?.data || response || [];
-      console.log("Deals data:", dealsData);
 
       // Transform Strapi data to flatten attributes structure
       const transformedDeals = (Array.isArray(dealsData) ? dealsData : []).map(
@@ -481,7 +478,6 @@ const ClientAccountDetailPage = ({ params }) => {
 
     try {
       setProjectsLoading(true);
-      console.log("Fetching projects for client account ID:", accountIdToUse);
 
       // Fetch all projects and filter by clientAccount client-side
       // This is more reliable than server-side filtering until the relation is fully set up
@@ -492,23 +488,11 @@ const ClientAccountDetailPage = ({ params }) => {
 
       // Log the first project's full structure to debug
       if (allProjects?.data && allProjects.data.length > 0) {
-        console.log(
-          "First project full structure:",
-          JSON.stringify(allProjects.data[0], null, 2)
-        );
       }
 
-      console.log("All projects fetched:", allProjects);
-      console.log(
-        "Looking for client account ID:",
-        accountIdToUse,
-        "Type:",
-        typeof accountIdToUse
-      );
 
       // Filter projects by clientAccount ID
       const projectsData = allProjects?.data || [];
-      console.log("Total projects fetched:", projectsData.length);
 
       const filteredProjects = projectsData.filter((project) => {
         const projectData = project.attributes || project;
@@ -540,16 +524,9 @@ const ClientAccountDetailPage = ({ params }) => {
         }
 
         // Debug logging for each project
-        console.log("Project:", projectData.name, {
-          clientAccountRaw: projectData.clientAccount,
-          clientAccountId: projectClientAccountId,
-          accountIdToUse: accountIdToUse,
-          projectFull: project,
-        });
 
         // If clientAccount is null or undefined, skip this project
         if (!projectClientAccountId) {
-          console.log("  -> Skipping: No clientAccount ID found");
           return false;
         }
 
@@ -572,29 +549,12 @@ const ClientAccountDetailPage = ({ params }) => {
           parseInt(projectClientAccountId) === parseInt(accountIdToUse);
 
         if (matches) {
-          console.log(
-            "  -> ✅ MATCH FOUND! Project:",
-            projectData.name,
-            "matches account:",
-            accountIdToUse
-          );
         } else {
-          console.log(
-            "  -> ❌ No match. Project clientAccountId:",
-            projectClientAccountIdNum,
-            "vs Account ID:",
-            accountIdNum
-          );
         }
 
         return matches;
       });
 
-      console.log(
-        "Projects filtered by clientAccount:",
-        filteredProjects.length,
-        "projects found"
-      );
 
       // Transform projects to match UI format
       const transformedProjects = filteredProjects.map((project) => {
@@ -1102,7 +1062,6 @@ const ClientAccountDetailPage = ({ params }) => {
       });
       setContacts(contactsData.data || []);
 
-      console.log(`Contact ${contactId} set as primary contact`);
     } catch (error) {
       console.error("Error setting primary contact:", error);
       alert("Failed to set primary contact");
@@ -1285,11 +1244,11 @@ const ClientAccountDetailPage = ({ params }) => {
           {value > 0 ? (
             <>
               <span className="font-semibold text-gray-900">
-                ${(value || 0).toLocaleString()}
+                ₹{(value || 0).toLocaleString()}
               </span>
               {row.spent > 0 && (
                 <div className="text-xs text-gray-500">
-                  Spent: ${(row.spent || 0).toLocaleString()}
+                  Spent: ₹{(row.spent || 0).toLocaleString()}
                 </div>
               )}
             </>
@@ -1765,7 +1724,7 @@ const ClientAccountDetailPage = ({ params }) => {
 
             <div className="text-right">
               <div className="text-2xl font-bold text-gray-900">
-                ${totalDealValue.toLocaleString()}
+                ₹{totalDealValue.toLocaleString()}
               </div>
               <div className="text-sm text-gray-600">Total Deal Value</div>
               {account.conversionDate && (
@@ -1960,7 +1919,7 @@ const ClientAccountDetailPage = ({ params }) => {
                       </label>
                       <span className="text-gray-900">
                         {account.revenue
-                          ? `$${account.revenue.toLocaleString()}`
+                          ? `₹${account.revenue.toLocaleString()}`
                           : "Not specified"}
                       </span>
                     </div>
@@ -2024,72 +1983,6 @@ const ClientAccountDetailPage = ({ params }) => {
                         </div>
                       </div>
                     )}
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        Account Manager
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <Avatar
-                          alt={
-                            account.accountManager
-                              ? `${account.accountManager.firstName} ${account.accountManager.lastName}`
-                              : "Unassigned"
-                          }
-                          fallback={(
-                            account.accountManager?.firstName ||
-                            account.accountManager?.lastName ||
-                            "?"
-                          )
-                            .charAt(0)
-                            .toUpperCase()}
-                          size="sm"
-                        />
-                        <div className="flex-1">
-                          <div className="text-gray-900">
-                            {account.accountManager
-                              ? `${account.accountManager.firstName} ${account.accountManager.lastName}`
-                              : "Not assigned"}
-                          </div>
-                          {account.accountManager && (
-                            <div className="text-sm text-gray-500">
-                              {(() => {
-                                const accountManager = account.accountManager;
-
-                                // Handle different Strapi response structures
-                                const roleName =
-                                  accountManager.primaryRole?.name ||
-                                  accountManager.primaryRole?.data?.attributes
-                                    ?.name ||
-                                  accountManager.primaryRole?.attributes
-                                    ?.name ||
-                                  accountManager.role ||
-                                  null;
-
-                                return roleName || "Account Manager";
-                              })()}
-                            </div>
-                          )}
-                        </div>
-                        {isAdmin() && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedUserId(
-                                account.accountManager?.id?.toString() ||
-                                  account.accountManager?.documentId?.toString() ||
-                                  ""
-                              );
-                              setShowAssignModal(true);
-                            }}
-                            className="ml-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
-                          >
-                            Change
-                          </Button>
-                        )}
-                      </div>
-                    </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -2193,6 +2086,94 @@ const ClientAccountDetailPage = ({ params }) => {
 
               {/* Sidebar */}
               <div className="space-y-6">
+                {/* Account Manager */}
+                <div className="bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Account Manager
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Avatar
+                      alt={
+                        account.accountManager
+                          ? `${account.accountManager.firstName || ""} ${
+                              account.accountManager.lastName || ""
+                            }`.trim() ||
+                            account.accountManager.username ||
+                            "Unknown"
+                          : "Unassigned"
+                      }
+                      fallback={
+                        account.accountManager
+                          ? (
+                              `${account.accountManager.firstName || ""} ${
+                                account.accountManager.lastName || ""
+                              }`.trim() ||
+                              account.accountManager.username ||
+                              "?"
+                            )
+                              .charAt(0)
+                              .toUpperCase()
+                          : "?"
+                      }
+                      size="lg"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">
+                        {account.accountManager
+                          ? `${account.accountManager.firstName || ""} ${
+                              account.accountManager.lastName || ""
+                            }`.trim() ||
+                            account.accountManager.username ||
+                            "Unknown"
+                          : "Unassigned"}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        {(() => {
+                          const accountManager = account.accountManager;
+                          if (!accountManager) return "Account Manager";
+
+                          // Handle different Strapi response structures
+                          const roleName =
+                            accountManager.primaryRole?.name ||
+                            accountManager.primaryRole?.data?.attributes
+                              ?.name ||
+                            accountManager.primaryRole?.attributes?.name ||
+                            accountManager.role ||
+                            null;
+
+                          return roleName || "Account Manager";
+                        })()}
+                      </p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                        <span className="text-sm text-gray-600">
+                          4.9 rating
+                        </span>
+                      </div>
+                    </div>
+                    {isAdmin() && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedUserId(
+                            account.accountManager?.id?.toString() ||
+                              account.accountManager?.documentId?.toString() ||
+                              ""
+                          );
+                          setShowAssignModal(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                      >
+                        <User className="w-4 h-4 mr-2" />
+                        Change Assignee
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Recent Activity */}
                 <div className="bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -2406,14 +2387,14 @@ const ClientAccountDetailPage = ({ params }) => {
                   <Plus className="w-4 h-4 mr-2" />
                   Add Invoice
                 </Button>
-                          </div>
+              </div>
               {invoicesLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
                   <span className="ml-2 text-gray-600">
                     Loading invoices...
-                              </span>
-                            </div>
+                  </span>
+                </div>
               ) : invoices.length > 0 ? (
                 <Table columns={invoiceColumns} data={invoices} />
               ) : (
@@ -2425,9 +2406,9 @@ const ClientAccountDetailPage = ({ params }) => {
                   <p className="text-sm text-gray-500 mt-1">
                     Create invoices to track billing
                   </p>
-                          </div>
+                </div>
               )}
-                        </div>
+            </div>
           )}
 
           {activeTab === "communities" && (
@@ -2438,7 +2419,7 @@ const ClientAccountDetailPage = ({ params }) => {
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
                       <UserCircle className="w-6 h-6 text-white" />
-                        </div>
+                    </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">
                         Selected Communities
@@ -2462,7 +2443,7 @@ const ClientAccountDetailPage = ({ params }) => {
                         {community}
                       </Badge>
                     ))}
-                          </div>
+                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <UserCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -2470,9 +2451,9 @@ const ClientAccountDetailPage = ({ params }) => {
                     <p className="text-sm text-gray-500 mt-1">
                       This account hasn't joined any communities yet
                     </p>
-                        </div>
+                  </div>
                 )}
-                      </div>
+              </div>
 
               {/* Community Memberships */}
               <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
@@ -2481,23 +2462,23 @@ const ClientAccountDetailPage = ({ params }) => {
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
                       <Award className="w-6 h-6 text-white" />
                     </div>
-                            <div>
+                    <div>
                       <h3 className="text-lg font-semibold text-gray-900">
                         Community Memberships
                       </h3>
                       <p className="text-sm text-gray-500">
                         Active and inactive community memberships
                       </p>
-                              </div>
-                              </div>
-                            </div>
+                    </div>
+                  </div>
+                </div>
                 {communitiesLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
                     <span className="ml-2 text-gray-600">
                       Loading memberships...
                     </span>
-                          </div>
+                  </div>
                 ) : communityMemberships.length > 0 ? (
                   <div className="space-y-4">
                     {communityMemberships.map((membership) => {
@@ -2522,7 +2503,7 @@ const ClientAccountDetailPage = ({ params }) => {
                                   isActive ? "text-green-600" : "text-gray-400"
                                 }`}
                               />
-                          </div>
+                            </div>
                             <div>
                               <div className="flex items-center gap-2">
                                 <h4 className="font-semibold text-gray-900">
@@ -2556,15 +2537,15 @@ const ClientAccountDetailPage = ({ params }) => {
                                     {new Date(
                                       membershipData.joinedAt
                                     ).toLocaleDateString()}
-                                </span>
-                          )}
+                                  </span>
+                                )}
                                 {membershipData.membershipData
                                   ?.joinedViaOnboarding && (
                                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
                                     Via Onboarding
-                                </span>
-                          )}
-                        </div>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -2573,48 +2554,48 @@ const ClientAccountDetailPage = ({ params }) => {
                             ) : (
                               <XCircle className="w-5 h-5 text-gray-400" />
                             )}
-                      </div>
-                    </div>
+                          </div>
+                        </div>
                       );
                     })}
-                </div>
-              ) : (
+                  </div>
+                ) : (
                   <div className="text-center py-8">
                     <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-600">
                       No community memberships found
-                  </p>
+                    </p>
                     <p className="text-sm text-gray-500 mt-1">
                       This account hasn't joined any communities yet
                     </p>
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
 
               {/* Community Submissions */}
-            <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
+              <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
                       <FileText className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                      <h3 className="text-lg font-semibold text-gray-900">
                         Community Submissions
-                </h3>
+                      </h3>
                       <p className="text-sm text-gray-500">
                         Applications and submissions to communities
                       </p>
-              </div>
+                    </div>
                   </div>
                 </div>
                 {communitiesLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
-                  <span className="ml-2 text-gray-600">
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                    <span className="ml-2 text-gray-600">
                       Loading submissions...
-                  </span>
-                </div>
+                    </span>
+                  </div>
                 ) : communitySubmissions.length > 0 ? (
                   <div className="space-y-4">
                     {communitySubmissions.map((submission) => {
@@ -2671,7 +2652,6 @@ const ClientAccountDetailPage = ({ params }) => {
                             size="sm"
                             onClick={() => {
                               // View submission details
-                              console.log("View submission:", submission);
                             }}
                           >
                             <Eye className="w-4 h-4" />
@@ -2680,18 +2660,18 @@ const ClientAccountDetailPage = ({ params }) => {
                       );
                     })}
                   </div>
-              ) : (
-                <div className="text-center py-8">
+                ) : (
+                  <div className="text-center py-8">
                     <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-600">
+                    <p className="text-gray-600">
                       No community submissions found
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
                       This account hasn't submitted any community applications
                       yet
-                  </p>
-                </div>
-              )}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2936,80 +2916,95 @@ const ClientAccountDetailPage = ({ params }) => {
       {/* Assign Account Manager Modal */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-xl rounded-2xl border border-white/40 shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Change Assignee
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Assign account to a team member
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <p className="text-gray-700 mb-4">
-                Select a user to assign <strong>{account.companyName}</strong>{" "}
-                to:
-              </p>
-              <Select
-                label="Assign To"
-                value={selectedUserId}
-                onChange={setSelectedUserId}
-                options={[
-                  { value: "", label: "Unassigned" },
-                  ...users.map((u) => ({
-                    value: (u.id || u.documentId).toString(),
-                    label:
-                      `${u.firstName || ""} ${u.lastName || ""}`.trim() ||
-                      u.username ||
-                      "Unknown User",
-                  })),
-                ]}
-                disabled={loadingUsers}
-              />
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  setShowAssignModal(false);
-                  setSelectedUserId("");
-                }}
-                variant="outline"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  try {
-                    await clientAccountService.update(id, {
-                      accountManager: selectedUserId || null,
-                    });
-                    // Refresh account details with proper population
-                    await fetchAccountDetails();
-                    // Dispatch custom event to notify list page
-                    window.dispatchEvent(
-                      new CustomEvent("accountUpdated", {
-                        detail: { accountId: id },
-                      })
-                    );
+          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-xl rounded-2xl border border-white/40 shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                    <Users className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Change Assignee
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Assign account to a team member
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => {
                     setShowAssignModal(false);
                     setSelectedUserId("");
-                  } catch (error) {
-                    console.error("Error updating assignee:", error);
-                    alert("Failed to update assignee. Please try again.");
-                  }
-                }}
-                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
-              >
-                Update Assignee
-              </Button>
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                  variant="ghost"
+                  size="sm"
+                >
+                  ✕
+                </Button>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-gray-700 mb-4">
+                  Select a user to assign{" "}
+                  <strong>{account?.companyName}</strong> to:
+                </p>
+                <Select
+                  label="Assign To"
+                  value={selectedUserId}
+                  onChange={setSelectedUserId}
+                  options={[
+                    { value: "", label: "Unassigned" },
+                    ...users.map((u) => ({
+                      value: (u.id || u.documentId).toString(),
+                      label:
+                        `${u.firstName || ""} ${u.lastName || ""}`.trim() ||
+                        u.username ||
+                        "Unknown User",
+                    })),
+                  ]}
+                  disabled={loadingUsers}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setSelectedUserId("");
+                  }}
+                  variant="outline"
+                  className="flex-1 border-gray-200 hover:bg-gray-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      await clientAccountService.update(id, {
+                        accountManager: selectedUserId || null,
+                      });
+                      // Refresh account details with proper population
+                      await fetchAccountDetails();
+                      // Dispatch custom event to notify list page
+                      window.dispatchEvent(
+                        new CustomEvent("accountUpdated", {
+                          detail: { accountId: id },
+                        })
+                      );
+                      setShowAssignModal(false);
+                      setSelectedUserId("");
+                    } catch (error) {
+                      console.error("Error updating assignee:", error);
+                      alert("Failed to update assignee. Please try again.");
+                    }
+                  }}
+                  className="flex-1 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-lg"
+                >
+                  Update Assignee
+                </Button>
+              </div>
             </div>
           </div>
         </div>

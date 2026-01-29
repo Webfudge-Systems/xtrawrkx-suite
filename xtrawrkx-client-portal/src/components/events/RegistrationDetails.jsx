@@ -31,7 +31,6 @@ export default function RegistrationDetails({ event, onEdit }) {
 
   const handleSave = () => {
     // Here you would typically save the changes to your backend
-    console.log("Saving registration details:", editedDetails);
     setIsEditing(false);
     // You might want to show a success message here
   };
@@ -85,7 +84,6 @@ export default function RegistrationDetails({ event, onEdit }) {
             size="md"
             text="Register Now"
             onClick={() => {
-              console.log("Register for event:", event.id);
             }}
             className="w-full"
           />

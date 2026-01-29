@@ -16,7 +16,11 @@ import PageHeader from "../components/shared/PageHeader";
 import { useAuth } from "../contexts/AuthContext";
 import projectService from "../lib/projectService";
 import taskService from "../lib/taskService";
-import { transformProject, transformTask } from "../lib/dataTransformers";
+import {
+  transformProject,
+  transformTask,
+  transformStatusToStrapi,
+} from "../lib/dataTransformers";
 import apiClient from "../lib/apiClient";
 
 // Helper function to get greeting
@@ -302,17 +306,31 @@ export default function DashboardPage() {
 
   // Handle task completion
   const handleTaskComplete = async (taskId, newStatus) => {
-    try {
-      await taskService.updateTaskStatus(taskId, newStatus);
+    if (!taskId || !newStatus) return;
 
-      setAssignedTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task.id === taskId ? { ...task, status: newStatus } : task
-        )
-      );
+    // Optimistically update UI immediately for instant feedback
+    setAssignedTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, status: newStatus } : task,
+      ),
+    );
+
+    try {
+      // Transform to Strapi format before sending to API
+      const strapiStatus = transformStatusToStrapi(newStatus);
+      await taskService.updateTaskStatus(taskId, strapiStatus);
     } catch (error) {
       console.error("Error updating task status:", error);
+      // On error, we could revert the optimistic update, but for now just log
     }
+  };
+
+  const handleTaskUpdate = async (taskId, updates) => {
+    setAssignedTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, ...updates } : task,
+      ),
+    );
   };
 
   // Get real projects data
@@ -365,11 +383,11 @@ export default function DashboardPage() {
           status === "Completed"
             ? "Completed"
             : endDate
-            ? endDate.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-              })
-            : "No due date",
+              ? endDate.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })
+              : "No due date",
         team,
       };
     });
@@ -456,12 +474,13 @@ export default function DashboardPage() {
               <AssignedTasksTable
                 data={assignedTasks}
                 onTaskComplete={handleTaskComplete}
+                onTaskUpdate={handleTaskUpdate}
                 projects={projects}
               />
             </div>
             <div className="space-y-6">
               <ProjectsTable data={projectsData.slice(0, 4)} />
-              <RecentActivity />
+              {/* <RecentActivity /> */}
             </div>
           </div>
 

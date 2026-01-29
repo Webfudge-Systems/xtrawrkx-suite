@@ -29,7 +29,6 @@ class AuthService {
         const authToken = localStorage.getItem('authToken');
         if (authToken) {
             // Migrate to new format if we have the token but not the user data
-            console.log('Found authToken in legacy format, migrating...');
             return authToken;
         }
 
@@ -107,7 +106,6 @@ class AuthService {
         }
 
         // Token is expired or missing - user must login manually
-        console.log('Token expired or missing. User must login manually.');
         return null;
     }
 
@@ -131,7 +129,6 @@ class AuthService {
         }
 
         try {
-            console.log('Attempting auto-login...');
             const response = await fetch(`${this.API_BASE_URL}/auth/internal/login`, {
                 method: "POST",
                 headers: {
@@ -143,12 +140,9 @@ class AuthService {
                 }),
             });
 
-            console.log('Auto-login response status:', response.status);
 
             if (response.ok) {
                 const authData = await response.json();
-                console.log('Auto-login successful:', authData.user.email);
-                console.log('Received token:', authData.token ? 'Yes' : 'No');
 
                 // Store the new token and user data
                 this.setUserData({
@@ -184,7 +178,6 @@ class AuthService {
 
             if (response.ok) {
                 const authData = await response.json();
-                console.log('Login successful:', authData.user.email);
 
                 // Store the token and user data
                 this.setUserData({
@@ -219,8 +212,6 @@ class AuthService {
     static async apiRequest(endpoint, options = {}) {
         try {
             const token = await this.refreshTokenIfNeeded();
-            console.log('Making API request to:', `${this.API_BASE_URL}${endpoint}`);
-            console.log('Token available:', !!token);
 
             if (!token) {
                 throw new Error('Authentication required');
@@ -239,7 +230,6 @@ class AuthService {
                 config.headers['Content-Type'] = 'application/json';
             }
 
-            console.log('Request config:', config);
             const response = await fetch(`${this.API_BASE_URL}${endpoint}`, config);
 
             if (!response.ok) {
@@ -248,7 +238,6 @@ class AuthService {
                     const currentToken = this.getToken();
                     if (currentToken && this.isTokenExpired(currentToken)) {
                         // Token is expired, clear auth
-                        console.log('Token expired, clearing auth');
                         this.clearAuth();
                         throw new Error('Authentication failed: Token expired');
                     } else if (!currentToken) {

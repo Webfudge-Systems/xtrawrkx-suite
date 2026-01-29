@@ -11,7 +11,8 @@ export function Button({
   const variants = {
     primary: "bg-blue-600 hover:bg-blue-700 text-white",
     secondary: "bg-gray-200 hover:bg-gray-300 text-gray-900",
-    outline: "border border-gray-300 hover:bg-gray-50 text-gray-700",
+    outline:
+      "border-2 border-gray-400 bg-white text-gray-800 hover:bg-gray-100 hover:border-gray-500",
     ghost: "hover:bg-gray-100 text-gray-700",
     danger: "bg-red-600 hover:bg-red-700 text-white",
   };
@@ -30,7 +31,7 @@ export function Button({
         "disabled:opacity-50 disabled:cursor-not-allowed",
         variants[variant],
         sizes[size],
-        className
+        className,
       )}
       disabled={disabled}
       {...props}
@@ -41,4 +42,3 @@ export function Button({
 }
 
 export default Button;
-

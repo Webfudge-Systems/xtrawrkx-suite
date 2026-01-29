@@ -1164,26 +1164,6 @@ function ServicesContent() {
                             text="Manage"
                             size="sm"
                             onClick={() =>
-                              console.log(`Manage ${service.title}`)
-                            }
-                          />
-                        ) : (
-                          <ModernButton
-                            type="primary"
-                            text="Upgrade to X4"
-                            size="sm"
-                            icon={ArrowUpRight}
-                            onClick={() =>
-                              console.log(`Upgrade to X4 for ${service.title}`)
-                            }
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
           })}
         </div>
 

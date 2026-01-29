@@ -47,18 +47,6 @@ const CommentsSection = ({ task, subtask }) => {
 
   // Debug: Log component props and user
   useEffect(() => {
-    console.log("=== CommentsSection mounted/updated ===", {
-      hasTask: !!task,
-      taskId: task?.id,
-      hasSubtask: !!subtask,
-      subtaskId: subtask?.id,
-      hasUser: !!user,
-      userId: user?.id,
-      userObject: user,
-      entityId,
-      isSubtask,
-      entityType,
-    });
   }, [task, subtask, user, entityId, isSubtask, entityType]);
 
   // Load users for mentions
@@ -209,7 +197,7 @@ const CommentsSection = ({ task, subtask }) => {
 
         // Filter to only root comments (no parent)
         const rootComments = filteredComments.filter(
-          (comment) => !comment.parentComment
+          (comment) => !comment.parentComment,
         );
         const transformedComments = rootComments
           .map(transformComment)
@@ -378,15 +366,12 @@ const CommentsSection = ({ task, subtask }) => {
       if (
         userIdToAdd &&
         !mentions.find(
-          (m) => m === userIdToAdd || m === parseInt(userIdToAdd) || String(m) === String(userIdToAdd)
+          (m) =>
+            m === userIdToAdd ||
+            m === parseInt(userIdToAdd) ||
+            String(m) === String(userIdToAdd),
         )
       ) {
-        console.log('Adding user to mentions:', {
-          userId: userIdToAdd,
-          userName: selectedUser.name,
-          currentMentions: mentions,
-          newMentions: [...mentions, userIdToAdd]
-        });
         setMentions([...mentions, userIdToAdd]);
       }
 
@@ -413,7 +398,7 @@ const CommentsSection = ({ task, subtask }) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedMentionIndex((prev) =>
-        Math.min(prev + 1, filteredUsersForMention.length - 1)
+        Math.min(prev + 1, filteredUsersForMention.length - 1),
       );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -430,15 +415,6 @@ const CommentsSection = ({ task, subtask }) => {
   };
 
   const handleAddComment = async () => {
-    console.log("=== handleAddComment START ===");
-    console.log("Input values:", {
-      newComment: newComment.trim(),
-      entityId,
-      hasUser: !!user,
-      user,
-      isSubtask,
-      submitting,
-    });
 
     if (!newComment.trim() || !entityId || !user) {
       console.warn("Cannot add comment: missing data", {
@@ -463,17 +439,8 @@ const CommentsSection = ({ task, subtask }) => {
 
       let createdComment;
       try {
-        console.log("=== Creating comment with mentions ===", {
-          isSubtask,
-          entityId,
-          content: newComment.trim(),
-          userId,
-          mentions: mentions || [],
-          mentionsCount: mentions?.length || 0,
-          mentionsDetails: mentions?.map(m => {
-            const user = users.find(u => u.id === m || u.id === parseInt(m));
-            return { mentionId: m, userName: user?.name || 'Unknown' };
-          }) || []
+              return { mentionId: m, userName: user?.name || "Unknown" };
+            }) || [],
         });
 
         if (isSubtask) {
@@ -481,18 +448,17 @@ const CommentsSection = ({ task, subtask }) => {
             entityId,
             newComment.trim(),
             userId,
-            mentions // Pass mentions array
+            mentions, // Pass mentions array
           );
         } else {
           createdComment = await commentService.createTaskComment(
             entityId,
             newComment.trim(),
             userId,
-            mentions // Pass mentions array
+            mentions, // Pass mentions array
           );
         }
 
-        console.log("Comment created successfully:", createdComment);
       } catch (createError) {
         console.error("Error creating comment:", createError);
         console.error("Error details:", {
@@ -517,7 +483,6 @@ const CommentsSection = ({ task, subtask }) => {
       setMentionQuery("");
 
       // Reload comments to get the latest data from server
-      console.log("Reloading comments after creation...");
       let response;
       try {
         if (isSubtask) {
@@ -529,7 +494,6 @@ const CommentsSection = ({ task, subtask }) => {
             populate: ["user", "replies", "replies.user", "mentions"],
           });
         }
-        console.log("Comments reload response:", response);
       } catch (reloadError) {
         console.error("Error reloading comments:", reloadError);
         // Don't fail the whole operation if reload fails
@@ -549,31 +513,23 @@ const CommentsSection = ({ task, subtask }) => {
         commentsData = [response.data];
       }
 
-      console.log("Extracted commentsData:", commentsData);
-      console.log("Sample comment structure:", commentsData[0]);
 
       // Since backend already filters correctly, we can trust the results
       // But add a safety check to ensure we only show comments for this entity
       const entityIdStr = String(entityId);
       const expectedType = isSubtask ? "SUBTASK" : "TASK";
 
-      console.log("Filtering parameters:", {
-        entityIdStr,
-        isSubtask,
-        expectedType,
-        totalComments: commentsData.length,
-      });
 
       // Backend already filters, so we just do a simple safety check
       const filteredComments = commentsData.filter((comment) => {
         // Get commentableId - try multiple ways
         const commentableId = String(
-          comment.commentableId || comment.commentable?.id || ""
+          comment.commentableId || comment.commentable?.id || "",
         );
 
         // Get commentableType
         const commentableType = String(
-          comment.commentableType || comment.commentable?.type || ""
+          comment.commentableType || comment.commentable?.type || "",
         ).toUpperCase();
 
         // Simple matching - backend already did the heavy filtering
@@ -595,47 +551,24 @@ const CommentsSection = ({ task, subtask }) => {
               commentableType,
               expectedType,
               matchesType,
-            }
+            },
           );
         }
 
         return matches;
       });
 
-      console.log("Filtering results:", {
-        totalComments: commentsData.length,
-        filteredComments: filteredComments.length,
-        entityIdStr,
-        isSubtask,
-        expectedType,
-        sampleFiltered: filteredComments.slice(0, 2).map((c) => ({
-          id: c.id,
-          commentableId: c.commentableId,
-          commentableType: c.commentableType,
-        })),
-      });
 
       const rootComments = filteredComments.filter(
-        (comment) => !comment.parentComment
+        (comment) => !comment.parentComment,
       );
       const transformedComments = rootComments
         .map(transformComment)
         .filter(Boolean);
 
-      console.log("Comments after reload:", {
-        totalComments: commentsData.length,
-        filteredComments: filteredComments.length,
-        rootComments: rootComments.length,
-        transformedComments: transformedComments.length,
-        transformedComments,
-      });
 
       // If we have a created comment but it's not in the list, add it manually
       if (createdComment && transformedComments.length === comments.length) {
-        console.log(
-          "Created comment not found in reload, adding manually:",
-          createdComment
-        );
         const transformedCreatedComment = transformComment(createdComment);
         if (
           transformedCreatedComment &&
@@ -652,7 +585,6 @@ const CommentsSection = ({ task, subtask }) => {
       setNewComment("");
       setShowMentionDropdown(false);
       setMentionQuery("");
-      console.log("Comment added successfully and UI updated");
 
       // Scroll to bottom after adding comment
       setTimeout(() => {
@@ -692,7 +624,7 @@ const CommentsSection = ({ task, subtask }) => {
       await commentService.replyToComment(
         parentCommentId,
         replyContent,
-        userId
+        userId,
       );
 
       // Reload comments
@@ -735,7 +667,7 @@ const CommentsSection = ({ task, subtask }) => {
       });
 
       const rootComments = filteredComments.filter(
-        (comment) => !comment.parentComment
+        (comment) => !comment.parentComment,
       );
       const transformedComments = rootComments
         .map(transformComment)
@@ -769,7 +701,7 @@ const CommentsSection = ({ task, subtask }) => {
     if (mentions && Array.isArray(mentions)) {
       mentions.forEach((mentionId) => {
         const mentionedUser = users.find(
-          (u) => u.id === mentionId || u.id === parseInt(mentionId)
+          (u) => u.id === mentionId || u.id === parseInt(mentionId),
         );
         if (mentionedUser) {
           mentionMap.set(mentionId.toString(), mentionedUser.name);
@@ -790,14 +722,14 @@ const CommentsSection = ({ task, subtask }) => {
         parts.push(
           <span key={`text-${lastIndex}`}>
             {content.substring(lastIndex, match.index)}
-          </span>
+          </span>,
         );
       }
 
       const mentionText = match[1];
       // Check if this mention matches any user in the mentions array
       const isMentioned = Array.from(mentionMap.values()).some(
-        (name) => name.toLowerCase() === mentionText.toLowerCase()
+        (name) => name.toLowerCase() === mentionText.toLowerCase(),
       );
 
       if (isMentioned) {
@@ -808,14 +740,14 @@ const CommentsSection = ({ task, subtask }) => {
             className="font-semibold text-blue-600 bg-blue-50 px-1 rounded"
           >
             {match[0]}
-          </span>
+          </span>,
         );
       } else {
         // Regular @mention that's not in the mentions array
         parts.push(
           <span key={`mention-${match.index}`} className="text-blue-500">
             {match[0]}
-          </span>
+          </span>,
         );
       }
 
@@ -825,7 +757,7 @@ const CommentsSection = ({ task, subtask }) => {
     // Add remaining text
     if (lastIndex < content.length) {
       parts.push(
-        <span key={`text-${lastIndex}`}>{content.substring(lastIndex)}</span>
+        <span key={`text-${lastIndex}`}>{content.substring(lastIndex)}</span>,
       );
     }
 
@@ -894,7 +826,7 @@ const CommentsSection = ({ task, subtask }) => {
             {filteredComments.map((comment) => {
               const userDisplay = getUserDisplay(comment.user);
               const timestamp = getTimeAgo(
-                comment.createdAt || comment.timestamp
+                comment.createdAt || comment.timestamp,
               );
               const isReplying = replyingTo === comment.id;
 
@@ -919,7 +851,10 @@ const CommentsSection = ({ task, subtask }) => {
                     {/* Comment Content */}
                     <div className="bg-gray-50 rounded-lg p-3 mb-2">
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                        {renderCommentContent(comment.content, comment.mentions)}
+                        {renderCommentContent(
+                          comment.content,
+                          comment.mentions,
+                        )}
                       </p>
                     </div>
 
@@ -979,7 +914,7 @@ const CommentsSection = ({ task, subtask }) => {
                                     [comment.id]: "",
                                   }));
                                 }}
-                                className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800"
+                                className="px-3 py-1 text-xs font-medium border border-gray-400 text-gray-800 bg-white hover:bg-gray-100 rounded"
                               >
                                 Cancel
                               </button>
@@ -1008,7 +943,7 @@ const CommentsSection = ({ task, subtask }) => {
                         {comment.replies.map((reply) => {
                           const replyUserDisplay = getUserDisplay(reply.user);
                           const replyTimestamp = getTimeAgo(
-                            reply.createdAt || reply.timestamp
+                            reply.createdAt || reply.timestamp,
                           );
                           return (
                             <div key={reply.id} className="flex gap-2">
@@ -1030,7 +965,10 @@ const CommentsSection = ({ task, subtask }) => {
                                 </div>
                                 <div className="bg-gray-50 rounded-lg p-2">
                                   <p className="text-xs text-gray-700 whitespace-pre-wrap">
-                                    {renderCommentContent(reply.content, reply.mentions)}
+                                    {renderCommentContent(
+                                      reply.content,
+                                      reply.mentions,
+                                    )}
                                   </p>
                                 </div>
                               </div>
@@ -1105,18 +1043,18 @@ const CommentsSection = ({ task, subtask }) => {
                             const newCursorPos = cursorPos + 1;
                             textarea.setSelectionRange(
                               newCursorPos,
-                              newCursorPos
+                              newCursorPos,
                             );
                             // Manually trigger the mention dropdown logic
                             const textBeforeCursor = newValue.substring(
                               0,
-                              newCursorPos
+                              newCursorPos,
                             );
                             const lastAtIndex =
                               textBeforeCursor.lastIndexOf("@");
                             if (lastAtIndex !== -1) {
                               const textAfterAt = textBeforeCursor.substring(
-                                lastAtIndex + 1
+                                lastAtIndex + 1,
                               );
                               if (
                                 !textAfterAt.includes(" ") &&
@@ -1276,8 +1214,8 @@ const CommentsSection = ({ task, subtask }) => {
                           mentions.length === 1 ? "person" : "people"
                         } will be notified`
                       : newComment.trim()
-                      ? "Type @ to mention someone"
-                      : ""}
+                        ? "Type @ to mention someone"
+                        : ""}
                   </span>
                 </div>
                 <button
@@ -1285,16 +1223,6 @@ const CommentsSection = ({ task, subtask }) => {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log("=== Comment button clicked ===", {
-                      newComment: newComment.trim(),
-                      newCommentLength: newComment.trim().length,
-                      submitting,
-                      hasUser: !!user,
-                      user,
-                      entityId,
-                      isSubtask,
-                      buttonDisabled: !newComment.trim() || submitting || !user,
-                    });
                     if (!newComment.trim() || submitting || !user) {
                       console.warn(
                         "Button click ignored - button is disabled",
@@ -1302,7 +1230,7 @@ const CommentsSection = ({ task, subtask }) => {
                           hasComment: !!newComment.trim(),
                           isSubmitting: submitting,
                           hasUser: !!user,
-                        }
+                        },
                       );
                       return;
                     }
@@ -1318,10 +1246,10 @@ const CommentsSection = ({ task, subtask }) => {
                     !user
                       ? "Please log in to add comments"
                       : !newComment.trim()
-                      ? "Enter a comment"
-                      : submitting
-                      ? "Submitting..."
-                      : "Add comment"
+                        ? "Enter a comment"
+                        : submitting
+                          ? "Submitting..."
+                          : "Add comment"
                   }
                 >
                   {submitting ? "Submitting..." : "Comment"}

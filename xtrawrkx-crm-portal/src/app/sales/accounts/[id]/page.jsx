@@ -286,7 +286,6 @@ const ClientAccountDetailPage = ({ params }) => {
       });
       setContacts(contactsData.data || []);
 
-      console.log(`Contact ${contactId} set as primary contact`);
     } catch (error) {
       console.error("Error setting primary contact:", error);
       alert("Failed to set primary contact");

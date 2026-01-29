@@ -37,8 +37,6 @@ function createPackage() {
         });
 
         output.on('close', () => {
-            console.log(`Package created: ${packagePath}`);
-            console.log(`Total size: ${archive.pointer()} bytes`);
             resolve();
         });
 
@@ -94,7 +92,6 @@ function createPackage() {
 
 createPackage()
     .then(() => {
-        console.log('✅ Package created successfully!');
         process.exit(0);
     })
     .catch((err) => {

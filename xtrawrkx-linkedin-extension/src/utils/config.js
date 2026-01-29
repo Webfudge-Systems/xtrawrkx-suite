@@ -14,9 +14,84 @@ class Config {
         this.defaultDevUrl = 'http://localhost:1337';
     }
 
+    /**
+     * Get API URL based on environment and stored configuration
+     * Priority: Stored URL > Environment detection > Default
+     */
     async getApiUrl() {
-        // Hardcode production URL
-        return this.defaultProductionUrl;
+        try {
+            // First, check if user has manually set an API URL
+            const stored = await chrome.storage.sync.get(['apiBaseUrl', 'environment']);
+            
+            if (stored.apiBaseUrl) {
+                // User has manually configured URL
+                return stored.apiBaseUrl;
+            }
+
+            // Check if environment is explicitly set
+            if (stored.environment === 'development') {
+                return this.defaultDevUrl;
+            }
+            if (stored.environment === 'production') {
+                return this.defaultProductionUrl;
+            }
+
+            // Auto-detect based on manifest or default to production
+            const isDev = this.isDevelopment();
+            return isDev ? this.defaultDevUrl : this.defaultProductionUrl;
+        } catch (error) {
+            console.error('Error getting API URL:', error);
+            // Fallback to production
+            return this.defaultProductionUrl;
+        }
+    }
+
+    /**
+     * Set API URL and optionally environment
+     */
+    async setApiUrl(url, environment = null) {
+        this.validateApiUrl(url, true); // Allow localhost when setting
+        
+        const dataToStore = { apiBaseUrl: url };
+        if (environment) {
+            dataToStore.environment = environment;
+        }
+        
+        await chrome.storage.sync.set(dataToStore);
+    }
+
+    /**
+     * Set environment (development or production)
+     */
+    async setEnvironment(environment) {
+        if (environment !== 'development' && environment !== 'production') {
+            throw new Error('Environment must be "development" or "production"');
+        }
+        
+        await chrome.storage.sync.set({ environment });
+        
+        // If no custom URL is set, update to default for that environment
+        const stored = await chrome.storage.sync.get(['apiBaseUrl']);
+        if (!stored.apiBaseUrl) {
+            const defaultUrl = environment === 'development' ? this.defaultDevUrl : this.defaultProductionUrl;
+            await chrome.storage.sync.set({ apiBaseUrl: defaultUrl });
+        }
+    }
+
+    /**
+     * Get current environment
+     */
+    async getEnvironment() {
+        try {
+            const stored = await chrome.storage.sync.get(['environment']);
+            if (stored.environment) {
+                return stored.environment;
+            }
+            // Auto-detect
+            return this.isDevelopment() ? 'development' : 'production';
+        } catch (error) {
+            return 'production'; // Default fallback
+        }
     }
 
     validateApiUrl(url, allowLocalhost = false) {

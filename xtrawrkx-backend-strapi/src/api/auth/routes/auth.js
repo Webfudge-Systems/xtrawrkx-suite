@@ -21,6 +21,16 @@ module.exports = {
             },
         },
         {
+            method: 'GET',
+            path: '/auth/client/check-email',
+            handler: 'auth.checkEmailExists',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
+        {
             method: 'POST',
             path: '/auth/client/signup',
             handler: 'auth.clientSignup',

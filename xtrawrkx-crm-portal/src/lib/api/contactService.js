@@ -6,10 +6,8 @@ class ContactService {
      */
     async getAll(params = {}) {
         try {
-            console.log('ContactService: Fetching contacts with params:', params);
 
             const response = await strapiClient.getContacts(params);
-            console.log('ContactService: Received response:', response);
 
             // Handle both array and object responses from Strapi
             if (Array.isArray(response)) {
@@ -49,10 +47,8 @@ class ContactService {
      */
     async getById(id, params = {}) {
         try {
-            console.log(`ContactService: Fetching contact with ID: ${id}`, 'params:', params);
 
             const response = await strapiClient.getContact(id, params);
-            console.log('ContactService: Received contact response:', response);
 
             // Handle both direct object and { data: object } formats
             if (response?.data) {
@@ -74,10 +70,8 @@ class ContactService {
      */
     async create(data) {
         try {
-            console.log('ContactService: Creating contact with data:', data);
 
             const response = await strapiClient.createContact(data);
-            console.log('ContactService: Created contact response:', response);
 
             // Handle both direct object and { data: object } formats
             if (response.data) {
@@ -179,11 +173,9 @@ class ContactService {
      */
     async getByLeadCompany(leadCompanyId, params = {}) {
         try {
-            console.log(`ContactService: Fetching contacts for lead company: ${leadCompanyId}`);
 
             // Use the custom endpoint for lead company contacts
             const response = await strapiClient.get(`/contacts/lead-company/${leadCompanyId}`, params);
-            console.log('ContactService: Received lead company contacts:', response);
 
             return response;
         } catch (error) {
@@ -208,10 +200,8 @@ class ContactService {
      */
     async getByClientAccount(clientAccountId, params = {}) {
         try {
-            console.log('Fetching contacts for client account:', clientAccountId);
 
             const response = await strapiClient.get(`/contacts/client-account/${clientAccountId}`, params);
-            console.log('Contacts response for client account:', response);
             return response;
         } catch (error) {
             console.error(`Error fetching contacts for client account ${clientAccountId}:`, error);

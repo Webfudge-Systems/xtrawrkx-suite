@@ -202,7 +202,7 @@ const UpcomingTasksByStatus = ({ tasks }) => {
   const statusCounts = {
     "To Do": 0,
     "In Progress": 0,
-    "In Review": 0,
+    "Internal Review": 0,
     Done: 0,
     Cancelled: 0,
   };
@@ -211,7 +211,7 @@ const UpcomingTasksByStatus = ({ tasks }) => {
     const status = task.status?.toLowerCase().replace(/\s+/g, "-") || "";
     if (status === "to-do" || status === "todo") statusCounts["To Do"]++;
     else if (status === "in-progress") statusCounts["In Progress"]++;
-    else if (status === "in-review") statusCounts["In Review"]++;
+    else if (status === "internal-review" || status === "in-review") statusCounts["Internal Review"]++;
     else if (status === "done" || status === "completed")
       statusCounts["Done"]++;
     else if (status === "cancelled") statusCounts["Cancelled"]++;
@@ -220,7 +220,7 @@ const UpcomingTasksByStatus = ({ tasks }) => {
   const statusColors = {
     "To Do": "#3B82F6", // blue-500
     "In Progress": "#EAB308", // yellow-500
-    "In Review": "#A855F7", // purple-500
+    "Internal Review": "#A855F7", // purple-500
     Done: "#22C55E", // green-500
     Cancelled: "#EF4444", // red-500
   };
@@ -522,9 +522,9 @@ const TaskCompletionOverTime = ({ tasks }) => {
     } else if (status === "in-progress") {
       if (isCompleted) statusCounts["In Progress"].completed++;
       else statusCounts["In Progress"].incomplete++;
-    } else if (status === "in-review") {
-      if (isCompleted) statusCounts["In Review"].completed++;
-      else statusCounts["In Review"].incomplete++;
+    } else if (status === "internal-review" || status === "in-review") {
+      if (isCompleted) statusCounts["Internal Review"].completed++;
+      else statusCounts["Internal Review"].incomplete++;
     } else if (status === "done" || status === "completed") {
       statusCounts["Done"].completed++;
     }

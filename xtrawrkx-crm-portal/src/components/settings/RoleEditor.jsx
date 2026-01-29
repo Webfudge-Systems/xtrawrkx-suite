@@ -65,7 +65,6 @@ export default function RoleEditor() {
   };
 
   const handleSave = () => {
-    console.log("Saving role:", formData);
     setIsOpen(false);
     setFormData({
       name: "",

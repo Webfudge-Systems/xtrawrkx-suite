@@ -136,7 +136,6 @@ export default function LeadsPage() {
   };
 
   const handleItemClick = (item) => {
-    console.log("Lead clicked:", item);
   };
 
   const updatedColumns = boardColumns;
@@ -445,19 +444,16 @@ export default function LeadsPage() {
 
   // Handle export
   const handleExport = (format) => {
-    console.log(`Exporting leads as ${format}`);
     setShowExportDropdown(false);
   };
 
   // Handle filter application
   const handleApplyFilters = (filters) => {
     setAppliedFilters(filters);
-    console.log("Applied filters:", filters);
   };
 
   // Handle import
   const handleImport = (file) => {
-    console.log("Importing file:", file);
   };
 
   // Close dropdown when clicking outside

@@ -1,7 +1,8 @@
-﻿node_modules/
+node_modules/
 .pnp.*
 .next/
 dist/
+build/
 .vscode/
 .DS_Store
 .env*
@@ -11,3 +12,10 @@ backend/strapi/public/uploads/
 backend/strapi/.cache/
 .turbo/
 .claude/
+
+# Logs and temp
+*.log
+logs/
+tmp/
+temp/
+.cache/

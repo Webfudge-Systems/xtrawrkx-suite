@@ -12,7 +12,6 @@ module.exports = createCoreController('api::xtrawrkx-user.xtrawrkx-user', ({ str
      */
     async find(ctx) {
         try {
-            console.log('Finding xtrawrkx-users with query:', ctx.query);
             const { query } = ctx;
 
             // Use entityService which properly handles filters, pagination, etc.
@@ -25,7 +24,6 @@ module.exports = createCoreController('api::xtrawrkx-user.xtrawrkx-user', ({ str
                 }
             });
 
-            console.log('Found xtrawrkx-users:', entities);
 
             // entityService returns the data in Strapi v4 format already
             // If it's already in the right format, return it directly
@@ -154,8 +152,6 @@ module.exports = createCoreController('api::xtrawrkx-user.xtrawrkx-user', ({ str
             const { id } = ctx.params;
             const { data } = ctx.request.body;
 
-            console.log('Updating user:', id);
-            console.log('Update data received:', { ...data, password: data.password ? '***HIDDEN***' : undefined });
 
             // Prepare update data
             const updateData = {
@@ -170,11 +166,9 @@ module.exports = createCoreController('api::xtrawrkx-user.xtrawrkx-user', ({ str
 
             // Handle password update if provided (hash it)
             if (data.password && data.password.trim() !== '') {
-                console.log('Password update requested for user:', id);
                 const bcrypt = require('bcryptjs');
                 const hashedPassword = await bcrypt.hash(data.password, 12);
                 updateData.password = hashedPassword;
-                console.log('Password hashed successfully');
             }
 
             const updatedUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').update({

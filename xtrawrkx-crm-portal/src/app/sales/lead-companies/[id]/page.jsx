@@ -402,15 +402,10 @@ export default function LeadCompanyDetailPage() {
       setIsLoading(true);
       setError(null);
 
-      console.log("Fetching company data for ID:", params.id);
       const response = await leadCompanyService.getById(params.id);
-      console.log("Company data response:", response);
 
       // Handle the service response structure (response.data)
       const leadCompanyData = response.data || response;
-      console.log("Lead company data:", leadCompanyData);
-      console.log("AssignedTo data:", leadCompanyData.assignedTo);
-      console.log("PrimaryRole data:", leadCompanyData.assignedTo?.primaryRole);
 
       if (leadCompanyData) {
         // Transform Strapi data to match component expectations
@@ -740,7 +735,6 @@ export default function LeadCompanyDetailPage() {
             onClick={(e) => {
               e.stopPropagation();
               // Add delete functionality here
-              console.log("Delete deal:", row.id);
             }}
             title="Delete Deal"
           >

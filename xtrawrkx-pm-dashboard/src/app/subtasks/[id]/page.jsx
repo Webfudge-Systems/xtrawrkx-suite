@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   User,
@@ -10,7 +10,6 @@ import {
   ChevronRight,
   Edit,
   Plus,
-  MoreVertical,
   Share,
   List,
   Paperclip,
@@ -22,12 +21,16 @@ import {
 import { Card } from "../../../components/ui";
 import subtaskService from "../../../lib/subtaskService";
 import commentService from "../../../lib/commentService";
-import { transformSubtask, transformComment } from "../../../lib/dataTransformers";
+import {
+  transformSubtask,
+  transformComment,
+} from "../../../lib/dataTransformers";
 import PageHeader from "../../../components/shared/PageHeader";
 
-export default function SubtaskDetailPage({ params }) {
+export default function SubtaskDetailPage({ params: paramsProp }) {
   const router = useRouter();
-  const [isEditing, setIsEditing] = useState(false);
+  const paramsFromHook = useParams();
+  const [params, setParams] = useState(null);
   const [expandedSubtasks, setExpandedSubtasks] = useState(new Set());
   const [subtask, setSubtask] = useState(null);
   const [comments, setComments] = useState([]);
@@ -35,22 +38,30 @@ export default function SubtaskDetailPage({ params }) {
   const [error, setError] = useState(null);
   const [newComment, setNewComment] = useState("");
 
+  useEffect(() => {
+    const resolveParams = async () => {
+      if (paramsProp instanceof Promise) {
+        const resolved = await paramsProp;
+        setParams(resolved);
+      } else if (paramsProp) {
+        setParams(paramsProp);
+      } else if (paramsFromHook) {
+        setParams(paramsFromHook);
+      }
+    };
+    resolveParams();
+  }, [paramsProp, paramsFromHook]);
+
   // Load subtask data from API
   useEffect(() => {
+    if (!params?.id) return;
+
     const loadSubtask = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Handle both direct and Promise-based params (Next.js App Router compatibility)
-        let subtaskIdParam;
-        if (params.id instanceof Promise) {
-          const resolvedParams = await params;
-          subtaskIdParam = resolvedParams.id;
-        } else {
-          subtaskIdParam = params.id;
-        }
-
+        const subtaskIdParam = params.id;
         if (!subtaskIdParam) {
           throw new Error("Subtask ID is required");
         }
@@ -62,7 +73,12 @@ export default function SubtaskDetailPage({ params }) {
 
         // Fetch subtask with all relations
         const strapiSubtask = await subtaskService.getSubtaskById(subtaskId, [
-          'task', 'task.project', 'assignee', 'parentSubtask', 'childSubtasks', 'childSubtasks.assignee'
+          "task",
+          "task.project",
+          "assignee",
+          "parentSubtask",
+          "childSubtasks",
+          "childSubtasks.assignee",
         ]);
 
         // Transform to frontend format
@@ -70,10 +86,11 @@ export default function SubtaskDetailPage({ params }) {
         setSubtask(transformedSubtask);
 
         // Fetch comments for this subtask
-        const commentsResponse = await commentService.getSubtaskComments(subtaskId);
-        const transformedComments = commentsResponse.data?.map(transformComment) || [];
+        const commentsResponse =
+          await commentService.getSubtaskComments(subtaskId);
+        const transformedComments =
+          commentsResponse.data?.map(transformComment) || [];
         setComments(transformedComments);
-
       } catch (error) {
         console.error("Error loading subtask:", error);
         setError(error.message);
@@ -83,7 +100,7 @@ export default function SubtaskDetailPage({ params }) {
     };
 
     loadSubtask();
-  }, [params]);
+  }, [params?.id]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -123,7 +140,7 @@ export default function SubtaskDetailPage({ params }) {
   const handleSubtaskStatusChange = async (subtaskId, newStatus) => {
     try {
       await subtaskService.updateSubtaskStatus(subtaskId, newStatus);
-      
+
       // Update local state
       const updateSubtasks = (subtasks) => {
         return subtasks.map((subtask) => {
@@ -158,7 +175,7 @@ export default function SubtaskDetailPage({ params }) {
         progress: 0,
         task: subtask.task.id,
         parentSubtask: subtask.id,
-        assignee: subtask.assigneeId
+        assignee: subtask.assigneeId,
       };
 
       const createdSubtask = await subtaskService.createSubtask(newSubtaskData);
@@ -192,11 +209,11 @@ export default function SubtaskDetailPage({ params }) {
       const createdComment = await commentService.createSubtaskComment(
         subtask.id,
         newComment,
-        1 // TODO: Get current user ID from auth context
+        1, // TODO: Get current user ID from auth context
       );
 
       const transformedComment = transformComment(createdComment);
-      setComments(prev => [...prev, transformedComment]);
+      setComments((prev) => [...prev, transformedComment]);
       setNewComment("");
     } catch (error) {
       console.error("Error adding comment:", error);
@@ -204,7 +221,8 @@ export default function SubtaskDetailPage({ params }) {
   };
 
   const renderSubtaskRow = (childSubtask, level = 0) => {
-    const hasNestedSubtasks = childSubtask.childSubtasks && childSubtask.childSubtasks.length > 0;
+    const hasNestedSubtasks =
+      childSubtask.childSubtasks && childSubtask.childSubtasks.length > 0;
     const isExpanded = expandedSubtasks.has(childSubtask.id);
     const assigneeAvatar = getAssigneeAvatar(childSubtask.assignee);
 
@@ -219,7 +237,7 @@ export default function SubtaskDetailPage({ params }) {
                 e.stopPropagation();
                 handleSubtaskStatusChange(
                   childSubtask.id,
-                  e.target.checked ? "Done" : "To Do"
+                  e.target.checked ? "Done" : "To Do",
                 );
               }}
               className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-1"
@@ -313,8 +331,13 @@ export default function SubtaskDetailPage({ params }) {
             </div>
           </td>
           <td className="px-4 py-3">
-            <button className="p-1 hover:bg-gray-200 rounded transition-colors">
-              <MoreVertical className="w-4 h-4 text-gray-400" />
+            <button
+              onClick={() => router.push(`/subtasks/${childSubtask.id}/edit`)}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
+              title="Edit subtask"
+            >
+              <Edit className="w-3.5 h-3.5" />
+              Edit
             </button>
           </td>
         </tr>
@@ -322,7 +345,7 @@ export default function SubtaskDetailPage({ params }) {
         {hasNestedSubtasks &&
           isExpanded &&
           childSubtask.childSubtasks.map((nestedSubtask) =>
-            renderSubtaskRow(nestedSubtask, level + 1)
+            renderSubtaskRow(nestedSubtask, level + 1),
           )}
       </React.Fragment>
     );
@@ -331,36 +354,36 @@ export default function SubtaskDetailPage({ params }) {
   // Build breadcrumb navigation
   const buildBreadcrumbs = () => {
     const breadcrumbs = [];
-    
+
     if (subtask?.task?.project) {
       breadcrumbs.push({
         label: subtask.task.project.name,
         href: `/projects/${subtask.task.project.slug}`,
         icon: subtask.task.project.icon,
-        color: subtask.task.project.color
+        color: subtask.task.project.color,
       });
     }
-    
+
     if (subtask?.task) {
       breadcrumbs.push({
         label: subtask.task.name,
-        href: `/tasks/${subtask.task.id}`
+        href: `/tasks/${subtask.task.id}`,
       });
     }
-    
+
     // Add parent subtasks to breadcrumb
     let currentParent = subtask?.parentSubtask;
     const parentBreadcrumbs = [];
     while (currentParent) {
       parentBreadcrumbs.unshift({
         label: currentParent.name,
-        href: `/subtasks/${currentParent.id}`
+        href: `/subtasks/${currentParent.id}`,
       });
       currentParent = currentParent.parentSubtask;
     }
-    
+
     breadcrumbs.push(...parentBreadcrumbs);
-    
+
     return breadcrumbs;
   };
 
@@ -412,7 +435,7 @@ export default function SubtaskDetailPage({ params }) {
   // Convert breadcrumbs to PageHeader format
   const pageHeaderBreadcrumbs = [
     { label: "Dashboard", href: "/" },
-    ...breadcrumbs.map(crumb => ({ label: crumb.label, href: crumb.href })),
+    ...breadcrumbs.map((crumb) => ({ label: crumb.label, href: crumb.href })),
     { label: subtask.name, href: `/subtasks/${subtask.id}` },
   ];
 
@@ -459,7 +482,7 @@ export default function SubtaskDetailPage({ params }) {
                     Subtask Overview
                   </h2>
                   <button
-                    onClick={() => setIsEditing(!isEditing)}
+                    onClick={() => router.push(`/subtasks/${subtask.id}/edit`)}
                     className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-white/60 backdrop-blur-sm rounded-lg transition-all duration-300 border border-white/30"
                   >
                     <Edit className="w-4 h-4" />
@@ -498,7 +521,9 @@ export default function SubtaskDetailPage({ params }) {
                     </label>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-5 h-5 text-gray-400" />
-                      <span className="text-gray-900">{subtask.dueDate || "No due date"}</span>
+                      <span className="text-gray-900">
+                        {subtask.dueDate || "No due date"}
+                      </span>
                     </div>
                   </div>
 
@@ -595,7 +620,7 @@ export default function SubtaskDetailPage({ params }) {
                       </thead>
                       <tbody className="bg-white/30 backdrop-blur-sm divide-y divide-white/20">
                         {subtask.childSubtasks.map((childSubtask) =>
-                          renderSubtaskRow(childSubtask)
+                          renderSubtaskRow(childSubtask),
                         )}
                       </tbody>
                     </table>
@@ -674,7 +699,9 @@ export default function SubtaskDetailPage({ params }) {
                         placeholder="Write a comment"
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
+                        onKeyPress={(e) =>
+                          e.key === "Enter" && handleAddComment()
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -692,7 +719,7 @@ export default function SubtaskDetailPage({ params }) {
                         <Image className="w-4 h-4 text-gray-400" />
                       </button>
                     </div>
-                    <button 
+                    <button
                       onClick={handleAddComment}
                       className="px-4 py-2 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white shadow-lg hover:shadow-xl rounded-lg transition-all duration-300 hover:scale-[1.02]"
                     >
@@ -708,8 +735,3 @@ export default function SubtaskDetailPage({ params }) {
     </div>
   );
 }
-
-
-
-
-

@@ -110,7 +110,6 @@ module.exports = ({ strapi }) => ({
                         data: deptData
                     });
                     createdDepartments.push(department);
-                    console.log(`Created default department: ${deptData.name}`);
                 }
             }
 

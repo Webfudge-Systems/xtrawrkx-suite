@@ -56,22 +56,18 @@ export default function SettingsPage() {
 
   // Modal handlers
   const handleAddRole = (newRole) => {
-    console.log("Adding new role:", newRole);
     setIsAddRoleModalOpen(false);
   };
 
   const handleExport = (exportData) => {
-    console.log("Exporting data:", exportData);
     setIsExportModalOpen(false);
   };
 
   const handleImport = (importData) => {
-    console.log("Importing data:", importData);
     setIsImportModalOpen(false);
   };
 
   const handleDeleteAll = () => {
-    console.log("Deleting all data");
     setIsDeleteAllModalOpen(false);
   };
 

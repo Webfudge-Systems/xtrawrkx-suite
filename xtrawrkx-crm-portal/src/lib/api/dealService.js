@@ -46,10 +46,8 @@ class DealService {
      */
     async getById(id, params = {}) {
         try {
-            console.log(`DealService: Fetching deal with ID: ${id}`, 'params:', params);
 
             const response = await strapiClient.getDeal(id, params);
-            console.log('DealService: Received deal response:', response);
 
             // Handle both direct object and { data: object } formats
             if (response?.data) {

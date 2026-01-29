@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import Image from "next/image";
 import {
   Search,
@@ -12,8 +11,6 @@ import {
   DollarSign,
   Target,
   Award,
-  ArrowUpRight,
-  ArrowDownRight,
   Crown,
   Clock,
   FileText,
@@ -29,10 +26,18 @@ import {
   Phone,
   Bell,
   ChevronRight,
+  Loader2,
+  AlertCircle,
+  GitBranch,
+  ChevronDown,
 } from "lucide-react";
-// import { Button } from "@/components/ui/button";
-import ModernButton from "@/components/ui/ModernButton";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
+import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { useSession } from "@/lib/auth";
+import strapiClient from "@/lib/strapiClient";
+import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+import TaskDetailModal from "@/components/tasks/TaskDetailModal";
 
 // Dashboard Stats
 const dashboardStats = [
@@ -42,8 +47,8 @@ const dashboardStats = [
     change: "+15%",
     changeType: "increase",
     icon: Folder,
-    color: "from-blue-500 to-blue-600",
-    bgColor: "from-blue-50 to-blue-100",
+    color: "from-xtrawrkx-500 to-xtrawrkx-600",
+    bgColor: "from-xtrawrkx-50 to-xtrawrkx-100",
   },
   {
     title: "Total Earnings",
@@ -198,118 +203,26 @@ const dashboardTasksData = [
   },
 ];
 
-// Projects data
-const projectsData = [
-  {
-    id: 1,
-    title: "Event Organization Website",
-    description:
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-    hourlyRate: "$40.00/hr",
-    totalSpend: "$3700 Spend",
-    daysLeft: "15 Days left",
-    documentsSubmitted: "2 Docs submitted",
-    assignedPerson: {
-      name: "Gabrial Matula",
-      role: "Web Developer",
-      location: "Las Vegas, Nevada",
-      time: "01:23 pm",
-      rating: "4.7/5",
-      avatar:
-        "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face",
-    },
-    milestones: [
-      { name: "Project start", date: "27 Oct, 20", completed: true },
-      { name: "Milestone 1", date: "15 Nov, 20", completed: true },
-      { name: "Milestone 2", date: "30 Nov, 20", completed: true },
-      { name: "Milestone 3", date: "15 Dec, 20", completed: false },
-      { name: "Milestone 4", date: "30 Dec, 20", completed: false },
-    ],
-  },
-  {
-    id: 2,
-    title: "Health Mobile App Design",
-    description:
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-    hourlyRate: "$40.00/hr",
-    totalSpend: "$2500 Spend",
-    daysLeft: "12 Days left",
-    documentsSubmitted: "3 Docs submitted",
-    assignedPerson: {
-      name: "Layla Amora",
-      role: "UX UI Designer",
-      location: "Las Vegas, Nevada",
-      time: "02:45 pm",
-      rating: "4.9/5",
-      avatar:
-        "https://images.unsplash.com/photo-1494790108755-2616b612b47e?w=40&h=40&fit=crop&crop=face",
-    },
-    milestones: [
-      { name: "Project start", date: "15 Nov, 20", completed: true },
-      { name: "Milestone 1", date: "30 Nov, 20", completed: true },
-      { name: "Milestone 2", date: "15 Dec, 20", completed: true },
-      { name: "Milestone 3", date: "30 Dec, 20", completed: false },
-      { name: "Milestone 4", date: "15 Jan, 21", completed: false },
-    ],
-  },
-  {
-    id: 3,
-    title: "Advance SEO Service",
-    description:
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-    hourlyRate: "$20.00/hr",
-    totalSpend: "$1500 Spend",
-    daysLeft: "2 Days left",
-    documentsSubmitted: "4 Docs submitted",
-    assignedPerson: {
-      name: "Ansel Finn",
-      role: "SEO Expert",
-      location: "Las Vegas, Nevada",
-      time: "03:12 pm",
-      rating: "4.7/5",
-      avatar:
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face",
-    },
-    milestones: [
-      { name: "Project start", date: "01 Dec, 20", completed: true },
-      { name: "Milestone 1", date: "10 Dec, 20", completed: true },
-      { name: "Milestone 2", date: "20 Dec, 20", completed: true },
-      { name: "Milestone 3", date: "30 Dec, 20", completed: true },
-      { name: "Milestone 4", date: "05 Jan, 21", completed: false },
-    ],
-  },
-];
+// Helper function to format date
+const formatDate = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  });
+};
 
-// Recent activities
-const recentActivities = [
-  {
-    id: 1,
-    type: "project_update",
-    title: "Project milestone completed",
-    description: "Brand redesign Phase 1 completed successfully",
-    time: "2 hours ago",
-    icon: CheckSquare,
-    color: "text-green-600",
-  },
-  {
-    id: 2,
-    type: "earnings",
-    title: "Payment received",
-    description: "$2,500 payment from ABC Inc processed",
-    time: "4 hours ago",
-    icon: DollarSign,
-    color: "text-blue-600",
-  },
-  {
-    id: 3,
-    type: "community",
-    title: "Community rank updated",
-    description: "Promoted to Elite tier in XEV.FiN community",
-    time: "1 day ago",
-    icon: Award,
-    color: "text-yellow-600",
-  },
-];
+// Helper function to calculate days left
+const calculateDaysLeft = (endDate) => {
+  if (!endDate) return null;
+  const today = new Date();
+  const end = new Date(endDate);
+  const diffTime = end - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 0;
+};
 
 // Quick actions for the dropdown
 const quickActions = [
@@ -318,8 +231,8 @@ const quickActions = [
     title: "New Project",
     description: "Start a new project",
     icon: Folder,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
+    color: "text-xtrawrkx-600",
+    bgColor: "bg-xtrawrkx-50",
   },
   {
     id: 2,
@@ -348,10 +261,351 @@ const quickActions = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { data: session } = useSession();
   const [searchQuery, setSearchQuery] = useState("");
   const [taskFilter, setTaskFilter] = useState("all");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const dropdownRef = useRef(null);
+
+  // Task states
+  const [tasks, setTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isTaskModalFullView, setIsTaskModalFullView] = useState(false);
+  const [expandedSubtasks, setExpandedSubtasks] = useState({});
+  const [subtaskDropdownPositions, setSubtaskDropdownPositions] = useState({});
+  const subtaskButtonRefs = useRef({});
+
+  // Community states
+  const [communities, setCommunities] = useState([]);
+  const [communityMemberships, setCommunityMemberships] = useState([]);
+  const [communitiesLoading, setCommunitiesLoading] = useState(true);
+
+  // KPI states
+  const [kpiStats, setKpiStats] = useState({
+    totalProjects: 0,
+    pendingTasks: 0,
+    totalTasks: 0,
+    taskCompletion: 0,
+  });
+
+  // Today's schedule states
+  const [todaysSchedule, setTodaysSchedule] = useState([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+
+  // Get current date
+  const getCurrentDate = () => {
+    const now = new Date();
+    const options = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    };
+    return now.toLocaleDateString("en-US", options);
+  };
+
+  // Get greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 18) return "Good Afternoon";
+    return "Good Evening";
+  };
+
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (!session) return "User";
+    const account = session.account || session;
+    return (
+      account?.companyName ||
+      account?.name ||
+      account?.email?.split("@")[0] ||
+      "User"
+    );
+  };
+
+  // Fetch projects from API
+  useEffect(() => {
+    if (session) {
+      fetchProjects();
+    }
+  }, [session]);
+
+  const fetchProjects = async () => {
+    try {
+      setProjectsLoading(true);
+
+      // Get client account ID from session or localStorage
+      let accountId =
+        session?.account?.id ||
+        session?.account?.documentId ||
+        session?.user?.id ||
+        session?.user?.profile?.id ||
+        session?.id ||
+        session?.documentId;
+
+      // If not in session, try to get from localStorage
+      if (!accountId && typeof window !== "undefined") {
+        const accountData = localStorage.getItem("client_account");
+        if (accountData) {
+          try {
+            const account = JSON.parse(accountData);
+            accountId = account.id || account.documentId;
+          } catch (error) {
+            console.error("Error parsing client account data:", error);
+          }
+        }
+      }
+
+      // Also try using strapiClient helper
+      if (!accountId) {
+        accountId = strapiClient.getCurrentAccountId();
+      }
+
+      if (!accountId) {
+        console.warn("No account ID found in session or localStorage");
+        setProjects([]);
+        setProjectsLoading(false);
+        return;
+      }
+
+      // Fetch all projects and filter by clientAccount client-side
+      const queryParams = strapiClient.buildQueryString({
+        populate: ["clientAccount", "manager", "milestones"],
+      });
+
+      const baseURL = strapiClient.buildURL("/projects", {});
+      const url = `${baseURL}?${queryParams}`;
+
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: strapiClient.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      let projectsData = [];
+
+      if (data.data && Array.isArray(data.data)) {
+        projectsData = data.data;
+      } else if (Array.isArray(data)) {
+        projectsData = data;
+      }
+
+      // Filter projects by account ID
+      const filteredProjects = projectsData.filter((project) => {
+        const projectData = project.attributes || project;
+        const projectClientAccount =
+          projectData.clientAccount?.data?.attributes ||
+          projectData.clientAccount?.data ||
+          projectData.clientAccount?.attributes ||
+          projectData.clientAccount;
+
+        const projectClientAccountId =
+          projectClientAccount?.id || projectClientAccount?.documentId;
+
+        // Normalize IDs for comparison
+        const accountIdNum =
+          typeof accountId === "string" ? parseInt(accountId, 10) : accountId;
+        const projectClientAccountIdNum =
+          typeof projectClientAccountId === "string"
+            ? parseInt(projectClientAccountId, 10)
+            : projectClientAccountId;
+
+        return (
+          projectClientAccountIdNum === accountIdNum ||
+          projectClientAccountId?.toString() === accountId?.toString() ||
+          projectClientAccountId == accountId
+        );
+      });
+
+      setProjects(filteredProjects.slice(0, 3)); // Show only first 3 projects
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      setProjects([]);
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  // Get status badge styling
+  const getStatusBadge = (status) => {
+    const statusUpper = (status || "").toUpperCase();
+    switch (statusUpper) {
+      case "COMPLETED":
+        return {
+          label: "Completed",
+          className: "bg-green-100 text-green-800 border-green-400",
+        };
+      case "IN_PROGRESS":
+      case "ACTIVE":
+      case "IN-PROGRESS":
+        return {
+          label: "In Progress",
+          className: "bg-yellow-100 text-yellow-800 border-yellow-400",
+        };
+      case "PLANNING":
+      case "PLANNED":
+        return {
+          label: "Planning",
+          className: "bg-blue-100 text-blue-800 border-blue-400",
+        };
+      case "ON_HOLD":
+      case "ONHOLD":
+        return {
+          label: "On Hold",
+          className: "bg-yellow-100 text-yellow-800 border-yellow-400",
+        };
+      case "NOT_STARTED":
+      case "NOT_STARTED":
+        return {
+          label: "Not Started",
+          className: "bg-gray-100 text-gray-600 border-gray-400",
+        };
+      default:
+        return {
+          label: "Planning",
+          className: "bg-blue-100 text-blue-800 border-blue-400",
+        };
+    }
+  };
+
+  // Helper function to format relative time
+  const formatRelativeTime = (dateString) => {
+    if (!dateString) return "Never";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return formatDate(dateString);
+  };
+
+  // Transform project data for card display
+  const transformProjectForCard = (project) => {
+    const projectData = project.attributes || project;
+    const manager =
+      projectData.manager?.data?.attributes ||
+      projectData.manager?.attributes ||
+      projectData.manager ||
+      {};
+
+    // Project status
+    const status = projectData.status || "PLANNING";
+    const statusBadge = getStatusBadge(status);
+
+    // Progress
+    const progress = projectData.progress || 0;
+
+    // Timeline
+    const startDate = projectData.startDate;
+    const endDate = projectData.endDate;
+    const daysLeft = endDate ? calculateDaysLeft(endDate) : null;
+    const isAtRisk = daysLeft !== null && daysLeft < 7 && progress < 80;
+    const isDelayed = daysLeft !== null && daysLeft < 0;
+
+    // Activity snapshot
+    const tasksTotal = projectData.tasksCount || projectData.totalTasks || 0;
+    const tasksCompleted = projectData.tasksCompleted || 0;
+    const documentsCount = projectData.documentsCount || 0;
+    const messagesUnread = projectData.unreadMessagesCount || 0;
+
+    // Financial summary
+    const billingType =
+      projectData.billingType || projectData.billing || "Fixed";
+    const budget = projectData.budget || 0;
+    const spent = projectData.spent || projectData.totalSpend || 0;
+    const paid = projectData.paid || spent; // Assume paid equals spent unless specified
+    const outstanding = budget > 0 ? budget - paid : 0;
+
+    // Get milestones
+    const milestones =
+      projectData.milestones?.data || projectData.milestones || [];
+    const milestoneArray = Array.isArray(milestones)
+      ? milestones.map((m) => m.attributes || m)
+      : [];
+
+    // Get current/next milestone
+    const now = new Date();
+    const upcomingMilestones = milestoneArray
+      .filter((m) => {
+        const milestoneDate = m.dueDate || m.date;
+        return milestoneDate && new Date(milestoneDate) >= now;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.dueDate || a.date || 0);
+        const dateB = new Date(b.dueDate || b.date || 0);
+        return dateA - dateB;
+      });
+    const nextMilestone = upcomingMilestones[0] || null;
+
+    // Get current phase (from milestones or status)
+    const currentPhase = nextMilestone
+      ? nextMilestone.name || nextMilestone.title || "Next Milestone"
+      : statusBadge.label;
+
+    // Last update time
+    const lastUpdate =
+      projectData.updatedAt ||
+      projectData.updated_at ||
+      projectData.lastUpdate ||
+      null;
+
+    // Get assigned person (manager)
+    const assignedPerson = {
+      name:
+        manager.firstName && manager.lastName
+          ? `${manager.firstName} ${manager.lastName}`
+          : manager.name || manager.email?.split("@")[0] || "Unassigned",
+      role: manager.role || manager.position || "Project Manager",
+      avatar: manager.avatar || manager.profilePicture || null,
+    };
+
+    return {
+      id: project.id || projectData.id,
+      slug: projectData.slug,
+      title: projectData.name || "Untitled Project",
+      description: projectData.description || "No description available.",
+      status,
+      statusBadge,
+      progress,
+      startDate: startDate ? formatDate(startDate) : null,
+      endDate: endDate ? formatDate(endDate) : null,
+      daysLeft,
+      isAtRisk,
+      isDelayed,
+      tasksTotal,
+      tasksCompleted,
+      documentsCount,
+      messagesUnread,
+      billingType,
+      budget,
+      spent,
+      paid,
+      outstanding,
+      assignedPerson,
+      currentPhase,
+      nextMilestone,
+      lastUpdate,
+    };
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -369,763 +623,1534 @@ export default function DashboardPage() {
 
   const handleSearch = (e) => {
     if (e.key === "Enter" && searchQuery.trim()) {
-      console.log("Search for:", searchQuery);
     }
   };
 
+  // Load tasks from API
+  useEffect(() => {
+    const loadTasks = async () => {
+      if (!session) return;
+
+      try {
+        setTasksLoading(true);
+
+        // Get client account ID
+        let accountId =
+          session?.account?.id ||
+          session?.account?.documentId ||
+          session?.user?.id ||
+          session?.user?.profile?.id ||
+          session?.id ||
+          session?.documentId;
+
+        if (!accountId && typeof window !== "undefined") {
+          const accountData = localStorage.getItem("client_account");
+          if (accountData) {
+            try {
+              const account = JSON.parse(accountData);
+              accountId = account.id || account.documentId;
+            } catch (error) {
+              console.error("Error parsing client account data:", error);
+            }
+          }
+        }
+
+        if (!accountId) {
+          accountId = strapiClient.getCurrentAccountId();
+        }
+
+        if (!accountId) {
+          console.warn("No account ID found for tasks");
+          setTasks([]);
+          setTasksLoading(false);
+          return;
+        }
+
+        // Fetch projects for this client
+        const projectsQueryParams = strapiClient.buildQueryString({
+          populate: ["clientAccount"],
+          pagination: { pageSize: 100 },
+        });
+        const projectsUrl = `${strapiClient.buildURL(
+          "/projects",
+          {}
+        )}?${projectsQueryParams}`;
+        const projectsResponse = await fetch(projectsUrl, {
+          method: "GET",
+          headers: strapiClient.getHeaders(),
+        });
+
+        if (!projectsResponse.ok) {
+          throw new Error(`HTTP error! status: ${projectsResponse.status}`);
+        }
+
+        const projectsData = await projectsResponse.json();
+        let allProjects = [];
+        if (projectsData.data && Array.isArray(projectsData.data)) {
+          allProjects = projectsData.data;
+        } else if (Array.isArray(projectsData)) {
+          allProjects = projectsData;
+        }
+
+        // Filter projects by client account
+        const clientProjects = allProjects.filter((project) => {
+          const projectData = project.attributes || project;
+          const projectClientAccount =
+            projectData.clientAccount?.data?.attributes ||
+            projectData.clientAccount?.data ||
+            projectData.clientAccount?.attributes ||
+            projectData.clientAccount;
+
+          const projectClientAccountId =
+            projectClientAccount?.id || projectClientAccount?.documentId;
+
+          const accountIdNum =
+            typeof accountId === "string" ? parseInt(accountId, 10) : accountId;
+          const projectClientAccountIdNum =
+            typeof projectClientAccountId === "string"
+              ? parseInt(projectClientAccountId, 10)
+              : projectClientAccountId;
+
+          return (
+            projectClientAccountIdNum === accountIdNum ||
+            projectClientAccountId?.toString() === accountId?.toString() ||
+            projectClientAccountId == accountId
+          );
+        });
+
+
+        // Extract project IDs - handle all possible ID locations
+        const projectIds = clientProjects
+          .map((p) => {
+            const projectId =
+              p.id ||
+              p.documentId ||
+              (p.attributes || p).id ||
+              (p.attributes || p).documentId;
+            return projectId;
+          })
+          .filter(Boolean)
+          .map((id) => {
+            // Normalize to both string and number for comparison
+            return {
+              original: id,
+              string: String(id),
+              number: typeof id === "string" ? parseInt(id, 10) : id,
+            };
+          });
+
+
+        if (projectIds.length === 0) {
+          setTasks([]);
+          setTasksLoading(false);
+          return;
+        }
+
+        // Fetch all tasks and filter by project IDs client-side
+        // This is more reliable than server-side filtering
+        const tasksQueryParams = strapiClient.buildQueryString({
+          populate: [
+            "projects",
+            "projects.clientAccount",
+            "project",
+            "project.clientAccount",
+            "assignee",
+            "collaborators",
+            "subtasks",
+            "comments",
+            "comments.author",
+            "attachments",
+          ],
+          pagination: {
+            pageSize: 100,
+          },
+        });
+
+        const tasksBaseURL = strapiClient.buildURL("/tasks", {});
+        const tasksUrl = `${tasksBaseURL}?${tasksQueryParams}`;
+
+
+        const tasksResponse = await fetch(tasksUrl, {
+          method: "GET",
+          headers: strapiClient.getHeaders(),
+        });
+
+        if (!tasksResponse.ok) {
+          throw new Error(`HTTP error! status: ${tasksResponse.status}`);
+        }
+
+        const tasksData = await tasksResponse.json();
+
+        let allTasks = [];
+        if (tasksData.data && Array.isArray(tasksData.data)) {
+          allTasks = tasksData.data;
+        } else if (Array.isArray(tasksData)) {
+          allTasks = tasksData;
+        }
+
+
+        // Filter tasks by project IDs client-side
+
+        const filteredTasks = allTasks.filter((task) => {
+          const taskData = task.attributes || task;
+
+          // Handle both single project and projects array (many-to-many)
+          let projects = [];
+
+          // Check for projects array (many-to-many relationship)
+          const projectsArray =
+            taskData.projects?.data || taskData.projects || [];
+
+          // Check for single project (one-to-many relationship)
+          const singleProject =
+            taskData.project?.data?.attributes ||
+            taskData.project?.data ||
+            taskData.project?.attributes ||
+            taskData.project;
+
+          if (Array.isArray(projectsArray) && projectsArray.length > 0) {
+            // Handle projects array
+            projects = projectsArray.map((p) => {
+              return p.attributes || p;
+            });
+          } else if (singleProject) {
+            // Handle single project
+            projects = [singleProject];
+          }
+
+          if (projects.length === 0) {
+            return false;
+          }
+
+          // Check if any of the task's projects match our client's projects
+          const hasMatchingProject = projects.some((project) => {
+            const projectId = project.id || project.documentId;
+
+            if (!projectId) {
+              return false;
+            }
+
+
+            const projectIdStr = String(projectId);
+            const projectIdNum =
+              typeof projectId === "string"
+                ? parseInt(projectId, 10)
+                : projectId;
+
+            const matches = projectIds.some((pidObj) => {
+              const isMatch =
+                pidObj.original == projectId ||
+                pidObj.string === projectIdStr ||
+                pidObj.number === projectIdNum ||
+                String(pidObj.original) === String(projectId) ||
+                Number(pidObj.original) === Number(projectId);
+
+              if (isMatch) {
+              }
+
+              return isMatch;
+            });
+
+            return matches;
+          });
+
+          if (!hasMatchingProject) {
+            const projectIdsList = projects
+              .map((p) => p.id || p.documentId)
+              .join(", ");
+          }
+
+          return hasMatchingProject;
+        });
+
+
+        // Use filtered tasks instead of allTasks
+        const allTasksToTransform = filteredTasks;
+
+        // Transform tasks
+        const transformedTasks = allTasksToTransform.map((task) => {
+          const taskData = task.attributes || task;
+
+          // Handle both single project and projects array (many-to-many)
+          let project = null;
+
+          // Check for projects array (many-to-many relationship) - take first project
+          const projectsArray =
+            taskData.projects?.data || taskData.projects || [];
+
+          // Check for single project (one-to-many relationship)
+          const singleProject =
+            taskData.project?.data?.attributes ||
+            taskData.project?.data ||
+            taskData.project?.attributes ||
+            taskData.project;
+
+          if (Array.isArray(projectsArray) && projectsArray.length > 0) {
+            // Take first project from array
+            project = projectsArray[0].attributes || projectsArray[0];
+          } else if (singleProject) {
+            project = singleProject;
+          }
+
+          const assignee =
+            taskData.assignee?.data?.attributes ||
+            taskData.assignee?.attributes ||
+            taskData.assignee;
+
+          const normalizeStatus = (status) => {
+            if (!status) return "To Do";
+            const statusUpper = status.toUpperCase().trim();
+            if (
+              statusUpper === "TO DO" ||
+              statusUpper === "TODO" ||
+              statusUpper === "PLANNING" ||
+              statusUpper === "PLANNED" ||
+              statusUpper === "SCHEDULED"
+            ) {
+              return "To Do";
+            }
+            if (
+              statusUpper === "IN PROGRESS" ||
+              statusUpper === "IN_PROGRESS" ||
+              statusUpper === "ACTIVE"
+            ) {
+              return "In Progress";
+            }
+            if (statusUpper === "IN REVIEW" || statusUpper === "IN_REVIEW") {
+              return "Internal Review";
+            }
+            if (
+              statusUpper === "CLIENT REVIEW" ||
+              statusUpper === "CLIENT_REVIEW"
+            ) {
+              return "Client Review";
+            }
+            if (statusUpper === "APPROVED") {
+              return "Approved";
+            }
+            if (statusUpper === "DONE" || statusUpper === "COMPLETED") {
+              return "Done";
+            }
+            if (statusUpper === "CANCELLED" || statusUpper === "CANCELED") {
+              return "Cancelled";
+            }
+            return status;
+          };
+
+          const normalizePriority = (priority) => {
+            if (!priority) return "Medium";
+            const priorityLower = priority.toLowerCase();
+            if (priorityLower === "low") return "Low";
+            if (priorityLower === "medium") return "Medium";
+            if (priorityLower === "high") return "High";
+            return priority;
+          };
+
+          return {
+            id: task.id || task.documentId,
+            name: taskData.name || taskData.title || "Untitled Task",
+            description: taskData.description || "",
+            status: normalizeStatus(taskData.status || "To Do"),
+            priority: normalizePriority(taskData.priority || "Medium"),
+            project: project
+              ? {
+                  name: project.name || "Unknown Project",
+                  id: project.id || project.documentId,
+                }
+              : null,
+            assignee: assignee
+              ? {
+                  name:
+                    assignee.firstName && assignee.lastName
+                      ? `${assignee.firstName} ${assignee.lastName}`
+                      : assignee.name ||
+                        assignee.email?.split("@")[0] ||
+                        "Unknown",
+                  id: assignee.id || assignee.documentId,
+                }
+              : null,
+            scheduledDate: taskData.scheduledDate || taskData.dueDate,
+            progress: taskData.progress || 0,
+            subtasks: taskData.subtasks?.data || taskData.subtasks || [],
+            comments: (taskData.comments?.data || taskData.comments || []).map(
+              (comment) => {
+                const commentData = comment.attributes || comment;
+                const author =
+                  commentData.author?.data?.attributes ||
+                  commentData.author?.attributes ||
+                  commentData.author;
+                return {
+                  id: comment.id || comment.documentId,
+                  content: commentData.content || commentData.text || "",
+                  author: author
+                    ? {
+                        name:
+                          author.firstName && author.lastName
+                            ? `${author.firstName} ${author.lastName}`
+                            : author.name ||
+                              author.email?.split("@")[0] ||
+                              "Unknown",
+                        avatar: author.avatar || author.profilePicture || null,
+                      }
+                    : { name: "Unknown", avatar: null },
+                  createdAt: commentData.createdAt || new Date().toISOString(),
+                };
+              }
+            ),
+            attachments: (taskData.attachments || taskData.files || []).map(
+              (attachment) => {
+                const attData = attachment.attributes || attachment;
+                return {
+                  id: attachment.id || attachment.documentId,
+                  name: attData.name || attData.filename || "Unknown",
+                  size: attData.size || 0,
+                  type:
+                    attData.mime || attData.type || "application/octet-stream",
+                  url: attData.url || attData.path || "#",
+                  uploadedAt: attData.createdAt || new Date().toISOString(),
+                };
+              }
+            ),
+            requiresApproval:
+              taskData.requiresApproval ||
+              (taskData.status || "").toUpperCase() === "CLIENT_REVIEW",
+            clientApproval: taskData.clientApproval || null,
+            approvedAt: taskData.approvedAt || null,
+            createdAt: taskData.createdAt || new Date().toISOString(),
+            updatedAt: taskData.updatedAt || new Date().toISOString(),
+          };
+        });
+
+        setTasks(transformedTasks);
+      } catch (error) {
+        console.error("Error loading tasks:", error);
+        setTasks([]);
+      } finally {
+        setTasksLoading(false);
+      }
+    };
+
+    if (session) {
+      loadTasks();
+    }
+  }, [session]);
+
+  // Calculate KPIs from real data
+  useEffect(() => {
+    // Calculate Total Projects
+    const totalProjects = projects.length;
+
+    // Calculate Pending Tasks (tasks requiring client action - client review only)
+    const pendingTasks = tasks.filter((task) => {
+      const status = (task.status || "").toUpperCase();
+      return (
+        status === "CLIENT REVIEW" ||
+        status === "CLIENT_REVIEW" ||
+        (task.requiresApproval && !task.clientApproval)
+      );
+    }).length;
+
+    // Calculate Total Tasks
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((task) => {
+      const status = (task.status || "").toUpperCase();
+      return status === "DONE" || status === "COMPLETED";
+    }).length;
+    const taskCompletion =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    setKpiStats({
+      totalProjects,
+      pendingTasks,
+      totalTasks,
+      taskCompletion,
+    });
+  }, [projects, tasks]);
+
+  // Fetch communities and memberships
+  useEffect(() => {
+    const loadCommunities = async () => {
+      if (!session) return;
+
+      try {
+        setCommunitiesLoading(true);
+
+        // Get client account ID
+        let accountId =
+          session?.account?.id ||
+          session?.account?.documentId ||
+          session?.user?.id ||
+          session?.user?.profile?.id ||
+          session?.id ||
+          session?.documentId;
+
+        if (!accountId && typeof window !== "undefined") {
+          const accountData = localStorage.getItem("client_account");
+          if (accountData) {
+            try {
+              const account = JSON.parse(accountData);
+              accountId = account.id || account.documentId;
+            } catch (error) {
+              console.error("Error parsing client account data:", error);
+            }
+          }
+        }
+
+        if (!accountId) {
+          accountId = strapiClient.getCurrentAccountId();
+        }
+
+        if (!accountId) {
+          console.warn("No account ID found for communities");
+          setCommunities([]);
+          setCommunityMemberships([]);
+          setCommunitiesLoading(false);
+          return;
+        }
+
+        // Fetch all communities
+        const communitiesQueryParams = strapiClient.buildQueryString({
+          populate: ["memberships"],
+          pagination: { pageSize: 100 },
+        });
+        const communitiesUrl = `${strapiClient.buildURL(
+          "/communities",
+          {}
+        )}?${communitiesQueryParams}`;
+        const communitiesResponse = await fetch(communitiesUrl, {
+          method: "GET",
+          headers: strapiClient.getHeaders(),
+        });
+
+        let allCommunities = [];
+        if (communitiesResponse.ok) {
+          const communitiesData = await communitiesResponse.json();
+          if (communitiesData.data && Array.isArray(communitiesData.data)) {
+            allCommunities = communitiesData.data;
+          } else if (Array.isArray(communitiesData)) {
+            allCommunities = communitiesData;
+          }
+        }
+
+        // Fetch community memberships for this client
+        const membershipParams = strapiClient.buildQueryString({
+          filters: {
+            clientAccount: {
+              id: {
+                $eq: accountId,
+              },
+            },
+          },
+          populate: ["community", "clientAccount"],
+          pagination: { pageSize: 100 },
+        });
+        const membershipsUrl = `${strapiClient.buildURL(
+          "/community-memberships",
+          {}
+        )}?${membershipParams}`;
+        const membershipsResponse = await fetch(membershipsUrl, {
+          method: "GET",
+          headers: strapiClient.getHeaders(),
+        });
+
+        let memberships = [];
+        if (membershipsResponse.ok) {
+          const membershipsData = await membershipsResponse.json();
+          if (membershipsData.data && Array.isArray(membershipsData.data)) {
+            memberships = membershipsData.data.map((m) => ({
+              id: m.id || m.documentId,
+              ...(m.attributes || m),
+            }));
+          } else if (Array.isArray(membershipsData)) {
+            memberships = membershipsData.map((m) => ({
+              id: m.id || m.documentId,
+              ...(m.attributes || m),
+            }));
+          }
+        }
+
+        // Map communities with membership status
+        const communitiesWithMembership = allCommunities.map((community) => {
+          const communityData = community.attributes || community;
+          const communityName = communityData.name || "";
+
+          // Find matching membership
+          const membership = memberships.find((m) => {
+            const membershipCommunity =
+              m.community?.data?.attributes?.name ||
+              m.community?.attributes?.name ||
+              m.community ||
+              "";
+            return (
+              membershipCommunity.toUpperCase() ===
+                communityName.toUpperCase() ||
+              m.community === communityName.toUpperCase()
+            );
+          });
+
+          const isMember =
+            membership && (membership.status || "").toUpperCase() === "ACTIVE";
+
+          return {
+            id: community.id || community.documentId,
+            name: communityName,
+            fullName: communityData.description || communityName,
+            category: communityData.category || "Community",
+            description: communityData.description || "",
+            members: 0, // Could be fetched if available
+            tier: membership?.membershipType || "Standard",
+            status: isMember ? "Active" : "Available",
+            isMember: isMember,
+            membership: membership,
+            color: communityData.color || "blue-500",
+            icon: communityData.icon || null,
+          };
+        });
+
+        setCommunities(communitiesWithMembership);
+        setCommunityMemberships(memberships);
+      } catch (error) {
+        console.error("Error loading communities:", error);
+        setCommunities([]);
+        setCommunityMemberships([]);
+      } finally {
+        setCommunitiesLoading(false);
+      }
+    };
+
+    if (session) {
+      loadCommunities();
+    }
+  }, [session]);
+
   // Filter tasks based on selected filter
   const getFilteredTasks = () => {
+    let filtered = tasks;
     switch (taskFilter) {
       case "upcoming":
-        return dashboardTasksData.filter((task) => task.status === "todo");
+        filtered = tasks.filter((task) => {
+          const status = (task.status || "").toUpperCase();
+          return (
+            status === "TO DO" ||
+            status === "TODO" ||
+            status === "PLANNING" ||
+            status === "PLANNED"
+          );
+        });
+        break;
       case "ongoing":
-        return dashboardTasksData.filter(
-          (task) => task.status === "in-progress"
-        );
+        filtered = tasks.filter((task) => {
+          const status = (task.status || "").toUpperCase();
+          return (
+            status === "IN PROGRESS" ||
+            status === "IN_PROGRESS" ||
+            status === "ACTIVE"
+          );
+        });
+        break;
       case "completed":
-        return dashboardTasksData.filter(
-          (task) => task.status === "completed" || task.status === "review"
-        );
+        filtered = tasks.filter((task) => {
+          const status = (task.status || "").toUpperCase();
+          return status === "DONE" || status === "COMPLETED";
+        });
+        break;
       default:
-        return dashboardTasksData;
+        filtered = tasks;
+    }
+    return filtered;
+  };
+
+  // Helper functions
+  const getStatusColor = (status) => {
+    const statusUpper = (status || "").toUpperCase();
+    switch (statusUpper) {
+      case "DONE":
+      case "COMPLETED":
+        return "bg-green-100 text-green-800 border-green-400";
+      case "IN PROGRESS":
+      case "IN_PROGRESS":
+        return "bg-yellow-100 text-yellow-800 border-yellow-400";
+      case "INTERNAL REVIEW":
+      case "IN_REVIEW":
+        return "bg-purple-100 text-purple-800 border-purple-400";
+      case "CLIENT REVIEW":
+      case "CLIENT_REVIEW":
+        return "bg-purple-100 text-purple-800 border-purple-400";
+      case "APPROVED":
+        return "bg-blue-100 text-blue-800 border-blue-400";
+      case "TO DO":
+      case "TODO":
+      case "SCHEDULED":
+        return "bg-blue-100 text-blue-800 border-blue-400";
+      case "CANCELLED":
+        return "bg-gray-100 text-gray-800 border-gray-400";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-400";
     }
   };
 
   const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "urgent":
-        return "bg-red-100 text-red-800";
+    const priorityLower = (priority || "").toLowerCase();
+    switch (priorityLower) {
       case "high":
-        return "bg-orange-100 text-orange-800";
+        return "bg-red-100 text-red-800 border-red-200";
       case "medium":
-        return "bg-blue-100 text-blue-800";
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "low":
-        return "bg-green-100 text-green-800";
+        return "bg-green-100 text-green-800 border-green-200";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case "in-progress":
-        return <Clock className="w-4 h-4 text-blue-600" />;
-      case "review":
-        return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
-      default:
-        return <Circle className="w-4 h-4 text-gray-400" />;
-    }
+  const formatStatus = (status) => {
+    const statusMap = {
+      "TO DO": "To Do",
+      "IN PROGRESS": "In Progress",
+      IN_REVIEW: "Internal Review",
+      "CLIENT REVIEW": "Client Review",
+      CLIENT_REVIEW: "Client Review",
+      APPROVED: "Approved",
+      DONE: "Done",
+      COMPLETED: "Completed",
+      CANCELLED: "Cancelled",
+    };
+    return (
+      statusMap[status?.toUpperCase()] || status?.replace("_", " ") || "To Do"
+    );
   };
 
-  const isOverdue = (dueDate) => {
-    return new Date(dueDate) < new Date();
+  const handleTaskClick = (task) => {
+    setSelectedTask(task);
+    setIsTaskModalOpen(true);
+    setIsTaskModalFullView(false);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-4 bg-white min-h-screen">
+        <PageHeader
+          title="Dashboard"
+          subtitle={getCurrentDate()}
+          breadcrumb={[]}
+          showSearch={false}
+        />
+        <div className="flex justify-center items-center h-64">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+            <span className="text-gray-600">Loading dashboard...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen p-4">
-      <div className="w-full space-y-8">
-        {/* Header Section */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          {/* Centered Greeting */}
-          <div className="text-center my-4 ">
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-              Good Morning, Homies
-            </h1>
-            <p className="text-gray-600 mt-1 text-lg">
-              It&apos;s{" "}
-              {new Date().toLocaleDateString("en-US", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </p>
-          </div>
+    <div className="bg-white min-h-screen dashboard-content">
+      {/* Page Header */}
+      <div className="px-4 pt-4">
+        <PageHeader
+          title="Dashboard"
+          subtitle={getCurrentDate()}
+          breadcrumb={[]}
+          showSearch={true}
+          searchPlaceholder="Search anything..."
+          onSearchChange={setSearchQuery}
+        />
+      </div>
 
-          {/* Centered Search Bar */}
-          <div className="max-w-2xl mx-auto mb-8">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search here"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleSearch}
-                className="w-full pl-12 pr-4 py-3 bg-white/80 border border-gray-200/50 rounded-xl shadow-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all duration-200"
-              />
-            </div>
-          </div>
+      <div className="p-4 space-y-4">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              title: "Total Projects",
+              value: kpiStats.totalProjects.toString(),
+              change: `${projects.length} active`,
+              changeType: "increase",
+              icon: Folder,
+            },
+            {
+              title: "Pending Tasks",
+              value: kpiStats.pendingTasks.toString(),
+              change: "Action required",
+              changeType: kpiStats.pendingTasks > 0 ? "increase" : "decrease",
+              icon: AlertCircle,
+            },
+            {
+              title: "Total Tasks",
+              value: kpiStats.totalTasks.toString(),
+              change: `${kpiStats.pendingTasks} pending`,
+              changeType: "increase",
+              icon: CheckSquare,
+            },
+            {
+              title: "Task Completion",
+              value: `${kpiStats.taskCompletion}%`,
+              change: "+0%",
+              changeType: "increase",
+              icon: Target,
+            },
+          ].map((stat, index) => {
+            const statConfig = [
+              {
+                color: "bg-xtrawrkx-50",
+                borderColor: "border-xtrawrkx-200",
+                iconColor: "text-xtrawrkx-600",
+                dotColor: "bg-xtrawrkx-500",
+              },
+              {
+                color: "bg-green-50",
+                borderColor: "border-green-200",
+                iconColor: "text-green-600",
+                dotColor: "bg-green-500",
+              },
+              {
+                color: "bg-purple-50",
+                borderColor: "border-purple-200",
+                iconColor: "text-purple-600",
+                dotColor: "bg-purple-500",
+              },
+              {
+                color: "bg-orange-50",
+                borderColor: "border-orange-200",
+                iconColor: "text-orange-600",
+                dotColor: "bg-orange-500",
+              },
+            ];
 
-          {/* Centered Action Buttons */}
-          <div className="flex items-center justify-center space-x-3">
-            <ModernButton type="secondary" icon={Calendar} text="Calendar" />
+            const config = statConfig[index];
+            const IconComponent = stat.icon;
 
-            {/* Animated Dropdown Button */}
-            <div className="relative" ref={dropdownRef}>
-              <ModernButton
-                type="primary"
-                text="New"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="relative"
-              />
-
-              {/* Dropdown Menu */}
-              <motion.div
-                initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                animate={{
-                  opacity: isDropdownOpen ? 1 : 0,
-                  y: isDropdownOpen ? 0 : -10,
-                  scale: isDropdownOpen ? 1 : 0.95,
-                }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className={`absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-64 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 z-50 ${
-                  isDropdownOpen ? "pointer-events-auto" : "pointer-events-none"
-                }`}
+            return (
+              <div
+                key={index}
+                className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300"
               >
-                <div className="p-2">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2 mb-2">
-                    Quick Actions
-                  </div>
-                  {quickActions.map((action, index) => {
-                    const Icon = action.icon;
-                    return (
-                      <motion.button
-                        key={action.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{
-                          opacity: isDropdownOpen ? 1 : 0,
-                          x: isDropdownOpen ? 0 : -20,
-                        }}
-                        transition={{
-                          delay: isDropdownOpen ? index * 0.05 : 0,
-                          duration: 0.2,
-                        }}
-                        className="w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-gray-50/80 transition-all duration-200 group"
-                        onClick={() => {
-                          console.log(`Clicked ${action.title}`);
-                          setIsDropdownOpen(false);
-                        }}
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-600 mb-1 font-medium">
+                      {stat.title}
+                    </p>
+                    <p className="text-3xl font-black text-gray-800">
+                      {stat.value}
+                    </p>
+                    <div className="mt-2 flex items-center text-xs text-gray-500">
+                      <span
+                        className={`w-2 h-2 rounded-full mr-2 ${config.dotColor}`}
+                      ></span>
+                      <span
+                        className={
+                          stat.changeType === "increase"
+                            ? "text-green-600 font-medium"
+                            : "text-red-600 font-medium"
+                        }
                       >
-                        <div
-                          className={`w-10 h-10 ${action.bgColor} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}
-                        >
-                          <Icon className={`h-5 w-5 ${action.color}`} />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <div className="font-semibold text-gray-900 text-sm">
-                            {action.title}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {action.description}
-                          </div>
-                        </div>
-                        <ArrowUpRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors duration-200" />
-                      </motion.button>
-                    );
-                  })}
+                        {stat.change}
+                      </span>
+                      {stat.change !== "0" && (
+                        <span className="ml-1">this period</span>
+                      )}
+                    </div>
+                  </div>
+                  <div
+                    className={`w-16 h-16 ${config.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${config.borderColor}`}
+                  >
+                    <IconComponent className={`w-8 h-8 ${config.iconColor}`} />
+                  </div>
                 </div>
-              </motion.div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Tasks & Projects */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Tasks Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-8"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    My Tasks
-                  </h2>
-                  <p className="text-gray-600 mt-1">
-                    Track your current tasks and progress
-                  </p>
-                </div>
-                <ModernButton type="secondary" icon={Plus} text="New Task" />
               </div>
+            );
+          })}
+        </div>
+      </div>
 
+      {/* Enhanced Dashboard Sections */}
+      <div className="px-4">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+          {/* Left Column - Tasks & Projects */}
+          <div className="xl:col-span-2 space-y-4">
+            {/* Tasks Section */}
+            <Card
+              outlined={true}
+              title="My Tasks"
+              subtitle="Track your current tasks and progress"
+              actions={
+                <button className="px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 hover:border-white/40 transition-all duration-300 text-sm font-medium text-gray-900 flex items-center gap-2 shadow-lg">
+                  <Plus className="w-4 h-4" />
+                  New Task
+                </button>
+              }
+            >
               {/* Filter Tabs */}
-              <div className="flex items-center space-x-2 mb-6">
-                <button
-                  onClick={() => setTaskFilter("all")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    taskFilter === "all"
-                      ? "bg-blue-500 text-white shadow-md"
-                      : "bg-white/80 text-gray-600 hover:bg-white hover:text-gray-900"
-                  }`}
-                >
-                  All Tasks
-                </button>
-                <button
-                  onClick={() => setTaskFilter("upcoming")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    taskFilter === "upcoming"
-                      ? "bg-blue-500 text-white shadow-md"
-                      : "bg-white/80 text-gray-600 hover:bg-white hover:text-gray-900"
-                  }`}
-                >
-                  Upcoming
-                </button>
-                <button
-                  onClick={() => setTaskFilter("ongoing")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    taskFilter === "ongoing"
-                      ? "bg-blue-500 text-white shadow-md"
-                      : "bg-white/80 text-gray-600 hover:bg-white hover:text-gray-900"
-                  }`}
-                >
-                  Ongoing
-                </button>
-                <button
-                  onClick={() => setTaskFilter("completed")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    taskFilter === "completed"
-                      ? "bg-blue-500 text-white shadow-md"
-                      : "bg-white/80 text-gray-600 hover:bg-white hover:text-gray-900"
-                  }`}
-                >
-                  Completed
-                </button>
+              <div className="flex items-center space-x-2 mb-4">
+                {["all", "upcoming", "ongoing", "completed"].map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setTaskFilter(filter)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      taskFilter === filter
+                        ? "bg-xtrawrkx-500 text-white shadow-md"
+                        : "bg-white/20 backdrop-blur-md border border-white/30 text-gray-700 hover:bg-white/30 hover:border-white/40"
+                    }`}
+                  >
+                    {filter.charAt(0).toUpperCase() +
+                      filter.slice(1).replace(/-/g, " ")}
+                  </button>
+                ))}
               </div>
 
               {/* Tasks Table */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50/80 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Task
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Project
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Assignee
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Due Date
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Priority
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Progress
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Created By
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {getFilteredTasks().map((task) => (
-                        <motion.tr
-                          key={task.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{
-                            delay: 0.1 + parseInt(task.id.slice(1)) * 0.05,
-                          }}
-                          className="hover:bg-gray-50/50 transition-colors"
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              {getStatusIcon(task.status)}
-                              <div className="ml-3 flex-1">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {task.title}
-                                </div>
-                                <div className="text-sm text-gray-500 line-clamp-1">
-                                  {task.description}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {task.project}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage
-                                  src={`https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face`}
-                                />
-                                <AvatarFallback className="text-xs">
-                                  {task.assignee.charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="ml-3">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {task.assignee}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {new Date(task.dueDate).toLocaleDateString()}
-                            </div>
-                            {isOverdue(task.dueDate) &&
-                              task.status !== "completed" && (
-                                <div className="text-xs text-red-600">
-                                  Overdue
-                                </div>
-                              )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                                task.status === "completed"
-                                  ? "bg-green-100 text-green-800"
-                                  : task.status === "in-progress"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : task.status === "review"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {task.status.charAt(0).toUpperCase() +
-                                task.status.slice(1).replace("-", " ")}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-1 rounded-lg text-xs font-medium ${getPriorityColor(task.priority)}`}
-                            >
-                              {task.priority}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                                <div
-                                  className={`h-2 rounded-full transition-all duration-300 ${
-                                    task.progress >= 80
-                                      ? "bg-green-500"
-                                      : task.progress >= 60
-                                        ? "bg-blue-500"
-                                        : task.progress >= 40
-                                          ? "bg-yellow-500"
-                                          : "bg-red-500"
-                                  }`}
-                                  style={{ width: `${task.progress}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-xs text-gray-500">
-                                {task.progress}%
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              {task.createdBy === "me" ? (
-                                <div className="flex items-center space-x-2">
-                                  <User className="h-4 w-4 text-blue-600" />
-                                  <span className="text-sm text-gray-900">
-                                    Me
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-2">
-                                  <Users className="h-4 w-4 text-green-600" />
-                                  <span className="text-sm text-gray-900">
-                                    Shared
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg transition-colors duration-200"
-                                title="View Task"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <button
-                                className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors duration-200"
-                                title="Edit Task"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {tasksLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
                 </div>
-              </div>
-            </motion.div>
+              ) : getFilteredTasks().length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium">No tasks found</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {taskFilter === "all"
+                      ? "Get started by creating your first task"
+                      : `No ${taskFilter} tasks available`}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white/40 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50/60 border-b border-gray-200/50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            {/* Action Required */}
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            TASK NAME
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            ASSIGNEE
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            DUE DATE
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            STATUS
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            PRIORITY
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            SUBTASKS
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            PROJECT
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            PROGRESS
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            ACTIONS
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200/50">
+                        {getFilteredTasks().map((task) => {
+                          const isActionRequired =
+                            (task.status === "Client Review" ||
+                              task.status?.toUpperCase() === "CLIENT_REVIEW") &&
+                            !task.clientApproval;
+
+                          const isDone =
+                            task.status?.toLowerCase() === "done" ||
+                            task.status?.toLowerCase() === "completed";
+
+                          const taskSubtasks = task.subtasks || [];
+                          const rootSubtasks = taskSubtasks.filter((st) => {
+                            return (
+                              !st.parentSubtask ||
+                              st.parentSubtask === null ||
+                              (typeof st.parentSubtask === "object" &&
+                                !st.parentSubtask.id)
+                            );
+                          });
+                          const hasSubtasks = rootSubtasks.length > 0;
+                          const taskId = task.id;
+                          const isExpanded = expandedSubtasks[taskId] || false;
+
+                          const handleToggleExpand = (e) => {
+                            e.stopPropagation();
+                            const newExpandedState = !isExpanded;
+                            if (
+                              newExpandedState &&
+                              subtaskButtonRefs.current[taskId]
+                            ) {
+                              const rect =
+                                subtaskButtonRefs.current[
+                                  taskId
+                                ].getBoundingClientRect();
+                              setSubtaskDropdownPositions((prev) => ({
+                                ...prev,
+                                [taskId]: {
+                                  top: rect.bottom + window.scrollY + 4,
+                                  left: rect.left + window.scrollX,
+                                  width: rect.width,
+                                },
+                              }));
+                            }
+                            setExpandedSubtasks((prev) => ({
+                              ...prev,
+                              [taskId]: newExpandedState,
+                            }));
+                          };
+
+                          const dropdownPosition =
+                            subtaskDropdownPositions[taskId];
+                          const dropdownContent =
+                            isExpanded &&
+                            rootSubtasks.length > 0 &&
+                            dropdownPosition &&
+                            typeof window !== "undefined"
+                              ? createPortal(
+                                  <div
+                                    className="fixed z-[9999] border border-gray-200 rounded-lg bg-white shadow-lg max-h-60 overflow-y-auto"
+                                    style={{
+                                      top: `${dropdownPosition.top}px`,
+                                      left: `${dropdownPosition.left}px`,
+                                      width: `${dropdownPosition.width}px`,
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="p-2 space-y-1">
+                                      {rootSubtasks.map((subtask) => {
+                                        const isSubtaskDone =
+                                          subtask.status?.toLowerCase() ===
+                                            "done" ||
+                                          subtask.status?.toLowerCase() ===
+                                            "completed";
+                                        return (
+                                          <button
+                                            key={subtask.id}
+                                            className={`w-full text-left px-3 py-2 rounded-md hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200 ${
+                                              isSubtaskDone ? "opacity-60" : ""
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <div className="flex-1 min-w-0">
+                                                <div
+                                                  className={`text-sm font-medium truncate ${
+                                                    isSubtaskDone
+                                                      ? "line-through text-gray-500"
+                                                      : "text-gray-900"
+                                                  }`}
+                                                >
+                                                  {subtask.name ||
+                                                    subtask.title}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>,
+                                  document.body
+                                )
+                              : null;
+
+                          return (
+                            <tr
+                              key={task.id}
+                              className="hover:bg-gray-50/30 transition-colors cursor-pointer"
+                              onClick={() => handleTaskClick(task)}
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-center">
+                                  {isActionRequired ? (
+                                    <div className="relative">
+                                      <AlertCircle className="w-5 h-5 text-xtrawrkx-500 animate-pulse" />
+                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-xtrawrkx-500 rounded-full border-2 border-white"></div>
+                                    </div>
+                                  ) : (
+                                    <div className="w-5 h-5 flex items-center justify-center">
+                                      <div className="w-2 h-2 rounded-full bg-gray-300"></div>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3 min-w-[200px]">
+                                  <div className="min-w-0 flex-1 flex items-center gap-2">
+                                    <div
+                                      className={`font-medium truncate flex-1 min-w-0 ${
+                                        isDone
+                                          ? "line-through text-gray-500"
+                                          : "text-gray-900"
+                                      }`}
+                                    >
+                                      {task.name}
+                                    </div>
+                                    {hasSubtasks && (
+                                      <div
+                                        className="flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600"
+                                        title={`${rootSubtasks.length} ${
+                                          rootSubtasks.length === 1
+                                            ? "subtask"
+                                            : "subtasks"
+                                        }`}
+                                      >
+                                        <GitBranch className="w-3.5 h-3.5" />
+                                        <span className="text-xs font-medium">
+                                          {rootSubtasks.length}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2 min-w-[140px]">
+                                  {task.assignee && task.assignee.name ? (
+                                    <div className="flex items-center gap-1">
+                                      <div
+                                        className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0 border border-white"
+                                        title={task.assignee.name}
+                                      >
+                                        {task.assignee.name
+                                          ?.charAt(0)
+                                          ?.toUpperCase() || "U"}
+                                      </div>
+                                      <span className="text-sm text-gray-600 truncate ml-1">
+                                        {task.assignee.name}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      Unassigned
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2 min-w-[150px]">
+                                  <Calendar className="w-4 h-4 flex-shrink-0 text-gray-500" />
+                                  <span className="text-sm text-gray-700">
+                                    {task.scheduledDate
+                                      ? new Date(
+                                          task.scheduledDate
+                                        ).toLocaleDateString("en-US", {
+                                          year: "numeric",
+                                          month: "short",
+                                          day: "numeric",
+                                        })
+                                      : "Not set"}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="min-w-[140px]">
+                                  <span
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border inline-block ${getStatusColor(
+                                      task.status
+                                    )}`}
+                                  >
+                                    {formatStatus(task.status)}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="min-w-[120px]">
+                                  <span
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border inline-block ${getPriorityColor(
+                                      task.priority
+                                    )}`}
+                                  >
+                                    {task.priority || "Medium"}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div
+                                  className="min-w-[180px]"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {hasSubtasks ? (
+                                    <div className="relative">
+                                      <button
+                                        ref={(el) => {
+                                          if (el)
+                                            subtaskButtonRefs.current[taskId] =
+                                              el;
+                                        }}
+                                        onClick={handleToggleExpand}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200 w-full"
+                                      >
+                                        <GitBranch className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                                        <span className="text-sm font-medium text-gray-700">
+                                          {rootSubtasks.length}{" "}
+                                          {rootSubtasks.length === 1
+                                            ? "subtask"
+                                            : "subtasks"}
+                                        </span>
+                                        {isExpanded ? (
+                                          <ChevronDown className="w-4 h-4 text-gray-500 ml-auto" />
+                                        ) : (
+                                          <ChevronRight className="w-4 h-4 text-gray-500 ml-auto" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      No subtasks
+                                    </span>
+                                  )}
+                                </div>
+                                {typeof window !== "undefined" &&
+                                  dropdownContent}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="min-w-[150px]">
+                                  {task.project ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (task.project?.id) {
+                                          router.push(
+                                            `/projects/${task.project.id}`
+                                          );
+                                        }
+                                      }}
+                                      className="text-sm text-gray-700 hover:text-xtrawrkx-600 hover:underline truncate"
+                                    >
+                                      {task.project.name}
+                                    </button>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      No project
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2 min-w-[120px]">
+                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
+                                      style={{
+                                        width: `${task.progress || 0}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {task.progress || 0}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div
+                                  className="flex items-center gap-1 min-w-[120px]"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {isActionRequired && (
+                                    <div className="px-2 py-1 bg-xtrawrkx-100 text-xtrawrkx-800 rounded-lg text-xs font-semibold border border-xtrawrkx-200 mr-2">
+                                      Action Required
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTaskClick(task);
+                                    }}
+                                    className="p-1.5 text-xtrawrkx-600 hover:text-xtrawrkx-700 hover:bg-xtrawrkx-50 rounded transition-colors"
+                                    title="View Task"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </Card>
 
             {/* Projects Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-8"
+            <Card
+              outlined={true}
+              title="Project Overview"
+              subtitle="Track your ongoing projects"
+              actions={
+                <button
+                  onClick={() => router.push("/projects")}
+                  className="px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 hover:border-white/40 transition-all duration-300 text-sm font-medium text-gray-900 flex items-center gap-2 shadow-lg"
+                >
+                  <Folder className="w-4 h-4" />
+                  View All
+                </button>
+              }
             >
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    Project Overview
-                  </h2>
-                  <p className="text-gray-600 mt-1">
-                    Track your ongoing projects
+              {projectsLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+                </div>
+              ) : projects.length === 0 ? (
+                <div className="text-center py-12">
+                  <Folder className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium">No projects found</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Get started by creating your first project
                   </p>
                 </div>
-                <ModernButton type="secondary" icon={Folder} text="View All" />
-              </div>
-
-              <div className="space-y-6">
-                {projectsData.map((project) => (
-                  <motion.div
-                    key={project.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 + project.id * 0.1 }}
-                    className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 hover:shadow-xl transition-all duration-300 p-6"
-                  >
-                    <div className="flex items-start justify-between">
-                      {/* Left Section - Project Details */}
-                      <div className="flex-1 pr-6">
-                        {/* Project Title */}
-                        <h3 className="text-xl font-bold text-gray-900 mb-3">
-                          {project.title}
-                        </h3>
-
-                        {/* Project Description */}
-                        <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                          {project.description}
-                        </p>
-
-                        {/* Key Metrics Row */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                              <DollarSign className="h-4 w-4 text-green-600" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 font-medium">
-                                Hourly Rate
-                              </p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {project.hourlyRate}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                              <DollarSign className="h-4 w-4 text-purple-600" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 font-medium">
-                                Total Spend
-                              </p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {project.totalSpend}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                              <Calendar className="h-4 w-4 text-yellow-600" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 font-medium">
-                                Days Left
-                              </p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {project.daysLeft}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                              <FileText className="h-4 w-4 text-green-600" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 font-medium">
-                                Documents
-                              </p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {project.documentsSubmitted}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Project Timeline */}
-                        <div className="mb-4">
-                          <div className="flex items-center justify-between relative">
-                            {project.milestones.map((milestone, index) => (
-                              <div
-                                key={index}
-                                className="flex flex-col items-center relative"
-                              >
-                                <div
-                                  className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
-                                    milestone.completed
-                                      ? "bg-purple-600 text-white"
-                                      : "bg-white border-2 border-purple-600 text-purple-600"
-                                  }`}
-                                >
-                                  <div className="w-2 h-2 rounded-full bg-current"></div>
-                                </div>
-                                <div className="text-center">
-                                  <p className="text-xs font-medium text-gray-700">
-                                    {milestone.name}
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    {milestone.date}
-                                  </p>
-                                </div>
-                                {index < project.milestones.length - 1 && (
-                                  <div
-                                    className={`absolute top-4 left-1/2 w-full h-0.5 ${
-                                      milestone.completed
-                                        ? "bg-purple-600"
-                                        : "bg-gray-300"
-                                    }`}
-                                    style={{
-                                      transform: "translateX(50%)",
-                                      width: "calc(100% - 2rem)",
-                                    }}
-                                  ></div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Section - Assigned Person */}
-                      <div className="w-64 bg-white/50 backdrop-blur-sm rounded-xl p-4 border border-white/50">
-                        <div className="text-center">
-                          {/* Profile Picture */}
-                          <Avatar className="h-16 w-16 mx-auto mb-3 border-2 border-white shadow-md">
-                            <AvatarImage src={project.assignedPerson.avatar} />
-                            <AvatarFallback className="text-lg font-semibold">
-                              {project.assignedPerson.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </AvatarFallback>
-                          </Avatar>
-
-                          {/* Name */}
-                          <h4 className="font-bold text-gray-900 text-lg mb-1">
-                            {project.assignedPerson.name}
-                          </h4>
-
-                          {/* Role */}
-                          <p className="text-sm text-gray-600 mb-3">
-                            {project.assignedPerson.role}
-                          </p>
-
-                          {/* Location */}
-                          <div className="flex items-center justify-center space-x-1 mb-2">
-                            <MapPin className="h-3 w-3 text-gray-500" />
-                            <span className="text-xs text-gray-500">
-                              {project.assignedPerson.location}
-                            </span>
-                          </div>
-
-                          {/* Time */}
-                          <div className="flex items-center justify-center space-x-1 mb-2">
-                            <Clock className="h-3 w-3 text-gray-500" />
-                            <span className="text-xs text-gray-500">
-                              {project.assignedPerson.time}
-                            </span>
-                          </div>
-
-                          {/* Rating */}
-                          <div className="flex items-center justify-center space-x-1 mb-4">
-                            <Star className="h-3 w-3 text-yellow-500 fill-current" />
-                            <span className="text-xs font-medium text-gray-700">
-                              {project.assignedPerson.rating}
-                            </span>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="space-y-2">
-                            <ModernButton
-                              type="primary"
-                              text="Contact"
-                              size="xs"
-                              className="w-full"
-                            />
-                            <ModernButton
-                              type="secondary"
-                              text="View Details"
-                              size="xs"
-                              className="w-full"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Right Column - Stats, Communities, Activities & Quick Access */}
-          <div className="space-y-8">
-            {/* Dashboard Stats */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 p-6"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {dashboardStats.map((stat, index) => {
-                  const Icon = stat.icon;
-                  return (
-                    <motion.div
-                      key={stat.title}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 + index * 0.1 }}
-                      className={`bg-gradient-to-br ${stat.bgColor} rounded-xl p-4 shadow-lg border border-white/50 backdrop-blur-sm hover:shadow-xl transition-all duration-300`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div
-                          className={`w-10 h-10 bg-gradient-to-br ${stat.color} rounded-lg flex items-center justify-center shadow-md`}
-                        >
-                          <Icon className="h-5 w-5 text-white" />
-                        </div>
-                        <div
-                          className={`flex items-center space-x-1 text-xs font-medium ${
-                            stat.changeType === "increase"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {stat.changeType === "increase" ? (
-                            <ArrowUpRight className="h-3 w-3" />
-                          ) : (
-                            <ArrowDownRight className="h-3 w-3" />
-                          )}
-                          <span>{stat.change}</span>
-                        </div>
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-800 mb-1">
-                        {stat.value}
-                      </h3>
-                      <p className="text-gray-600 text-xs font-medium">
-                        {stat.title}
-                      </p>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
-
-            {/* Communities Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    My Communities
-                  </h2>
-                  <p className="text-gray-600 mt-1 text-sm">
-                    Your active community memberships
-                  </p>
-                </div>
-                <ModernButton type="primary" text="Join" size="sm" />
-              </div>
-
-              <div className="space-y-4">
-                {communitiesData.map((community) => {
-                  return (
-                    <motion.div
-                      key={community.id}
-                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{
-                        delay: 0.5 + community.id * 0.1,
-                        duration: 0.5,
-                        ease: [0.25, 0.46, 0.45, 0.94],
-                      }}
-                      whileHover={{
-                        y: -2,
-                        scale: 1.01,
-                        transition: { duration: 0.3, ease: "easeOut" },
-                      }}
-                      className={`group relative overflow-hidden rounded-xl border border-white/50 transition-all duration-300 ${
-                        community.isMember
-                          ? "shadow-md bg-gradient-to-br from-white via-blue-50/20 to-indigo-50/30 backdrop-blur-sm"
-                          : "shadow-md bg-gradient-to-br from-white to-gray-50/30 backdrop-blur-sm"
-                      }`}
-                    >
-                      {/* Content */}
-                      <motion.div
-                        className="relative z-10 p-4"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{
-                          delay: 0.6 + community.id * 0.1,
-                          duration: 0.4,
-                        }}
+              ) : (
+                <div className="space-y-4 -mx-4 px-4">
+                  {projects.map((project) => {
+                    const projectCard = transformProjectForCard(project);
+                    return (
+                      <div
+                        key={projectCard.id}
+                        className="bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl rounded-2xl shadow-xl border border-white/30 hover:shadow-2xl transition-all duration-300 p-6"
                       >
-                        {/* Header Section */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-3">
-                            <div className="relative group/logo">
-                              <div className="w-10 h-10 rounded-lg flex items-center justify-center shadow-md relative overflow-hidden bg-white/80 backdrop-blur-sm border border-white/50">
-                                <Image
-                                  src={community.logo}
-                                  alt={`${community.name} logo`}
-                                  width={24}
-                                  height={24}
-                                  className="w-6 h-6 object-contain transition-transform duration-300 group-hover/logo:scale-110"
-                                  onError={(e) => {
-                                    e.target.style.display = "none";
-                                    e.target.nextSibling.style.display = "flex";
-                                  }}
-                                />
-                                <div className="w-6 h-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg items-center justify-center hidden">
-                                  <span className="text-xs font-bold text-gray-600">
-                                    {community.name.charAt(0)}
+                        <div className="flex items-start justify-between gap-6">
+                          {/* Left Section - Main Content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Project Header - Name and Status */}
+                            <div className="flex items-start justify-between mb-4">
+                              <h3 className="text-xl font-bold text-gray-900 truncate flex-1 pr-3">
+                                {projectCard.title}
+                              </h3>
+                              <span
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex-shrink-0 shadow-sm ${projectCard.statusBadge.className}`}
+                              >
+                                {projectCard.statusBadge.label}
+                              </span>
+                            </div>
+
+                            {/* High-Value Info Row - Phase/Milestone and Last Update */}
+                            <div className="flex items-center gap-4 mb-4 text-xs text-gray-600">
+                              {projectCard.currentPhase && (
+                                <div className="flex items-center gap-1.5">
+                                  <Target className="w-3.5 h-3.5 text-xtrawrkx-500" />
+                                  <span className="font-medium">
+                                    {projectCard.currentPhase}
                                   </span>
                                 </div>
-                              </div>
-                              {community.isMember && (
-                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-md">
-                                  <Crown className="h-1.5 w-1.5 text-white" />
+                              )}
+                              {projectCard.lastUpdate && (
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                                  <span>
+                                    Updated{" "}
+                                    {formatRelativeTime(projectCard.lastUpdate)}
+                                  </span>
                                 </div>
                               )}
                             </div>
+
+                            {/* Progress Bar */}
+                            <div className="mb-4">
+                              <div className="flex items-center justify-between text-sm mb-2">
+                                <span className="text-gray-600 font-medium">
+                                  Progress
+                                </span>
+                                <span className="text-gray-900 font-bold text-base">
+                                  {projectCard.progress}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div
+                                  className="bg-xtrawrkx-500 h-2.5 rounded-full transition-all duration-300"
+                                  style={{ width: `${projectCard.progress}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Activity Counts - Tasks and Messages with Indicators */}
+                            <div className="flex items-center gap-6 mb-5">
+                              <div className="flex items-center gap-3">
+                                <div className="relative">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-xtrawrkx-50 to-xtrawrkx-100 rounded-lg flex items-center justify-center border border-xtrawrkx-200 flex-shrink-0">
+                                    <CheckSquare className="w-5 h-5 text-xtrawrkx-600" />
+                                  </div>
+                                  {projectCard.tasksTotal > 0 &&
+                                    projectCard.tasksCompleted <
+                                      projectCard.tasksTotal && (
+                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-white"></div>
+                                    )}
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500 font-medium mb-0.5">
+                                    Tasks
+                                  </p>
+                                  <p className="text-base font-bold text-gray-900">
+                                    {projectCard.tasksTotal}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="relative">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg flex items-center justify-center border border-purple-200 flex-shrink-0">
+                                    <Bell className="w-5 h-5 text-purple-600" />
+                                  </div>
+                                  {projectCard.messagesUnread > 0 && (
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-xtrawrkx-500 rounded-full border-2 border-white flex items-center justify-center">
+                                      <span className="text-[8px] text-white font-bold">
+                                        {projectCard.messagesUnread > 9
+                                          ? "9+"
+                                          : projectCard.messagesUnread}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500 font-medium mb-0.5">
+                                    Messages
+                                  </p>
+                                  <p className="text-base font-bold text-gray-900">
+                                    {projectCard.messagesUnread > 0 ? (
+                                      <span className="text-xtrawrkx-600">
+                                        {projectCard.messagesUnread}
+                                      </span>
+                                    ) : (
+                                      "0"
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* View Project CTA */}
+                            <button
+                              onClick={() => {
+                                if (projectCard.slug || projectCard.id) {
+                                  router.push(
+                                    `/projects/${
+                                      projectCard.slug || projectCard.id
+                                    }`
+                                  );
+                                }
+                              }}
+                              className="w-auto px-4 py-2 bg-xtrawrkx-500 text-white rounded-lg text-xs font-medium hover:bg-xtrawrkx-600 transition-colors shadow-sm"
+                            >
+                              View Project
+                            </button>
+                          </div>
+
+                          {/* Right Section - Project Manager Card */}
+                          <div className="flex-shrink-0 w-48">
+                            <Card
+                              padding={false}
+                              className="p-4 bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-xl border border-white/40 shadow-lg"
+                            >
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-xs text-gray-500 font-semibold mb-3 uppercase tracking-wide">
+                                    Project Manager
+                                  </p>
+                                  <div className="flex items-center gap-3">
+                                    <div className="relative flex-shrink-0">
+                                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-xtrawrkx-500 to-xtrawrkx-600 flex items-center justify-center text-white font-semibold text-sm shadow-md">
+                                        {projectCard.assignedPerson.avatar ? (
+                                          <img
+                                            src={
+                                              projectCard.assignedPerson.avatar
+                                            }
+                                            alt={
+                                              projectCard.assignedPerson.name
+                                            }
+                                            className="w-full h-full rounded-xl object-cover"
+                                          />
+                                        ) : (
+                                          <span>
+                                            {projectCard.assignedPerson.name
+                                              .split(" ")
+                                              .map((n) => n[0])
+                                              .join("")
+                                              .toUpperCase()}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-bold text-gray-900 truncate">
+                                        {projectCard.assignedPerson.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500 truncate mt-0.5">
+                                        {projectCard.assignedPerson.role}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Handle message action
+                                  }}
+                                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/80 hover:bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 transition-all shadow-sm hover:shadow-md"
+                                >
+                                  <Bell className="w-3.5 h-3.5" />
+                                  Message
+                                </button>
+                              </div>
+                            </Card>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* Right Column - Communities & Quick Access */}
+          <div className="space-y-6">
+            {/* Communities Section */}
+            <Card
+              outlined={true}
+              title="My Communities"
+              subtitle="Your active community memberships"
+              actions={
+                <button
+                  onClick={() => router.push("/communities")}
+                  className="px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-medium hover:bg-xtrawrkx-600 transition-colors shadow-lg"
+                >
+                  Join
+                </button>
+              }
+            >
+              {communitiesLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+                </div>
+              ) : communities.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium">
+                    No communities found
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Communities will appear here when available
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {communities.map((community) => {
+                    return (
+                      <div
+                        key={community.id}
+                        className={`group relative overflow-hidden rounded-xl border border-white/20 transition-all duration-300 hover:shadow-lg ${
+                          community.isMember
+                            ? "shadow-md bg-white/40 backdrop-blur-sm"
+                            : "shadow-md bg-white/30 backdrop-blur-sm"
+                        }`}
+                      >
+                        {/* Content */}
+                        <div className="relative z-10 p-4">
+                          {/* Header Section */}
+                          <div className="flex items-center justify-between mb-4">
                             <div>
                               <h3 className="font-bold text-gray-900 text-sm mb-0.5">
                                 {community.name}
@@ -1134,320 +2159,273 @@ export default function DashboardPage() {
                                 {community.category}
                               </p>
                             </div>
-                          </div>
-                          <div className="flex flex-col items-end space-y-1">
                             <div
                               className={`text-xs px-2 py-1 rounded-lg font-semibold shadow-sm ${
                                 community.isMember
-                                  ? "bg-white/80 text-green-700 border border-green-200/50 backdrop-blur-sm"
-                                  : "bg-white/80 text-gray-700 border border-gray-200/50 backdrop-blur-sm"
+                                  ? "bg-green-100 text-green-700 border border-green-200"
+                                  : "bg-gray-100 text-gray-700 border border-gray-200"
                               }`}
                             >
                               {community.isMember ? "Member" : community.status}
                             </div>
-                            {community.isMember &&
-                              community.name !== "XEVTG" && (
-                                <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white text-xs px-2 py-1 rounded-lg font-bold shadow-md">
-                                  {community.userTier?.toUpperCase()}
-                                </div>
-                              )}
                           </div>
-                        </div>
 
-                        {/* Description */}
-                        <p className="text-gray-600 text-xs mb-3 leading-relaxed font-medium line-clamp-2">
-                          {community.description}
-                        </p>
-
-                        {/* Action Buttons */}
-                        <div className="space-y-2">
+                          {/* Primary CTA */}
                           {community.isMember ? (
-                            <>
-                              <ModernButton
-                                type="primary"
-                                text="View Community"
-                                size="xs"
-                                className="w-full"
-                              />
-                              {community.canUpgrade && (
-                                <ModernButton
-                                  type="secondary"
-                                  text={`Upgrade to ${community.nextTier}`}
-                                  size="xs"
-                                  icon={Star}
-                                  className="w-full"
-                                />
-                              )}
-                            </>
+                            <button
+                              onClick={() => {
+                                router.push(`/communities/${community.id}`);
+                              }}
+                              className="w-full px-4 py-2 bg-xtrawrkx-500 text-white rounded-lg text-sm font-medium hover:bg-xtrawrkx-600 transition-colors shadow-md"
+                            >
+                              View Community
+                            </button>
                           ) : (
-                            <ModernButton
-                              type="secondary"
-                              text="Join Community"
-                              size="xs"
-                              className="w-full"
-                            />
+                            <button
+                              onClick={() => {
+                                router.push(
+                                  `/communities?join=${community.id}`
+                                );
+                              }}
+                              className="w-full px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 text-gray-900 rounded-lg text-sm font-medium hover:bg-white/30 hover:border-white/40 transition-all"
+                            >
+                              Join Community
+                            </button>
                           )}
                         </div>
-                      </motion.div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
-
-            {/* Recent Activities */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-8"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    Recent Activities
-                  </h3>
-                  <p className="text-gray-600 mt-1">Your latest updates</p>
-                </div>
-                <ModernButton type="secondary" size="sm" text="View All" />
-              </div>
-
-              <div className="space-y-4">
-                {recentActivities.map((activity) => {
-                  const Icon = activity.icon;
-                  return (
-                    <motion.div
-                      key={activity.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.8 + activity.id * 0.1 }}
-                      className="group bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm hover:shadow-md transition-all duration-300 p-4"
-                    >
-                      <div className="flex items-start space-x-4">
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md transition-all duration-300 group-hover:scale-110 ${
-                            activity.type === "project_update"
-                              ? "bg-green-100"
-                              : activity.type === "earnings"
-                                ? "bg-blue-100"
-                                : activity.type === "community"
-                                  ? "bg-yellow-100"
-                                  : "bg-gray-100"
-                          }`}
-                        >
-                          <Icon
-                            className={`h-5 w-5 ${
-                              activity.type === "project_update"
-                                ? "text-green-600"
-                                : activity.type === "earnings"
-                                  ? "text-blue-600"
-                                  : activity.type === "community"
-                                    ? "text-yellow-600"
-                                    : "text-gray-600"
-                            }`}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 text-sm mb-1">
-                            {activity.title}
-                          </h4>
-                          <p className="text-sm text-gray-600 mb-2 leading-relaxed">
-                            {activity.description}
-                          </p>
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-gray-500 font-medium">
-                              {activity.time}
-                            </p>
-                            <div
-                              className={`w-2 h-2 rounded-full ${
-                                activity.type === "project_update"
-                                  ? "bg-green-500"
-                                  : activity.type === "earnings"
-                                    ? "bg-blue-500"
-                                    : activity.type === "community"
-                                      ? "bg-yellow-500"
-                                      : "bg-gray-500"
-                              }`}
-                            ></div>
-                          </div>
-                        </div>
                       </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
 
             {/* Schedule/Calendar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-6 relative overflow-hidden"
+            <Card
+              glass={true}
+              title="Today's Schedule"
+              subtitle={new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+              })}
+              actions={
+                <button
+                  onClick={() => router.push("/tasks")}
+                  className="px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 hover:border-white/40 transition-all duration-300 text-sm font-medium text-gray-900 flex items-center gap-2 shadow-lg"
+                >
+                  <Calendar className="w-4 h-4" />
+                  View Calendar
+                </button>
+              }
             >
-              {/* Background decoration */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-100/30 to-purple-100/30 rounded-full -translate-y-16 translate-x-16"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-green-100/30 to-blue-100/30 rounded-full translate-y-12 -translate-x-12"></div>
-
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">
-                        Today&apos;s Schedule
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {new Date().toLocaleDateString("en-US", {
-                          weekday: "long",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                  <ModernButton
-                    type="secondary"
-                    size="sm"
-                    icon={Calendar}
-                    text="View Calendar"
-                    className="shadow-sm hover:shadow-md"
-                  />
+              {scheduleLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
                 </div>
-
-                <div className="space-y-4">
-                  {/* Team Meeting */}
-                  <motion.div
-                    className="group relative bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-2xl border border-blue-200/50 p-4 hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-[1.02]"
-                    whileHover={{ y: -2 }}
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="relative">
-                        <div className="w-4 h-4 bg-blue-500 rounded-full shadow-sm"></div>
-                        <div className="absolute inset-0 w-4 h-4 bg-blue-400 rounded-full animate-ping opacity-30"></div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-gray-900 text-base group-hover:text-blue-700 transition-colors">
-                            Team Meeting
-                          </h4>
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
-                            In Progress
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Clock className="w-3 h-3 text-gray-500" />
-                          <p className="text-sm text-gray-600">
-                            10:00 AM - 11:00 AM
-                          </p>
-                          <span className="text-xs text-gray-500">•</span>
-                          <p className="text-xs text-gray-500">
-                            45 min remaining
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                          <Users className="w-4 h-4 text-white" />
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                      </div>
-                    </div>
-                  </motion.div>
-
-                  {/* Project Review */}
-                  <motion.div
-                    className="group relative bg-gradient-to-r from-amber-50 to-yellow-100/50 rounded-2xl border border-amber-200/50 p-4 hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-[1.02]"
-                    whileHover={{ y: -2 }}
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="relative">
-                        <div className="w-4 h-4 bg-amber-500 rounded-full shadow-sm"></div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-gray-900 text-base group-hover:text-amber-700 transition-colors">
-                            Project Review
-                          </h4>
-                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
-                            Upcoming
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Clock className="w-3 h-3 text-gray-500" />
-                          <p className="text-sm text-gray-600">
-                            2:00 PM - 3:30 PM
-                          </p>
-                          <span className="text-xs text-gray-500">•</span>
-                          <p className="text-xs text-gray-500">
-                            Starts in 2h 15m
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-sm">
-                          <FileText className="w-4 h-4 text-white" />
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                      </div>
-                    </div>
-                  </motion.div>
-
-                  {/* Client Call */}
-                  <motion.div
-                    className="group relative bg-gradient-to-r from-green-50 to-emerald-100/50 rounded-2xl border border-green-200/50 p-4 hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-[1.02]"
-                    whileHover={{ y: -2 }}
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="relative">
-                        <div className="w-4 h-4 bg-green-500 rounded-full shadow-sm"></div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-gray-900 text-base group-hover:text-green-700 transition-colors">
-                            Client Call
-                          </h4>
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
-                            Scheduled
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Clock className="w-3 h-3 text-gray-500" />
-                          <p className="text-sm text-gray-600">
-                            4:00 PM - 5:00 PM
-                          </p>
-                          <span className="text-xs text-gray-500">•</span>
-                          <p className="text-xs text-gray-500">
-                            Starts in 4h 15m
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
-                          <Phone className="w-4 h-4 text-white" />
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                      </div>
-                    </div>
-                  </motion.div>
+              ) : todaysSchedule.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium">
+                    No scheduled tasks today
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Tasks scheduled for today will appear here
+                  </p>
                 </div>
-
-                {/* Footer with notification badge */}
-                <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center space-x-2 text-sm text-gray-500">
-                    <Bell className="w-4 h-4" />
-                    <span>4 notifications pending</span>
-                  </div>
-                  <div className="relative">
-                    <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shadow-sm">
-                      <span className="text-white text-xs font-bold">4</span>
-                    </div>
+              ) : (
+                <div className="relative z-10">
+                  <div className="space-y-4">
+                    {todaysSchedule.map((item) => {
+                      const Icon = item.icon;
+                      const isInProgress =
+                        item.status === "In Progress" ||
+                        (item.scheduledDate &&
+                          new Date(item.scheduledDate) <= new Date());
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            setSelectedTask(item.task);
+                            setIsTaskModalOpen(true);
+                          }}
+                          className={`group relative ${item.bgColor} rounded-xl border ${item.borderColor} p-4 hover:shadow-lg transition-all duration-300 cursor-pointer`}
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className="relative">
+                              <div
+                                className={`w-4 h-4 ${item.dotColor} rounded-full shadow-sm`}
+                              ></div>
+                              {isInProgress && (
+                                <div
+                                  className={`absolute inset-0 w-4 h-4 ${item.dotColor} rounded-full animate-ping opacity-30`}
+                                ></div>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-semibold text-gray-900 text-base group-hover:text-gray-700 transition-colors">
+                                  {item.title}
+                                </h4>
+                                <span
+                                  className={`text-xs ${item.statusColor} px-2 py-1 rounded-full font-medium`}
+                                >
+                                  {item.status}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <Clock className="w-3 h-3 text-gray-500" />
+                                <p className="text-sm text-gray-600">
+                                  {item.time}
+                                </p>
+                                <span className="text-xs text-gray-500">•</span>
+                                <p className="text-xs text-gray-500">
+                                  {item.timeInfo}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div
+                                className={`w-8 h-8 ${item.dotColor} rounded-full flex items-center justify-center shadow-sm`}
+                              >
+                                <Icon className="w-4 h-4 text-white" />
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-            </motion.div>
+              )}
+            </Card>
           </div>
         </div>
       </div>
+
+      {/* Task Detail Modal */}
+      {isTaskModalOpen && selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={isTaskModalOpen}
+          onClose={() => {
+            setIsTaskModalOpen(false);
+            setSelectedTask(null);
+          }}
+          onApprove={async (taskId) => {
+            try {
+              const response = await fetch(
+                `${strapiClient.buildURL("/tasks", {})}/${taskId}`,
+                {
+                  method: "PUT",
+                  headers: {
+                    ...strapiClient.getHeaders(),
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    data: {
+                      status: "APPROVED",
+                      clientApproval: "approved",
+                      approvedAt: new Date().toISOString(),
+                    },
+                  }),
+                }
+              );
+
+              if (response.ok) {
+                setTasks((prev) =>
+                  prev.map((t) =>
+                    t.id === taskId
+                      ? {
+                          ...t,
+                          status: "Approved",
+                          clientApproval: "approved",
+                          approvedAt: new Date().toISOString(),
+                        }
+                      : t
+                  )
+                );
+                setSelectedTask({
+                  ...selectedTask,
+                  status: "Approved",
+                  clientApproval: "approved",
+                  approvedAt: new Date().toISOString(),
+                });
+              }
+            } catch (error) {
+              console.error("Error approving task:", error);
+            }
+          }}
+          onReject={async (taskId) => {
+            try {
+              const response = await fetch(
+                `${strapiClient.buildURL("/tasks", {})}/${taskId}`,
+                {
+                  method: "PUT",
+                  headers: {
+                    ...strapiClient.getHeaders(),
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    data: {
+                      clientApproval: "rejected",
+                      approvedAt: new Date().toISOString(),
+                    },
+                  }),
+                }
+              );
+
+              if (response.ok) {
+                setTasks((prev) =>
+                  prev.map((t) =>
+                    t.id === taskId
+                      ? {
+                          ...t,
+                          clientApproval: "rejected",
+                          approvedAt: new Date().toISOString(),
+                        }
+                      : t
+                  )
+                );
+                setSelectedTask({
+                  ...selectedTask,
+                  clientApproval: "rejected",
+                  approvedAt: new Date().toISOString(),
+                });
+              }
+            } catch (error) {
+              console.error("Error rejecting task:", error);
+            }
+          }}
+          onComment={async (taskId, comment) => {
+            // Handle comment addition
+            const newComment = {
+              id: Date.now().toString(),
+              ...comment,
+              createdAt: comment.createdAt || new Date().toISOString(),
+            };
+
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === taskId
+                  ? {
+                      ...t,
+                      comments: [...(t.comments || []), newComment],
+                    }
+                  : t
+              )
+            );
+
+            if (selectedTask?.id === taskId) {
+              setSelectedTask({
+                ...selectedTask,
+                comments: [...(selectedTask.comments || []), newComment],
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

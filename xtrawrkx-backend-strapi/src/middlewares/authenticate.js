@@ -34,7 +34,6 @@ module.exports = (config, { strapi }) => {
                 ctx.request.path.startsWith('/api/tasks') ||
                 ctx.request.path.startsWith('/api/subtasks') ||
                 publicRoutes.includes(ctx.request.path)) {
-                console.log('Skipping authentication for path:', ctx.request.path);
                 return await next();
             }
 
@@ -43,19 +42,15 @@ module.exports = (config, { strapi }) => {
             const token = ctx.request.headers.authorization?.replace('Bearer ', '');
 
             if (!token) {
-                console.log('No token provided in request headers');
                 return ctx.unauthorized('No token provided');
             }
 
-            console.log('Verifying token for path:', ctx.request.path);
 
             let decoded;
             try {
                 // Use Strapi's JWT service which uses the correct secret
                 decoded = strapi.plugins['users-permissions'].services.jwt.verify(token);
-                console.log('Token decoded successfully:', decoded);
             } catch (jwtError) {
-                console.log('Strapi JWT verification failed:', jwtError.message);
 
                 // Fallback to manual JWT verification with the JWT_SECRET
                 const jwt = require('jsonwebtoken');
@@ -63,16 +58,12 @@ module.exports = (config, { strapi }) => {
 
                 try {
                     decoded = jwt.verify(token, jwtSecret);
-                    console.log('Token decoded with fallback method:', decoded);
                 } catch (manualError) {
-                    console.log('Manual JWT verification also failed:', manualError.message);
                     return ctx.unauthorized('Invalid token');
                 }
             }
 
             // Set user context based on token type
-            console.log('Decoded token:', decoded);
-            console.log('Token type:', decoded.type);
             if (decoded.type === 'internal') {
                 const user = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
                     where: { id: decoded.id, isActive: true },
@@ -86,7 +77,6 @@ module.exports = (config, { strapi }) => {
                     ...user,
                     type: 'internal'
                 };
-                console.log('Set internal user in context:', ctx.state.user.email, 'Role:', ctx.state.user.role);
             } else if (decoded.type === 'client') {
                 const account = await strapi.db.query('api::account.account').findOne({
                     where: { id: decoded.id, isActive: true },

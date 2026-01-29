@@ -3,248 +3,281 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Home,
-  CheckSquare,
   ChevronLeft,
   ChevronRight,
   X,
-  Users,
-  Crown,
-  Calendar,
-  Clock,
-  Activity,
-  FolderOpen,
-  Archive,
-  List,
-  Grid3X3,
-  Calendar as CalendarIcon,
-  Plus,
-  User,
-  Bell,
-  CreditCard,
-  Key,
-  Star,
   ChevronDown,
-  Settings,
-  HelpCircle,
-  Shield,
-  FileText,
-  Ticket,
-  MessageCircle,
-  CheckCircle,
+  ChevronRight as ChevronRightIcon,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
-import ModernButton from "@/components/ui/ModernButton";
+import { useSession } from "@/lib/auth";
+import {
+  sidebarMenuConfig,
+  getUserRole,
+  hasPermission,
+  MENU_ITEM_TYPES,
+} from "@/config/sidebarMenu";
 
-// Communities data
-const communitiesData = [
-  {
-    id: 1,
-    name: "XEN",
-    fullName: "XEN Entrepreneurs Network",
-    category: "Business Division",
-    href: "/communities/xen",
-    isMember: true,
-    userTier: "x3",
-    userTierName: "Growth Member",
-    submenu: [
-      { name: "Overview", href: "/communities/xen/overview", icon: Home },
-      { name: "Members", href: "/communities/xen/members", icon: Users },
-      { name: "Key Features", href: "/communities/xen/features", icon: Star },
-      {
-        name: "Meeting Schedule",
-        href: "/communities/xen/schedule",
-        icon: Calendar,
-      },
-      { name: "Join/Upgrade", href: "/communities/xen/upgrade", icon: Crown },
-    ],
-  },
-  {
-    id: 2,
-    name: "XEV.FiN",
-    fullName: "XEV Financial Network",
-    category: "Investment Division",
-    href: "/communities/xevfin",
-    isMember: false,
-    submenu: [
-      { name: "Overview", href: "/communities/xevfin/overview", icon: Home },
-      { name: "Members", href: "/communities/xevfin/members", icon: Users },
-      {
-        name: "Key Features",
-        href: "/communities/xevfin/features",
-        icon: Star,
-      },
-      {
-        name: "Meeting Schedule",
-        href: "/communities/xevfin/schedule",
-        icon: Calendar,
-      },
-      {
-        name: "Join/Upgrade",
-        href: "/communities/xevfin/upgrade",
-        icon: Crown,
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "XEVTG",
-    fullName: "XEV Tech Talent Group",
-    category: "Technology Division",
-    href: "/communities/xevtg",
-    isMember: true,
-    userTier: "x1",
-    userTierName: "Starter Member",
-    submenu: [
-      { name: "Overview", href: "/communities/xevtg/overview", icon: Home },
-      { name: "Members", href: "/communities/xevtg/members", icon: Users },
-      { name: "Key Features", href: "/communities/xevtg/features", icon: Star },
-      {
-        name: "Meeting Schedule",
-        href: "/communities/xevtg/schedule",
-        icon: Calendar,
-      },
-      { name: "Join/Upgrade", href: "/communities/xevtg/upgrade", icon: Crown },
-    ],
-  },
-];
-
-// Contextual navigation based on active top nav
-const getContextualNavigation = (activeSection) => {
-  const sections = {
-    dashboard: [
-      { name: "Overview", href: "/dashboard", icon: Home },
-      { name: "Upcoming Deadlines", href: "/dashboard/deadlines", icon: Clock },
-      { name: "Activity Feed", href: "/dashboard/activity", icon: Activity },
-    ],
-    projects: [
-      { name: "All", href: "/projects", icon: FolderOpen },
-      { name: "Active", href: "/projects/active", icon: CheckSquare },
-      { name: "Archived", href: "/projects/archived", icon: Archive },
-      {
-        name: "Views",
-        href: "#",
-        icon: Grid3X3,
-        hasSubmenu: true,
-        submenu: [
-          { name: "List", href: "/projects?view=list", icon: List },
-          { name: "Board", href: "/projects?view=board", icon: Grid3X3 },
-          { name: "Timeline", href: "/projects?view=timeline", icon: Calendar },
-          {
-            name: "Calendar",
-            href: "/projects?view=calendar",
-            icon: CalendarIcon,
-          },
-        ],
-      },
-    ],
-    tasks: [
-      { name: "My Tasks", href: "/tasks", icon: CheckSquare },
-      { name: "Raised by Me", href: "/tasks/raised", icon: User },
-      { name: "Shared with Me", href: "/tasks/shared", icon: Users },
-      { name: "Completed", href: "/tasks/completed", icon: CheckSquare },
-      { name: "Raise Task", href: "/tasks/new", icon: Plus, isButton: true },
-    ],
-    messages: [
-      { name: "All Messages", href: "/messages", icon: MessageCircle },
-      { name: "Unread", href: "/messages?filter=unread", icon: Bell },
-      { name: "Team Chat", href: "/messages?filter=team", icon: Users },
-      { name: "Archived", href: "/messages?filter=archived", icon: Archive },
-    ],
-    events: [
-      { name: "My Events", href: "/events", icon: Ticket },
-      { name: "Upcoming", href: "/events?filter=upcoming", icon: Calendar },
-      { name: "Past Events", href: "/events?filter=completed", icon: Archive },
-      { name: "Browse Events", href: "/events/browse", icon: Plus },
-    ],
-    communities: [
-      { name: "All Communities", href: "/communities", icon: Users },
-      {
-        name: "My Communities",
-        href: "#",
-        icon: Crown,
-        hasSubmenu: true,
-        submenu: communitiesData.map((community) => ({
-          name: community.name,
-          href: community.href,
-          icon: community.isMember ? Crown : Users,
-          isMember: community.isMember,
-          tier: community.userTier,
-          hasSubmenu: true,
-          submenu: community.submenu,
-        })),
-      },
-    ],
-    services: [
-      { name: "All Services", href: "/services", icon: CheckCircle },
-      {
-        name: "Included Services",
-        href: "/services?filter=included",
-        icon: CheckSquare,
-      },
-      {
-        name: "Available Services",
-        href: "/services?filter=available",
-        icon: Plus,
-      },
-      { name: "Service History", href: "/services/history", icon: Archive },
-      { name: "Billing & Usage", href: "/services/billing", icon: CreditCard },
-      {
-        name: "Upgrade to X4",
-        href: "/services/upgrade",
-        icon: Crown,
-        isButton: true,
-      },
-    ],
-  };
-
-  return sections[activeSection] || sections.dashboard;
-};
-
-// Settings navigation
-const settingsNavigation = [
-  { name: "Profile", href: "/settings/profile", icon: User },
-  { name: "Notifications", href: "/settings/notifications", icon: Bell },
-  { name: "Account/Billing", href: "/settings/billing", icon: CreditCard },
-  { name: "API Keys", href: "/settings/api-keys", icon: Key },
-];
-
-// Footer links
-const footerLinks = [
-  { name: "About", href: "/about", icon: HelpCircle },
-  { name: "Privacy Policy", href: "/privacy", icon: Shield },
-  { name: "Terms of Service", href: "/terms", icon: FileText },
-];
-
-export function Sidebar({
-  isOpen,
-  onClose,
-  collapsed,
-  onCollapseChange,
-  activeSection = "dashboard",
-}) {
+export function Sidebar({ isOpen, onClose, collapsed, onCollapseChange }) {
   const pathname = usePathname();
-  const [expandedMenus, setExpandedMenus] = useState({
-    views: false,
-    myCommunities: false,
-    xen: false,
-    xevfin: false,
-    xevtg: false,
-    settings: false,
+  const { data: session } = useSession();
+  const userRole = getUserRole(session);
+
+  // Track expanded/collapsed state for each section
+  const [expandedSections, setExpandedSections] = useState(() => {
+    const initialState = {};
+    sidebarMenuConfig.forEach((section) => {
+      if (section.collapsible) {
+        initialState[section.id] = section.defaultExpanded ?? true;
+      }
+    });
+    return initialState;
   });
 
-  const toggleMenu = (menuKey) => {
-    setExpandedMenus((prev) => ({
+  // Track expanded submenu items (e.g., Billing submenu)
+  const [expandedSubmenus, setExpandedSubmenus] = useState({});
+
+  // Get company information
+  const getCompanyInfo = () => {
+    if (!session) return null;
+
+    // Try to get company info from session
+    const account = session.account || session.user?.account || session;
+
+    // Also try to get from localStorage if available
+    let companyData = null;
+    if (typeof window !== "undefined") {
+      try {
+        const accountData = localStorage.getItem("client_account");
+        if (accountData) {
+          companyData = JSON.parse(accountData);
+        }
+      } catch (e) {
+        console.error("Error parsing client_account:", e);
+      }
+    }
+
+    const company = companyData || account;
+
+    return {
+      name: company?.companyName || company?.name || "Company",
+      email: company?.email || "",
+      industry: company?.industry || "",
+      phone: company?.phone || "",
+    };
+  };
+
+  const companyInfo = getCompanyInfo();
+
+  // Toggle section expansion
+  const toggleSection = (sectionId) => {
+    setExpandedSections((prev) => ({
       ...prev,
-      [menuKey]: !prev[menuKey],
+      [sectionId]: !prev[sectionId],
     }));
   };
 
-  // Get contextual navigation based on active section
-  const navigation = getContextualNavigation(activeSection);
+  // Toggle submenu expansion
+  const toggleSubmenu = (itemId) => {
+    setExpandedSubmenus((prev) => ({
+      ...prev,
+      [itemId]: !prev[itemId],
+    }));
+  };
+
+  // Check if route is active
+  const isActiveRoute = (href) => {
+    if (!href) return false;
+    if (href === pathname) return true;
+    if (href !== "/" && pathname.startsWith(href)) return true;
+    return false;
+  };
+
+  // Render menu item
+  const renderMenuItem = (item) => {
+    if (!hasPermission(item, userRole)) return null;
+
+    const Icon = item.icon;
+    const isActive = isActiveRoute(item.href);
+    const hasSubmenu =
+      item.hasSubmenu && item.submenu && item.submenu.length > 0;
+    const isSubmenuExpanded = expandedSubmenus[item.id] ?? false;
+
+    // Filter submenu items by permissions
+    const visibleSubmenuItems = hasSubmenu
+      ? item.submenu.filter((subItem) => hasPermission(subItem, userRole))
+      : [];
+
+    if (collapsed) {
+      // Collapsed: show only icon, submenu not accessible
+      return (
+        <Link
+          key={item.id}
+          href={item.href}
+          className={cn(
+            "group relative flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200",
+            isActive
+              ? "bg-xtrawrkx-500 text-white shadow-md"
+              : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+          )}
+          title={item.label}
+        >
+          <Icon className="w-5 h-5" />
+          {/* Tooltip */}
+          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+            {item.label}
+          </div>
+        </Link>
+      );
+    }
+
+    // Expanded: show item with optional submenu
+    if (hasSubmenu && visibleSubmenuItems.length > 0) {
+      return (
+        <div key={item.id} className="space-y-1">
+          <button
+            onClick={() => toggleSubmenu(item.id)}
+            className={cn(
+              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+              isActive
+                ? "bg-xtrawrkx-500 text-white shadow-sm"
+                : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              <span>{item.label}</span>
+            </div>
+            <ChevronDown
+              className={cn(
+                "w-4 h-4 transition-transform",
+                isSubmenuExpanded && "rotate-180"
+              )}
+            />
+          </button>
+          <AnimatePresence>
+            {isSubmenuExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden pl-8 space-y-1"
+              >
+                {visibleSubmenuItems.map((subItem) => {
+                  const SubIcon = subItem.icon;
+                  const isSubActive = isActiveRoute(subItem.href);
+                  return (
+                    <Link
+                      key={subItem.id}
+                      href={subItem.href}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200",
+                        isSubActive
+                          ? "bg-xtrawrkx-500/20 text-xtrawrkx-700 font-medium"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <SubIcon className="w-4 h-4 flex-shrink-0" />
+                      <span>{subItem.label}</span>
+                    </Link>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      );
+    }
+
+    // Regular menu item without submenu
+    return (
+      <Link
+        key={item.id}
+        href={item.href}
+        className={cn(
+          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+          isActive
+            ? "bg-xtrawrkx-500 text-white shadow-sm"
+            : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+        )}
+      >
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        <span>{item.label}</span>
+      </Link>
+    );
+  };
+
+  // Render section
+  const renderSection = (section) => {
+    // Filter items based on permissions
+    const visibleItems = section.items?.filter((item) =>
+      hasPermission(item, userRole)
+    );
+
+    if (!visibleItems || visibleItems.length === 0) return null;
+
+    if (collapsed) {
+      // Collapsed: show only icons
+      return (
+        <div key={section.id} className="space-y-1">
+          {visibleItems.map((item) => renderMenuItem(item))}
+        </div>
+      );
+    }
+
+    // Expanded: show section with header
+    const isExpanded = expandedSections[section.id] ?? true;
+    const SectionIcon = section.icon;
+
+    return (
+      <div key={section.id} className="space-y-1">
+        {section.collapsible ? (
+          <>
+            <button
+              onClick={() => toggleSection(section.id)}
+              className="w-full flex items-center justify-between px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition-colors"
+            >
+              <span>{section.label}</span>
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronRightIcon className="w-4 h-4" />
+              )}
+            </button>
+            <AnimatePresence>
+              {isExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden space-y-1"
+                >
+                  {visibleItems.map((item) => renderMenuItem(item))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        ) : (
+          <>
+            {section.label && (
+              <div className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                {section.label}
+              </div>
+            )}
+            <div className="space-y-1">
+              {visibleItems.map((item) => renderMenuItem(item))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -256,328 +289,112 @@ export function Sidebar({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-gray-600/50 lg:hidden"
+            className="fixed inset-0 z-30 bg-gray-600/50 lg:hidden"
           />
         )}
       </AnimatePresence>
 
-      {/* Fixed Sidebar */}
+      {/* Sidebar */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-2xl transition-all duration-300",
+          "fixed inset-y-0 left-0 z-30 bg-white border-r border-gray-200 transition-all duration-300",
           "flex flex-col",
           collapsed ? "w-16" : "w-64",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-          "lg:mx-2 lg:my-2 lg:rounded-3xl lg:h-[calc(100vh-1rem)]"
+          "lg:flex-shrink-0 shadow-sm"
         )}
       >
-        {/* Header with close button */}
-        <div className="flex items-center justify-between p-4 border-b border-white/20 lg:hidden">
-          <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="hover:bg-white/50"
-          >
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-
-        {/* Collapse Toggle - Desktop only */}
-        <div className="hidden lg:flex justify-end p-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onCollapseChange(!collapsed)}
-            className="hover:bg-white/50 text-gray-600 h-8 w-8 rounded-full"
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          {!collapsed && (
+            <h2 className="text-lg font-semibold text-gray-900">
+              Client Portal
+            </h2>
+          )}
+          <button
+            onClick={() => {
+              onCollapseChange(!collapsed);
+              if (isOpen) onClose();
+            }}
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="w-5 h-5" />
             ) : (
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="w-5 h-5" />
             )}
-          </Button>
+          </button>
+          {isOpen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="lg:hidden"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          )}
         </div>
 
-        {/* Main Navigation */}
-        <div className="flex-1 overflow-y-auto py-4">
-          <nav className={cn("px-3 space-y-1", collapsed && "px-2")}>
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const isActive =
-                pathname === item.href || pathname.startsWith(item.href + "/");
-              const menuKey = item.name.toLowerCase().replace(/[^a-z]/g, "");
-              const isExpanded = expandedMenus[menuKey];
+        {/* Main Navigation - Scrollable */}
+        <nav className="flex-1 overflow-y-auto p-3 space-y-6">
+          {sidebarMenuConfig.map((section) => renderSection(section))}
+        </nav>
 
-              return (
-                <div key={item.name}>
-                  {item.isButton ? (
-                    <div className="px-3 py-2">
-                      <ModernButton
-                        type="primary"
-                        text={item.name}
-                        size="sm"
-                        icon={Icon}
-                        className="w-full"
-                      />
+        {/* Bottom Section - Fixed */}
+        <div className="mt-auto border-t border-gray-200 bg-gray-50/50">
+          {/* Company Card */}
+          {companyInfo && (
+            <div className={cn("p-3", collapsed && "px-2")}>
+              <div
+                className={cn(
+                  "bg-white rounded-lg p-3 shadow-sm border border-gray-200",
+                  collapsed && "p-2"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-xtrawrkx-500 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    {companyInfo.name.charAt(0).toUpperCase()}
+                  </div>
+                  {!collapsed && (
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-900 text-sm truncate">
+                        {companyInfo.name}
+                      </div>
+                      {companyInfo.industry && (
+                        <div className="text-xs text-gray-600 truncate">
+                          {companyInfo.industry}
+                        </div>
+                      )}
                     </div>
-                  ) : item.hasSubmenu ? (
-                    <button
-                      onClick={() => !collapsed && toggleMenu(menuKey)}
-                      className={cn(
-                        "flex items-center w-full px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                        isActive
-                          ? "bg-white/80 text-blue-700 shadow-sm border border-blue-200/50"
-                          : "text-gray-700 hover:bg-white/50 hover:text-gray-900",
-                        collapsed && "justify-center px-2"
-                      )}
-                    >
-                      <Icon className="h-5 w-5 flex-shrink-0" />
-                      {!collapsed && (
-                        <>
-                          <span className="ml-3 flex-1 text-left">
-                            {item.name}
-                          </span>
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 transition-transform",
-                              isExpanded && "rotate-180"
-                            )}
-                          />
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                        isActive
-                          ? "bg-white/80 text-blue-700 shadow-sm border border-blue-200/50"
-                          : "text-gray-700 hover:bg-white/50 hover:text-gray-900",
-                        collapsed && "justify-center px-2"
-                      )}
-                    >
-                      <Icon className="h-5 w-5 flex-shrink-0" />
-                      {!collapsed && <span className="ml-3">{item.name}</span>}
-                    </Link>
-                  )}
-
-                  {/* Submenu */}
-                  {item.submenu && !collapsed && (
-                    <AnimatePresence>
-                      {isExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden ml-6 mt-1 space-y-1"
-                        >
-                          {item.submenu.map((subItem) => {
-                            const SubIcon = subItem.icon;
-                            const isSubActive = pathname === subItem.href;
-                            const subMenuKey = subItem.name
-                              .toLowerCase()
-                              .replace(/[^a-z]/g, "");
-                            const isSubExpanded = expandedMenus[subMenuKey];
-
-                            return (
-                              <div key={subItem.name}>
-                                {subItem.hasSubmenu ? (
-                                  <button
-                                    onClick={() => toggleMenu(subMenuKey)}
-                                    className={cn(
-                                      "flex items-center w-full px-3 py-2 rounded-xl text-sm transition-all duration-200",
-                                      isSubActive
-                                        ? "bg-white/80 text-blue-700 shadow-sm"
-                                        : "text-gray-600 hover:bg-white/50 hover:text-gray-900"
-                                    )}
-                                  >
-                                    <SubIcon className="h-4 w-4 mr-3" />
-                                    <div className="flex-1 flex items-center justify-between">
-                                      <span className="text-sm">
-                                        {subItem.name}
-                                      </span>
-                                      {subItem.isMember && subItem.tier && (
-                                        <span className="text-xs bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white px-2 py-1 rounded-lg font-bold">
-                                          {subItem.tier.toUpperCase()}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <ChevronDown
-                                      className={cn(
-                                        "h-3 w-3 transition-transform",
-                                        isSubExpanded && "rotate-180"
-                                      )}
-                                    />
-                                  </button>
-                                ) : (
-                                  <Link
-                                    href={subItem.href}
-                                    className={cn(
-                                      "flex items-center px-3 py-2 rounded-xl text-sm transition-all duration-200",
-                                      isSubActive
-                                        ? "bg-white/80 text-blue-700 shadow-sm"
-                                        : "text-gray-600 hover:bg-white/50 hover:text-gray-900"
-                                    )}
-                                  >
-                                    <SubIcon className="h-4 w-4 mr-3" />
-                                    <div className="flex-1 flex items-center justify-between">
-                                      <span className="text-sm">
-                                        {subItem.name}
-                                      </span>
-                                      {subItem.isMember && subItem.tier && (
-                                        <span className="text-xs bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white px-2 py-1 rounded-lg font-bold">
-                                          {subItem.tier.toUpperCase()}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </Link>
-                                )}
-
-                                {/* Nested Submenu */}
-                                {subItem.submenu && (
-                                  <AnimatePresence>
-                                    {isSubExpanded && (
-                                      <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: "auto", opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="overflow-hidden ml-6 mt-1 space-y-1"
-                                      >
-                                        {subItem.submenu.map((nestedItem) => {
-                                          const NestedIcon = nestedItem.icon;
-                                          const isNestedActive =
-                                            pathname === nestedItem.href;
-
-                                          return (
-                                            <Link
-                                              key={nestedItem.name}
-                                              href={nestedItem.href}
-                                              className={cn(
-                                                "flex items-center px-3 py-2 rounded-xl text-sm transition-all duration-200",
-                                                isNestedActive
-                                                  ? "bg-white/80 text-blue-700 shadow-sm"
-                                                  : "text-gray-500 hover:bg-white/50 hover:text-gray-700"
-                                              )}
-                                            >
-                                              <NestedIcon className="h-3 w-3 mr-3" />
-                                              <span className="text-sm">
-                                                {nestedItem.name}
-                                              </span>
-                                            </Link>
-                                          );
-                                        })}
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   )}
                 </div>
-              );
-            })}
-          </nav>
-        </div>
+              </div>
+            </div>
+          )}
 
-        {/* Settings Section */}
-        <div className="border-t border-white/20 py-4">
-          <nav className={cn("px-3 space-y-1", collapsed && "px-2")}>
+          {/* Logout Button */}
+          <div className={cn("p-3 pt-0", collapsed && "px-2")}>
             <button
-              onClick={() => !collapsed && toggleMenu("settings")}
+              onClick={() => {
+                // Handle logout
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("auth_token");
+                  localStorage.removeItem("client_token");
+                  window.location.href = "/login";
+                }
+              }}
               className={cn(
-                "flex items-center w-full px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                "text-gray-700 hover:bg-white/50 hover:text-gray-900",
-                collapsed && "justify-center px-2"
+                "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-red-600 hover:bg-red-50 hover:text-red-700",
+                collapsed && "justify-center"
               )}
+              title={collapsed ? "Logout" : undefined}
             >
-              <Settings className="h-5 w-5 flex-shrink-0" />
-              {!collapsed && (
-                <>
-                  <span className="ml-3 flex-1 text-left">Settings</span>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 transition-transform",
-                      expandedMenus.settings && "rotate-180"
-                    )}
-                  />
-                </>
-              )}
+              <LogOut className="w-5 h-5 flex-shrink-0" />
+              {!collapsed && <span>Logout</span>}
             </button>
-
-            {/* Settings Submenu */}
-            {!collapsed && (
-              <AnimatePresence>
-                {expandedMenus.settings && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden ml-6 mt-1 space-y-1"
-                  >
-                    {settingsNavigation.map((settingItem) => {
-                      const SettingIcon = settingItem.icon;
-                      const isSettingActive = pathname === settingItem.href;
-
-                      return (
-                        <Link
-                          key={settingItem.name}
-                          href={settingItem.href}
-                          className={cn(
-                            "flex items-center px-3 py-2 rounded-xl text-sm transition-all duration-200",
-                            isSettingActive
-                              ? "bg-white/80 text-blue-700 shadow-sm"
-                              : "text-gray-600 hover:bg-white/50 hover:text-gray-900"
-                          )}
-                        >
-                          <SettingIcon className="h-4 w-4 mr-3" />
-                          <span className="text-sm">{settingItem.name}</span>
-                        </Link>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            )}
-          </nav>
-        </div>
-
-        {/* Footer Links */}
-        <div className="border-t border-white/20 py-4">
-          <nav className={cn("px-3 space-y-1", collapsed && "px-2")}>
-            {footerLinks.map((footerItem) => {
-              const FooterIcon = footerItem.icon;
-              const isFooterActive = pathname === footerItem.href;
-
-              return (
-                <Link
-                  key={footerItem.name}
-                  href={footerItem.href}
-                  className={cn(
-                    "flex items-center px-3 py-2 rounded-xl text-sm transition-all duration-200",
-                    isFooterActive
-                      ? "bg-white/80 text-blue-700 shadow-sm"
-                      : "text-gray-500 hover:bg-white/50 hover:text-gray-700",
-                    collapsed && "justify-center px-2"
-                  )}
-                >
-                  <FooterIcon className="h-4 w-4 flex-shrink-0" />
-                  {!collapsed && (
-                    <span className="ml-3">{footerItem.name}</span>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
+          </div>
         </div>
       </div>
     </>

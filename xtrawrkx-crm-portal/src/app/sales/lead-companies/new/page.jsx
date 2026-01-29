@@ -273,7 +273,6 @@ export default function AddLeadCompanyPage() {
       }
 
       setUsers(allUsers);
-      console.log("Fetched users for assignment:", allUsers);
 
       // Auto-select the current logged-in user if found
       if (user?.email && allUsers.length > 0) {
@@ -283,7 +282,6 @@ export default function AddLeadCompanyPage() {
             ...prev,
             assignedTo: currentUser.id.toString(),
           }));
-          console.log("✅ Auto-selected current user:", currentUser.id);
         }
       }
     } catch (err) {
@@ -456,22 +454,17 @@ export default function AddLeadCompanyPage() {
       // Add assigned user if selected
       if (companyData.assignedTo) {
         leadCompanyPayload.assignedTo = parseInt(companyData.assignedTo);
-        console.log("✅ Assigning to user ID:", leadCompanyPayload.assignedTo);
       }
 
-      console.log("Creating lead company with data:", leadCompanyPayload);
 
       // Create the lead company
       const createdCompany = await leadCompanyService.create(
         leadCompanyPayload
       );
 
-      console.log("Created lead company:", createdCompany);
 
       // Create contacts associated with the lead company
       if (contacts.length > 0) {
-        console.log("Creating contacts for lead company:", contacts);
-        console.log("Created company ID:", createdCompany.id);
 
         // Filter out empty contacts (contacts with no first name or last name)
         const validContacts = contacts.filter(
@@ -482,10 +475,8 @@ export default function AddLeadCompanyPage() {
             contact.lastName.trim()
         );
 
-        console.log("Valid contacts to create:", validContacts);
 
         if (validContacts.length === 0) {
-          console.log("No valid contacts to create");
           return; // Exit early if no valid contacts
         }
 
@@ -497,9 +488,6 @@ export default function AddLeadCompanyPage() {
           return;
         }
 
-        console.log(
-          "✅ contactService is available, proceeding with contact creation"
-        );
 
         const contactPromises = validContacts.map(async (contact) => {
           const contactData = {
@@ -519,17 +507,11 @@ export default function AddLeadCompanyPage() {
           // Assign contact to the same user as the lead company
           if (companyData.assignedTo) {
             contactData.assignedTo = parseInt(companyData.assignedTo);
-            console.log(
-              "✅ Assigning contact to same user as lead company:",
-              contactData.assignedTo
-            );
           }
 
-          console.log("Creating contact with data:", contactData);
 
           try {
             const createdContact = await contactService.create(contactData);
-            console.log("✅ Successfully created contact:", createdContact);
             return createdContact;
           } catch (error) {
             console.error("❌ Error creating contact:", error);
@@ -544,12 +526,8 @@ export default function AddLeadCompanyPage() {
           const successfulContacts = createdContacts.filter(
             (contact) => contact !== null
           );
-          console.log(
-            `Successfully created ${successfulContacts.length} out of ${validContacts.length} contacts`
-          );
 
           if (successfulContacts.length > 0) {
-            console.log("Created contacts:", successfulContacts);
           }
 
           if (successfulContacts.length < validContacts.length) {

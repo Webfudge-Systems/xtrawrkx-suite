@@ -113,7 +113,6 @@ export default function EditDealPage() {
   const fetchDealData = async () => {
     try {
       setIsLoading(true);
-      console.log("Fetching deal data for ID:", dealId);
       const response = await dealService.getById(dealId, {
         populate: [
           "leadCompany",
@@ -125,10 +124,8 @@ export default function EditDealPage() {
         ],
       });
 
-      console.log("Deal response:", response);
 
       const deal = response?.data || response;
-      console.log("Deal data:", deal);
 
       if (deal && (deal.id || deal.documentId)) {
         // Handle both direct deal data and nested attributes
@@ -403,13 +400,11 @@ export default function EditDealPage() {
   const checkLeadCompanyConversion = async (leadCompanyId) => {
     try {
       setIsCheckingConversion(true);
-      console.log("Checking if lead company is converted:", leadCompanyId);
 
       const leadCompany = await leadCompanyService.getById(leadCompanyId, {
         populate: ["convertedAccount"],
       });
 
-      console.log("Lead company data:", leadCompany);
 
       const leadCompanyData = leadCompany?.data || leadCompany;
       const convertedAccount =
@@ -423,17 +418,12 @@ export default function EditDealPage() {
           convertedAccount.documentId ||
           convertedAccount;
         const accountData = convertedAccount.attributes || convertedAccount;
-        console.log(
-          "Lead company has been converted to client account:",
-          accountId
-        );
         setConvertedClientAccount({
           id: accountId,
           documentId: accountId,
           ...accountData,
         });
       } else {
-        console.log("Lead company has NOT been converted to client account");
         setConvertedClientAccount(null);
       }
     } catch (error) {
@@ -523,7 +513,6 @@ export default function EditDealPage() {
         }
       });
 
-      console.log("Updating deal with data:", updateData);
       await dealService.update(dealId, updateData);
 
       // If deal is being marked as CLOSED_WON and wasn't already won, convert lead company to client account
@@ -550,9 +539,6 @@ export default function EditDealPage() {
             leadCompanyAttributes?.convertedAccount;
 
           if (!convertedAccount) {
-            console.log(
-              `Converting lead company ${dealData.leadCompany} to client account for deal ${dealId}`
-            );
 
             // Convert lead company to client account
             const conversionResponse = await leadCompanyService.convertToClient(
@@ -572,9 +558,6 @@ export default function EditDealPage() {
                 clientAccount: clientAccountId,
               });
 
-              console.log(
-                `Successfully converted lead company to client account and linked to deal ${dealId}`
-              );
             }
           } else {
             // Lead company already converted, just link the existing client account to the deal
@@ -585,9 +568,6 @@ export default function EditDealPage() {
               clientAccount: existingClientAccountId,
             });
 
-            console.log(
-              `Linked existing client account ${existingClientAccountId} to deal ${dealId}`
-            );
           }
         } catch (conversionError) {
           console.error(

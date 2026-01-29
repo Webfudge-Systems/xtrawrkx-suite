@@ -245,11 +245,9 @@ export default function ClientAccountsPage() {
       setLoading(true);
       setError(null); // Clear any previous errors
 
-      console.log("Fetching client accounts...");
       const response = await clientAccountService.getAll({
         populate: "accountManager,contacts",
       });
-      console.log("Client accounts response:", response);
 
       // Handle different response structures
       // The API returns data directly as an array, not wrapped in a data property
@@ -258,7 +256,6 @@ export default function ClientAccountsPage() {
         : response?.data || [];
       setClientAccounts(accounts);
 
-      console.log(`Loaded ${accounts.length} client accounts`);
     } catch (err) {
       console.error("Error fetching client accounts:", err);
       console.error("Error details:", err.response?.data || err.message);
@@ -277,7 +274,6 @@ export default function ClientAccountsPage() {
   const fetchStats = async () => {
     try {
       const statsData = await clientAccountService.getStats();
-      console.log("Client accounts stats:", statsData);
       setStats(statsData);
     } catch (err) {
       console.error("Error fetching stats:", err);
@@ -841,14 +837,12 @@ export default function ClientAccountsPage() {
     setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
 
     try {
-      console.log(`Updating account ${accountId} status to ${newStatus}`);
 
       // Update the status via API
       const response = await clientAccountService.updateStatus(
         accountId,
         newStatus
       );
-      console.log("Status update response:", response);
 
       // Update local state
       setClientAccounts((prevAccounts) =>
@@ -866,7 +860,6 @@ export default function ClientAccountsPage() {
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 3000);
 
-      console.log(`Successfully updated account ${accountId} to ${newStatus}`);
     } catch (error) {
       console.error("Error updating status:", error);
       console.error("Error details:", error.message);
@@ -899,7 +892,6 @@ export default function ClientAccountsPage() {
     setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
 
     try {
-      console.log(`Deleting account ${accountToDelete.id}`);
 
       // Delete the account via API (this will cascade delete linked data)
       await clientAccountService.delete(accountToDelete.id);
@@ -916,7 +908,6 @@ export default function ClientAccountsPage() {
       setShowDeleteModal(false);
       setAccountToDelete(null);
 
-      console.log("Account deleted successfully");
     } catch (error) {
       console.error("Error deleting account:", error);
       alert("Failed to delete account. Please try again.");
@@ -938,9 +929,6 @@ export default function ClientAccountsPage() {
         exportFormat = "csv";
       }
 
-      console.log(
-        `Exporting ${filteredAccounts.length} client accounts as ${exportFormat}`
-      );
 
       // Check if there's data to export
       if (filteredAccounts.length === 0) {
@@ -1216,7 +1204,6 @@ export default function ClientAccountsPage() {
             onClose={() => setIsFilterModalOpen(false)}
             appliedFilters={appliedFilters}
             onApplyFilters={(filters) => {
-              console.log("Applying filters:", filters);
 
               // Check if any filters are active
               const hasActiveFilters = Object.values(filters).some(

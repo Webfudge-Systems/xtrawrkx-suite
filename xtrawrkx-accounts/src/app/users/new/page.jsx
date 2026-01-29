@@ -72,7 +72,6 @@ function NewUserPage() {
       const userData = localStorage.getItem("currentUser");
       if (userData) {
         const parsedUser = JSON.parse(userData);
-        console.log("Current user role for role filtering:", parsedUser.role);
         setCurrentUserRole(parsedUser.role);
       }
     } catch (error) {
@@ -123,15 +122,6 @@ function NewUserPage() {
       return PermissionsService.canAssignRole(currentUserRole, role.name);
     });
 
-    console.log("Current user role:", currentUserRole);
-    console.log(
-      "All roles:",
-      allRoles.map((r) => r.name)
-    );
-    console.log(
-      "Assignable roles:",
-      assignableRoles.map((r) => r.name)
-    );
 
     setFilteredRoles(assignableRoles);
   };

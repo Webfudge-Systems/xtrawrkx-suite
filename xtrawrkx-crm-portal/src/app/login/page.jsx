@@ -74,7 +74,6 @@ export default function LoginPage() {
     try {
       const result = await login(formData.email, formData.password);
 
-      console.log("Login result:", result);
 
       if (result.success) {
         router.replace("/");
@@ -92,7 +91,6 @@ export default function LoginPage() {
           }
         }
 
-        console.log("Setting login error:", errorMessage);
         setLoginError(errorMessage);
       }
     } catch (error) {
@@ -107,7 +105,6 @@ export default function LoginPage() {
         errorMessage = error.error.message;
       }
 
-      console.log("Setting login error from catch:", errorMessage);
       setLoginError(errorMessage);
     } finally {
       setIsSubmitting(false);

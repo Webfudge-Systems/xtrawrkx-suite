@@ -75,11 +75,9 @@ export default function LoginPage() {
     try {
       const result = await login(formData.email, formData.password);
 
-      console.log("Login result:", result);
 
       if (result.success) {
         // Force immediate redirect after successful login
-        console.log("Login successful, redirecting to dashboard");
         // Small delay to ensure localStorage is saved
         setTimeout(() => {
           window.location.href = "/";
@@ -98,7 +96,6 @@ export default function LoginPage() {
           }
         }
 
-        console.log("Setting login error:", errorMessage);
         setLoginError(errorMessage);
         setIsSubmitting(false);
       }
@@ -124,7 +121,6 @@ export default function LoginPage() {
           "Cannot connect to the server. Please ensure the backend API is running and CORS is configured correctly.";
       }
 
-      console.log("Setting login error from catch:", errorMessage);
       setLoginError(errorMessage);
       setIsSubmitting(false);
     }

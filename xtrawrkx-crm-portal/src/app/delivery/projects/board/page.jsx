@@ -121,7 +121,6 @@ export default function ProjectsBoardPage() {
 
   const handleApplyFilters = (newFilters) => {
     setFilters(newFilters);
-    console.log("Applied filters:", newFilters);
   };
 
   // Handle drag end - update project status
@@ -137,17 +136,10 @@ export default function ProjectsBoardPage() {
     );
 
     if (draggedProject) {
-      console.log("Project moved:", {
-        project: draggedProject.name,
-        from: source.droppableId,
-        to: destination.droppableId,
-        index: destination.index,
-      });
     }
   };
 
   const handleProjectClick = (project) => {
-    console.log("Project clicked:", project.name);
     // Navigate to project detail page
   };
 

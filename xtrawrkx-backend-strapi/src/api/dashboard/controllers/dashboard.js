@@ -10,11 +10,9 @@ module.exports = {
      */
     async getStats(ctx) {
         try {
-            console.log('=== GET DASHBOARD STATS CALLED ===');
 
             // For now, let's make this work without authentication to test
             // TODO: Add proper authentication back later
-            console.log('Dashboard stats requested - returning mock data for testing');
 
             // Get all users for stats (since we're bypassing auth for now)
             // TODO: Add proper user context when authentication is fixed
@@ -92,7 +90,6 @@ module.exports = {
                 }
             };
 
-            console.log('Dashboard stats calculated:', stats.data);
             return ctx.send(stats);
 
         } catch (error) {
@@ -198,11 +195,9 @@ module.exports = {
      */
     async getRecentActivity(ctx) {
         try {
-            console.log('=== GET RECENT ACTIVITY CALLED ===');
 
             // For now, let's make this work without authentication to test
             // TODO: Add proper authentication back later
-            console.log('Recent activity requested - returning data for testing');
 
             // Get recent activities (with fallback to mock data)
             let recentActivities = [];
@@ -217,7 +212,6 @@ module.exports = {
                     }
                 });
             } catch (error) {
-                console.log('Activity table not found, using mock data:', error.message);
                 // Return mock activities if activity table doesn't exist
                 recentActivities = [
                     {

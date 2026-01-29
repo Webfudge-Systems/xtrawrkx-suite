@@ -24,21 +24,9 @@ class NotificationService {
         params['filters[user][documentId][$eq]'] = String(userId);
       }
 
-      console.log('=== Fetching notifications ===', {
-        userId: userId,
-        userIdNum: userIdNum,
-        params: params
-      });
 
       const response = await strapiClient.get('/notifications', params);
 
-      console.log('Notifications API response:', {
-        responseType: typeof response,
-        hasData: !!response?.data,
-        dataIsArray: Array.isArray(response?.data),
-        responseKeys: Object.keys(response || {}),
-        fullResponse: response
-      });
 
       // Handle different response structures
       let notifications = [];
@@ -50,11 +38,9 @@ class NotificationService {
         notifications = response;
       }
 
-      console.log(`Found ${notifications.length} notifications for user ${userId}`);
       
       // Log first notification if any
       if (notifications.length > 0) {
-        console.log('Sample notification:', notifications[0]);
       }
       
       return notifications;

@@ -165,12 +165,10 @@ export default function EventGalleryModal({ event, isOpen, onClose }) {
 
   const handleDownload = (image) => {
     // Simulate download
-    console.log("Downloading image:", image.title);
   };
 
   const handleShare = (image) => {
     // Simulate share
-    console.log("Sharing image:", image.title);
   };
 
   if (!isOpen || !event) return null;

@@ -6,7 +6,6 @@ class LeadCompanyService {
      */
     async getAll(params = {}) {
         try {
-            console.log('LeadCompanyService.getAll called with params:', params);
 
             // Include contacts, assignedTo, and deals in population to get accurate counts and values
             const queryParams = {
@@ -14,17 +13,13 @@ class LeadCompanyService {
                 ...params
             };
 
-            console.log('Making API call with queryParams:', queryParams);
             const response = await strapiClient.getLeadCompanies(queryParams);
-            console.log('API response:', response);
 
             // Handle both array response (direct data) and object response (with meta)
             if (Array.isArray(response)) {
-                console.log('Converting array response to object format');
                 return { data: response, meta: { pagination: { total: response.length } } };
             }
 
-            console.log('Returning response as-is (object format)');
             return response;
         } catch (error) {
             console.error('Error fetching lead companies:', error);
@@ -38,7 +33,6 @@ class LeadCompanyService {
      */
     async getById(id, params = {}) {
         try {
-            console.log('LeadCompanyService.getById called with ID:', id, 'params:', params);
 
             // Include contacts by default and merge with any additional params
             // Populate assignedTo with primaryRole for role display
@@ -57,7 +51,6 @@ class LeadCompanyService {
             };
 
             const response = await strapiClient.getLeadCompany(id, queryParams);
-            console.log('getById API response:', response);
 
             // Handle both direct object response and wrapped response
             if (response?.data) {

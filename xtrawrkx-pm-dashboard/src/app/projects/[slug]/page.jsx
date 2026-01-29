@@ -34,6 +34,7 @@ import {
   Building2,
   Globe,
   Edit,
+  X,
 } from "lucide-react";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -66,6 +67,8 @@ import taskService from "../../../lib/taskService";
 import subtaskService from "../../../lib/subtaskService";
 import commentService from "../../../lib/commentService";
 import CollaboratorModal from "../../../components/my-task/CollaboratorModal";
+import apiClient from "../../../lib/apiClient";
+import { Button, SearchableSelect } from "../../../components/ui";
 
 export default function ProjectDetail({ params }) {
   const router = useRouter();
@@ -82,6 +85,9 @@ export default function ProjectDetail({ params }) {
   const [collaboratorModal, setCollaboratorModal] = useState({
     isOpen: false,
     task: null,
+  });
+  const [projectLeadModal, setProjectLeadModal] = useState({
+    isOpen: false,
   });
   const [expandedSubtasks, setExpandedSubtasks] = useState({});
   const [loadedSubtasks, setLoadedSubtasks] = useState({});
@@ -195,7 +201,6 @@ export default function ProjectDetail({ params }) {
               "clientAccount",
             ]);
           } catch (idError) {
-            console.log("Failed to fetch by ID, trying by slug:", idError);
           }
         }
 
@@ -307,12 +312,12 @@ export default function ProjectDetail({ params }) {
                   "projects",
                   "subtasks",
                 ],
-              }
+              },
             );
 
             // Transform the fetched tasks
             const fetchedTasks = (projectTasksResponse.data || []).map(
-              transformTask
+              transformTask,
             );
 
             // Create a map of fetched tasks by ID for quick lookup
@@ -352,7 +357,7 @@ export default function ProjectDetail({ params }) {
                   .catch((err) => {
                     console.error(`Error fetching task ${task.id}:`, err);
                     return task;
-                  })
+                  }),
               );
               enrichedTasks = await Promise.all(taskDetailsPromises);
             } catch (fallbackError) {
@@ -372,7 +377,7 @@ export default function ProjectDetail({ params }) {
             // If assignee exists and is not in collaborators, add it
             if (task.assignee) {
               const assigneeInCollaborators = collaborators.find(
-                (c) => c?.id === task.assignee?.id
+                (c) => c?.id === task.assignee?.id,
               );
               if (!assigneeInCollaborators) {
                 collaborators = [task.assignee, ...collaborators];
@@ -384,8 +389,8 @@ export default function ProjectDetail({ params }) {
               collaborators.length > 0
                 ? collaborators
                 : task.assignee
-                ? [task.assignee]
-                : [];
+                  ? [task.assignee]
+                  : [];
 
             return {
               ...task,
@@ -443,11 +448,6 @@ export default function ProjectDetail({ params }) {
         };
 
         // Debug logging
-        console.log("Project account data:", {
-          rawAccount: strapiProject.account,
-          processedAccount: accountData,
-          hasClient: !!accountData,
-        });
 
         setProject(enrichedProject);
 
@@ -482,10 +482,10 @@ export default function ProjectDetail({ params }) {
       // Close row dropdown when clicking outside
       if (rowDropdown.isOpen) {
         const dropdownElement = document.getElementById(
-          `row-dropdown-${rowDropdown.taskId}`
+          `row-dropdown-${rowDropdown.taskId}`,
         );
         const triggerElement = document.getElementById(
-          `row-trigger-${rowDropdown.taskId}`
+          `row-trigger-${rowDropdown.taskId}`,
         );
         if (
           dropdownElement &&
@@ -582,10 +582,6 @@ export default function ProjectDetail({ params }) {
   };
 
   const handleOpenFullPage = (task) => {
-    console.log("Opening full page for task:", task);
-    console.log("Task ID:", task.id);
-    console.log("Task ID type:", typeof task.id);
-    console.log("Task name:", task.name);
 
     if (!task || !task.id) {
       console.error("Task or Task ID is undefined or null!", { task });
@@ -601,12 +597,17 @@ export default function ProjectDetail({ params }) {
       return;
     }
 
-    console.log("Navigating to /my-task/" + taskId);
     router.push(`/my-task/${taskId}`);
   };
 
+  const handleEditTask = (task) => {
+    if (task?.id) {
+      setTaskDetailModal({ isOpen: false, task: null });
+      router.push(`/my-task/${task.id}/edit`);
+    }
+  };
+
   const handleOpenProject = (project) => {
-    console.log("Opening project:", project.name);
     // Navigate to project page if needed
   };
 
@@ -618,7 +619,7 @@ export default function ProjectDetail({ params }) {
     const loadSubtaskCounts = async () => {
       // Load subtask counts for tasks that don't have them loaded yet
       const tasksNeedingCounts = project.tasks.filter(
-        (task) => task.id && !loadedSubtasks[task.id]
+        (task) => task.id && !loadedSubtasks[task.id],
       );
 
       if (tasksNeedingCounts.length === 0) return;
@@ -633,7 +634,7 @@ export default function ProjectDetail({ params }) {
               task.id,
               {
                 populate: ["assignee"],
-              }
+              },
             );
 
             // Handle different response structures
@@ -653,10 +654,6 @@ export default function ProjectDetail({ params }) {
               .map(transformSubtask)
               .filter(Boolean);
 
-            console.log(
-              `Loaded ${transformedSubtasks.length} subtasks for task ${task.id}`,
-              transformedSubtasks
-            );
 
             return { taskId: task.id, subtasks: transformedSubtasks };
           } catch (error) {
@@ -692,7 +689,7 @@ export default function ProjectDetail({ params }) {
     // Filter by search query
     if (searchQuery.trim()) {
       tasks = tasks.filter((task) =>
-        task.name?.toLowerCase().includes(searchQuery.toLowerCase())
+        task.name?.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
 
@@ -832,7 +829,7 @@ export default function ProjectDetail({ params }) {
       setProject((prevProject) => ({
         ...prevProject,
         tasks: prevProject.tasks.map((task) =>
-          task.id === taskId ? { ...task, scheduledDate } : task
+          task.id === taskId ? { ...task, scheduledDate } : task,
         ),
       }));
 
@@ -913,7 +910,7 @@ export default function ProjectDetail({ params }) {
     setProject((prevProject) => ({
       ...prevProject,
       tasks: prevProject.tasks.map((task) =>
-        task.id === taskId ? { ...task, status: newStatus } : task
+        task.id === taskId ? { ...task, status: newStatus } : task,
       ),
     }));
 
@@ -962,7 +959,7 @@ export default function ProjectDetail({ params }) {
     setProject((prevProject) => ({
       ...prevProject,
       tasks: prevProject.tasks.map((task) =>
-        task.id === taskId ? { ...task, priority: newPriority } : task
+        task.id === taskId ? { ...task, priority: newPriority } : task,
       ),
     }));
 
@@ -1033,7 +1030,7 @@ export default function ProjectDetail({ params }) {
 
     // Find the first selected task for the delete modal
     const firstSelectedTask = filteredAndSortedTasks.find(
-      (task) => task.id === selectedTaskIds[0]
+      (task) => task.id === selectedTaskIds[0],
     );
 
     if (firstSelectedTask) {
@@ -1057,8 +1054,8 @@ export default function ProjectDetail({ params }) {
       // Update all selected tasks
       await Promise.all(
         selectedTaskIds.map((taskId) =>
-          taskService.updateTaskStatus(taskId, strapiStatus)
-        )
+          taskService.updateTaskStatus(taskId, strapiStatus),
+        ),
       );
 
       // Update local state
@@ -1067,7 +1064,7 @@ export default function ProjectDetail({ params }) {
         tasks: prevProject.tasks.map((task) =>
           selectedTaskIds.includes(task.id)
             ? { ...task, status: newStatus }
-            : task
+            : task,
         ),
       }));
 
@@ -1129,7 +1126,7 @@ export default function ProjectDetail({ params }) {
                 setProject((prevProject) => ({
                   ...prevProject,
                   tasks: prevProject.tasks.map((t) =>
-                    t.id === task.id ? { ...t, name: newName } : t
+                    t.id === task.id ? { ...t, name: newName } : t,
                   ),
                 }));
               } catch (error) {
@@ -1249,7 +1246,7 @@ export default function ProjectDetail({ params }) {
           collaborators = task.collaborators.filter(
             (c) =>
               c &&
-              (c.id || c._id || c.firstName || c.lastName || c.name || c.email)
+              (c.id || c._id || c.firstName || c.lastName || c.name || c.email),
           );
         }
 
@@ -1278,7 +1275,7 @@ export default function ProjectDetail({ params }) {
                 taskName: task.name,
                 assignee: task.assignee,
                 assigneeType: typeof task.assignee,
-              }
+              },
             );
           }
         }
@@ -1391,7 +1388,9 @@ export default function ProjectDetail({ params }) {
         const statusOptions = [
           { value: "To Do", label: "To Do" },
           { value: "In Progress", label: "In Progress" },
-          { value: "In Review", label: "In Review" },
+          { value: "Internal Review", label: "Internal Review" },
+          { value: "Client Review", label: "Client Review" },
+          { value: "Approved", label: "Approved" },
           { value: "Done", label: "Done" },
           { value: "Cancelled", label: "Cancelled" },
         ];
@@ -1408,8 +1407,18 @@ export default function ProjectDetail({ params }) {
             return "To Do";
           if (statusLower === "in progress" || statusLower === "in_progress")
             return "In Progress";
-          if (statusLower === "in review" || statusLower === "in_review")
-            return "In Review";
+          if (
+            statusLower === "internal review" ||
+            statusLower === "in review" ||
+            statusLower === "in_review"
+          )
+            return "Internal Review";
+          if (
+            statusLower === "client review" ||
+            statusLower === "client_review"
+          )
+            return "Client Review";
+          if (statusLower === "approved") return "Approved";
           if (statusLower === "done" || statusLower === "completed")
             return "Done";
           if (statusLower === "cancelled" || statusLower === "canceled")
@@ -1419,7 +1428,7 @@ export default function ProjectDetail({ params }) {
             .split(" ")
             .map(
               (word) =>
-                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
             )
             .join(" ");
         };
@@ -1438,7 +1447,7 @@ export default function ProjectDetail({ params }) {
             text: "text-yellow-800",
             border: "border-yellow-400",
           },
-          "in-review": {
+          "internal-review": {
             bg: "bg-purple-100",
             text: "text-purple-800",
             border: "border-purple-400",
@@ -1614,7 +1623,7 @@ export default function ProjectDetail({ params }) {
                 taskId,
                 {
                   populate: ["assignee", "childSubtasks"],
-                }
+                },
               );
 
               let subtasksData = [];
@@ -1766,7 +1775,7 @@ export default function ProjectDetail({ params }) {
             setProject((prevProject) => ({
               ...prevProject,
               tasks: prevProject.tasks.map((t) =>
-                t.id === updatedTask.id ? updatedTask : t
+                t.id === updatedTask.id ? updatedTask : t,
               ),
             }));
             if (taskDetailModal.task?.id === updatedTask.id) {
@@ -1961,8 +1970,8 @@ export default function ProjectDetail({ params }) {
                       stat.changeType === "increase"
                         ? "bg-green-50 text-green-600"
                         : stat.changeType === "decrease"
-                        ? "bg-red-50 text-red-600"
-                        : "bg-gray-50 text-gray-600"
+                          ? "bg-red-50 text-red-600"
+                          : "bg-gray-50 text-gray-600"
                     }`}
                   >
                     {stat.changeType === "increase" ? (
@@ -2085,18 +2094,18 @@ export default function ProjectDetail({ params }) {
                             project.status === "IN_PROGRESS"
                               ? "bg-blue-100 text-blue-700 border-blue-200"
                               : project.status === "Completed" ||
-                                project.status === "COMPLETED"
-                              ? "bg-green-100 text-green-700 border-green-200"
-                              : project.status === "On Hold" ||
-                                project.status === "ON_HOLD"
-                              ? "bg-red-100 text-red-700 border-red-200"
-                              : project.status === "Planning" ||
-                                project.status === "PLANNING"
-                              ? "bg-gray-100 text-gray-700 border-gray-200"
-                              : project.status === "Cancelled" ||
-                                project.status === "CANCELLED"
-                              ? "bg-gray-100 text-gray-700 border-gray-200"
-                              : "bg-gray-100 text-gray-700 border-gray-200"
+                                  project.status === "COMPLETED"
+                                ? "bg-green-100 text-green-700 border-green-200"
+                                : project.status === "On Hold" ||
+                                    project.status === "ON_HOLD"
+                                  ? "bg-red-100 text-red-700 border-red-200"
+                                  : project.status === "Planning" ||
+                                      project.status === "PLANNING"
+                                    ? "bg-gray-100 text-gray-700 border-gray-200"
+                                    : project.status === "Cancelled" ||
+                                        project.status === "CANCELLED"
+                                      ? "bg-gray-100 text-gray-700 border-gray-200"
+                                      : "bg-gray-100 text-gray-700 border-gray-200"
                           } ${
                             loadingStatusUpdate
                               ? "opacity-50 cursor-not-allowed"
@@ -2175,13 +2184,13 @@ export default function ProjectDetail({ params }) {
                                 (project.spent / project.budget) * 100 > 90
                                   ? "bg-gradient-to-r from-red-500 to-red-600"
                                   : (project.spent / project.budget) * 100 > 75
-                                  ? "bg-gradient-to-r from-yellow-500 to-yellow-600"
-                                  : "bg-gradient-to-r from-green-500 to-green-600"
+                                    ? "bg-gradient-to-r from-yellow-500 to-yellow-600"
+                                    : "bg-gradient-to-r from-green-500 to-green-600"
                               }`}
                               style={{
                                 width: `${Math.min(
                                   (project.spent / project.budget) * 100,
-                                  100
+                                  100,
                                 )}%`,
                               }}
                             ></div>
@@ -2201,7 +2210,7 @@ export default function ProjectDetail({ params }) {
                       (() => {
                         // Use original ISO dates for calculations
                         const startDateObj = new Date(
-                          project.originalStartDate
+                          project.originalStartDate,
                         );
                         const endDateObj = new Date(project.originalEndDate);
                         const isValidStart = !isNaN(startDateObj.getTime());
@@ -2209,7 +2218,7 @@ export default function ProjectDetail({ params }) {
 
                         if (isValidStart && isValidEnd) {
                           const daysDiff = Math.ceil(
-                            (endDateObj - startDateObj) / (1000 * 60 * 60 * 24)
+                            (endDateObj - startDateObj) / (1000 * 60 * 60 * 24),
                           );
                           return (
                             <div>
@@ -2281,12 +2290,12 @@ export default function ProjectDetail({ params }) {
                                   "startup-corporate"
                                     ? "Startup and Corporates"
                                     : project.clientAccount.companyType ===
-                                      "investor"
-                                    ? "Investors"
-                                    : project.clientAccount.companyType ===
-                                      "enablers-academia"
-                                    ? "Enablers & Academia"
-                                    : project.clientAccount.companyType}
+                                        "investor"
+                                      ? "Investors"
+                                      : project.clientAccount.companyType ===
+                                          "enablers-academia"
+                                        ? "Enablers & Academia"
+                                        : project.clientAccount.companyType}
                                 </p>
                               </div>
                             )}
@@ -2306,7 +2315,7 @@ export default function ProjectDetail({ params }) {
                                 <a
                                   href={
                                     project.clientAccount.website.startsWith(
-                                      "http"
+                                      "http",
                                     )
                                       ? project.clientAccount.website
                                       : `https://${project.clientAccount.website}`
@@ -2318,7 +2327,7 @@ export default function ProjectDetail({ params }) {
                                   <Globe className="w-3 h-3" />
                                   {project.clientAccount.website.replace(
                                     /^https?:\/\//,
-                                    ""
+                                    "",
                                   )}
                                   <ExternalLink className="w-3 h-3" />
                                 </a>
@@ -2337,7 +2346,7 @@ export default function ProjectDetail({ params }) {
                                   : "http://localhost:3000";
                                 window.open(
                                   `${crmBaseUrl}/clients/accounts/${project.clientAccount.id}`,
-                                  "_blank"
+                                  "_blank",
                                 );
                               }}
                               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors w-full justify-center"
@@ -2422,8 +2431,7 @@ export default function ProjectDetail({ params }) {
                     <button
                       className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                       onClick={() => {
-                        // TODO: Implement change assignee functionality
-                        console.log("Change assignee clicked");
+                        setProjectLeadModal({ isOpen: true });
                       }}
                     >
                       <User className="w-4 h-4" />
@@ -2578,11 +2586,11 @@ export default function ProjectDetail({ params }) {
                                     onClick={() => {
                                       if (companyType === "Lead") {
                                         router.push(
-                                          `/sales/lead-companies/${companyId}`
+                                          `/sales/lead-companies/${companyId}`,
                                         );
                                       } else {
                                         router.push(
-                                          `/sales/accounts/${companyId}`
+                                          `/sales/accounts/${companyId}`,
                                         );
                                       }
                                     }}
@@ -2733,7 +2741,7 @@ export default function ProjectDetail({ params }) {
                     <option value="all">All Status</option>
                     <option value="to-do">To Do</option>
                     <option value="in-progress">In Progress</option>
-                    <option value="in-review">In Review</option>
+                    <option value="internal-review">Internal Review</option>
                     <option value="done">Done</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -2797,7 +2805,7 @@ export default function ProjectDetail({ params }) {
                         <option value="">Change Status...</option>
                         <option value="To Do">To Do</option>
                         <option value="In Progress">In Progress</option>
-                        <option value="In Review">In Review</option>
+                        <option value="Internal Review">Internal Review</option>
                         <option value="Done">Done</option>
                         <option value="Cancelled">Cancelled</option>
                       </select>
@@ -2905,7 +2913,7 @@ export default function ProjectDetail({ params }) {
                         invitedDate.setDate(
                           invitedDate.getDate() -
                             Math.floor(Math.random() * 10) +
-                            1
+                            1,
                         );
 
                         return (
@@ -3128,7 +3136,7 @@ export default function ProjectDetail({ params }) {
                               </div>
                             </div>
                           );
-                        }
+                        },
                       )}
                     </div>
 
@@ -3196,7 +3204,6 @@ export default function ProjectDetail({ params }) {
         position={contextMenu.position}
         task={contextMenu.task}
         onDelete={(task) => {
-          console.log("Delete task:", task.name);
           handleContextMenuClose();
         }}
       />
@@ -3207,6 +3214,7 @@ export default function ProjectDetail({ params }) {
         onClose={handleTaskDetailClose}
         task={taskDetailModal.task}
         onOpenFullPage={handleOpenFullPage}
+        onEditTask={handleEditTask}
         onOpenProject={handleOpenProject}
         onTaskRefresh={async () => {
           // Refresh task data in modal AND update the task list in real-time
@@ -3230,7 +3238,7 @@ export default function ProjectDetail({ params }) {
               setProject((prevProject) => ({
                 ...prevProject,
                 tasks: prevProject.tasks.map((task) =>
-                  task.id === taskId ? transformedTask : task
+                  task.id === taskId ? transformedTask : task,
                 ),
               }));
 
@@ -3240,7 +3248,7 @@ export default function ProjectDetail({ params }) {
                   taskId,
                   {
                     populate: ["assignee"],
-                  }
+                  },
                 );
 
                 let subtasksData = [];
@@ -3267,7 +3275,7 @@ export default function ProjectDetail({ params }) {
               } catch (subtaskError) {
                 console.error(
                   `Error refreshing subtasks for task ${taskId}:`,
-                  subtaskError
+                  subtaskError,
                 );
               }
 
@@ -3278,9 +3286,8 @@ export default function ProjectDetail({ params }) {
 
               let comments = [];
               try {
-                const commentsResponse = await commentService.getTaskComments(
-                  taskId
-                );
+                const commentsResponse =
+                  await commentService.getTaskComments(taskId);
                 comments = commentsResponse.data?.map(transformComment) || [];
               } catch (commentError) {
                 console.error("Error fetching comments:", commentError);
@@ -3316,14 +3323,14 @@ export default function ProjectDetail({ params }) {
           try {
             const refreshedTask = await taskService.getTaskById(
               updatedTask.id,
-              ["assignee", "collaborators", "projects", "subtasks"]
+              ["assignee", "collaborators", "projects", "subtasks"],
             );
             const transformedTask = transformTask(refreshedTask);
 
             setProject((prevProject) => ({
               ...prevProject,
               tasks: prevProject.tasks.map((t) =>
-                t.id === transformedTask.id ? transformedTask : t
+                t.id === transformedTask.id ? transformedTask : t,
               ),
             }));
 
@@ -3336,13 +3343,13 @@ export default function ProjectDetail({ params }) {
           } catch (error) {
             console.error(
               "Error refreshing task after assignee update:",
-              error
+              error,
             );
             // Fallback to optimistic update if refresh fails
             setProject((prevProject) => ({
               ...prevProject,
               tasks: prevProject.tasks.map((t) =>
-                t.id === updatedTask.id ? updatedTask : t
+                t.id === updatedTask.id ? updatedTask : t,
               ),
             }));
           }
@@ -3360,7 +3367,7 @@ export default function ProjectDetail({ params }) {
               // Bulk delete
               const taskIds = taskToDelete.taskIds;
               await Promise.all(
-                taskIds.map((taskId) => taskService.deleteTask(taskId))
+                taskIds.map((taskId) => taskService.deleteTask(taskId)),
               );
               // Remove tasks from project
               setProject((prevProject) => ({
@@ -3376,7 +3383,7 @@ export default function ProjectDetail({ params }) {
               setProject((prevProject) => ({
                 ...prevProject,
                 tasks: prevProject.tasks.filter(
-                  (t) => t.id !== taskToDelete.id
+                  (t) => t.id !== taskToDelete.id,
                 ),
               }));
               // Close modal if it's open for this task
@@ -3426,13 +3433,9 @@ export default function ProjectDetail({ params }) {
                       "deal",
                       "deal.leadCompany",
                       "deal.clientAccount",
-                    ]
+                    ],
                   );
                 } catch (idError) {
-                  console.log(
-                    "Failed to fetch by ID, trying by slug:",
-                    idError
-                  );
                 }
               }
 
@@ -3452,7 +3455,7 @@ export default function ProjectDetail({ params }) {
                       "deal",
                       "deal.leadCompany",
                       "deal.clientAccount",
-                    ]
+                    ],
                   );
                 } catch (slugError) {
                   console.error("Failed to fetch by slug:", slugError);
@@ -3509,7 +3512,7 @@ export default function ProjectDetail({ params }) {
                     let collaborators = task.collaborators || [];
                     if (task.assignee) {
                       const assigneeInCollaborators = collaborators.find(
-                        (c) => c?.id === task.assignee?.id
+                        (c) => c?.id === task.assignee?.id,
                       );
                       if (!assigneeInCollaborators) {
                         collaborators = [task.assignee, ...collaborators];
@@ -3519,8 +3522,8 @@ export default function ProjectDetail({ params }) {
                       collaborators.length > 0
                         ? collaborators
                         : task.assignee
-                        ? [task.assignee]
-                        : [];
+                          ? [task.assignee]
+                          : [];
 
                     return {
                       ...task,
@@ -3580,12 +3583,212 @@ export default function ProjectDetail({ params }) {
             } catch (error) {
               console.error(
                 "Error reloading project after task creation:",
-                error
+                error,
               );
             }
           }
         }}
       />
+
+      {/* Project Lead Selection Modal */}
+      {projectLeadModal.isOpen && (
+        <ProjectLeadModal
+          isOpen={projectLeadModal.isOpen}
+          onClose={() => setProjectLeadModal({ isOpen: false })}
+          project={project}
+          onUpdate={(updatedProject) => {
+            // Update project state
+            setProject(updatedProject);
+            // Close modal
+            setProjectLeadModal({ isOpen: false });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Project Lead Selection Modal Component
+function ProjectLeadModal({ isOpen, onClose, project, onUpdate }) {
+  const [users, setUsers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [currentProject, setCurrentProject] = useState(project);
+
+  // Update local project state when prop changes
+  useEffect(() => {
+    if (project) {
+      setCurrentProject(project);
+      // Set selected user ID from current project manager
+      const projectManagerId =
+        project?.projectManager?.id || project?.projectManager;
+      setSelectedUserId(projectManagerId ? projectManagerId.toString() : "");
+    }
+  }, [project]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadUsers();
+      // Reset selected user when modal opens
+      if (project) {
+        setCurrentProject(project);
+        const projectManagerId =
+          project?.projectManager?.id || project?.projectManager;
+        setSelectedUserId(projectManagerId ? projectManagerId.toString() : "");
+      }
+    }
+  }, [isOpen, project]);
+
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const usersResponse = await apiClient.get("/api/xtrawrkx-users", {
+        "pagination[pageSize]": 100,
+        populate: "primaryRole,userRoles,department",
+        "filters[isActive][$eq]": "true",
+      });
+
+      let usersData = [];
+      if (usersResponse?.data && Array.isArray(usersResponse.data)) {
+        usersData = usersResponse.data;
+      } else if (Array.isArray(usersResponse)) {
+        usersData = usersResponse;
+      }
+
+      const transformedUsers = usersData
+        .filter((user) => user && user.id)
+        .map((user) => {
+          const userData = user.attributes || user;
+          const firstName = userData.firstName || "";
+          const lastName = userData.lastName || "";
+          const email = userData.email || "";
+          const name =
+            `${firstName} ${lastName}`.trim() || email || "Unknown User";
+
+          return {
+            id: user.id,
+            firstName,
+            lastName,
+            email,
+            name,
+          };
+        });
+
+      setUsers(transformedUsers);
+    } catch (error) {
+      console.error("Error loading users:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateAssignee = async () => {
+    if (!currentProject) return;
+
+    setSaving(true);
+    try {
+      await projectService.updateProject(currentProject.id, {
+        projectManager: selectedUserId || null,
+      });
+
+      // Reload project to get updated project manager
+      const updatedProject = await projectService.getProjectById(
+        currentProject.id,
+        ["projectManager", "teamMembers", "tasks"],
+      );
+
+      const transformedProject = transformProject(updatedProject);
+
+      // Update local project state immediately for UI update
+      setCurrentProject(transformedProject);
+
+      // Update parent state
+      if (onUpdate) {
+        onUpdate(transformedProject);
+      }
+
+      // Close the modal after update
+      onClose();
+    } catch (error) {
+      console.error("Error updating project lead:", error);
+      alert(
+        `Failed to update project lead: ${error.message || "Unknown error"}`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen || !currentProject) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-xl rounded-2xl border border-white/40 shadow-2xl max-w-md w-full">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                <Users className="w-6 h-6 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Change Assignee
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Assign project to a team member
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="mb-6">
+            <p className="text-gray-700 mb-4">
+              Select a user to assign <strong>{currentProject.name}</strong> to:
+            </p>
+            <SearchableSelect
+              label="Assign To"
+              value={selectedUserId}
+              onChange={setSelectedUserId}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...users.map((u) => ({
+                  value: u.id.toString(),
+                  label:
+                    u.name ||
+                    `${u.firstName || ""} ${u.lastName || ""}`.trim() ||
+                    u.email ||
+                    "Unknown User",
+                })),
+              ]}
+              disabled={loading}
+              placeholder="Select a user"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button onClick={onClose} variant="outline" className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateAssignee}
+              disabled={saving}
+              className="flex-1 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-lg"
+            >
+              {saving ? "Updating..." : "Update Assignee"}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 import {
   LayoutDashboard,
@@ -62,6 +62,7 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
 
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const quickActionsRef = useRef(null);
 
@@ -179,29 +180,51 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
       try {
         setLoadingThreads(true);
 
-        // Fetch comments for lead companies and client accounts
-        const [leadCompanyCommentsResponse, clientAccountCommentsResponse] =
-          await Promise.all([
-            commentService
-              .getAllComments({
-                filters: { commentableType: "LEAD_COMPANY" },
-                populate: ["user", "replies", "replies.user", "parentComment"],
-                sort: "createdAt:desc",
-                pageSize: 500,
-              })
-              .catch(() => ({ data: [] })),
-            commentService
-              .getAllComments({
-                filters: { commentableType: "CLIENT_ACCOUNT" },
-                populate: ["user", "replies", "replies.user", "parentComment"],
-                sort: "createdAt:desc",
-                pageSize: 500,
-              })
-              .catch(() => ({ data: [] })),
-          ]);
+        // Fetch comments for lead companies, client accounts, contacts, and deals
+        const [
+          leadCompanyCommentsResponse,
+          clientAccountCommentsResponse,
+          contactCommentsResponse,
+          dealCommentsResponse,
+        ] = await Promise.all([
+          commentService
+            .getAllComments({
+              filters: { commentableType: "LEAD_COMPANY" },
+              populate: ["user", "replies", "replies.user", "parentComment"],
+              sort: "createdAt:desc",
+              pageSize: 500,
+            })
+            .catch(() => ({ data: [] })),
+          commentService
+            .getAllComments({
+              filters: { commentableType: "CLIENT_ACCOUNT" },
+              populate: ["user", "replies", "replies.user", "parentComment"],
+              sort: "createdAt:desc",
+              pageSize: 500,
+            })
+            .catch(() => ({ data: [] })),
+          commentService
+            .getAllComments({
+              filters: { commentableType: "CONTACT" },
+              populate: ["user", "replies", "replies.user", "parentComment"],
+              sort: "createdAt:desc",
+              pageSize: 500,
+            })
+            .catch(() => ({ data: [] })),
+          commentService
+            .getAllComments({
+              filters: { commentableType: "DEAL" },
+              populate: ["user", "replies", "replies.user", "parentComment"],
+              sort: "createdAt:desc",
+              pageSize: 500,
+            })
+            .catch(() => ({ data: [] })),
+        ]);
 
         const leadComments = leadCompanyCommentsResponse?.data || [];
         const clientComments = clientAccountCommentsResponse?.data || [];
+        const contactComments = contactCommentsResponse?.data || [];
+        const dealComments = dealCommentsResponse?.data || [];
 
         // Group comments by entity and get latest activity
         const entityChats = new Map();
@@ -258,6 +281,58 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
           }
         });
 
+        // Process contact comments
+        contactComments.forEach((comment) => {
+          const commentData = comment.attributes || comment;
+          const entityId = commentData.commentableId;
+          const key = `contact-${entityId}`;
+
+          if (!entityChats.has(key)) {
+            entityChats.set(key, {
+              entityId,
+              entityType: "contact",
+              latestComment: null,
+              latestActivity: null,
+              commentsCount: 0,
+            });
+          }
+
+          const chat = entityChats.get(key);
+          chat.commentsCount++;
+
+          const commentTime = new Date(commentData.createdAt);
+          if (!chat.latestActivity || commentTime > chat.latestActivity) {
+            chat.latestActivity = commentTime;
+            chat.latestComment = commentData.content;
+          }
+        });
+
+        // Process deal comments
+        dealComments.forEach((comment) => {
+          const commentData = comment.attributes || comment;
+          const entityId = commentData.commentableId;
+          const key = `deal-${entityId}`;
+
+          if (!entityChats.has(key)) {
+            entityChats.set(key, {
+              entityId,
+              entityType: "deal",
+              latestComment: null,
+              latestActivity: null,
+              commentsCount: 0,
+            });
+          }
+
+          const chat = entityChats.get(key);
+          chat.commentsCount++;
+
+          const commentTime = new Date(commentData.createdAt);
+          if (!chat.latestActivity || commentTime > chat.latestActivity) {
+            chat.latestActivity = commentTime;
+            chat.latestComment = commentData.content;
+          }
+        });
+
         // Fetch entity names
         const entityPromises = Array.from(entityChats.keys()).map(
           async (key) => {
@@ -268,20 +343,92 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
                   .getLeadCompany(chat.entityId)
                   .catch(() => null);
                 if (leadCompany) {
-                  chat.entity = leadCompany.data?.attributes || leadCompany;
+                  // Normalize the data structure
+                  const entityData =
+                    leadCompany.data?.attributes ||
+                    leadCompany.data ||
+                    leadCompany.attributes ||
+                    leadCompany;
+                  chat.entity = entityData;
                 }
               } else if (chat.entityType === "clientAccount") {
                 const clientAccount = await strapiClient
                   .getClientAccount(chat.entityId)
                   .catch(() => null);
                 if (clientAccount) {
-                  chat.entity = clientAccount.data?.attributes || clientAccount;
+                  // Normalize the data structure
+                  const entityData =
+                    clientAccount.data?.attributes ||
+                    clientAccount.data ||
+                    clientAccount.attributes ||
+                    clientAccount;
+                  chat.entity = entityData;
+                }
+              } else if (chat.entityType === "contact") {
+                const contact = await strapiClient
+                  .getContact(chat.entityId, {
+                    populate: ["clientAccount", "leadCompany"],
+                  })
+                  .catch(() => null);
+                if (contact) {
+                  // Normalize the data structure
+                  const entityData =
+                    contact.data?.attributes ||
+                    contact.data ||
+                    contact.attributes ||
+                    contact;
+                  chat.entity = entityData;
+                  // Also normalize related entities
+                  if (entityData.clientAccount) {
+                    entityData.clientAccount =
+                      entityData.clientAccount.data?.attributes ||
+                      entityData.clientAccount.data ||
+                      entityData.clientAccount.attributes ||
+                      entityData.clientAccount;
+                  }
+                  if (entityData.leadCompany) {
+                    entityData.leadCompany =
+                      entityData.leadCompany.data?.attributes ||
+                      entityData.leadCompany.data ||
+                      entityData.leadCompany.attributes ||
+                      entityData.leadCompany;
+                  }
+                }
+              } else if (chat.entityType === "deal") {
+                const deal = await strapiClient
+                  .getDeal(chat.entityId, {
+                    populate: ["clientAccount", "leadCompany"],
+                  })
+                  .catch(() => null);
+                if (deal) {
+                  // Normalize the data structure
+                  const entityData =
+                    deal.data?.attributes ||
+                    deal.data ||
+                    deal.attributes ||
+                    deal;
+                  chat.entity = entityData;
+                  // Also normalize related entities
+                  if (entityData.clientAccount) {
+                    entityData.clientAccount =
+                      entityData.clientAccount.data?.attributes ||
+                      entityData.clientAccount.data ||
+                      entityData.clientAccount.attributes ||
+                      entityData.clientAccount;
+                  }
+                  if (entityData.leadCompany) {
+                    entityData.leadCompany =
+                      entityData.leadCompany.data?.attributes ||
+                      entityData.leadCompany.data ||
+                      entityData.leadCompany.attributes ||
+                      entityData.leadCompany;
+                  }
                 }
               }
             } catch (error) {
               console.error(`Error fetching entity ${chat.entityId}:`, error);
             }
-          }
+          },
         );
         await Promise.all(entityPromises);
 
@@ -298,6 +445,8 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
             leadCompany: chat.entityType === "leadCompany" ? chat.entity : null,
             clientAccount:
               chat.entityType === "clientAccount" ? chat.entity : null,
+            contact: chat.entityType === "contact" ? chat.entity : null,
+            deal: chat.entityType === "deal" ? chat.entity : null,
             commentsCount: chat.commentsCount,
           }))
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // Sort by most recent
@@ -318,16 +467,91 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Get threads to display (limited initially - show 4 recent threads)
-  const displayedThreads = showAllThreads ? threads : threads.slice(0, 4);
+  // Get threads to display (limited to top 3 conversations)
+  const displayedThreads = showAllThreads ? threads : threads.slice(0, 3);
 
   const getThreadContext = (thread) => {
+    // Helper to get company name from entity (handles different data structures)
+    const getCompanyName = (entity) => {
+      if (!entity) return null;
+      // Try different possible paths for companyName
+      return (
+        entity.companyName ||
+        entity.attributes?.companyName ||
+        entity.data?.attributes?.companyName ||
+        entity.data?.companyName ||
+        null
+      );
+    };
+
+    // Show company name for lead companies
     if (thread.leadCompany) {
-      return thread.leadCompany.companyName || "Lead Company";
+      const companyName = getCompanyName(thread.leadCompany);
+      if (companyName) return companyName;
+      // Fallback: try to get name from nested structure
+      const name =
+        thread.leadCompany.name ||
+        thread.leadCompany.attributes?.name ||
+        thread.leadCompany.data?.attributes?.name;
+      return name || "Lead Company";
     }
+
+    // Show company name for client accounts
     if (thread.clientAccount) {
-      return thread.clientAccount.companyName || "Client Account";
+      const companyName = getCompanyName(thread.clientAccount);
+      if (companyName) return companyName;
+      // Fallback: try to get name from nested structure
+      const name =
+        thread.clientAccount.name ||
+        thread.clientAccount.attributes?.name ||
+        thread.clientAccount.data?.attributes?.name;
+      return name || "Client Account";
     }
+
+    // For contacts, show their company name if available, otherwise contact name
+    if (thread.contact) {
+      const contact = thread.contact;
+      // Try to get company name from related entities
+      const clientAccountName = getCompanyName(contact.clientAccount);
+      if (clientAccountName) return clientAccountName;
+
+      const leadCompanyName = getCompanyName(contact.leadCompany);
+      if (leadCompanyName) return leadCompanyName;
+
+      // Fallback to contact name
+      const firstName =
+        contact.firstName ||
+        contact.attributes?.firstName ||
+        contact.data?.attributes?.firstName ||
+        "";
+      const lastName =
+        contact.lastName ||
+        contact.attributes?.lastName ||
+        contact.data?.attributes?.lastName ||
+        "";
+      const contactName = `${firstName} ${lastName}`.trim();
+      return contactName || "Contact";
+    }
+
+    // For deals, show deal name or associated company name
+    if (thread.deal) {
+      const deal = thread.deal;
+      // Try to get company name from related entities
+      const clientAccountName = getCompanyName(deal.clientAccount);
+      if (clientAccountName) return clientAccountName;
+
+      const leadCompanyName = getCompanyName(deal.leadCompany);
+      if (leadCompanyName) return leadCompanyName;
+
+      // Fallback to deal name
+      const dealName =
+        deal.name ||
+        deal.attributes?.name ||
+        deal.data?.attributes?.name ||
+        deal.data?.name;
+      return dealName || "Deal";
+    }
+
     return "Unknown";
   };
 
@@ -960,7 +1184,13 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
         {!collapsed && (
           <div className="flex-1">
             <div className="px-3 mb-2">
-              <div className="bg-white/10 backdrop-blur-md border border-white/30 rounded-xl p-2.5 shadow-lg">
+              <div
+                className={`rounded-xl p-2.5 shadow-lg transition-all duration-200 backdrop-blur-md ${
+                  pathname.startsWith("/threads")
+                    ? "bg-orange-50/90 border border-orange-200"
+                    : "bg-white/10 border border-white/30"
+                }`}
+              >
                 <div className="flex items-center justify-between text-sm font-medium text-brand-foreground mb-2">
                   <span className="flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5" />
@@ -986,29 +1216,49 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
                     </div>
                   ) : (
                     displayedThreads.map((thread) => {
-                      const isThreadActive = pathname.startsWith("/threads");
+                      const isThreadsPageOpen = pathname.startsWith("/threads");
+                      const currentThreadId = searchParams.get("thread");
+                      const isThisThreadActive =
+                        isThreadsPageOpen &&
+                        !!currentThreadId &&
+                        (currentThreadId === thread.id ||
+                          currentThreadId === thread.id?.toString() ||
+                          (typeof thread.id === "string" &&
+                            thread.id.includes(currentThreadId)));
+
                       const threadContext = getThreadContext(thread);
                       const messageText = thread.message || "";
                       const previewText =
                         messageText.length > 40
                           ? messageText.substring(0, 40) + "..."
                           : messageText;
-                      const isLeadCompany = thread.entityType === "leadCompany";
-                      const IconComponent = isLeadCompany
-                        ? Building2
-                        : UserCheck;
-                      const iconColor = isLeadCompany
-                        ? "from-orange-400 to-orange-600"
-                        : "from-blue-400 to-blue-600";
+
+                      // Determine icon and color based on entity type
+                      let IconComponent = Building2;
+                      let iconColor = "from-gray-400 to-gray-600";
+
+                      if (thread.entityType === "leadCompany") {
+                        IconComponent = Building2;
+                        iconColor = "from-orange-400 to-orange-600";
+                      } else if (thread.entityType === "clientAccount") {
+                        IconComponent = UserCheck;
+                        iconColor = "from-blue-400 to-blue-600";
+                      } else if (thread.entityType === "contact") {
+                        IconComponent = Users;
+                        iconColor = "from-purple-400 to-purple-600";
+                      } else if (thread.entityType === "deal") {
+                        IconComponent = DollarSign;
+                        iconColor = "from-green-400 to-green-600";
+                      }
 
                       return (
                         <button
                           key={thread.id}
                           onClick={() => handleThreadNavigation(thread)}
-                          className={`w-full flex items-start gap-2 p-2 rounded-lg text-xs text-brand-text-light hover:bg-white/20 transition-all duration-200 ${
-                            isThreadActive
+                          className={`w-full flex items-start gap-2 p-2 rounded-lg text-xs transition-all duration-200 relative ${
+                            isThisThreadActive
                               ? "bg-orange-50 text-orange-700 border border-orange-200"
-                              : ""
+                              : "text-gray-600 hover:bg-gray-100/80 border border-transparent"
                           }`}
                         >
                           <div
@@ -1017,16 +1267,34 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
                             <IconComponent className="w-3 h-3 text-white" />
                           </div>
                           <div className="flex-1 min-w-0 text-left">
-                            <div className="font-medium text-gray-800 truncate mb-0.5">
+                            <div
+                              className={`font-medium truncate mb-0.5 flex items-center gap-1.5 ${
+                                isThisThreadActive
+                                  ? "text-orange-800"
+                                  : "text-gray-900"
+                              }`}
+                            >
                               {threadContext}
                             </div>
                             {previewText && (
-                              <div className="text-gray-600 line-clamp-2 text-[11px] leading-tight">
+                              <div
+                                className={`line-clamp-2 text-[11px] leading-tight ${
+                                  isThisThreadActive
+                                    ? "text-orange-600"
+                                    : "text-gray-500"
+                                }`}
+                              >
                                 {previewText}
                               </div>
                             )}
                             {thread.commentsCount > 0 && (
-                              <div className="text-gray-500 text-[10px] mt-1">
+                              <div
+                                className={`text-[10px] mt-1 ${
+                                  isThisThreadActive
+                                    ? "text-orange-500"
+                                    : "text-gray-500"
+                                }`}
+                              >
                                 {thread.commentsCount}{" "}
                                 {thread.commentsCount === 1
                                   ? "message"
@@ -1039,24 +1307,15 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
                     })
                   )}
 
-                  {/* Load More / Show Less Buttons */}
-                  {!showAllThreads && threads.length > 4 && (
-                    <button
-                      onClick={() => setShowAllThreads(true)}
+                  {/* Load More Button - Navigate to Threads Page */}
+                  {!showAllThreads && threads.length > 3 && (
+                    <Link
+                      href="/threads"
                       className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs text-orange-600 hover:bg-orange-50 hover:text-orange-700 transition-all duration-200 group mt-1.5 rounded-lg"
                     >
                       <span className="font-medium">Load More</span>
-                      <ChevronDown className="w-2.5 h-2.5" />
-                    </button>
-                  )}
-                  {showAllThreads && threads.length > 4 && (
-                    <button
-                      onClick={() => setShowAllThreads(false)}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs text-orange-600 hover:bg-orange-50 hover:text-orange-700 transition-all duration-200 group mt-1.5 rounded-lg"
-                    >
-                      <span className="font-medium">Show Less</span>
-                      <ChevronDown className="w-2.5 h-2.5 rotate-180" />
-                    </button>
+                      <ChevronRight className="w-2.5 h-2.5" />
+                    </Link>
                   )}
                 </div>
               </div>
@@ -1158,7 +1417,6 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
                 <span className="text-brand-primary text-sm font-medium">
                   {(() => {
                     if (!user) {
-                      console.log("CRMSidebar: No user data available");
                       return "U";
                     }
 
@@ -1186,9 +1444,6 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
                     <p className="text-sm font-medium text-brand-foreground truncate">
                       {(() => {
                         if (!user) {
-                          console.log(
-                            "CRMSidebar: No user data for display name"
-                          );
                           return "User";
                         }
 
@@ -1213,7 +1468,6 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
                     <p className="text-xs text-brand-text-light truncate">
                       {(() => {
                         if (!user) {
-                          console.log("CRMSidebar: No user data for role");
                           return "User";
                         }
 

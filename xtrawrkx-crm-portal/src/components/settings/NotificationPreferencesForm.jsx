@@ -229,7 +229,6 @@ export default function NotificationPreferencesForm() {
   };
 
   const handleSave = () => {
-    console.log("Saving notification preferences:", preferences);
     setIsEditing(false);
   };
 

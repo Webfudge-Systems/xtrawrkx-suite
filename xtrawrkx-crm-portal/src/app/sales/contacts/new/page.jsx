@@ -136,7 +136,6 @@ export default function AddContactPage() {
       }
 
       setUsers(allUsers);
-      console.log("Fetched users for assignment:", allUsers);
 
       // Auto-select the current logged-in user if found
       if (user?.email && allUsers.length > 0) {
@@ -146,7 +145,6 @@ export default function AddContactPage() {
             ...prev,
             assignedTo: currentUser.id.toString(),
           }));
-          console.log("✅ Auto-selected current user:", currentUser.id);
         }
       }
     } catch (err) {
@@ -246,18 +244,12 @@ export default function AddContactPage() {
       // Add assigned user if selected
       if (contactData.assignedTo) {
         contactPayload.assignedTo = parseInt(contactData.assignedTo);
-        console.log(
-          "✅ Assigning contact to user ID:",
-          contactPayload.assignedTo
-        );
       }
 
-      console.log("Creating contact with data:", contactPayload);
 
       // Create the contact
       const createdContact = await contactService.create(contactPayload);
 
-      console.log("Created contact:", createdContact);
 
       setShowSuccess(true);
 

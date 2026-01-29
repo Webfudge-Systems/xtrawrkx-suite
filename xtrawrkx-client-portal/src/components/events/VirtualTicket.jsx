@@ -57,7 +57,6 @@ export default function VirtualTicket({ event, onDownload }) {
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     // You might want to show a toast notification here
-    console.log("Copied to clipboard:", text);
   };
 
   const shareTicket = () => {

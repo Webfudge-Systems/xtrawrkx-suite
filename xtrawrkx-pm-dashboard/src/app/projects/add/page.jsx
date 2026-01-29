@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, Button, Input, Select, Textarea } from "../../../components/ui";
+import { Card, Button, Input, Select, SearchableSelect, Textarea } from "../../../components/ui";
 import PageHeader from "../../../components/shared/PageHeader";
 import projectService from "../../../lib/projectService";
 import apiClient from "../../../lib/apiClient";
@@ -58,9 +58,60 @@ export default function AddProjectPage() {
   const fetchUsers = async () => {
     try {
       setLoadingUsers(true);
-      // For now, we'll use an empty array
-      // In a real implementation, you would fetch users from the API
-      setUsers([]);
+      let allUsers = [];
+      let page = 1;
+      let hasMore = true;
+      const pageSize = 100;
+      
+      while (hasMore) {
+        const queryParams = {
+          "pagination[page]": page,
+          "pagination[pageSize]": pageSize,
+          populate: "primaryRole,userRoles,department",
+          "filters[isActive][$eq]": "true",
+        };
+        
+        const response = await apiClient.get("/api/xtrawrkx-users", queryParams);
+        
+        let usersData = [];
+        if (Array.isArray(response)) {
+          usersData = response;
+        } else if (Array.isArray(response?.data)) {
+          usersData = response.data;
+        }
+        
+        if (Array.isArray(usersData) && usersData.length > 0) {
+          const extracted = usersData
+            .filter((u) => u && u.id)
+            .map((u) => {
+              const userData = u.attributes || u;
+              const firstName = userData.firstName || "";
+              const lastName = userData.lastName || "";
+              const email = userData.email || "";
+              const name = `${firstName} ${lastName}`.trim() || email || "Unknown User";
+              
+              return {
+                id: u.id || u.documentId,
+                documentId: u.id || u.documentId,
+                firstName,
+                lastName,
+                email,
+                name,
+                ...userData,
+              };
+            });
+          allUsers = [...allUsers, ...extracted];
+          
+          const pageCount = response?.meta?.pagination?.pageCount || 
+                           (response?.pagination?.pageCount) || 1;
+          hasMore = page < pageCount && usersData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      setUsers(allUsers);
 
       // Auto-select the current logged-in user if available
       if (user?.id) {
@@ -232,12 +283,10 @@ export default function AddProjectPage() {
         projectPayload.clientAccount = parseInt(projectData.clientAccount);
       }
 
-      console.log("Creating project with data:", projectPayload);
 
       // Create the project
       const createdProject = await projectService.createProject(projectPayload);
 
-      console.log("Created project:", createdProject);
 
       // Show success message
       setShowSuccess(true);
@@ -421,11 +470,11 @@ export default function AddProjectPage() {
                   placeholder="25000"
                   min="0"
                   step="0.01"
-                  icon={DollarSign}
+                  prefix="Rs"
                 />
               </div>
               <div>
-                <Select
+                <SearchableSelect
                   label="Project Manager"
                   value={projectData.projectManager}
                   onChange={(value) =>
@@ -446,7 +495,7 @@ export default function AddProjectPage() {
                 />
               </div>
               <div className="md:col-span-2">
-                <Select
+                <SearchableSelect
                   label="Client Account"
                   value={projectData.clientAccount}
                   onChange={(value) =>

@@ -7,6 +7,7 @@
 // In Manifest V3, paths in importScripts are resolved relative to the extension root
 // However, Chrome may resolve them relative to the service worker file location
 // Using relative paths: from src/background/ go up one level (../) to src/, then into utils/
+// IMPORTANT: config.js must be loaded before api-client.js
 importScripts(
     '../utils/logger.js',
     '../utils/config.js',
@@ -48,15 +49,17 @@ class BackgroundService {
                 this.dataMapper = new DataMapper();
             }
 
-            // Set up sidePanel globally
+            // Set up sidePanel globally (disabled by default, enabled per-tab for LinkedIn)
             await this.setupSidePanel();
+
+            // Initialize extension icon state for all tabs
+            await this.initializeExtensionIcons();
 
             this.initialized = true;
 
             if (this.logger) {
                 this.logger.log('XtraWrkx Extension Background Service initialized');
             } else {
-                console.log('XtraWrkx Extension Background Service initialized');
             }
         } catch (error) {
             console.error('Error initializing background service:', error);
@@ -68,16 +71,31 @@ class BackgroundService {
 
     async setupSidePanel() {
         try {
-            // Set global sidePanel configuration
+            // Set global sidePanel configuration - DISABLED by default
+            // Will be enabled only for LinkedIn tabs
             if (chrome.sidePanel && chrome.sidePanel.setOptions) {
-                await chrome.sidePanel.setOptions({
-                    enabled: true,
-                    path: 'src/sidebar/sidebar.html'
-                });
+                // Don't enable globally - only enable for LinkedIn tabs
+                // This prevents sidePanel from appearing on non-LinkedIn pages
                 if (this.logger) {
-                    this.logger.log('SidePanel configured globally');
+                    this.logger.log('SidePanel API available - will be enabled per-tab for LinkedIn only');
                 } else {
-                    console.log('SidePanel configured globally');
+                }
+                
+                // Check all current tabs and enable/disable sidePanel accordingly
+                const tabs = await chrome.tabs.query({});
+                for (const tab of tabs) {
+                    if (tab.url && this.isLinkedInUrl(tab.url)) {
+                        await chrome.sidePanel.setOptions({
+                            tabId: tab.id,
+                            enabled: true,
+                            path: 'src/sidebar/sidebar.html'
+                        });
+                    } else {
+                        await chrome.sidePanel.setOptions({
+                            tabId: tab.id,
+                            enabled: false
+                        });
+                    }
                 }
             } else {
                 const errorMsg = 'Chrome sidePanel API not available';
@@ -143,6 +161,9 @@ class BackgroundService {
             }
         });
 
+        // Note: tab updates are already handled by handleTabUpdate above
+        // No need for duplicate listener
+
         // Listen for action (toolbar button) clicks to open sidePanel
         chrome.action.onClicked.addListener((tab) => {
             this.handleActionClick(tab);
@@ -184,6 +205,13 @@ class BackgroundService {
                     return true;
                 }
 
+                // Verify tab is still LinkedIn before opening
+                if (!this.isLinkedInUrl(tab.url)) {
+                    const error = 'This extension only works on LinkedIn pages';
+                    sendResponse({ success: false, error });
+                    return true;
+                }
+
                 // Set options for this tab first
                 try {
                     if (chrome.sidePanel.setOptions) {
@@ -209,7 +237,6 @@ class BackgroundService {
                             if (this.logger) {
                                 this.logger.log('SidePanel opened successfully');
                             } else {
-                                console.log('SidePanel opened successfully');
                             }
                             sendResponse({ success: true });
                         })
@@ -324,7 +351,6 @@ class BackgroundService {
                     // Fallback for older Chrome versions - open popup
                     try {
                         // Note: We can't programmatically open popup, but we can notify user
-                        console.log('Popup fallback requested - user should click extension icon');
                         sendResponse({ success: true, message: 'Click the extension icon in the toolbar' });
                     } catch (error) {
                         sendResponse({ success: false, error: error.message });
@@ -342,7 +368,6 @@ class BackgroundService {
 
     // Find existing contact handler
     async handleFindExistingContact(linkedInUrl) {
-        console.log('🔍 Finding existing contact for LinkedIn URL:', linkedInUrl);
 
         try {
             await this.apiClient.init();
@@ -350,10 +375,8 @@ class BackgroundService {
             const existingContact = await this.apiClient.findExistingContact(linkedInUrl);
 
             if (existingContact) {
-                console.log('✅ Found existing contact:', existingContact);
                 return { success: true, exists: true, contact: existingContact };
             } else {
-                console.log('ℹ️ No existing contact found');
                 return { success: true, exists: false, contact: null };
             }
         } catch (error) {
@@ -363,14 +386,12 @@ class BackgroundService {
     }
 
     async handleGetContactRelatedData(contactId) {
-        console.log('📊 Fetching related data for contact ID:', contactId);
 
         try {
             await this.apiClient.init();
 
             const relatedData = await this.apiClient.getContactRelatedData(contactId);
 
-            console.log('✅ Related data fetched successfully:', relatedData);
             return { success: true, data: relatedData };
 
         } catch (error) {
@@ -380,7 +401,6 @@ class BackgroundService {
     }
 
     async handleGetCompanyData(companyId, companyType) {
-        console.log('🏢 Fetching company data for ID:', companyId, 'Type:', companyType);
 
         try {
             await this.apiClient.init();
@@ -389,17 +409,13 @@ class BackgroundService {
 
             if (companyType === 'client' || companyType === 'account') {
                 // Both 'client' and 'account' should fetch from client-accounts
-                console.log('🏢 Fetching CLIENT ACCOUNT data');
                 companyData = await this.apiClient.getCompanyData(companyId);
             } else if (companyType === 'lead') {
-                console.log('🏢 Fetching LEAD COMPANY data');
                 companyData = await this.apiClient.getLeadCompanyData(companyId);
             } else {
-                console.log('🏢 Unknown company type, defaulting to CLIENT ACCOUNT');
                 companyData = await this.apiClient.getCompanyData(companyId);
             }
 
-            console.log('✅ Company data fetched successfully:', companyData);
             return { success: true, data: companyData };
 
         } catch (error) {
@@ -409,7 +425,6 @@ class BackgroundService {
     }
 
     async handleSearchCompanyByName(companyName) {
-        console.log('🔍 Searching for company by name:', companyName);
 
         try {
             await this.apiClient.init();
@@ -417,10 +432,8 @@ class BackgroundService {
             const companyData = await this.apiClient.searchCompanyByName(companyName);
 
             if (companyData) {
-                console.log('✅ Company found by name search:', companyData);
                 return { success: true, data: companyData };
             } else {
-                console.log('❌ No company found with name:', companyName);
                 return { success: false, error: 'Company not found' };
             }
 
@@ -486,7 +499,6 @@ class BackgroundService {
     }
 
     async importProfile(profileData, userId) {
-        console.log('📥 Importing profile:', profileData);
 
         // Check for duplicates if enabled
         const settings = await this.getImportSettings();
@@ -507,7 +519,6 @@ class BackgroundService {
         const companyName = profileData.currentCompany || profileData.company;
 
         if (companyName) {
-            console.log('🏢 Creating lead company:', companyName);
 
             try {
                 // Check for duplicate company if enabled
@@ -517,7 +528,6 @@ class BackgroundService {
                     );
 
                     if (isDuplicateCompany) {
-                        console.log('⚠️ Company already exists, will try to find it');
                         // Try to find existing company by name
                         // For now, we'll still create the contact without linking
                     } else {
@@ -530,9 +540,7 @@ class BackgroundService {
                             if (companyValidation.isValid) {
                                 // Create lead company
                                 leadCompanyResult = await this.apiClient.createLeadCompany(leadCompanyData);
-                                console.log('✅ Lead company created:', leadCompanyResult.data.id);
                             } else {
-                                console.log('⚠️ Company validation failed:', companyValidation.errors);
                             }
                         }
                     }
@@ -546,9 +554,7 @@ class BackgroundService {
                         if (companyValidation.isValid) {
                             // Create lead company
                             leadCompanyResult = await this.apiClient.createLeadCompany(leadCompanyData);
-                            console.log('✅ Lead company created:', leadCompanyResult.data.id);
                         } else {
-                            console.log('⚠️ Company validation failed:', companyValidation.errors);
                         }
                     }
                 }
@@ -564,7 +570,6 @@ class BackgroundService {
         // Link contact to lead company if created
         if (leadCompanyResult && leadCompanyResult.data && leadCompanyResult.data.id) {
             contactData.leadCompany = leadCompanyResult.data.id;
-            console.log('🔗 Linking contact to lead company:', leadCompanyResult.data.id);
         }
 
         // Validate contact data
@@ -574,9 +579,7 @@ class BackgroundService {
         }
 
         // Step 3: Create contact
-        console.log('👤 Creating contact...');
         const contactResult = await this.apiClient.createContact(contactData);
-        console.log('✅ Contact created:', contactResult.data.id);
 
         return {
             type: 'contact',
@@ -717,12 +720,8 @@ class BackgroundService {
 
     async handleAuthenticate(email, password) {
         try {
-            console.log('=== BACKGROUND AUTHENTICATE CALLED ===');
-            console.log('Email:', email);
-            console.log('Password length:', password?.length);
 
             if (!email || !password) {
-                console.log('Missing email or password');
                 return {
                     success: false,
                     error: 'Email and password are required'
@@ -731,26 +730,20 @@ class BackgroundService {
 
             // Ensure API client is initialized
             if (!this.apiClient) {
-                console.log('API client not initialized, initializing...');
                 this.apiClient = new ExtensionApiClient();
                 await this.apiClient.init();
             }
 
-            console.log('API client base URL:', this.apiClient.baseURL);
-            console.log('Calling API client authenticate...');
 
             // Use API client to authenticate
             const result = await this.apiClient.authenticate(email, password);
-            console.log('API client result:', result);
 
             if (result && result.success) {
-                console.log('Authentication successful');
                 return {
                     success: true,
                     user: result.user
                 };
             } else {
-                console.log('Authentication failed - result:', result);
                 return {
                     success: false,
                     error: result?.error || 'Authentication failed. Please check your credentials.'
@@ -817,12 +810,8 @@ class BackgroundService {
 
     async handleOpenSidePanel() {
         try {
-            console.log('=== BACKGROUND: OPENING SIDE PANEL ===');
 
             // Check Chrome version and sidePanel API availability
-            console.log('Chrome version:', navigator.userAgent);
-            console.log('sidePanel API available:', !!chrome.sidePanel);
-            console.log('sidePanel.open available:', !!(chrome.sidePanel && chrome.sidePanel.open));
 
             // Force sidePanel API usage - no fallback
             if (!chrome.sidePanel || !chrome.sidePanel.open) {
@@ -835,7 +824,6 @@ class BackgroundService {
 
             // Get the current active tab
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            console.log('Active tab:', tab);
 
             if (!tab) {
                 console.error('No active tab found');
@@ -844,7 +832,6 @@ class BackgroundService {
 
             // Check if tab is LinkedIn
             if (!this.isLinkedInUrl(tab.url)) {
-                console.log('Tab is not LinkedIn, closing sidePanel if open');
                 // Close sidePanel if it's open for this tab
                 try {
                     await chrome.sidePanel.setOptions({
@@ -852,7 +839,6 @@ class BackgroundService {
                         enabled: false
                     });
                 } catch (e) {
-                    console.log('Error closing sidePanel:', e);
                 }
                 return {
                     success: false,
@@ -860,7 +846,6 @@ class BackgroundService {
                 };
             }
 
-            console.log('Opening side panel for tab:', tab.id);
 
             // Enable sidePanel for this tab first
             try {
@@ -870,19 +855,16 @@ class BackgroundService {
                     path: 'src/sidebar/sidebar.html'
                 });
             } catch (setError) {
-                console.log('Setting tab options failed:', setError.message);
             }
 
             // Try to open sidePanel - might fail if no user gesture
             try {
                 await chrome.sidePanel.open({ tabId: tab.id });
-                console.log('Side panel opened successfully');
                 return { success: true };
             } catch (openError) {
                 console.error('Failed to open sidePanel:', openError);
                 // If it fails due to no gesture, suggest clicking extension icon
                 if (openError.message && openError.message.includes('user gesture')) {
-                    console.log('No user gesture - user must click extension icon');
                     return {
                         success: false,
                         error: 'No user gesture. Please click the extension icon in the toolbar.'
@@ -905,7 +887,6 @@ class BackgroundService {
 
     async handleOpenSidePanelWithGesture(sender) {
         try {
-            console.log('=== BACKGROUND: OPENING SIDE PANEL WITH GESTURE ===');
 
             // Check if sidePanel API is available
             if (!chrome.sidePanel || !chrome.sidePanel.open) {
@@ -925,14 +906,12 @@ class BackgroundService {
 
             // Check if tab is LinkedIn
             if (!this.isLinkedInUrl(tab.url)) {
-                console.log('Tab is not LinkedIn, cannot open sidePanel');
                 return {
                     success: false,
                     error: 'This extension only works on LinkedIn pages'
                 };
             }
 
-            console.log('Opening side panel for sender tab:', tab.id);
 
             // Enable sidePanel for this tab first
             try {
@@ -942,20 +921,17 @@ class BackgroundService {
                     path: 'src/sidebar/sidebar.html'
                 });
             } catch (setError) {
-                console.log('Setting tab options failed:', setError.message);
             }
 
             // Try to open immediately - user gesture should still be valid
             try {
                 await chrome.sidePanel.open({ tabId: tab.id });
-                console.log('Side panel opened successfully with gesture');
                 return { success: true };
             } catch (openError) {
                 console.error('sidePanel.open() failed:', openError);
 
                 // If gesture error, suggest clicking extension icon
                 if (openError.message && openError.message.includes('user gesture')) {
-                    console.log('User gesture lost');
                     return {
                         success: false,
                         error: 'User gesture lost. Please click the extension icon in the toolbar.'
@@ -975,10 +951,6 @@ class BackgroundService {
 
     async handlePageDataForSidebar(pageData, url, timestamp) {
         try {
-            console.log('=== Handling page data for sidebar ===');
-            console.log('URL:', url);
-            console.log('Data:', pageData);
-            console.log('Timestamp:', timestamp);
 
             // Store page data for sidebar to access
             await chrome.storage.local.set({
@@ -987,7 +959,6 @@ class BackgroundService {
                 pageDataTimestamp: timestamp || Date.now()
             });
 
-            console.log('✅ Page data stored for sidebar');
             return { success: true };
         } catch (error) {
             console.error('❌ Failed to handle page data for sidebar:', error);
@@ -1127,12 +1098,9 @@ class BackgroundService {
 
     async handleActionClick(tab) {
         try {
-            console.log('=== ACTION CLICK: OPENING SIDE PANEL ===');
-            console.log('Tab:', tab);
 
             // Check if tab is LinkedIn
             if (!this.isLinkedInUrl(tab.url)) {
-                console.log('Tab is not LinkedIn, cannot open sidePanel');
                 // Show notification that extension only works on LinkedIn
                 try {
                     await chrome.notifications.create({
@@ -1142,7 +1110,6 @@ class BackgroundService {
                         message: 'This extension only works on LinkedIn pages. Please navigate to LinkedIn first.'
                     });
                 } catch (notifError) {
-                    console.log('Could not show notification:', notifError);
                 }
                 return;
             }
@@ -1156,13 +1123,11 @@ class BackgroundService {
                         path: 'src/sidebar/sidebar.html'
                     });
                 } catch (setError) {
-                    console.log('Setting tab options failed, using global:', setError.message);
                 }
             }
 
             // This has proper user gesture context from toolbar button click
             await chrome.sidePanel.open({ tabId: tab.id });
-            console.log('Side panel opened successfully from action click');
 
         } catch (error) {
             console.error('Failed to open side panel from action click:', error);
@@ -1171,11 +1136,14 @@ class BackgroundService {
     }
 
     handleTabUpdate(tabId, changeInfo, tab) {
-        // Inject content script if needed when LinkedIn pages load
-        if (changeInfo.status === 'complete' &&
-            tab.url &&
-            tab.url.includes('linkedin.com')) {
+        // Only process if tab URL is available
+        if (!tab || !tab.url) return;
 
+        // Check if this is a LinkedIn page
+        const isLinkedIn = this.isLinkedInUrl(tab.url);
+
+        // Inject content script only on LinkedIn pages
+        if (changeInfo.status === 'complete' && isLinkedIn) {
             // Content script should already be injected via manifest
             // This is just for any edge cases
             chrome.scripting.executeScript({
@@ -1183,12 +1151,12 @@ class BackgroundService {
                 files: ['src/content/linkedin-extractor.js']
             }).catch(error => {
                 // Ignore errors - content script might already be injected
-                console.log('Content script injection skipped:', error.message);
             });
         }
 
-        // Close sidePanel if user navigates away from LinkedIn
-        if (changeInfo.status === 'complete' && tab.url) {
+        // Check and close sidePanel on URL change (immediate) or page complete
+        // This ensures sidePanel closes immediately when navigating away from LinkedIn
+        if (changeInfo.url || changeInfo.status === 'complete') {
             this.checkAndCloseSidePanel(tab);
         }
     }
@@ -1197,6 +1165,8 @@ class BackgroundService {
         try {
             const tab = await chrome.tabs.get(activeInfo.tabId);
             await this.checkAndCloseSidePanel(tab);
+            // Update extension icon state based on tab
+            this.updateExtensionIcon(tab);
         } catch (error) {
             console.error('Error handling tab activation:', error);
         }
@@ -1207,9 +1177,54 @@ class BackgroundService {
             const tabs = await chrome.tabs.query({ active: true, windowId: windowId });
             if (tabs && tabs.length > 0) {
                 await this.checkAndCloseSidePanel(tabs[0]);
+                this.updateExtensionIcon(tabs[0]);
             }
         } catch (error) {
             console.error('Error handling window focus:', error);
+        }
+    }
+
+    async initializeExtensionIcons() {
+        if (!chrome.action) return;
+
+        try {
+            // Update icon state for all open tabs
+            const tabs = await chrome.tabs.query({});
+            for (const tab of tabs) {
+                this.updateExtensionIcon(tab);
+            }
+        } catch (error) {
+        }
+    }
+
+    updateExtensionIcon(tab) {
+        if (!tab || !chrome.action) return;
+
+        try {
+            const isLinkedIn = this.isLinkedInUrl(tab.url);
+            
+            if (isLinkedIn) {
+                // Enable extension on LinkedIn pages
+                chrome.action.setTitle({
+                    tabId: tab.id,
+                    title: 'Xtrawrkx LinkedIn Extension - Click to open sidebar'
+                });
+                chrome.action.setBadgeText({
+                    tabId: tab.id,
+                    text: ''
+                });
+            } else {
+                // Disable extension on non-LinkedIn pages
+                chrome.action.setTitle({
+                    tabId: tab.id,
+                    title: 'Xtrawrkx Extension - Only works on LinkedIn pages'
+                });
+                chrome.action.setBadgeText({
+                    tabId: tab.id,
+                    text: '⚠'
+                });
+            }
+        } catch (error) {
         }
     }
 
@@ -1241,33 +1256,63 @@ class BackgroundService {
 
     async checkAndCloseSidePanel(tab) {
         try {
-            if (!tab || !tab.url) return;
+            if (!tab || !tab.url) {
+                // If no URL, disable sidePanel to be safe
+                if (tab && tab.id) {
+                    try {
+                        await chrome.sidePanel.setOptions({
+                            tabId: tab.id,
+                            enabled: false
+                        });
+                    } catch (e) {
+                        // Ignore errors
+                    }
+                }
+                return;
+            }
 
             // Check if current tab is LinkedIn
             const isLinkedIn = this.isLinkedInUrl(tab.url);
 
             if (!isLinkedIn) {
-                // Tab is not LinkedIn, close sidePanel for this tab
-                console.log('Tab is not LinkedIn, closing sidePanel');
+                // Tab is not LinkedIn, immediately disable and close sidePanel
                 try {
-                    // Disable sidePanel for non-LinkedIn tabs
+                    // Disable sidePanel for non-LinkedIn tabs (this closes it)
                     await chrome.sidePanel.setOptions({
                         tabId: tab.id,
                         enabled: false
                     });
+                    
+                    // Send message to sidebar to close itself if it's open
+                    try {
+                        chrome.tabs.sendMessage(tab.id, {
+                            type: 'CLOSE_SIDEPANEL',
+                            reason: 'not_linkedin'
+                        }).catch(() => {
+                            // Ignore errors - sidebar might not be open or content script not loaded
+                        });
+                    } catch (msgError) {
+                        // Ignore - content script might not be available
+                    }
+                    
+                    // Update extension icon/badge to show it's disabled
+                    if (chrome.action) {
+                        chrome.action.setBadgeText({
+                            tabId: tab.id,
+                            text: '⚠'
+                        });
+                    }
                 } catch (error) {
-                    // If setOptions fails, try alternative method
-                    console.log('Direct sidePanel close failed, trying alternative');
                 }
             } else {
                 // Tab is LinkedIn, ensure sidePanel is enabled
                 try {
                     await chrome.sidePanel.setOptions({
                         tabId: tab.id,
-                        enabled: true
+                        enabled: true,
+                        path: 'src/sidebar/sidebar.html'
                     });
                 } catch (error) {
-                    console.log('Error enabling sidePanel:', error);
                 }
             }
         } catch (error) {
@@ -1279,7 +1324,6 @@ class BackgroundService {
 // Initialize background service
 try {
     const backgroundService = new BackgroundService();
-    console.log('Background service initialized successfully');
 } catch (error) {
     console.error('Failed to initialize background service:', error);
     // Even if initialization fails, try to handle basic messages

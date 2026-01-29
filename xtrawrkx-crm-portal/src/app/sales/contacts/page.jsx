@@ -251,7 +251,6 @@ export default function ContactsPage() {
         sort: ["createdAt:desc"], // Sort by newest first
       });
 
-      console.log("Fetched contacts:", response);
       const fetchedContacts = response.data || [];
       setContacts(fetchedContacts);
       setAllContacts(fetchedContacts); // Store unfiltered contacts for stats
@@ -370,7 +369,6 @@ export default function ContactsPage() {
   // Handle export functionality
   const handleExport = async (format) => {
     try {
-      console.log(`Exporting ${filteredContacts.length} contacts as ${format}`);
       setShowExportDropdown(false);
 
       // Prepare export data
@@ -452,13 +450,11 @@ export default function ContactsPage() {
 
   // Handle bulk actions
   const handleBulkAction = (action) => {
-    console.log(`Bulk action: ${action} on contacts:`, selectedContacts);
     // Implement bulk actions here
   };
 
   // Handle filter application
   const handleApplyFilters = (filters) => {
-    console.log("Applying filters:", filters);
 
     // Check if any filters are active
     const hasActiveFilters = Object.values(filters).some(
@@ -479,7 +475,6 @@ export default function ContactsPage() {
   // Handle import
   const handleImport = async (file) => {
     try {
-      console.log("Importing file:", file.name);
 
       // Here you would implement actual CSV/Excel parsing and import
       // For now, we'll simulate the process
@@ -558,9 +553,6 @@ export default function ContactsPage() {
     );
 
     // Log the activity
-    console.log(
-      `Opening email composer for ${contact.firstName} ${contact.lastName} at ${contact.email}`
-    );
   };
 
   const handleDeleteContact = (contact) => {
@@ -573,11 +565,9 @@ export default function ContactsPage() {
 
     try {
       setLoading(true);
-      console.log('Attempting to delete contact:', contactToDelete);
 
       // Call the delete API
       await contactService.delete(contactToDelete.id);
-      console.log('Contact deletion successful:', contactToDelete.id);
 
       // Remove from local state
       setContacts((prevContacts) =>

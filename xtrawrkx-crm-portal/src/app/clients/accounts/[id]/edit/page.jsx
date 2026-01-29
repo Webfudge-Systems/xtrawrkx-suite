@@ -252,7 +252,6 @@ export default function EditClientAccountPage() {
         populate: ["accountManager"],
       });
 
-      console.log("Client account response:", response);
 
       const account = response?.data || response;
 
@@ -263,7 +262,6 @@ export default function EditClientAccountPage() {
       }
 
       if (account.id || account.documentId) {
-        console.log("Client account data:", account);
 
         // Format dates for input fields
         let formattedConversionDate = "";
@@ -453,7 +451,6 @@ export default function EditClientAccountPage() {
         }
       });
 
-      console.log("Updating client account with data:", updateData);
       await clientAccountService.update(accountId, updateData);
 
       setShowSuccess(true);

@@ -30,8 +30,6 @@ export async function POST(request) {
 
         // Log headers for debugging
         const headers = Object.keys(rows[0] || {});
-        console.log('Detected headers:', headers);
-        console.log('First row sample:', rows[0]);
 
         // Field mapping for lead companies - note: headers are already normalized to lowercase with underscores
         const fieldMapping = {
@@ -66,13 +64,11 @@ export async function POST(request) {
                     return headerNormalized === vNormalized || headerNormalized.includes(vNormalized) || vNormalized.includes(headerNormalized);
                 })) {
                     columnMap[field] = header;
-                    console.log(`Mapped ${field} -> ${header}`);
                     break;
                 }
             }
         });
 
-        console.log('Column mapping:', columnMap);
 
         // Process each row
         const results = {

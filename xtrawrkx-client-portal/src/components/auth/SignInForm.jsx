@@ -61,7 +61,6 @@ export default function SignInForm({
         await onSubmit(formData);
       } else {
         // Default behavior - just log for now
-        console.log("Sign in attempt:", formData);
         await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API call
       }
     } catch (error) {
@@ -74,56 +73,58 @@ export default function SignInForm({
   };
 
   return (
-    <div className={`w-full ${className}`}>
+    <div className={`w-full max-w-full overflow-hidden ${className}`}>
       <AuthCard title="Welcome Back" subtitle="Sign in to access your projects">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 w-full">
           {errors.general && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
               {errors.general}
             </div>
           )}
 
-          <AuthInput
-            type="email"
-            name="email"
-            label="Email Address"
-            placeholder="Enter your email"
-            value={formData.email}
-            onChange={handleInputChange}
-            error={errors.email}
-            required
-          />
+          <div className="grid grid-cols-1 gap-6">
+            <AuthInput
+              type="email"
+              name="email"
+              label="Email Address"
+              placeholder="Enter your email"
+              value={formData.email}
+              onChange={handleInputChange}
+              error={errors.email}
+              required
+            />
 
-          <AuthInput
-            type="password"
-            name="password"
-            label="Password"
-            placeholder="Enter your password"
-            value={formData.password}
-            onChange={handleInputChange}
-            error={errors.password}
-            required
-          />
+            <AuthInput
+              type="password"
+              name="password"
+              label="Password"
+              placeholder="Enter your password"
+              value={formData.password}
+              onChange={handleInputChange}
+              error={errors.password}
+              required
+            />
+          </div>
 
           <div className="flex items-center justify-end">
             <button
               type="button"
               onClick={onForgotPassword}
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors"
+              className="text-sm text-orange-600 hover:text-orange-700 font-medium transition-colors"
             >
               Forgot Password?
             </button>
           </div>
 
-          <AuthButton type="submit" loading={loading} disabled={loading}>
-            Login
+          <AuthButton type="submit" loading={loading} disabled={loading} size="lg">
+            Sign In
           </AuthButton>
 
           <AuthToggle
             text="Don't have an account?"
             linkText="Sign Up"
             onClick={onSignUp}
-            className="mt-6"
+            className="mt-4"
           />
         </form>
       </AuthCard>

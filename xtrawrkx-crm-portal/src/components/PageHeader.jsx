@@ -76,22 +76,14 @@ export default function PageHeader({
 
       try {
         setLoadingNotifications(true);
-        console.log("Loading notifications for user:", userId);
         const notificationsData = await notificationService.getNotifications(
           userId
         );
-        console.log("Raw notifications data:", notificationsData);
         const transformed = notificationsData.map(
           notificationService.transformNotification
         );
-        console.log("Transformed notifications:", transformed);
         setNotifications(transformed);
         setUnreadCount(transformed.filter((n) => !n.isRead).length);
-        console.log(
-          `Loaded ${transformed.length} notifications, ${
-            transformed.filter((n) => !n.isRead).length
-          } unread`
-        );
       } catch (error) {
         console.error("Error loading notifications:", error);
         console.error("Error details:", {

@@ -358,12 +358,6 @@ const CommentsTab = ({ entityType, entityId }) => {
             String(m) === String(userIdToAdd)
         )
       ) {
-        console.log("Adding user to mentions:", {
-          userId: userIdToAdd,
-          userName: selectedUser.name,
-          currentMentions: mentions,
-          newMentions: [...mentions, userIdToAdd],
-        });
         setMentions([...mentions, userIdToAdd]);
       }
 
@@ -428,14 +422,6 @@ const CommentsTab = ({ entityType, entityId }) => {
       setSubmitting(true);
 
       // Log mentions before sending
-      console.log("=== Creating comment with mentions ===", {
-        entityType,
-        entityId,
-        userId,
-        mentions,
-        mentionsCount: mentions.length,
-        mentionsDetails: mentions.map((m) => {
-          const user = users.find((u) => u.id === m || u.id === parseInt(m));
           return { mentionId: m, userName: user?.name || "Unknown" };
         }),
       });

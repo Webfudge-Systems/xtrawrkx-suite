@@ -47,7 +47,6 @@ export default function DashboardPage() {
   // Fetch dashboard stats from API
   const fetchDashboardStats = async () => {
     // Allow fetching even without currentUser for testing
-    console.log("Fetching dashboard stats, currentUser:", currentUser);
 
     try {
       setStatsError(null);
@@ -55,15 +54,11 @@ export default function DashboardPage() {
       // Try with authentication first
       let response;
       try {
-        console.log("Trying authenticated request...");
         response = await AuthService.apiRequest("/dashboard/stats");
-        console.log("Authenticated request successful:", response);
       } catch (authError) {
-        console.log("Auth failed, trying without token:", authError.message);
         // Fallback: try without authentication
         const url =
           "https://xtrawrkxsuits-production.up.railway.app/api/dashboard/stats";
-        console.log("Making unauthenticated request to:", url);
 
         response = await fetch(url, {
           method: "GET",
@@ -73,18 +68,15 @@ export default function DashboardPage() {
           signal: AbortSignal.timeout(5000), // 5 second timeout
         });
 
-        console.log("Fetch response status:", response.status);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         response = await response.json();
-        console.log("Unauthenticated request successful:", response);
       }
 
       if (response.success) {
         setDashboardStats(response.data);
-        console.log("Dashboard stats loaded:", response.data);
       } else {
         throw new Error(response.message || "Failed to fetch dashboard stats");
       }
@@ -97,7 +89,6 @@ export default function DashboardPage() {
   // Fetch recent activity from API
   const fetchRecentActivity = async () => {
     // Allow fetching even without currentUser for testing
-    console.log("Fetching recent activity, currentUser:", currentUser);
 
     try {
       setActivityError(null);
@@ -107,7 +98,6 @@ export default function DashboardPage() {
       try {
         response = await AuthService.apiRequest("/dashboard/recent-activity");
       } catch (authError) {
-        console.log("Auth failed, trying without token:", authError.message);
         // Fallback: try without authentication
         response = await fetch(
           `${
@@ -132,7 +122,6 @@ export default function DashboardPage() {
 
       if (response.success) {
         setRecentActivity(response.activities || []);
-        console.log("Recent activity loaded:", response.activities);
       } else {
         throw new Error(response.message || "Failed to fetch recent activity");
       }
@@ -150,7 +139,6 @@ export default function DashboardPage() {
 
   // Load data on component mount
   useEffect(() => {
-    console.log("Dashboard mounted, currentUser:", currentUser);
 
     // Set fallback data immediately to prevent infinite loading
     setDashboardStats({

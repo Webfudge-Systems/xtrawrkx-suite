@@ -1,10 +1,14 @@
 /**
  * Strapi Client wrapper with client authentication integration
  */
+
+// Use environment variable for API URL, fallback to localhost for development
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337';
+// const API_BASE_URL = 'https://xtrawrkxsuits-production.up.railway.app';
+
 class StrapiClient {
     constructor() {
-        // Use environment variable for API URL, fallback to localhost for development
-        this.baseURL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337';
+        this.baseURL = API_BASE_URL;
         this.apiPath = '/api';
         this.useMocks = process.env.NEXT_PUBLIC_USE_MOCKS === 'true' && process.env.NODE_ENV === 'development';
     }
@@ -59,6 +63,55 @@ class StrapiClient {
         });
 
         return url.toString();
+    }
+
+    /**
+     * Build Strapi query string from filters, populate, and pagination
+     * @param {Object} options
+     * @param {Object} options.filters - Strapi filters object
+     * @param {string|Array} options.populate - Fields to populate
+     * @param {Object} options.pagination - Pagination options
+     * @returns {string}
+     */
+    buildQueryString({ filters = {}, populate = [], pagination = {} }) {
+        const params = new URLSearchParams();
+
+        // Add filters
+        if (Object.keys(filters).length > 0) {
+            Object.entries(filters).forEach(([key, value]) => {
+                if (typeof value === 'object' && value !== null) {
+                    Object.entries(value).forEach(([subKey, subValue]) => {
+                        if (typeof subValue === 'object' && subValue !== null) {
+                            Object.entries(subValue).forEach(([opKey, opValue]) => {
+                                params.append(`filters[${key}][${subKey}][${opKey}]`, opValue);
+                            });
+                        } else {
+                            params.append(`filters[${key}][${subKey}]`, subValue);
+                        }
+                    });
+                } else {
+                    params.append(`filters[${key}]`, value);
+                }
+            });
+        }
+
+        // Add populate
+        if (Array.isArray(populate) && populate.length > 0) {
+            populate.forEach((field) => {
+                params.append('populate[]', field);
+            });
+        } else if (typeof populate === 'string' && populate) {
+            params.append('populate', populate);
+        }
+
+        // Add pagination
+        if (Object.keys(pagination).length > 0) {
+            Object.entries(pagination).forEach(([key, value]) => {
+                params.append(`pagination[${key}]`, value);
+            });
+        }
+
+        return params.toString();
     }
 
     /**
@@ -251,10 +304,6 @@ class StrapiClient {
      */
     async completeOnboarding(onboardingData) {
         try {
-            console.log('strapiClient.completeOnboarding called with:', {
-                hasData: !!onboardingData,
-                dataKeys: onboardingData ? Object.keys(onboardingData) : []
-            });
 
             const response = await fetch(`${this.baseURL}${this.apiPath}/onboarding/complete`, {
                 method: 'POST',
@@ -264,7 +313,6 @@ class StrapiClient {
                 body: JSON.stringify(onboardingData),
             });
 
-            console.log('Strapi response status:', response.status, response.statusText);
 
             // Get response text first to handle empty responses
             const responseText = await response.text();
@@ -300,13 +348,6 @@ class StrapiClient {
             }
 
             // Log the full response structure to debug
-            console.log('strapiClient.completeOnboarding: Full response:', {
-                hasAccount: !!errorData.account,
-                accountKeys: errorData.account ? Object.keys(errorData.account) : [],
-                onboardingCompleted: errorData.account?.onboardingCompleted,
-                onboardingCompletedAt: errorData.account?.onboardingCompletedAt,
-                fullAccount: errorData.account
-            });
 
             // Store authentication data
             if (typeof window !== 'undefined') {
@@ -322,26 +363,12 @@ class StrapiClient {
                         onboardingCompletedAt: errorData.account.onboardingCompletedAt || new Date().toISOString()
                     };
 
-                    console.log('completeOnboarding: FORCING account.onboardingCompleted to true and storing:', {
-                        id: accountToStore.id,
-                        email: accountToStore.email,
-                        onboardingCompleted: accountToStore.onboardingCompleted,
-                        onboardingCompletedAt: accountToStore.onboardingCompletedAt,
-                        accountKeys: Object.keys(accountToStore),
-                        originalBackendValue: errorData.account.onboardingCompleted
-                    });
                     localStorage.setItem('client_account', JSON.stringify(accountToStore));
 
                     // Verify it was stored correctly
                     const stored = localStorage.getItem('client_account');
                     if (stored) {
                         const parsed = JSON.parse(stored);
-                        console.log('completeOnboarding: Verified stored account:', {
-                            id: parsed.id,
-                            onboardingCompleted: parsed.onboardingCompleted,
-                            onboardingCompletedAt: parsed.onboardingCompletedAt,
-                            SUCCESS: parsed.onboardingCompleted === true ? 'YES' : 'NO - STILL FALSE'
-                        });
                     }
                 }
                 if (errorData.primaryContact) {

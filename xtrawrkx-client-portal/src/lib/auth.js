@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, createContext, useContext } from 'react';
-import { verifyOTP as apiVerifyOTP, login as apiLogin, logout as apiLogout, getCurrentUser } from './api.js';
+import { verifyOTP as apiVerifyOTP, login as apiLogin, logout as apiLogout, getCurrentUser } from './api/authService.js';
 
 // Auth Context
 const AuthContext = createContext(null);
@@ -17,25 +17,14 @@ export function AuthProvider({ children }) {
 
     const checkAuth = async () => {
         try {
-            console.log('Auth check started...');
             const token = localStorage.getItem('auth_token') || localStorage.getItem('client_token');
-            console.log('Auth token found:', !!token);
 
             if (!token) {
-                console.log('No auth token, setting unauthenticated');
                 setStatus('unauthenticated');
                 return;
             }
 
-            console.log('Getting current user...');
             const user = await getCurrentUser();
-            console.log('User data received:', {
-                hasUser: !!user,
-                hasAccount: !!user?.account,
-                accountId: user?.account?.id || user?.id,
-                onboardingCompleted: user?.account?.onboardingCompleted || user?.onboardingCompleted,
-                userOnboarded: user?.onboarded
-            });
 
             // Handle both account-based and user-based responses
             const account = user?.account || user;
@@ -56,7 +45,6 @@ export function AuthProvider({ children }) {
 
             if (hasRequiredData) {
                 // If they have all required data, onboarding is complete
-                console.log('checkAuth: Inferred onboarding from data');
                 onboardingCompleted = true;
             } else if (account?.onboardingCompleted !== undefined) {
                 onboardingCompleted = Boolean(account.onboardingCompleted);
@@ -66,16 +54,6 @@ export function AuthProvider({ children }) {
                 onboardingCompleted = Boolean(user.onboarded);
             }
 
-            console.log('Setting session with onboarding status:', {
-                accountId,
-                email: accountEmail,
-                onboardingCompleted,
-                accountOnboardingCompleted: account?.onboardingCompleted,
-                userOnboardingCompleted: user?.onboardingCompleted,
-                userOnboarded: user?.onboarded,
-                accountKeys: account ? Object.keys(account) : [],
-                userKeys: user ? Object.keys(user) : []
-            });
 
             setSession({
                 user: {
@@ -91,7 +69,6 @@ export function AuthProvider({ children }) {
                     }
                 }
             });
-            console.log('Session set, status: authenticated, onboarded:', onboardingCompleted);
             setStatus('authenticated');
         } catch (error) {
             console.error('Auth check failed:', error);

@@ -2,16 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import {
   X,
   ExternalLink,
+  Maximize2,
   Calendar,
   Flag,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Edit,
   GitBranch,
-  ArrowRight,
   CheckCircle2,
 } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -20,6 +22,7 @@ import { transformSubtask, formatDate } from "../../lib/dataTransformers";
 import apiClient from "../../lib/apiClient";
 import SubTasksSection from "./SubTasksSection";
 import CommentsSection from "./CommentsSection";
+import CollaboratorModal from "../my-task/CollaboratorModal";
 
 export default function SubtaskDetailModal({
   isOpen,
@@ -27,9 +30,10 @@ export default function SubtaskDetailModal({
   subtaskId,
   task,
   onTaskRefresh,
-  onNavigateToSubtask,
   onNavigateToTask,
+  onNavigateToSubtask,
 }) {
+  const router = useRouter();
   const [subtask, setSubtask] = useState(null);
   const [activeTab, setActiveTab] = useState("subtasks");
   const [users, setUsers] = useState([]);
@@ -37,6 +41,7 @@ export default function SubtaskDetailModal({
   const [editingValue, setEditingValue] = useState("");
   const [localSubtask, setLocalSubtask] = useState(null);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true);
+  const [collaboratorModal, setCollaboratorModal] = useState({ isOpen: false });
 
   // Load subtask data
   const loadSubtask = useCallback(async () => {
@@ -46,6 +51,7 @@ export default function SubtaskDetailModal({
       const subtaskData = await subtaskService.getSubtaskById(subtaskId, [
         "task",
         "assignee",
+        "collaborators",
         "parentSubtask",
         "childSubtasks",
         "childSubtasks.assignee",
@@ -393,6 +399,7 @@ export default function SubtaskDetailModal({
     name: localSubtask.name || localSubtask.title || "Untitled Subtask",
     task: localSubtask.task || task,
     assignee: localSubtask.assignee || null,
+    collaborators: localSubtask.collaborators || [],
     dueDate: localSubtask.dueDate || "No due date",
     status: localSubtask.status || "To Do",
     priority: localSubtask.priority || "Medium",
@@ -407,20 +414,22 @@ export default function SubtaskDetailModal({
     safeSubtask.status?.toLowerCase() === "done";
 
   const modalClasses =
-    "fixed inset-y-0 right-0 bg-black/50 backdrop-blur-sm flex items-center justify-end z-[9999]";
+    "fixed inset-0 top-0 flex items-stretch justify-end z-[81] pointer-events-none !mt-0";
   const contentClasses =
-    "bg-white shadow-2xl w-[600px] h-screen max-h-screen border-l border-gray-200 flex flex-col";
+    "bg-white shadow-2xl w-[600px] h-full border-l border-gray-200 flex flex-col pointer-events-auto";
 
-  // Build breadcrumb path
+  if (!isOpen) return null;
+
+  // Build breadcrumb path: Task → Parent Subtask (if any) → Current Subtask
   const breadcrumbs = [];
-  if (safeSubtask.task) {
+  if (safeSubtask.task?.id) {
     breadcrumbs.push({
       label: safeSubtask.task.name || safeSubtask.task.title || "Task",
       type: "task",
       id: safeSubtask.task.id,
     });
   }
-  if (safeSubtask.parentSubtask) {
+  if (safeSubtask.parentSubtask?.id) {
     breadcrumbs.push({
       label:
         safeSubtask.parentSubtask.name ||
@@ -437,10 +446,8 @@ export default function SubtaskDetailModal({
     current: true,
   });
 
-  // Handle breadcrumb navigation
   const handleBreadcrumbClick = (crumb) => {
-    if (crumb.current) return; // Don't navigate to current item
-
+    if (crumb.current) return;
     if (crumb.type === "task" && onNavigateToTask) {
       onNavigateToTask(crumb.id);
     } else if (crumb.type === "subtask" && onNavigateToSubtask) {
@@ -448,35 +455,47 @@ export default function SubtaskDetailModal({
     }
   };
 
-  if (!isOpen) return null;
-
   const modalContent = (
     <div className={modalClasses}>
       <div className={contentClasses}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex-1 min-w-0">
-            {/* Breadcrumb */}
-            <div className="flex items-center gap-1 text-xs text-gray-500 mb-2 flex-wrap">
-              {breadcrumbs.map((crumb, index) => (
-                <div key={index} className="flex items-center gap-1">
-                  {index > 0 && <ArrowRight className="w-3 h-3" />}
-                  <button
-                    onClick={() => handleBreadcrumbClick(crumb)}
-                    disabled={crumb.current}
-                    className={
-                      crumb.current
-                        ? "text-gray-900 font-medium cursor-default"
-                        : "hover:text-blue-600 cursor-pointer text-gray-600 hover:underline transition-colors"
-                    }
+        {/* Header - match TaskDetailModal, with breadcrumbs */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 bg-white">
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            {breadcrumbs.length > 1 && (
+              <nav
+                className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap"
+                aria-label="Breadcrumb"
+              >
+                {breadcrumbs.map((crumb, index) => (
+                  <span
+                    key={index}
+                    className="flex items-center gap-1.5 min-w-0"
                   >
-                    {crumb.label}
-                  </button>
-                </div>
-              ))}
-            </div>
+                    {index > 0 && (
+                      <ChevronRight
+                        className="w-4 h-4 text-gray-400 flex-shrink-0"
+                        aria-hidden
+                      />
+                    )}
+                    {crumb.current ? (
+                      <span className="text-gray-900 font-medium truncate max-w-[240px]">
+                        {crumb.label}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleBreadcrumbClick(crumb)}
+                        className="text-gray-500 hover:text-blue-600 hover:underline truncate max-w-[240px] text-left"
+                      >
+                        {crumb.label}
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </nav>
+            )}
             <h1
-              className={`text-xl font-semibold truncate ${
+              className={`text-xl font-semibold truncate pr-4 ${
                 isComplete ? "text-gray-500 line-through" : "text-gray-900"
               }`}
             >
@@ -484,21 +503,45 @@ export default function SubtaskDetailModal({
             </h1>
           </div>
 
-          <div className="flex items-center gap-2 ml-4">
-            {/* Open Task Button */}
-            {safeSubtask.task && (
+          <div className="flex items-center gap-2">
+            {/* Edit Subtask - navigate to edit page */}
+            {safeSubtask.id && (
               <button
                 onClick={() => {
-                  // Could navigate to task or open task modal
-                  console.log("Open task:", safeSubtask.task);
+                  onClose?.();
+                  router.push(`/subtasks/${safeSubtask.id}/edit`);
                 }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+                title="Edit subtask"
+              >
+                <Edit className="w-4 h-4" />
+                Edit
+              </button>
+            )}
+            {/* Open Task - navigate to parent task */}
+            {safeSubtask.task?.id && onNavigateToTask && (
+              <button
+                onClick={() => onNavigateToTask(safeSubtask.task.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
               >
                 <ExternalLink className="w-4 h-4" />
                 Open Task
               </button>
             )}
-
+            {/* Full Page */}
+            {safeSubtask.id && (
+              <button
+                onClick={() => {
+                  onClose?.();
+                  router.push(`/subtasks/${safeSubtask.id}`);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+                title="Open full subtask page"
+              >
+                <Maximize2 className="w-4 h-4" />
+                Full
+              </button>
+            )}
             {/* Close Button */}
             <button
               onClick={onClose}
@@ -509,16 +552,16 @@ export default function SubtaskDetailModal({
           </div>
         </div>
 
-        {/* Content - Full Height No Scroll */}
-        <div className="flex-1 flex flex-col h-full overflow-y-auto bg-gray-50">
-          {/* Subtask Details Card - Matching task details page */}
-          <div className="p-6 flex-shrink-0">
-            <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
-              {/* Mark Complete Bar */}
+        {/* Content - Single scroll for whole modal body (match TaskDetailModal) */}
+        <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50">
+          {/* Subtask Details Card - match TaskDetailModal */}
+          <div className="px-4 py-4">
+            <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-4">
+              {/* Mark Complete Bar - match TaskDetailModal */}
               <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <button
                   onClick={handleToggleComplete}
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
                     isComplete
                       ? "bg-green-500 border-green-500 text-white"
                       : "border-gray-300 hover:border-green-500"
@@ -548,289 +591,376 @@ export default function SubtaskDetailModal({
                 </button>
               </div>
               {isDetailsExpanded && (
-                <div className="space-y-3">
-                  {/* Task/Parent Subtask */}
-                  {safeSubtask.parentSubtask && (
-                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                      <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                        Parent Subtask
-                      </label>
-                      <div className="flex-1 flex items-center gap-2 justify-end">
-                        <GitBranch className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <span className="text-gray-900">
-                          {safeSubtask.parentSubtask.name ||
-                            safeSubtask.parentSubtask.title ||
-                            "Unknown"}
-                        </span>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Task / Parent Subtask - match TaskDetailModal Project block */}
+                    {(safeSubtask.parentSubtask ||
+                      (safeSubtask.task && !safeSubtask.parentSubtask)) && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">
+                          {safeSubtask.parentSubtask
+                            ? "Parent Subtask"
+                            : "Task"}
+                        </label>
+                        <div className="mt-1 flex items-center gap-2">
+                          <GitBranch className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <span className="text-gray-900 text-sm">
+                            {safeSubtask.parentSubtask
+                              ? safeSubtask.parentSubtask.name ||
+                                safeSubtask.parentSubtask.title ||
+                                "Unknown"
+                              : safeSubtask.task?.name ||
+                                safeSubtask.task?.title ||
+                                "Unknown"}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {safeSubtask.task && !safeSubtask.parentSubtask && (
-                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                      <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                        Task
+                    {/* Assignee - match TaskDetailModal */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Assignee
                       </label>
-                      <div className="flex-1 flex items-center gap-2 justify-end">
-                        <GitBranch className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <span className="text-gray-900">
-                          {safeSubtask.task.name ||
-                            safeSubtask.task.title ||
-                            "Unknown"}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Assignee */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Assignee
-                    </label>
-                    <div className="flex-1 flex items-center gap-2 justify-end">
-                      {editingField === "assignee" ? (
-                        <select
-                          value={editingValue || ""}
-                          onChange={(e) => {
-                            handleAssigneeUpdate(e.target.value);
-                            setEditingField(null);
-                          }}
-                          onBlur={() => setEditingField(null)}
-                          autoFocus
-                          className="w-full px-3 py-2 border border-blue-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        >
-                          <option value="">Unassigned</option>
-                          {users.map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <>
-                          {(() => {
-                            const assigneeAvatar = getAssigneeAvatar(
-                              safeSubtask.assignee
-                            );
-                            return (
-                              <>
-                                <div
-                                  className={`w-8 h-8 ${assigneeAvatar.color} rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}
-                                >
-                                  {assigneeAvatar.initials}
-                                </div>
-                                <span
-                                  className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
-                                  onClick={() => {
-                                    setEditingValue(
-                                      safeSubtask.assignee?.id?.toString() || ""
-                                    );
-                                    setEditingField("assignee");
-                                  }}
-                                >
-                                  {typeof safeSubtask.assignee === "object"
-                                    ? safeSubtask.assignee?.name || "Unassigned"
-                                    : safeSubtask.assignee || "Unassigned"}
-                                </span>
-                                {safeSubtask.assignee && (
+                      <div className="mt-1">
+                        {editingField === "assignee" ? (
+                          <select
+                            value={editingValue || ""}
+                            onChange={(e) => {
+                              handleAssigneeUpdate(e.target.value);
+                              setEditingField(null);
+                            }}
+                            onBlur={() => setEditingField(null)}
+                            autoFocus
+                            className="w-full px-3 py-2 border border-blue-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                          >
+                            <option value="">Unassigned</option>
+                            {users.map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const assignee =
+                                safeSubtask.assignee || localSubtask?.assignee;
+                              let assigneeName = "Unassigned";
+                              let assigneeId = null;
+                              if (assignee) {
+                                if (typeof assignee === "object") {
+                                  assigneeName =
+                                    assignee?.name ||
+                                    (assignee?.firstName && assignee?.lastName
+                                      ? `${assignee.firstName} ${assignee.lastName}`.trim()
+                                      : assignee?.firstName ||
+                                        assignee?.lastName ||
+                                        assignee?.email ||
+                                        "Unassigned");
+                                  assigneeId =
+                                    assignee?.id || assignee?.documentId;
+                                } else if (
+                                  typeof assignee === "string" &&
+                                  assignee !== "Unassigned"
+                                ) {
+                                  assigneeName = assignee;
+                                }
+                              }
+                              const assigneeAvatar =
+                                getAssigneeAvatar(assignee);
+                              const hasAssignee =
+                                assignee && assigneeName !== "Unassigned";
+                              return (
+                                <>
+                                  <div
+                                    className={`w-8 h-8 ${assigneeAvatar.color} rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}
+                                  >
+                                    {assigneeAvatar.initials}
+                                  </div>
+                                  <span
+                                    className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded flex-1 text-sm"
+                                    onClick={() => {
+                                      setEditingValue(
+                                        assigneeId?.toString() || "",
+                                      );
+                                      setEditingField("assignee");
+                                    }}
+                                  >
+                                    {assigneeName}
+                                  </span>
+                                  {hasAssignee && (
+                                    <button
+                                      onClick={() => handleAssigneeUpdate(null)}
+                                      className="p-1 hover:bg-gray-100 rounded"
+                                    >
+                                      <X className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => handleAssigneeUpdate(null)}
+                                    onClick={() => {
+                                      setEditingValue(
+                                        assigneeId?.toString() || "",
+                                      );
+                                      setEditingField("assignee");
+                                    }}
                                     className="p-1 hover:bg-gray-100 rounded"
                                   >
-                                    <X className="w-4 h-4 text-gray-400" />
+                                    <ChevronDown className="w-4 h-4 text-gray-400" />
                                   </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setEditingValue(
-                                      safeSubtask.assignee?.id?.toString() || ""
-                                    );
-                                    setEditingField("assignee");
-                                  }}
-                                  className="p-1 hover:bg-gray-100 rounded"
-                                >
-                                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                                </button>
-                              </>
-                            );
-                          })()}
-                        </>
-                      )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Due Date */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Due date
-                    </label>
-                    <div className="flex-1 flex items-center gap-2 justify-end">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      {editingField === "dueDate" ? (
-                        <input
-                          type="date"
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.target.value)}
-                          onBlur={() => {
-                            handleDueDateUpdate(editingValue);
-                            setEditingField(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
+                    {/* Due date - match TaskDetailModal */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Due date
+                      </label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        {editingField === "dueDate" ? (
+                          <input
+                            type="date"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onBlur={() => {
                               handleDueDateUpdate(editingValue);
                               setEditingField(null);
-                            } else if (e.key === "Escape") {
-                              setEditingField(null);
-                            }
-                          }}
-                          autoFocus
-                          className="text-sm text-gray-900 px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      ) : (
-                        <>
-                          <span
-                            className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
-                            onClick={() => {
-                              const dateValue =
-                                safeSubtask.dueDate &&
-                                safeSubtask.dueDate !== "No due date"
-                                  ? new Date(safeSubtask.dueDate)
-                                      .toISOString()
-                                      .split("T")[0]
-                                  : "";
-                              setEditingValue(dateValue);
-                              setEditingField("dueDate");
                             }}
-                          >
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleDueDateUpdate(editingValue);
+                                setEditingField(null);
+                              } else if (e.key === "Escape") {
+                                setEditingField(null);
+                              }
+                            }}
+                            autoFocus
+                            className="flex-1 text-sm text-gray-900 px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 flex-1">
+                            <p
+                              className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded flex-1 text-sm"
+                              onClick={() => {
+                                const dateValue =
+                                  safeSubtask.dueDate &&
+                                  safeSubtask.dueDate !== "No due date"
+                                    ? new Date(safeSubtask.dueDate)
+                                        .toISOString()
+                                        .split("T")[0]
+                                    : "";
+                                setEditingValue(dateValue);
+                                setEditingField("dueDate");
+                              }}
+                            >
+                              {safeSubtask.dueDate &&
+                              safeSubtask.dueDate !== "No due date"
+                                ? formatDate(safeSubtask.dueDate)
+                                : "No due date"}
+                            </p>
                             {safeSubtask.dueDate &&
-                            safeSubtask.dueDate !== "No due date"
-                              ? formatDate(safeSubtask.dueDate)
-                              : "No due date"}
-                          </span>
-                          {safeSubtask.dueDate &&
-                            safeSubtask.dueDate !== "No due date" && (
-                              <button
-                                onClick={() => handleDueDateUpdate(null)}
-                                className="p-1 hover:bg-gray-100 rounded"
-                              >
-                                <X className="w-4 h-4 text-gray-400" />
-                              </button>
-                            )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Status */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Status
-                    </label>
-                    <div className="flex-1 flex justify-end">
-                      {editingField === "status" ? (
-                        <select
-                          value={editingValue}
-                          onChange={async (e) => {
-                            const newStatus = e.target.value;
-                            setEditingValue(newStatus);
-                            await handleStatusUpdate(newStatus);
-                            setEditingField(null);
-                          }}
-                          onBlur={() => setEditingField(null)}
-                          autoFocus
-                          className={`px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getStatusColor(
-                            editingValue
-                          )}`}
-                        >
-                          <option value="To Do">To Do</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="In Review">In Review</option>
-                          <option value="Done">Done</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
-                      ) : (
-                        <span
-                          onClick={() => {
-                            setEditingValue(safeSubtask.status || "To Do");
-                            setEditingField("status");
-                          }}
-                          className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getStatusColor(
-                            safeSubtask.status
-                          )}`}
-                        >
-                          {safeSubtask.status || "To Do"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Priority */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Priority
-                    </label>
-                    <div className="flex-1 flex items-center gap-2 justify-end">
-                      <Flag className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      {editingField === "priority" ? (
-                        <select
-                          value={editingValue}
-                          onChange={async (e) => {
-                            const newPriority = e.target.value;
-                            setEditingValue(newPriority);
-                            await handlePriorityUpdate(newPriority);
-                            setEditingField(null);
-                          }}
-                          onBlur={() => setEditingField(null)}
-                          autoFocus
-                          className={`px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getPriorityColor(
-                            editingValue
-                          )}`}
-                        >
-                          <option value="Low">Low</option>
-                          <option value="Medium">Medium</option>
-                          <option value="High">High</option>
-                        </select>
-                      ) : (
-                        <span
-                          onClick={() => {
-                            setEditingValue(safeSubtask.priority || "Medium");
-                            setEditingField("priority");
-                          }}
-                          className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getPriorityColor(
-                            safeSubtask.priority
-                          )}`}
-                        >
-                          {safeSubtask.priority || "Medium"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Progress */}
-                  <div className="flex items-center justify-between py-2">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Progress
-                    </label>
-                    <div className="flex-1 flex items-center gap-3 justify-end">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[200px]">
-                        <div
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${safeSubtask.progress || 0}%` }}
-                        ></div>
+                              safeSubtask.dueDate !== "No due date" && (
+                                <button
+                                  onClick={() => handleDueDateUpdate(null)}
+                                  className="p-1 hover:bg-gray-100 rounded"
+                                >
+                                  <X className="w-4 h-4 text-gray-400" />
+                                </button>
+                              )}
+                          </div>
+                        )}
                       </div>
-                      <span className="text-sm font-semibold text-gray-700 min-w-[3rem]">
-                        {safeSubtask.progress || 0}%
-                      </span>
+                    </div>
+
+                    {/* Status - match TaskDetailModal */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Status
+                      </label>
+                      <div className="mt-1">
+                        {editingField === "status" ? (
+                          <select
+                            value={editingValue}
+                            onChange={async (e) => {
+                              const newStatus = e.target.value;
+                              setEditingValue(newStatus);
+                              await handleStatusUpdate(newStatus);
+                              setEditingField(null);
+                            }}
+                            onBlur={() => setEditingField(null)}
+                            autoFocus
+                            className={`w-full px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getStatusColor(
+                              editingValue,
+                            )}`}
+                          >
+                            <option value="To Do">To Do</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Internal Review">
+                              Internal Review
+                            </option>
+                            <option value="Done">Done</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        ) : (
+                          <span
+                            onClick={() => {
+                              setEditingValue(safeSubtask.status || "To Do");
+                              setEditingField("status");
+                            }}
+                            className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getStatusColor(
+                              safeSubtask.status,
+                            )}`}
+                          >
+                            {safeSubtask.status || "To Do"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Priority - match TaskDetailModal */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Priority
+                      </label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Flag className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        {editingField === "priority" ? (
+                          <select
+                            value={editingValue}
+                            onChange={async (e) => {
+                              const newPriority = e.target.value;
+                              setEditingValue(newPriority);
+                              await handlePriorityUpdate(newPriority);
+                              setEditingField(null);
+                            }}
+                            onBlur={() => setEditingField(null)}
+                            autoFocus
+                            className={`flex-1 px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getPriorityColor(
+                              editingValue,
+                            )}`}
+                          >
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                          </select>
+                        ) : (
+                          <span
+                            onClick={() => {
+                              setEditingValue(safeSubtask.priority || "Medium");
+                              setEditingField("priority");
+                            }}
+                            className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getPriorityColor(
+                              safeSubtask.priority,
+                            )}`}
+                          >
+                            {safeSubtask.priority || "Medium"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Collaborators - match TaskDetailModal */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Collaborators
+                      </label>
+                      <div className="mt-1">
+                        {safeSubtask.collaborators &&
+                        safeSubtask.collaborators.length > 0 ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {safeSubtask.collaborators
+                              .slice(0, 3)
+                              .map((collab, index) => {
+                                const name =
+                                  collab?.name ||
+                                  (collab?.firstName && collab?.lastName
+                                    ? `${collab.firstName} ${collab.lastName}`
+                                    : collab?.firstName ||
+                                      collab?.lastName ||
+                                      "Unknown");
+                                const initial =
+                                  name?.charAt(0)?.toUpperCase() || "U";
+                                return (
+                                  <div
+                                    key={collab?.id || index}
+                                    className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white"
+                                    title={name}
+                                    style={{
+                                      marginLeft: index > 0 ? "-4px" : "0",
+                                      zIndex: 10 - index,
+                                    }}
+                                  >
+                                    {initial}
+                                  </div>
+                                );
+                              })}
+                            {safeSubtask.collaborators.length > 3 && (
+                              <div
+                                className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-bold border-2 border-white"
+                                title={`${
+                                  safeSubtask.collaborators.length - 3
+                                } more`}
+                                style={{ marginLeft: "-4px", zIndex: 7 }}
+                              >
+                                +{safeSubtask.collaborators.length - 3}
+                              </div>
+                            )}
+                            <button
+                              onClick={() =>
+                                setCollaboratorModal({ isOpen: true })
+                              }
+                              className="ml-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                              Manage
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              setCollaboratorModal({ isOpen: true })
+                            }
+                            className="text-xs text-blue-600 hover:text-blue-700"
+                          >
+                            Add collaborators
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Progress - match TaskDetailModal */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Progress
+                      </label>
+                      <div className="mt-1 flex items-center gap-3">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[200px]">
+                          <div
+                            className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${safeSubtask.progress || 0}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 min-w-[3rem]">
+                          {safeSubtask.progress || 0}%
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Description Section */}
+              {/* Description Section - match TaskDetailModal */}
               {isDetailsExpanded && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-gray-700">
+                    <label className="text-sm font-medium text-gray-500">
                       Description
                     </label>
                     {editingField !== "description" && (
@@ -898,34 +1028,34 @@ export default function SubtaskDetailModal({
             </div>
           </div>
 
-          {/* Tabs Section - Full Height */}
-          <div className="flex-1 flex flex-col min-h-0">
-            {/* Tab Headers */}
-            <div className="flex border-b border-gray-200 flex-shrink-0 px-6">
-              <button
-                onClick={() => setActiveTab("subtasks")}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === "subtasks"
-                    ? "text-blue-600 border-blue-600"
-                    : "text-gray-500 border-transparent hover:text-gray-700"
-                }`}
-              >
-                Sub-Tasks
-              </button>
-              <button
-                onClick={() => setActiveTab("comments")}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === "comments"
-                    ? "text-blue-600 border-blue-600"
-                    : "text-gray-500 border-transparent hover:text-gray-700"
-                }`}
-              >
-                Comment
-              </button>
+          {/* Tabs Section - match TaskDetailModal */}
+          <div>
+            <div className="mb-4 px-4">
+              <div className="flex items-center gap-2 bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl p-2 shadow-lg">
+                <button
+                  onClick={() => setActiveTab("subtasks")}
+                  className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === "subtasks"
+                      ? "bg-orange-500 text-white shadow-lg"
+                      : "bg-transparent text-gray-700 hover:bg-white/50"
+                  }`}
+                >
+                  Sub-Tasks
+                </button>
+                <button
+                  onClick={() => setActiveTab("comments")}
+                  className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === "comments"
+                      ? "bg-orange-500 text-white shadow-lg"
+                      : "bg-transparent text-gray-700 hover:bg-white/50"
+                  }`}
+                >
+                  Comment
+                </button>
+              </div>
             </div>
 
-            {/* Tab Content - Full Height */}
-            <div className="flex-1 min-h-0">
+            <div className="bg-gray-50 px-4 pb-6">
               {activeTab === "subtasks" ? (
                 <SubTasksSection
                   task={
@@ -942,9 +1072,12 @@ export default function SubtaskDetailModal({
                       await onTaskRefresh();
                     }
                   }}
+                  onSubtaskClick={onNavigateToSubtask}
                 />
               ) : (
-                <CommentsSection subtask={safeSubtask} />
+                <div className="flex flex-col h-[600px] min-h-0 rounded-2xl overflow-hidden bg-white border border-white/40 shadow-sm">
+                  <CommentsSection subtask={safeSubtask} />
+                </div>
               )}
             </div>
           </div>
@@ -953,5 +1086,23 @@ export default function SubtaskDetailModal({
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return (
+    <>
+      {createPortal(modalContent, document.body)}
+      <CollaboratorModal
+        isOpen={collaboratorModal.isOpen}
+        onClose={() => setCollaboratorModal({ isOpen: false })}
+        subtask={localSubtask}
+        onUpdate={async (task, updatedSubtask) => {
+          if (updatedSubtask) {
+            setLocalSubtask(updatedSubtask);
+            await loadSubtask();
+            if (onTaskRefresh) {
+              await onTaskRefresh();
+            }
+          }
+        }}
+      />
+    </>
+  );
 }

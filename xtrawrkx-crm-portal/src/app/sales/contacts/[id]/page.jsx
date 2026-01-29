@@ -97,16 +97,13 @@ const ContactDetailPage = ({ params }) => {
       setLoading(true);
       setError(null);
 
-      console.log("Fetching contact details for ID:", id);
       const response = await contactService.getById(id, {
         populate: ["leadCompany", "clientAccount", "assignedTo"],
       });
 
-      console.log("Contact details response:", response);
 
       // Handle the service response structure
       const contactData = response?.data || response;
-      console.log("Contact data:", contactData);
 
       if (!contactData || !contactData.id) {
         setError("Contact not found");
@@ -149,7 +146,6 @@ const ContactDetailPage = ({ params }) => {
         const timelineData = await contactService.getActivityTimeline(id);
         setActivities(timelineData.activities || []);
       } catch (activityError) {
-        console.log("Activity timeline not available:", activityError);
         setActivities([]);
       }
     } catch (err) {

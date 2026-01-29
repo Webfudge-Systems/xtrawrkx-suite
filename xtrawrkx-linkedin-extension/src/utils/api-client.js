@@ -23,8 +23,15 @@ class ExtensionApiClient {
             const config = await chrome.storage.sync.get(['authToken']);
             this.token = config.authToken;
 
-            // Hardcode production URL
-            this.baseURL = 'https://xtrawrkxsuits-production.up.railway.app';
+            // Get API URL from config (supports dev/prod environments)
+            if (typeof getConfig !== 'undefined') {
+                const configManager = getConfig();
+                this.baseURL = await configManager.getApiUrl();
+            } else {
+                // Fallback if config is not available
+                const stored = await chrome.storage.sync.get(['apiBaseUrl']);
+                this.baseURL = stored.apiBaseUrl || 'https://xtrawrkxsuits-production.up.railway.app';
+            }
 
             if (this.logger) {
                 this.logger.log('API Client initialized with baseURL:', this.baseURL);
@@ -74,6 +81,14 @@ class ExtensionApiClient {
 
                 if (this.logger) {
                     this.logger.error('API Error Response:', response.status, errorMessage);
+                }
+
+                // Clear authentication on 401 Unauthorized errors
+                if (response.status === 401) {
+                    if (this.logger) {
+                        this.logger.warn('Received 401 Unauthorized - clearing authentication token');
+                    }
+                    await this.clearAuth();
                 }
 
                 throw error;
@@ -177,10 +192,6 @@ class ExtensionApiClient {
             return false;
         }
 
-        // Since the current-user endpoint doesn't exist, we'll validate the token
-        // by checking if it's in the expected format and exists
-        // Actual validation will happen on the next API call that requires auth
-
         // Basic JWT format check (has 3 parts separated by dots)
         const tokenParts = this.token.split('.');
         if (tokenParts.length !== 3) {
@@ -189,8 +200,33 @@ class ExtensionApiClient {
             return false;
         }
 
-        // Token exists and has valid format
-        // Real validation will happen when making actual API calls
+        // Check if token is expired by decoding JWT payload
+        try {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            const currentTime = Date.now() / 1000;
+
+            // If token has expiration and it's expired, clear it
+            if (payload.exp && payload.exp < currentTime) {
+                if (this.logger) {
+                    this.logger.warn('Token expired - clearing authentication');
+                }
+                await this.clearAuth();
+                return false;
+            }
+        } catch (error) {
+            // If we can't decode the token, don't clear it immediately
+            // The token might still be valid, just with a different format
+            // Let the server validate it on the next API call
+            if (this.logger) {
+                this.logger.warn('Could not decode token for expiration check, will validate on next API call:', error.message);
+            }
+            // Don't clear auth here - let server-side validation handle it
+            // Return true to allow the token to be used, server will reject if invalid
+            return true;
+        }
+
+        // Token exists, has valid format, and is not expired
+        // Actual server-side validation will happen on the next API call that requires auth
         return true;
     }
 
@@ -549,8 +585,7 @@ class ExtensionApiClient {
 
     async searchCompanyByName(companyName) {
         try {
-            console.log('🔍 Searching for company by name:', companyName);
-            
+
             // First search in lead companies (most companies start as leads)
             const leadQueryParams = new URLSearchParams({
                 'filters[companyName][$containsi]': companyName,
@@ -560,21 +595,17 @@ class ExtensionApiClient {
                 'populate[convertedAccount]': 'true'
             });
 
-            console.log('🔍 Searching lead companies with query:', leadQueryParams.toString());
             const leadResponse = await this.request(`/lead-companies?${leadQueryParams}`, {
                 method: 'GET'
             });
 
-            console.log('🔍 Lead companies search result:', leadResponse);
 
             if (leadResponse.data && leadResponse.data.length > 0) {
                 const company = leadResponse.data[0];
-                console.log('✅ Found in lead companies:', company);
                 company._companyType = 'lead';
 
                 // Check if converted to client account
                 if (company.convertedAccount && company.convertedAccount.id) {
-                    console.log('🔄 Lead converted to client, fetching client data');
                     return await this.getCompanyData(company.convertedAccount.id);
                 }
 
@@ -582,7 +613,6 @@ class ExtensionApiClient {
             }
 
             // If not found in lead companies, search in client accounts
-            console.log('🔍 No lead company found, searching client accounts...');
             const clientQueryParams = new URLSearchParams({
                 'filters[companyName][$containsi]': companyName,
                 'pagination[pageSize]': '1',
@@ -594,16 +624,13 @@ class ExtensionApiClient {
                 method: 'GET'
             });
 
-            console.log('🔍 Client accounts search result:', clientResponse);
 
             if (clientResponse.data && clientResponse.data.length > 0) {
                 const company = clientResponse.data[0];
-                console.log('✅ Found in client accounts:', company);
                 company._companyType = 'client';
                 return company;
             }
 
-            console.log('❌ No company found with name:', companyName);
             return null;
 
         } catch (error) {
@@ -634,8 +661,17 @@ class ExtensionApiClient {
     }
 
     async clearAuth() {
+        if (this.logger) {
+            this.logger.warn('Clearing authentication data');
+        }
         this.token = null;
-        await chrome.storage.sync.remove(['authToken', 'userId', 'userEmail', 'userName']);
+        try {
+            await chrome.storage.sync.remove(['authToken', 'userId', 'userEmail', 'userName']);
+        } catch (error) {
+            if (this.logger) {
+                this.logger.error('Error clearing auth from storage:', error);
+            }
+        }
     }
 }
 
