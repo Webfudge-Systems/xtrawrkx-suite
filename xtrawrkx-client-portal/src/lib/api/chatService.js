@@ -173,7 +173,6 @@ export class ChatWebSocket {
     connect(userId) {
         // Mock WebSocket connection
         // In a real implementation, this would connect to your WebSocket server
-        console.log(`Mock WebSocket connection established for user ${userId}`);
 
         // Simulate connection events
         setTimeout(() => {
@@ -193,7 +192,6 @@ export class ChatWebSocket {
 
     sendMessage(conversationId, message) {
         // Mock sending message
-        console.log('Sending message:', { conversationId, message });
 
         // Simulate message delivery
         setTimeout(() => {
@@ -202,17 +200,14 @@ export class ChatWebSocket {
     }
 
     joinConversation(conversationId) {
-        console.log(`Joining conversation ${conversationId}`);
         this.emit('joinedConversation', { conversationId });
     }
 
     leaveConversation(conversationId) {
-        console.log(`Leaving conversation ${conversationId}`);
         this.emit('leftConversation', { conversationId });
     }
 
     setTypingStatus(conversationId, isTyping) {
-        console.log(`Typing status: ${isTyping} in conversation ${conversationId}`);
         this.emit('typingStatus', { conversationId, isTyping });
     }
 

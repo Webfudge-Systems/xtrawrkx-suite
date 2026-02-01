@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CheckSquare,
   Clock,
@@ -12,1130 +11,1543 @@ import {
   Filter,
   Plus,
   CheckCircle2,
-  Circle,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  ChevronDown,
-  Columns,
-  Table,
+  XCircle,
+  List,
   Grid3X3,
-  FileText,
+  Eye,
+  Check,
+  GitBranch,
+  ChevronRight,
+  ChevronDown,
+  User,
+  Activity,
+  Loader2,
+  MessageSquare,
+  Paperclip,
 } from "lucide-react";
-import ModernButton from "@/components/ui/ModernButton";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
-import CreateTaskModal from "@/components/tasks/CreateTaskModal";
-import TaskDetailSidebar from "@/components/tasks/TaskDetailSidebar";
-
-// Tasks data
-const tasksData = {
-  todo: [
-    {
-      id: "t1",
-      title: "Design new landing page",
-      description:
-        "Create wireframes and mockups for the new landing page design",
-      status: "todo",
-      priority: "high",
-      project: "Event Organization Website",
-      assignee: "Gabrial Matula",
-      dueDate: "2024-02-15",
-      estimatedHours: 8,
-      tags: ["design", "frontend"],
-      subtasks: [
-        {
-          id: "st1_1",
-          name: "Create wireframes for hero section",
-          assignee: "Gabrial Matula",
-          dueDate: "2024-02-12",
-          status: "completed",
-          priority: "high",
-          completed: true,
-          subtasks: [],
-        },
-        {
-          id: "st1_2",
-          name: "Design call-to-action buttons",
-          assignee: "Gabrial Matula",
-          dueDate: "2024-02-14",
-          status: "in-progress",
-          priority: "medium",
-          completed: false,
-          subtasks: [],
-        },
-        {
-          id: "st1_3",
-          name: "Create mobile responsive layouts",
-          assignee: "Gabrial Matula",
-          dueDate: "2024-02-16",
-          status: "todo",
-          priority: "medium",
-          completed: false,
-          subtasks: [],
-        },
-      ],
-    },
-    {
-      id: "t2",
-      title: "Update API documentation",
-      description: "Document the new endpoints and update the API reference",
-      status: "todo",
-      priority: "medium",
-      project: "Health Mobile App Design",
-      assignee: "Layla Amora",
-      dueDate: "2024-02-20",
-      estimatedHours: 4,
-      tags: ["documentation", "api"],
-      subtasks: [
-        {
-          id: "st2_1",
-          name: "Document authentication endpoints",
-          assignee: "Layla Amora",
-          dueDate: "2024-02-18",
-          status: "todo",
-          priority: "medium",
-          completed: false,
-          subtasks: [],
-        },
-        {
-          id: "st2_2",
-          name: "Create API examples",
-          assignee: "Layla Amora",
-          dueDate: "2024-02-19",
-          status: "todo",
-          priority: "low",
-          completed: false,
-          subtasks: [],
-        },
-      ],
-    },
-    {
-      id: "t3",
-      title: "Review client feedback",
-      description:
-        "Analyze and categorize feedback from the latest client survey",
-      status: "todo",
-      priority: "low",
-      project: "Advance SEO Service",
-      assignee: "Ansel Finn",
-      dueDate: "2024-02-25",
-      estimatedHours: 3,
-      tags: ["feedback", "analysis"],
-    },
-  ],
-  "in-progress": [
-    {
-      id: "t4",
-      title: "Implement user authentication",
-      description: "Set up OAuth2 and JWT token management",
-      status: "in-progress",
-      priority: "urgent",
-      project: "Event Organization Website",
-      assignee: "Gabrial Matula",
-      dueDate: "2024-02-10",
-      estimatedHours: 12,
-      tags: ["backend", "security"],
-    },
-    {
-      id: "t5",
-      title: "Database optimization",
-      description: "Optimize queries and add proper indexing",
-      status: "in-progress",
-      priority: "high",
-      project: "Health Mobile App Design",
-      assignee: "Layla Amora",
-      dueDate: "2024-02-18",
-      estimatedHours: 6,
-      tags: ["database", "optimization"],
-    },
-  ],
-  review: [
-    {
-      id: "t6",
-      title: "Code review for payment module",
-      description:
-        "Review the implementation of the new payment processing module",
-      status: "review",
-      priority: "high",
-      project: "Advance SEO Service",
-      assignee: "Ansel Finn",
-      dueDate: "2024-02-12",
-      estimatedHours: 2,
-      tags: ["code-review", "payments"],
-    },
-  ],
-  completed: [
-    {
-      id: "t7",
-      title: "Setup CI/CD pipeline",
-      description: "Configure automated testing and deployment pipeline",
-      status: "completed",
-      priority: "medium",
-      project: "Event Organization Website",
-      assignee: "Gabrial Matula",
-      dueDate: "2024-01-30",
-      estimatedHours: 8,
-      tags: ["devops", "automation"],
-    },
-    {
-      id: "t8",
-      title: "Update user interface",
-      description: "Apply the new design system to all components",
-      status: "completed",
-      priority: "high",
-      project: "Health Mobile App Design",
-      assignee: "Layla Amora",
-      dueDate: "2024-02-05",
-      estimatedHours: 16,
-      tags: ["ui", "design-system"],
-    },
-  ],
-};
+import { PageHeader } from "@/components/ui/PageHeader";
+import { useSession } from "@/lib/auth";
+import strapiClient from "@/lib/strapiClient";
+import { createPortal } from "react-dom";
+import TaskDetailModal from "@/components/tasks/TaskDetailModal";
 
 export default function TasksPage() {
+  const router = useRouter();
+  const { data: session } = useSession();
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeView, setActiveView] = useState("table");
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [showColumnsMenu, setShowColumnsMenu] = useState(false);
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [selectedColumns, setSelectedColumns] = useState([
-    "Task Name",
-    "Project",
-    "Assignee",
-    "Due Date",
-    "Status",
-    "Progress",
-  ]);
-  const [filters, setFilters] = useState({
-    status: "all",
-    project: "all",
-    assignee: "all",
-  });
-  const [dueDateSortOrder, setDueDateSortOrder] = useState("asc");
-  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [activeView, setActiveView] = useState("list");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [selectedTask, setSelectedTask] = useState(null);
-  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
-  const [isTaskDetailFullView, setIsTaskDetailFullView] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isTaskModalFullView, setIsTaskModalFullView] = useState(false);
   const [expandedSubtasks, setExpandedSubtasks] = useState({});
+  const [subtaskDropdownPositions, setSubtaskDropdownPositions] = useState({});
+  const subtaskButtonRefs = useRef({});
 
-  // Refs for dropdowns
-  const columnsMenuRef = useRef(null);
-  const filterMenuRef = useRef(null);
-
-  // Close dropdowns when clicking outside
+  // Load tasks from API
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        columnsMenuRef.current &&
-        !columnsMenuRef.current.contains(event.target)
-      ) {
-        setShowColumnsMenu(false);
-      }
-      if (
-        filterMenuRef.current &&
-        !filterMenuRef.current.contains(event.target)
-      ) {
-        setShowFilterMenu(false);
+    const loadTasks = async () => {
+      if (!session) return;
+
+      try {
+        setLoading(true);
+
+        // Get client account ID
+        let accountId =
+          session?.account?.id ||
+          session?.account?.documentId ||
+          session?.user?.id ||
+          session?.user?.profile?.id ||
+          session?.id ||
+          session?.documentId;
+
+        if (!accountId && typeof window !== "undefined") {
+          const accountData = localStorage.getItem("client_account");
+          if (accountData) {
+            try {
+              const account = JSON.parse(accountData);
+              accountId = account.id || account.documentId;
+            } catch (error) {
+              console.error("Error parsing client account data:", error);
+            }
+          }
+        }
+
+        if (!accountId) {
+          accountId = strapiClient.getCurrentAccountId();
+        }
+
+        // Try to get from getCurrentUser if available
+        if (!accountId) {
+          try {
+            const currentUser = await strapiClient.getCurrentUser();
+            if (currentUser?.account) {
+              accountId =
+                currentUser.account.id || currentUser.account.documentId;
+            }
+          } catch (error) {
+            console.warn("Could not get current user:", error);
+          }
+        }
+
+        if (!accountId) {
+          console.warn("No account ID found");
+          setTasks([]);
+          setLoading(false);
+          return;
+        }
+
+
+        // Step 1: Fetch all projects for this client account
+        const projectsQueryParams = strapiClient.buildQueryString({
+          populate: ["clientAccount"],
+          pagination: {
+            pageSize: 100,
+          },
+        });
+
+        const projectsBaseURL = strapiClient.buildURL("/projects", {});
+        const projectsUrl = `${projectsBaseURL}?${projectsQueryParams}`;
+
+
+        const projectsResponse = await fetch(projectsUrl, {
+          method: "GET",
+          headers: strapiClient.getHeaders(),
+        });
+
+        if (!projectsResponse.ok) {
+          throw new Error(`HTTP error! status: ${projectsResponse.status}`);
+        }
+
+        const projectsData = await projectsResponse.json();
+
+        let allProjects = [];
+        if (projectsData.data && Array.isArray(projectsData.data)) {
+          allProjects = projectsData.data;
+        } else if (Array.isArray(projectsData)) {
+          allProjects = projectsData;
+        }
+
+        // Filter projects by client account
+        const clientProjects = allProjects.filter((project) => {
+          const projectData = project.attributes || project;
+          const projectClientAccount =
+            projectData.clientAccount?.data?.attributes ||
+            projectData.clientAccount?.data ||
+            projectData.clientAccount?.attributes ||
+            projectData.clientAccount;
+
+          const projectClientAccountId =
+            projectClientAccount?.id || projectClientAccount?.documentId;
+
+          const accountIdNum =
+            typeof accountId === "string" ? parseInt(accountId, 10) : accountId;
+          const projectClientAccountIdNum =
+            typeof projectClientAccountId === "string"
+              ? parseInt(projectClientAccountId, 10)
+              : projectClientAccountId;
+
+          return (
+            projectClientAccountIdNum === accountIdNum ||
+            projectClientAccountId?.toString() === accountId?.toString() ||
+            projectClientAccountId == accountId
+          );
+        });
+
+
+        // Extract project IDs - handle all possible ID locations
+        const projectIds = clientProjects
+          .map((p) => {
+            const projectId =
+              p.id ||
+              p.documentId ||
+              (p.attributes || p).id ||
+              (p.attributes || p).documentId;
+            return projectId;
+          })
+          .filter(Boolean)
+          .map((id) => {
+            // Normalize to both string and number for comparison
+            return {
+              original: id,
+              string: String(id),
+              number: typeof id === "string" ? parseInt(id, 10) : id,
+            };
+          });
+
+
+        if (projectIds.length === 0) {
+          setTasks([]);
+          setLoading(false);
+          return;
+        }
+
+        // Step 2: Fetch tasks for these projects
+        // Fetch all tasks and filter by project IDs client-side
+        // This is more reliable than server-side filtering
+        const tasksQueryParams = strapiClient.buildQueryString({
+          populate: [
+            "projects",
+            "projects.clientAccount",
+            "project",
+            "project.clientAccount",
+            "assignee",
+            "collaborators",
+            "subtasks",
+            "comments",
+            "comments.author",
+            "attachments",
+          ],
+          pagination: {
+            pageSize: 100,
+          },
+        });
+
+        const tasksBaseURL = strapiClient.buildURL("/tasks", {});
+        const tasksUrl = `${tasksBaseURL}?${tasksQueryParams}`;
+
+
+        const tasksResponse = await fetch(tasksUrl, {
+          method: "GET",
+          headers: strapiClient.getHeaders(),
+        });
+
+        if (!tasksResponse.ok) {
+          throw new Error(`HTTP error! status: ${tasksResponse.status}`);
+        }
+
+        const tasksData = await tasksResponse.json();
+
+        let allTasks = [];
+        if (tasksData.data && Array.isArray(tasksData.data)) {
+          allTasks = tasksData.data;
+        } else if (Array.isArray(tasksData)) {
+          allTasks = tasksData;
+        }
+
+
+        // Filter tasks by project IDs client-side
+
+        const filteredTasks = allTasks.filter((task) => {
+          const taskData = task.attributes || task;
+
+          // Handle both single project and projects array (many-to-many)
+          let projects = [];
+
+          // Check for projects array (many-to-many relationship)
+          const projectsArray =
+            taskData.projects?.data || taskData.projects || [];
+
+          // Check for single project (one-to-many relationship)
+          const singleProject =
+            taskData.project?.data?.attributes ||
+            taskData.project?.data ||
+            taskData.project?.attributes ||
+            taskData.project;
+
+          if (Array.isArray(projectsArray) && projectsArray.length > 0) {
+            // Handle projects array
+            projects = projectsArray.map((p) => {
+              return p.attributes || p;
+            });
+          } else if (singleProject) {
+            // Handle single project
+            projects = [singleProject];
+          }
+
+          if (projects.length === 0) {
+            return false;
+          }
+
+          // Check if any of the task's projects match our client's projects
+          const hasMatchingProject = projects.some((project) => {
+            const projectId = project.id || project.documentId;
+
+            if (!projectId) {
+              return false;
+            }
+
+
+            const projectIdStr = String(projectId);
+            const projectIdNum =
+              typeof projectId === "string"
+                ? parseInt(projectId, 10)
+                : projectId;
+
+            const matches = projectIds.some((pidObj) => {
+              const isMatch =
+                pidObj.original == projectId ||
+                pidObj.string === projectIdStr ||
+                pidObj.number === projectIdNum ||
+                String(pidObj.original) === String(projectId) ||
+                Number(pidObj.original) === Number(projectId);
+
+              if (isMatch) {
+              }
+
+              return isMatch;
+            });
+
+            return matches;
+          });
+
+          if (!hasMatchingProject) {
+            const projectIdsList = projects
+              .map((p) => p.id || p.documentId)
+              .join(", ");
+          }
+
+          return hasMatchingProject;
+        });
+
+            // Check for projects array first, then single project
+            const projectsArray = tData.projects?.data || tData.projects || [];
+            const singleProject =
+              tData.project?.data?.attributes ||
+              tData.project?.attributes ||
+              tData.project;
+
+            let projectId = null;
+            if (Array.isArray(projectsArray) && projectsArray.length > 0) {
+              projectId =
+                (projectsArray[0].attributes || projectsArray[0]).id ||
+                (projectsArray[0].attributes || projectsArray[0]).documentId;
+            } else if (singleProject) {
+              projectId = singleProject.id || singleProject.documentId;
+            }
+
+            return {
+              id: t.id || t.documentId,
+              name: tData.name || tData.title,
+              projectId: projectId,
+              hasProjects: !!tData.projects,
+              hasProject: !!tData.project,
+            };
+          })
+        );
+
+        // Transform tasks to match UI format
+        const transformedTasks = filteredTasks.map((task) => {
+          const taskData = task.attributes || task;
+
+          // Handle both single project and projects array (many-to-many)
+          let project = null;
+
+          // Check for projects array (many-to-many relationship) - take first project
+          const projectsArray =
+            taskData.projects?.data || taskData.projects || [];
+
+          // Check for single project (one-to-many relationship)
+          const singleProject =
+            taskData.project?.data?.attributes ||
+            taskData.project?.data ||
+            taskData.project?.attributes ||
+            taskData.project;
+
+          if (Array.isArray(projectsArray) && projectsArray.length > 0) {
+            // Use first project from array
+            const firstProject = projectsArray[0];
+            project = firstProject.attributes || firstProject;
+          } else if (singleProject) {
+            // Use single project
+            project = singleProject;
+          }
+
+          const assignee =
+            taskData.assignee?.data?.attributes ||
+            taskData.assignee?.attributes ||
+            taskData.assignee;
+          const comments = taskData.comments?.data || taskData.comments || [];
+          const attachments = taskData.attachments || taskData.files || [];
+
+          // Normalize status
+          const normalizeStatus = (status) => {
+            if (!status) return "To Do";
+            const statusUpper = status.toUpperCase().trim();
+            if (
+              statusUpper === "TO DO" ||
+              statusUpper === "TODO" ||
+              statusUpper === "PLANNING" ||
+              statusUpper === "PLANNED" ||
+              statusUpper === "SCHEDULED"
+            ) {
+              return "To Do";
+            }
+            if (
+              statusUpper === "IN PROGRESS" ||
+              statusUpper === "IN_PROGRESS" ||
+              statusUpper === "ACTIVE"
+            ) {
+              return "In Progress";
+            }
+            if (statusUpper === "IN REVIEW" || statusUpper === "IN_REVIEW") {
+              return "Internal Review";
+            }
+            if (
+              statusUpper === "CLIENT REVIEW" ||
+              statusUpper === "CLIENT_REVIEW"
+            ) {
+              return "Client Review";
+            }
+            if (statusUpper === "APPROVED") {
+              return "Approved";
+            }
+            if (statusUpper === "DONE" || statusUpper === "COMPLETED") {
+              return "Done";
+            }
+            if (statusUpper === "CANCELLED" || statusUpper === "CANCELED") {
+              return "Cancelled";
+            }
+            // Return original if no match
+            return status;
+          };
+
+          // Normalize priority
+          const normalizePriority = (priority) => {
+            if (!priority) return "Medium";
+            const priorityLower = priority.toLowerCase();
+            if (priorityLower === "low") return "Low";
+            if (priorityLower === "medium") return "Medium";
+            if (priorityLower === "high") return "High";
+            return priority;
+          };
+
+          return {
+            id: task.id || task.documentId,
+            name: taskData.name || taskData.title || "Untitled Task",
+            description: taskData.description || "",
+            status: normalizeStatus(taskData.status || "To Do"),
+            priority: normalizePriority(taskData.priority || "Medium"),
+            project: project
+              ? {
+                  name: project.name || "Unknown Project",
+                  id: project.id || project.documentId,
+                }
+              : null,
+            assignee: assignee
+              ? {
+                  name:
+                    assignee.firstName && assignee.lastName
+                      ? `${assignee.firstName} ${assignee.lastName}`
+                      : assignee.name ||
+                        assignee.email?.split("@")[0] ||
+                        "Unknown",
+                  id: assignee.id || assignee.documentId,
+                }
+              : null,
+            scheduledDate: taskData.scheduledDate || taskData.dueDate,
+            progress: taskData.progress || 0,
+            subtasks: taskData.subtasks?.data || taskData.subtasks || [],
+            comments: comments.map((comment) => {
+              const commentData = comment.attributes || comment;
+              const author =
+                commentData.author?.data?.attributes ||
+                commentData.author?.attributes ||
+                commentData.author;
+              return {
+                id: comment.id || comment.documentId,
+                content: commentData.content || commentData.text || "",
+                author: author
+                  ? {
+                      name:
+                        author.firstName && author.lastName
+                          ? `${author.firstName} ${author.lastName}`
+                          : author.name ||
+                            author.email?.split("@")[0] ||
+                            "Unknown",
+                      avatar: author.avatar || author.profilePicture || null,
+                    }
+                  : { name: "Unknown", avatar: null },
+                createdAt: commentData.createdAt || new Date().toISOString(),
+              };
+            }),
+            attachments: attachments.map((attachment) => {
+              const attData = attachment.attributes || attachment;
+              return {
+                id: attachment.id || attachment.documentId,
+                name: attData.name || attData.filename || "Unknown",
+                size: attData.size || 0,
+                type:
+                  attData.mime || attData.type || "application/octet-stream",
+                url: attData.url || attData.path || "#",
+                uploadedAt: attData.createdAt || new Date().toISOString(),
+              };
+            }),
+            requiresApproval:
+              taskData.requiresApproval ||
+              (taskData.status || "").toUpperCase() === "CLIENT_REVIEW",
+            clientApproval: taskData.clientApproval || null,
+            approvedAt: taskData.approvedAt || null,
+            createdAt: taskData.createdAt || new Date().toISOString(),
+            updatedAt: taskData.updatedAt || new Date().toISOString(),
+          };
+        });
+
+        setTasks(transformedTasks);
+      } catch (error) {
+        console.error("Error loading tasks:", error);
+        setTasks([]);
+      } finally {
+        setLoading(false);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+    if (session) {
+      loadTasks();
+    }
+  }, [session]);
 
-  // Calculate stats
-  const totalTasks = Object.values(tasksData).flat().length;
-  const inProgressTasks = tasksData["in-progress"].length;
-  const completedTasks = tasksData.completed.length;
-  const overdueTasks = Object.values(tasksData)
-    .flat()
-    .filter(
-      (task) =>
-        new Date(task.dueDate) < new Date() && task.status !== "completed"
-    ).length;
-
-  // Handler functions
-  const handleColumnToggle = (column) => {
-    setSelectedColumns((prev) =>
-      prev.includes(column)
-        ? prev.filter((c) => c !== column)
-        : [...prev, column]
-    );
+  // Calculate task statistics with flexible status matching
+  const taskStats = {
+    all: tasks.length,
+    todo: tasks.filter((t) => {
+      const status = (t.status || "").toUpperCase();
+      return (
+        status === "TO DO" ||
+        status === "TODO" ||
+        status === "PLANNING" ||
+        status === "PLANNED"
+      );
+    }).length,
+    inProgress: tasks.filter((t) => {
+      const status = (t.status || "").toUpperCase();
+      return (
+        status === "IN PROGRESS" ||
+        status === "IN_PROGRESS" ||
+        status === "ACTIVE"
+      );
+    }).length,
+    internalReview: tasks.filter((t) => {
+      const status = (t.status || "").toUpperCase();
+      return status === "IN REVIEW" || status === "IN_REVIEW";
+    }).length,
+    done: tasks.filter((t) => {
+      const status = (t.status || "").toUpperCase();
+      return status === "DONE" || status === "COMPLETED";
+    }).length,
+    overdue: tasks.filter((t) => {
+      const status = (t.status || "").toUpperCase();
+      return (
+        t.scheduledDate &&
+        new Date(t.scheduledDate) < new Date() &&
+        status !== "DONE" &&
+        status !== "COMPLETED"
+      );
+    }).length,
   };
 
-  const handleFilterChange = (filterType, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [filterType]: value,
-    }));
+  // Status stats for KPI cards
+  const statusStats = [
+    {
+      label: "Total Tasks",
+      count: taskStats.all,
+      color: "bg-xtrawrkx-50",
+      borderColor: "border-xtrawrkx-200",
+      iconColor: "text-xtrawrkx-600",
+      icon: CheckSquare,
+    },
+    {
+      label: "In Progress",
+      count: taskStats.inProgress,
+      color: "bg-yellow-50",
+      borderColor: "border-yellow-200",
+      iconColor: "text-yellow-600",
+      icon: Clock,
+    },
+    {
+      label: "Completed",
+      count: taskStats.done,
+      color: "bg-green-50",
+      borderColor: "border-green-200",
+      iconColor: "text-green-600",
+      icon: CheckCircle2,
+    },
+    {
+      label: "Overdue",
+      count: taskStats.overdue,
+      color: "bg-red-50",
+      borderColor: "border-red-200",
+      iconColor: "text-red-600",
+      icon: AlertCircle,
+    },
+  ];
+
+  // Tab items
+  const tabItems = [
+    { key: "all", label: "All Tasks", badge: taskStats.all.toString() },
+    { key: "todo", label: "To Do", badge: taskStats.todo.toString() },
+    {
+      key: "in-progress",
+      label: "In Progress",
+      badge: taskStats.inProgress.toString(),
+    },
+    {
+      key: "internal-review",
+      label: "Internal Review",
+      badge: taskStats.internalReview.toString(),
+    },
+    { key: "done", label: "Done", badge: taskStats.done.toString() },
+  ];
+
+  // Filter tasks based on active tab and search
+  const getFilteredTasks = () => {
+    let filtered = tasks;
+
+
+    // Filter by tab
+    if (activeTab !== "all") {
+      filtered = filtered.filter((task) => {
+        const status = (task.status || "").toLowerCase().trim();
+        const statusUpper = (task.status || "").toUpperCase().trim();
+
+        let matches = false;
+        switch (activeTab) {
+          case "todo":
+            matches =
+              status === "to do" ||
+              status === "todo" ||
+              statusUpper === "TO_DO" ||
+              statusUpper === "TO DO" ||
+              statusUpper === "PLANNING" ||
+              statusUpper === "PLANNED";
+            break;
+          case "in-progress":
+            matches =
+              status === "in progress" ||
+              status === "in_progress" ||
+              statusUpper === "IN_PROGRESS" ||
+              statusUpper === "IN PROGRESS" ||
+              statusUpper === "ACTIVE";
+            break;
+          case "internal-review":
+            matches =
+              status === "internal review" ||
+              status === "in review" ||
+              status === "in_review" ||
+              statusUpper === "IN_REVIEW" ||
+              statusUpper === "IN REVIEW";
+            break;
+          case "done":
+            matches =
+              status === "done" ||
+              status === "completed" ||
+              statusUpper === "DONE" ||
+              statusUpper === "COMPLETED";
+            break;
+          default:
+            matches = true;
+        }
+
+        if (!matches) {
+        }
+
+        return matches;
+      });
+
+    }
+
+    // Filter by search query
+    if (searchQuery) {
+      const queryLower = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (task) =>
+          task.name?.toLowerCase().includes(queryLower) ||
+          task.description?.toLowerCase().includes(queryLower) ||
+          task.project?.name?.toLowerCase().includes(queryLower) ||
+          task.assignee?.name?.toLowerCase().includes(queryLower)
+      );
+
+    }
+
+    return filtered;
   };
 
-  const handleDateChange = (direction) => {
-    setCurrentMonth((prev) => {
-      const newMonth = new Date(prev);
-      if (direction === "prev") {
-        newMonth.setMonth(prev.getMonth() - 1);
-      } else {
-        newMonth.setMonth(prev.getMonth() + 1);
-      }
-      return newMonth;
-    });
-  };
+  const filteredTasks = getFilteredTasks();
 
-  // Task creation handler
-  const handleTaskCreate = (newTask) => {
-    console.log("Creating new task:", newTask);
-    // Here you would typically add the task to your data source
-    // For now, we'll just log it
-    alert(`Task "${newTask.title}" created successfully!`);
-  };
-
-  // Task detail handlers
+  // Handle task click - open modal
   const handleTaskClick = (task) => {
     setSelectedTask(task);
-    setIsTaskDetailOpen(true);
+    setIsTaskModalOpen(true);
   };
 
-  const handleTaskDetailClose = () => {
-    setIsTaskDetailOpen(false);
-    setSelectedTask(null);
-    setIsTaskDetailFullView(false);
+  // Handle approve task
+  const handleApprove = async (taskId) => {
+    try {
+      // Update task approval and status via API
+      const response = await fetch(
+        strapiClient.buildURL(`/tasks/${taskId}`, {}),
+        {
+          method: "PUT",
+          headers: strapiClient.getHeaders(),
+          body: JSON.stringify({
+            data: {
+              clientApproval: "approved",
+              approvedAt: new Date().toISOString(),
+              status: "APPROVED", // Change status to Approved when client approves
+            },
+          }),
+        }
+      );
+
+      if (response.ok) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  clientApproval: "approved",
+                  approvedAt: new Date().toISOString(),
+                  status: "Approved", // Update status to Approved
+                }
+              : t
+          )
+        );
+        if (selectedTask?.id === taskId) {
+          setSelectedTask({
+            ...selectedTask,
+            clientApproval: "approved",
+            approvedAt: new Date().toISOString(),
+            status: "Approved", // Update status to Approved
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error approving task:", error);
+    }
   };
 
-  const handleTaskDetailToggleView = () => {
-    setIsTaskDetailFullView(!isTaskDetailFullView);
+  // Handle reject task
+  const handleReject = async (taskId) => {
+    try {
+      // TODO: Update task rejection via API
+      const response = await fetch(
+        strapiClient.buildURL(`/tasks/${taskId}`, {}),
+        {
+          method: "PUT",
+          headers: strapiClient.getHeaders(),
+          body: JSON.stringify({
+            data: {
+              clientApproval: "rejected",
+              approvedAt: new Date().toISOString(),
+            },
+          }),
+        }
+      );
+
+      if (response.ok) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  clientApproval: "rejected",
+                  approvedAt: new Date().toISOString(),
+                }
+              : t
+          )
+        );
+        if (selectedTask?.id === taskId) {
+          setSelectedTask({
+            ...selectedTask,
+            clientApproval: "rejected",
+            approvedAt: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error rejecting task:", error);
+    }
   };
 
-  const handleSubtaskUpdate = (taskId, updatedSubtasks) => {
-    console.log("Updating subtasks for task:", taskId, updatedSubtasks);
-    // Here you would update the task in your data source
-    // For now, we'll just log it
+  // Handle add comment
+  const handleComment = async (taskId, comment) => {
+    try {
+      // TODO: Add comment via API
+      const newComment = {
+        id: Date.now().toString(),
+        ...comment,
+        createdAt: comment.createdAt || new Date().toISOString(),
+      };
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                comments: [...(t.comments || []), newComment],
+              }
+            : t
+        )
+      );
+
+      if (selectedTask?.id === taskId) {
+        setSelectedTask({
+          ...selectedTask,
+          comments: [...(selectedTask.comments || []), newComment],
+        });
+      }
+    } catch (error) {
+      console.error("Error adding comment:", error);
+    }
   };
 
-  const toggleSubtaskExpansion = (taskId) => {
-    setExpandedSubtasks((prev) => ({
-      ...prev,
-      [taskId]: !prev[taskId],
-    }));
+  // Get status badge colors
+  const getStatusColor = (status) => {
+    const statusUpper = (status || "").toUpperCase();
+    switch (statusUpper) {
+      case "DONE":
+      case "COMPLETED":
+        return "bg-green-100 text-green-800 border-green-400";
+      case "IN PROGRESS":
+      case "IN_PROGRESS":
+        return "bg-yellow-100 text-yellow-800 border-yellow-400";
+      case "IN REVIEW":
+      case "INTERNAL REVIEW":
+      case "IN_REVIEW":
+        return "bg-purple-100 text-purple-800 border-purple-400";
+      case "CLIENT REVIEW":
+      case "CLIENT_REVIEW":
+      case "CLIENT REVIEW":
+      case "CLIENT_REVIEW":
+        return "bg-purple-100 text-purple-800 border-purple-400";
+      case "APPROVED":
+        return "bg-blue-100 text-blue-800 border-blue-400";
+      case "TO DO":
+      case "TODO":
+      case "SCHEDULED":
+        return "bg-blue-100 text-blue-800 border-blue-400";
+      case "CANCELLED":
+        return "bg-gray-100 text-gray-800 border-gray-400";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-400";
+    }
   };
 
   const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "urgent":
-        return "bg-red-100 text-red-800";
+    const priorityLower = (priority || "").toLowerCase();
+    switch (priorityLower) {
       case "high":
-        return "bg-orange-100 text-orange-800";
+        return "bg-red-100 text-red-800 border-red-200";
       case "medium":
-        return "bg-blue-100 text-blue-800";
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "low":
-        return "bg-green-100 text-green-800";
+        return "bg-green-100 text-green-800 border-green-200";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle2 className="w-4 h-4 text-green-600" />;
-      case "in-progress":
-        return <Clock className="w-4 h-4 text-blue-600" />;
-      case "review":
-        return <AlertCircle className="w-4 h-4 text-yellow-600" />;
-      default:
-        return <Circle className="w-4 h-4 text-gray-400" />;
-    }
-  };
-
-  const isOverdue = (dueDate) => {
-    return new Date(dueDate) < new Date();
-  };
-
-  const renderTaskCard = (task) => {
+  const formatStatus = (status) => {
+    const statusMap = {
+      "TO DO": "To Do",
+      "IN PROGRESS": "In Progress",
+      IN_REVIEW: "Internal Review",
+      "CLIENT REVIEW": "Client Review",
+      CLIENT_REVIEW: "Client Review",
+      APPROVED: "Approved",
+      DONE: "Done",
+      COMPLETED: "Completed",
+      CANCELLED: "Cancelled",
+    };
     return (
-      <Link key={task.id} href={`/tasks/${task.id}`}>
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`bg-white/80 backdrop-blur-sm rounded-xl border border-white/50 shadow-sm hover:shadow-md transition-all duration-300 p-4 cursor-pointer ${
-            isOverdue(task.dueDate) && task.status !== "completed"
-              ? "border-red-200 bg-red-50/50"
-              : ""
-          }`}
-        >
-          {/* Task Header */}
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-start gap-2 flex-1 min-w-0">
-              {getStatusIcon(task.status)}
-              <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-gray-900 truncate mb-1">
-                  {task.title}
-                </h4>
-                {task.description && (
-                  <p className="text-sm text-gray-600 line-clamp-2">
-                    {task.description}
-                  </p>
-                )}
+      statusMap[status?.toUpperCase()] || status?.replace("_", " ") || "To Do"
+    );
+  };
+
+  // Task table columns - client-friendly version
+  const taskColumnsTable = [
+    {
+      key: "actionRequired",
+      label: "",
+      render: (_, task) => {
+        // Check if task requires client approval (status is Client Review only)
+        const isActionRequired =
+          (task.status === "Client Review" ||
+            task.status?.toUpperCase() === "CLIENT_REVIEW") &&
+          !task.clientApproval;
+
+        if (isActionRequired) {
+          return (
+            <div className="flex items-center justify-center">
+              <div className="relative">
+                <AlertCircle className="w-5 h-5 text-xtrawrkx-500 animate-pulse" />
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-xtrawrkx-500 rounded-full border-2 border-white"></div>
               </div>
             </div>
-            <div className="text-right">
-              <span
-                className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium ${getPriorityColor(task.priority)}`}
-              >
-                {task.priority}
-              </span>
-            </div>
+          );
+        }
+
+        // Show a subtle indicator for tasks not in review
+        return (
+          <div className="flex items-center justify-center w-5 h-5">
+            <div className="w-2 h-2 rounded-full bg-gray-300"></div>
           </div>
+        );
+      },
+    },
+    {
+      key: "name",
+      label: "TASK NAME",
+      render: (_, task) => {
+        const isDone =
+          task.status?.toLowerCase() === "done" ||
+          task.status?.toLowerCase() === "completed";
 
-          {/* Task Details */}
-          <div className="space-y-2 mb-3">
-            {task.project && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Project:</span>
-                <span className="font-medium text-gray-900">
-                  {task.project}
-                </span>
+        const taskSubtasks = task.subtasks || [];
+        const rootSubtasks = taskSubtasks.filter((st) => {
+          return (
+            !st.parentSubtask ||
+            st.parentSubtask === null ||
+            (typeof st.parentSubtask === "object" && !st.parentSubtask.id)
+          );
+        });
+        const hasSubtasks = rootSubtasks.length > 0;
+
+        return (
+          <div className="flex items-center gap-3 min-w-[200px]">
+            <div className="min-w-0 flex-1 flex items-center gap-2">
+              <div
+                className={`font-medium truncate flex-1 min-w-0 ${
+                  isDone ? "line-through text-gray-500" : "text-gray-900"
+                }`}
+              >
+                {task.name}
               </div>
-            )}
-
-            {task.assignee && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Assignee:</span>
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-5 w-5">
-                    <AvatarImage
-                      src={`https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=20&h=20&fit=crop&crop=face`}
-                    />
-                    <AvatarFallback className="text-xs">
-                      {task.assignee.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="font-medium text-gray-900">
-                    {task.assignee}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {task.dueDate && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Due:</span>
-                <span
-                  className={`font-medium ${
-                    isOverdue(task.dueDate) && task.status !== "completed"
-                      ? "text-red-600"
-                      : "text-gray-900"
+              {hasSubtasks && (
+                <div
+                  className="flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600"
+                  title={`${rootSubtasks.length} ${
+                    rootSubtasks.length === 1 ? "subtask" : "subtasks"
                   }`}
                 >
-                  {new Date(task.dueDate).toLocaleDateString()}
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">
+                    {rootSubtasks.length}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "assignee",
+      label: "ASSIGNEE",
+      render: (_, task) => {
+        const assignee = task.assignee;
+        const hasAssignee = assignee && assignee.name;
+
+        return (
+          <div className="flex items-center gap-2 min-w-[140px]">
+            {hasAssignee ? (
+              <div className="flex items-center gap-1">
+                <div
+                  className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0 border border-white"
+                  title={assignee.name}
+                >
+                  {assignee.name?.charAt(0)?.toUpperCase() || "U"}
+                </div>
+                <span className="text-sm text-gray-600 truncate ml-1">
+                  {assignee.name}
                 </span>
               </div>
+            ) : (
+              <span className="text-sm text-gray-500">Unassigned</span>
             )}
           </div>
+        );
+      },
+    },
+    {
+      key: "dueDate",
+      label: "DUE DATE",
+      render: (_, task) => {
+        const formatDate = (dateString) => {
+          if (!dateString) return "Not set";
+          try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            });
+          } catch {
+            return dateString;
+          }
+        };
 
-          {/* Task Footer */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {task.tags &&
-                task.tags.slice(0, 2).map((tag, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-800"
+        return (
+          <div className="flex items-center gap-2 min-w-[150px]">
+            <Calendar className="w-4 h-4 flex-shrink-0 text-gray-500" />
+            <span className="text-sm text-gray-700">
+              {formatDate(task.scheduledDate)}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      key: "status",
+      label: "STATUS",
+      render: (_, task) => {
+        return (
+          <div className="min-w-[140px]">
+            <span
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border inline-block ${getStatusColor(
+                task.status
+              )}`}
+            >
+              {formatStatus(task.status)}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      key: "priority",
+      label: "PRIORITY",
+      render: (_, task) => {
+        return (
+          <div className="min-w-[120px]">
+            <span
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border inline-block ${getPriorityColor(
+                task.priority
+              )}`}
+            >
+              {task.priority || "Medium"}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      key: "subtasks",
+      label: "SUBTASKS",
+      render: (_, task) => {
+        const taskId = task.id;
+        const isExpanded = expandedSubtasks[taskId] || false;
+
+        const taskSubtasks = task.subtasks || [];
+        const rootSubtasks = taskSubtasks.filter((st) => {
+          return (
+            !st.parentSubtask ||
+            st.parentSubtask === null ||
+            (typeof st.parentSubtask === "object" && !st.parentSubtask.id)
+          );
+        });
+        const subtaskCount = rootSubtasks.length;
+
+        const handleToggleExpand = (e) => {
+          e.stopPropagation();
+
+          const newExpandedState = !isExpanded;
+
+          if (newExpandedState && subtaskButtonRefs.current[taskId]) {
+            const rect =
+              subtaskButtonRefs.current[taskId].getBoundingClientRect();
+            setSubtaskDropdownPositions((prev) => ({
+              ...prev,
+              [taskId]: {
+                top: rect.bottom + window.scrollY + 4,
+                left: rect.left + window.scrollX,
+                width: rect.width,
+              },
+            }));
+          }
+
+          setExpandedSubtasks((prev) => ({
+            ...prev,
+            [taskId]: newExpandedState,
+          }));
+        };
+
+        const hasSubtasks = subtaskCount > 0;
+        const dropdownPosition = subtaskDropdownPositions[taskId];
+        const dropdownContent =
+          isExpanded && rootSubtasks.length > 0 && dropdownPosition ? (
+            <div
+              className="fixed z-[9999] border border-gray-200 rounded-lg bg-white shadow-lg max-h-60 overflow-y-auto"
+              style={{
+                top: `${dropdownPosition.top}px`,
+                left: `${dropdownPosition.left}px`,
+                width: `${dropdownPosition.width}px`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-2 space-y-1">
+                {rootSubtasks.map((subtask) => {
+                  const isSubtaskDone =
+                    subtask.status?.toLowerCase() === "done" ||
+                    subtask.status?.toLowerCase() === "completed";
+                  return (
+                    <button
+                      key={subtask.id}
+                      className={`w-full text-left px-3 py-2 rounded-md hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200 ${
+                        isSubtaskDone ? "opacity-60" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className={`text-sm font-medium truncate ${
+                              isSubtaskDone
+                                ? "line-through text-gray-500"
+                                : "text-gray-900"
+                            }`}
+                          >
+                            {subtask.name || subtask.title}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null;
+
+        return (
+          <>
+            <div className="min-w-[180px]" onClick={(e) => e.stopPropagation()}>
+              {hasSubtasks ? (
+                <div className="relative">
+                  <button
+                    ref={(el) => {
+                      if (el) subtaskButtonRefs.current[taskId] = el;
+                    }}
+                    onClick={handleToggleExpand}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200 w-full"
                   >
-                    {tag}
-                  </span>
-                ))}
-              {task.tags && task.tags.length > 2 && (
-                <span className="text-xs text-gray-400">
-                  +{task.tags.length - 2}
-                </span>
+                    <GitBranch className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                    <span className="text-sm font-medium text-gray-700">
+                      {subtaskCount}{" "}
+                      {subtaskCount === 1 ? "subtask" : "subtasks"}
+                    </span>
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-gray-500 ml-auto" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-gray-500 ml-auto" />
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <span className="text-sm text-gray-500">No subtasks</span>
               )}
             </div>
+            {typeof window !== "undefined" &&
+              isExpanded &&
+              rootSubtasks.length > 0 &&
+              dropdownPosition &&
+              createPortal(dropdownContent, document.body)}
+          </>
+        );
+      },
+    },
+    {
+      key: "project",
+      label: "PROJECT",
+      render: (_, task) => (
+        <div className="min-w-[150px]">
+          {task.project ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (task.project?.id) {
+                  router.push(`/projects/${task.project.id}`);
+                }
+              }}
+              className="text-sm text-gray-700 hover:text-xtrawrkx-600 hover:underline truncate"
+            >
+              {task.project.name}
+            </button>
+          ) : (
+            <span className="text-sm text-gray-500">No project</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "progress",
+      label: "PROGRESS",
+      render: (_, task) => (
+        <div className="min-w-[120px]">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
+                style={{ width: `${task.progress || 0}%` }}
+              />
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {task.progress || 0}%
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "actions",
+      label: "ACTIONS",
+      render: (_, task) => {
+        // Check if task requires client approval (status is Client Review only)
+        const isActionRequired =
+          (task.status === "Client Review" ||
+            task.status?.toUpperCase() === "CLIENT_REVIEW") &&
+          !task.clientApproval;
 
-            <div className="flex items-center gap-1">
-              {task.estimatedHours && (
-                <span className="text-xs text-gray-500">
-                  {task.estimatedHours}h
-                </span>
-              )}
-              {isOverdue(task.dueDate) && task.status !== "completed" && (
-                <AlertCircle className="w-4 h-4 text-red-500" />
-              )}
+        return (
+          <div className="flex items-center gap-1 min-w-[120px]">
+            {isActionRequired && (
+              <div className="px-2 py-1 bg-xtrawrkx-100 text-xtrawrkx-800 rounded-lg text-xs font-semibold border border-xtrawrkx-200 mr-2">
+                Action Required
+              </div>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTaskClick(task);
+              }}
+              className="p-1.5 text-xtrawrkx-600 hover:text-xtrawrkx-700 hover:bg-xtrawrkx-50 rounded transition-colors"
+              title="View Task"
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white">
+        <div className="px-4 pt-4">
+          <PageHeader
+            title="Tasks"
+            subtitle="Manage and track all your tasks"
+            showSearch={false}
+            showActions={false}
+          />
+        </div>
+        <div className="p-4">
+          <div className="flex justify-center items-center h-64">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+              <span className="text-gray-600">Loading tasks...</span>
             </div>
           </div>
-        </motion.div>
-      </Link>
-    );
-  };
-
-  const renderColumnHeader = (columnId, cardsCount) => {
-    const columnConfig = {
-      todo: { title: "To Do", color: "border-gray-500", bg: "bg-gray-50" },
-      "in-progress": {
-        title: "In Progress",
-        color: "border-blue-500",
-        bg: "bg-blue-50",
-      },
-      review: {
-        title: "Review",
-        color: "border-yellow-500",
-        bg: "bg-yellow-50",
-      },
-      completed: {
-        title: "Completed",
-        color: "border-green-500",
-        bg: "bg-green-50",
-      },
-    };
-
-    const config = columnConfig[columnId] || {
-      title: columnId,
-      color: "border-gray-500",
-      bg: "bg-gray-50",
-    };
-
-    return (
-      <div
-        className={`${config.bg} rounded-xl p-4 mb-4 border-l-4 ${config.color}`}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-gray-800 text-sm">
-            {config.title}
-          </h3>
-          <span className="bg-white text-gray-600 px-2 py-1 rounded-lg text-xs font-medium">
-            {cardsCount}
-          </span>
         </div>
       </div>
     );
-  };
-
-  // Table view component
-  const renderTableView = () => {
-    const allTasks = Object.values(tasksData).flat();
-
-    return (
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50/80 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Task
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Project
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Assignee
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Due Date
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Priority
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {allTasks.map((task) => (
-                <React.Fragment key={task.id}>
-                  <tr className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {getStatusIcon(task.status)}
-                        <div className="ml-3 flex-1">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleTaskClick(task)}
-                              className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors cursor-pointer"
-                            >
-                              {task.title}
-                            </button>
-                            {task.subtasks && task.subtasks.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <FileText className="w-4 h-4 text-gray-400" />
-                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                                  {task.subtasks.length}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-500 line-clamp-1">
-                            {task.description}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {task.project}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage
-                            src={`https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face`}
-                          />
-                          <AvatarFallback className="text-xs">
-                            {task.assignee.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900">
-                            {task.assignee}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {new Date(task.dueDate).toLocaleDateString()}
-                      </div>
-                      {isOverdue(task.dueDate) &&
-                        task.status !== "completed" && (
-                          <div className="text-xs text-red-600">Overdue</div>
-                        )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 rounded-lg text-xs font-medium ${getPriorityColor(task.priority)}`}
-                      >
-                        {task.status.charAt(0).toUpperCase() +
-                          task.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 rounded-lg text-xs font-medium ${getPriorityColor(task.priority)}`}
-                      >
-                        {task.priority}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleTaskClick(task)}
-                          className="text-blue-600 hover:text-blue-900 transition-colors"
-                        >
-                          View Details
-                        </button>
-                        {task.subtasks && task.subtasks.length > 0 && (
-                          <div className="relative">
-                            <button
-                              onClick={() => toggleSubtaskExpansion(task.id)}
-                              className="p-1 hover:bg-gray-100 rounded transition-colors"
-                            >
-                              <ChevronDown
-                                className={`w-4 h-4 text-gray-400 transition-transform ${expandedSubtasks[task.id] ? "rotate-180" : ""}`}
-                              />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  {/* Subtask Dropdown */}
-                  {task.subtasks &&
-                    task.subtasks.length > 0 &&
-                    expandedSubtasks[task.id] && (
-                      <tr>
-                        <td colSpan="7" className="px-6 py-4 bg-gray-50/50">
-                          <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/50 shadow-sm p-4">
-                            <div className="flex items-center justify-between mb-4">
-                              <h4 className="text-sm font-semibold text-gray-900">
-                                Subtasks ({task.subtasks.length})
-                              </h4>
-                              <span className="text-xs text-gray-500">
-                                {
-                                  task.subtasks.filter((sub) => sub.completed)
-                                    .length
-                                }{" "}
-                                completed
-                              </span>
-                            </div>
-                            <div className="space-y-3">
-                              {task.subtasks.map((subtask) => (
-                                <div
-                                  key={subtask.id}
-                                  className="flex items-center justify-between p-3 bg-white/50 rounded-lg border border-gray-200/50"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div
-                                      className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                                        subtask.completed
-                                          ? "bg-green-500"
-                                          : "bg-gray-300"
-                                      }`}
-                                    >
-                                      {subtask.completed ? (
-                                        <CheckCircle2 className="w-3 h-3 text-white" />
-                                      ) : (
-                                        <Circle className="w-3 h-3 text-white" />
-                                      )}
-                                    </div>
-                                    <span
-                                      className={`text-sm font-medium ${
-                                        subtask.completed
-                                          ? "text-gray-500 line-through"
-                                          : "text-gray-900"
-                                      }`}
-                                    >
-                                      {subtask.name}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                                        subtask.status === "completed"
-                                          ? "bg-green-100 text-green-800"
-                                          : subtask.status === "in-progress"
-                                            ? "bg-blue-100 text-blue-800"
-                                            : "bg-gray-100 text-gray-800"
-                                      }`}
-                                    >
-                                      {subtask.status === "completed"
-                                        ? "Done"
-                                        : subtask.status === "in-progress"
-                                          ? "In Progress"
-                                          : "To Do"}
-                                    </span>
-                                    <span
-                                      className={`px-2 py-1 rounded-lg text-xs font-medium ${getPriorityColor(subtask.priority)}`}
-                                    >
-                                      {subtask.priority}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-
-  // Calendar view component
-  const renderCalendarView = () => {
-    return (
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6">
-        <div className="text-center py-12">
-          <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Calendar View
-          </h3>
-          <p className="text-gray-600">Calendar view coming soon...</p>
-        </div>
-      </div>
-    );
-  };
+  }
 
   return (
-    <div className="min-h-screen p-6">
-      <div className="w-full space-y-6">
-        {/* Page Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-8"
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                Tasks
-              </h1>
-              <p className="text-gray-600 mt-2">
-                Organize and track your team&apos;s tasks
-              </p>
+    <div className="min-h-screen bg-white">
+      {/* Page Header */}
+      <div className="px-4 pt-4">
+        <PageHeader
+          title="Tasks"
+          subtitle="Manage and track all your tasks"
+          showActions={true}
+          onFilterClick={() =>
+            setFilterStatus(filterStatus === "all" ? "todo" : "all")
+          }
+          hasActiveFilters={filterStatus !== "all" || searchQuery.length > 0}
+        />
+      </div>
+
+      <div className="px-3 mt-6">
+        <div className="space-y-4">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {statusStats.map((stat) => {
+              const IconComponent = stat.icon;
+              return (
+                <div
+                  key={stat.label}
+                  className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-600 mb-1 font-medium">
+                        {stat.label}
+                      </p>
+                      <p className="text-3xl font-black text-gray-800">
+                        {stat.count}
+                      </p>
+                      <div className="mt-2 flex items-center text-xs text-gray-500">
+                        <span
+                          className={`w-2 h-2 rounded-full mr-2 ${
+                            stat.label === "Total Tasks"
+                              ? "bg-xtrawrkx-500"
+                              : stat.label === "In Progress"
+                              ? "bg-yellow-500"
+                              : stat.label === "Completed"
+                              ? "bg-green-500"
+                              : "bg-red-500"
+                          }`}
+                        ></span>
+                        {stat.count === 0
+                          ? "No tasks"
+                          : `${stat.count} ${
+                              stat.count === 1 ? "task" : "tasks"
+                            }`}
+                      </div>
+                    </div>
+                    <div
+                      className={`w-16 h-16 ${stat.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${stat.borderColor}`}
+                    >
+                      <IconComponent className={`w-8 h-8 ${stat.iconColor}`} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Tabs and View Toggle */}
+          <div className="flex items-center justify-between gap-3 bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-xl p-3">
+            {/* Left: Tabs */}
+            <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+              {tabItems.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap ${
+                    activeTab === tab.key
+                      ? "bg-xtrawrkx-500 text-white shadow-lg"
+                      : "bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white/90 border border-white/40"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                      activeTab === tab.key
+                        ? "bg-white/30 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {tab.badge}
+                  </span>
+                </button>
+              ))}
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Center: Search Bar */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input
                   type="text"
                   placeholder="Search tasks..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-white/80 border border-gray-200/50 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all duration-200"
+                  className="w-64 pl-10 pr-4 py-2 bg-white/80 backdrop-blur-sm border border-white/40 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/90 transition-all duration-300 placeholder:text-gray-500 shadow-sm"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              <ModernButton
-                type="secondary"
-                icon={Filter}
-                text="Filter"
-                size="sm"
-              />
-              <ModernButton
-                type="primary"
-                icon={Plus}
-                text="New Task"
-                size="sm"
-              />
+            </div>
+
+            {/* Right: View Toggle */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setActiveView("list")}
+                className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
+                  activeView === "list"
+                    ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
+                    : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
+                }`}
+                title="List View"
+              >
+                <List className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setActiveView("grid")}
+                className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
+                  activeView === "grid"
+                    ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
+                    : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
+                }`}
+                title="Grid View"
+              >
+                <Grid3X3 className="w-5 h-5" />
+              </button>
             </div>
           </div>
-        </motion.div>
 
-        {/* Task Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Total Tasks</p>
-                <p className="text-2xl font-bold text-gray-900">{totalTasks}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <CheckSquare className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </motion.div>
+          {/* Tasks Table */}
+          {activeView === "list" ? (
+            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 rounded-3xl bg-white/70 backdrop-blur-xl border border-white/40 transition-shadow duration-300">
+              <table className="w-full rounded-3xl overflow-hidden min-w-[1600px]">
+                <thead className="bg-white/90 backdrop-blur-lg border-b border-xtrawrkx-200/50 shadow-sm">
+                  <tr>
+                    {taskColumnsTable.map((column) => (
+                      <th
+                        key={column.key}
+                        className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm"
+                      >
+                        {column.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white/60 backdrop-blur-sm divide-y divide-white/20">
+                  {filteredTasks.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={taskColumnsTable.length}
+                        className="px-6 py-12 text-center"
+                      >
+                        <div className="flex flex-col items-center">
+                          <CheckSquare className="w-12 h-12 text-gray-400 mb-4" />
+                          <p className="text-gray-600 font-medium">
+                            No tasks found
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {searchQuery || activeTab !== "all"
+                              ? "Try adjusting your filters"
+                              : "Get started by creating your first task"}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTasks.map((task) => {
+                      const isActionRequired =
+                        task.requiresApproval &&
+                        task.status === "Client Review" &&
+                        !task.clientApproval;
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">In Progress</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {inProgressTasks}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                <Clock className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Completed</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {completedTasks}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Overdue</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {overdueTasks}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                <AlertCircle className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* View Controls */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            {/* Left Side - View Toggle Buttons */}
-            <div className="flex items-center gap-2">
-              <div className="flex bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl p-1">
-                <button
-                  onClick={() => setActiveView("table")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    activeView === "table"
-                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
-                  }`}
-                >
-                  <Table className="w-4 h-4" />
-                  Table
-                </button>
-                <button
-                  onClick={() => setActiveView("kanban")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    activeView === "kanban"
-                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
-                  }`}
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                  Kanban
-                </button>
-                <button
-                  onClick={() => setActiveView("calendar")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    activeView === "calendar"
-                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
-                  }`}
-                >
-                  <Calendar className="w-4 h-4" />
-                  Calendar
-                </button>
-              </div>
-            </div>
-
-            {/* Right Side - Controls */}
-            <div className="flex flex-wrap items-center gap-2 lg:gap-3">
-              {/* Month Navigation */}
-              <button
-                onClick={() => handleDateChange("prev")}
-                className="flex items-center justify-center w-10 h-10 bg-white/80 border border-gray-200/50 rounded-xl hover:bg-white transition-colors shadow-sm"
-              >
-                <ChevronLeft className="w-4 h-4 text-gray-400" />
-              </button>
-
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-white/80 border border-gray-200/50 rounded-xl shadow-sm h-10">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-900">
-                  {currentMonth.toLocaleDateString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
-
-              <button
-                onClick={() => handleDateChange("next")}
-                className="flex items-center justify-center w-10 h-10 bg-white/80 border border-gray-200/50 rounded-xl hover:bg-white transition-colors shadow-sm"
-              >
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </button>
-
-              {/* Columns Dropdown */}
-              <div className="relative" ref={columnsMenuRef}>
-                <button
-                  onClick={() => setShowColumnsMenu(!showColumnsMenu)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white/80 border border-gray-200/50 rounded-xl hover:bg-white transition-colors shadow-sm h-10"
-                >
-                  <Columns className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700">
-                    Columns
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                </button>
-
-                {showColumnsMenu && (
-                  <div className="absolute top-full left-0 mt-2 w-48 bg-white/90 backdrop-blur-sm border border-gray-200/50 rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto">
-                    <div className="p-2">
-                      {[
-                        "Task Name",
-                        "Project",
-                        "Assignee",
-                        "Due Date",
-                        "Status",
-                        "Progress",
-                        "Actions",
-                      ].map((column) => (
-                        <label
-                          key={column}
-                          className="flex items-center gap-2 p-2 hover:bg-gray-50/50 rounded-lg cursor-pointer"
+                      return (
+                        <tr
+                          key={task.id}
+                          onClick={() => handleTaskClick(task)}
+                          className={`hover:bg-xtrawrkx-50/50 hover:shadow-lg transition-all duration-300 group bg-white/40 shadow-sm hover:shadow-xtrawrkx-100/50 cursor-pointer ${
+                            isActionRequired
+                              ? "border-l-4 border-xtrawrkx-500 bg-xtrawrkx-50/30"
+                              : ""
+                          }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={selectedColumns.includes(column)}
-                            onChange={() => handleColumnToggle(column)}
-                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-900">
-                            {column}
+                          {taskColumnsTable.map((column) => (
+                            <td
+                              key={column.key}
+                              className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300"
+                            >
+                              {column.render(task, task)}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredTasks.length === 0 ? (
+                <div className="col-span-full rounded-3xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-12 text-center">
+                  <CheckSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium">No tasks found</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {searchQuery || activeTab !== "all"
+                      ? "Try adjusting your filters"
+                      : "Get started by creating your first task"}
+                  </p>
+                </div>
+              ) : (
+                filteredTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate text-lg">
+                          {task.name}
+                        </h3>
+                        {task.description && (
+                          <p className="text-sm text-gray-600 truncate mt-1">
+                            {task.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {task.project && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          <span>{task.project.name}</span>
+                        </div>
+                      )}
+                      {task.assignee && (
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          <span>{task.assignee.name}</span>
+                        </div>
+                      )}
+                      {task.scheduledDate && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          <span>
+                            {new Date(task.scheduledDate).toLocaleDateString()}
                           </span>
-                        </label>
-                      ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Filter Dropdown */}
-              <div className="relative" ref={filterMenuRef}>
-                <button
-                  onClick={() => setShowFilterMenu(!showFilterMenu)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white/80 border border-gray-200/50 rounded-xl hover:bg-white transition-colors shadow-sm h-10"
-                >
-                  <Filter className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700">
-                    Filter
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                </button>
-
-                {showFilterMenu && (
-                  <div className="absolute top-full left-0 mt-2 w-64 bg-white/90 backdrop-blur-sm border border-gray-200/50 rounded-xl shadow-lg z-50 max-h-80 overflow-y-auto">
-                    <div className="p-4 space-y-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-900 mb-2 block">
-                          Status
-                        </label>
-                        <select
-                          value={filters.status}
-                          onChange={(e) =>
-                            handleFilterChange("status", e.target.value)
-                          }
-                          className="w-full px-3 py-2 bg-white/80 border border-gray-200/50 rounded-xl text-sm text-gray-900"
-                        >
-                          <option value="all">All Status</option>
-                          <option value="todo">To Do</option>
-                          <option value="in-progress">In Progress</option>
-                          <option value="review">Review</option>
-                          <option value="completed">Completed</option>
-                        </select>
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span className="text-gray-600">Progress</span>
+                        <span className="font-medium">
+                          {task.progress || 0}%
+                        </span>
                       </div>
-
-                      <div>
-                        <label className="text-sm font-medium text-gray-900 mb-2 block">
-                          Project
-                        </label>
-                        <select
-                          value={filters.project}
-                          onChange={(e) =>
-                            handleFilterChange("project", e.target.value)
-                          }
-                          className="w-full px-3 py-2 bg-white/80 border border-gray-200/50 rounded-xl text-sm text-gray-900"
-                        >
-                          <option value="all">All Projects</option>
-                          <option value="event-org">
-                            Event Organization Website
-                          </option>
-                          <option value="health-app">
-                            Health Mobile App Design
-                          </option>
-                          <option value="seo-service">
-                            Advance SEO Service
-                          </option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium text-gray-900 mb-2 block">
-                          Assignee
-                        </label>
-                        <select
-                          value={filters.assignee}
-                          onChange={(e) =>
-                            handleFilterChange("assignee", e.target.value)
-                          }
-                          className="w-full px-3 py-2 bg-white/80 border border-gray-200/50 rounded-xl text-sm text-gray-900"
-                        >
-                          <option value="all">All Assignees</option>
-                          <option value="gabrial">Gabrial Matula</option>
-                          <option value="layla">Layla Amora</option>
-                          <option value="ansel">Ansel Finn</option>
-                        </select>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-xtrawrkx-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${task.progress || 0}%` }}
+                        ></div>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Sort */}
-              <button
-                onClick={() =>
-                  setDueDateSortOrder(
-                    dueDateSortOrder === "asc" ? "desc" : "asc"
-                  )
-                }
-                className="flex items-center gap-2 px-4 py-2.5 bg-white/80 border border-gray-200/50 rounded-xl hover:bg-white transition-colors shadow-sm h-10"
-              >
-                {dueDateSortOrder === "asc" ? (
-                  <ChevronUp className="w-4 h-4 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                )}
-                <span className="text-sm font-medium text-gray-700">Sort</span>
-              </button>
-
-              {/* New Task Button */}
-              <ModernButton
-                type="primary"
-                icon={Plus}
-                text="New Task"
-                size="sm"
-                onClick={() => setIsCreateTaskModalOpen(true)}
-              />
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Content based on active view */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="w-full"
-        >
-          {activeView === "table" && renderTableView()}
-          {activeView === "kanban" && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {Object.entries(tasksData).map(([columnId, tasks]) => (
-                  <div key={columnId} className="space-y-4">
-                    {renderColumnHeader(columnId, tasks.length)}
-                    <div className="space-y-3">
-                      {tasks.map((task) => renderTaskCard(task))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
           )}
-          {activeView === "calendar" && renderCalendarView()}
-        </motion.div>
+        </div>
       </div>
 
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        isOpen={isCreateTaskModalOpen}
-        onClose={() => setIsCreateTaskModalOpen(false)}
-        onTaskCreate={handleTaskCreate}
-      />
-
-      {/* Task Detail Sidebar */}
-      <TaskDetailSidebar
-        isOpen={isTaskDetailOpen}
-        onClose={handleTaskDetailClose}
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        isOpen={isTaskModalOpen}
+        onClose={() => {
+          setIsTaskModalOpen(false);
+          setSelectedTask(null);
+          setIsTaskModalFullView(false);
+        }}
         task={selectedTask}
-        isFullView={isTaskDetailFullView}
-        onToggleView={handleTaskDetailToggleView}
-        onSubtaskUpdate={handleSubtaskUpdate}
+        isFullView={isTaskModalFullView}
+        onToggleView={() => setIsTaskModalFullView(!isTaskModalFullView)}
+        onOpenProject={(projectId) => {
+          if (projectId) {
+            router.push(`/projects/${projectId}`);
+            setIsTaskModalOpen(false);
+          }
+        }}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        onComment={handleComment}
       />
     </div>
   );

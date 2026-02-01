@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle,
@@ -30,6 +30,7 @@ import {
   TasksFilterModal,
 } from "../../components/my-task";
 import ProjectSelector from "../../components/my-task/ProjectSelector";
+import SubtaskDetailModal from "../../components/shared/SubtaskDetailModal";
 import { Card, Pagination } from "../../components/ui";
 import taskService from "../../lib/taskService";
 import subtaskService from "../../lib/subtaskService";
@@ -88,6 +89,13 @@ export default function MyTasks() {
     task: null,
   });
 
+  // Subtask detail modal state (replaces task modal when opening a subtask on My Tasks)
+  const [subtaskDetailModal, setSubtaskDetailModal] = useState({
+    isOpen: false,
+    subtaskId: null,
+    task: null,
+  });
+
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState({
     isOpen: false,
@@ -102,6 +110,7 @@ export default function MyTasks() {
   const [loadedSubtasks, setLoadedSubtasks] = useState({});
   const [subtaskDropdownPositions, setSubtaskDropdownPositions] = useState({});
   const subtaskButtonRefs = useRef({});
+  const subtaskDropdownRefs = useRef({});
 
   // Bulk selection state
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
@@ -334,7 +343,7 @@ export default function MyTasks() {
 
       // Load subtask counts for tasks that don't have them loaded yet
       const tasksNeedingCounts = tasksToCheck.filter(
-        (task) => task.id && !loadedSubtasks[task.id]
+        (task) => task.id && !loadedSubtasks[task.id],
       );
 
       if (tasksNeedingCounts.length === 0) return;
@@ -349,7 +358,7 @@ export default function MyTasks() {
               task.id,
               {
                 populate: ["assignee"],
-              }
+              },
             );
 
             // Handle different response structures
@@ -407,7 +416,7 @@ export default function MyTasks() {
       all: tasksForStats.length,
       "to-do": 0,
       "in-progress": 0,
-      "in-review": 0,
+      "internal-review": 0,
       done: 0,
       overdue: 0,
     };
@@ -417,7 +426,8 @@ export default function MyTasks() {
       const status = task.status?.toLowerCase().replace(/\s+/g, "-") || "";
       if (status === "to-do" || status === "todo") stats["to-do"]++;
       else if (status === "in-progress") stats["in-progress"]++;
-      else if (status === "in-review") stats["in-review"]++;
+      else if (status === "internal-review" || status === "in-review")
+        stats["internal-review"]++;
       else if (status === "done" || status === "completed") stats.done++;
 
       // Check for overdue
@@ -483,9 +493,9 @@ export default function MyTasks() {
       badge: taskStats["in-progress"].toString(),
     },
     {
-      key: "in-review",
-      label: "In Review",
-      badge: taskStats["in-review"].toString(),
+      key: "internal-review",
+      label: "Internal Review",
+      badge: taskStats["internal-review"].toString(),
     },
     { key: "done", label: "Done", badge: taskStats.done.toString() },
     { key: "overdue", label: "Overdue", badge: taskStats.overdue.toString() },
@@ -577,7 +587,7 @@ export default function MyTasks() {
             startDate = new Date(
               now.getFullYear(),
               now.getMonth(),
-              now.getDate()
+              now.getDate(),
             );
             break;
           case "week":
@@ -642,7 +652,7 @@ export default function MyTasks() {
   const prevFilteredCountRef = useRef(null);
   useEffect(() => {
     const hasActiveFilters = Object.values(appliedFilters).some(
-      (value) => value && value.toString().trim() !== ""
+      (value) => value && value.toString().trim() !== "",
     );
 
     if (
@@ -654,7 +664,7 @@ export default function MyTasks() {
       setToastMessage(
         `Filters applied. Showing ${filteredTasks.length} result${
           filteredTasks.length !== 1 ? "s" : ""
-        }`
+        }`,
       );
       setShowSuccessMessage(true);
       setTimeout(() => {
@@ -663,6 +673,88 @@ export default function MyTasks() {
       }, 3000);
     }
   }, [filteredTasks.length, appliedFilters, loading]);
+
+  // Handle due date updates - MUST be defined before taskColumnsTable
+  const handleDueDateUpdate = async (taskId, newDate) => {
+    if (!taskId) return;
+
+    // Convert date to ISO string (date only, no time) if provided, or null if empty
+    const scheduledDate = newDate
+      ? new Date(newDate + "T00:00:00").toISOString()
+      : null;
+
+    // Find the original task to store for potential rollback
+    const originalTask =
+      tasks.find((t) => t.id === taskId) ||
+      allTasks.find((t) => t.id === taskId);
+    const originalScheduledDate = originalTask?.scheduledDate;
+
+    // Update both task lists immediately (optimistic update) - same as status
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, scheduledDate: scheduledDate } : task,
+      ),
+    );
+
+    setAllTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, scheduledDate: scheduledDate } : task,
+      ),
+    );
+
+    // Update task in modal if it's currently open and showing this task
+    if (taskDetailModal.isOpen && taskDetailModal.task?.id === taskId) {
+      const formattedDueDate = scheduledDate
+        ? formatDate(scheduledDate)
+        : "No due date";
+      setTaskDetailModal((prev) => ({
+        ...prev,
+        task: {
+          ...prev.task,
+          scheduledDate: scheduledDate,
+          dueDate: formattedDueDate,
+        },
+      }));
+    }
+
+    try {
+      await taskService.updateTask(taskId, { scheduledDate });
+    } catch (error) {
+      console.error("Error updating due date:", error);
+
+      // Revert optimistic update on error
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId
+            ? { ...task, scheduledDate: originalScheduledDate }
+            : task,
+        ),
+      );
+
+      setAllTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId
+            ? { ...task, scheduledDate: originalScheduledDate }
+            : task,
+        ),
+      );
+
+      // Revert modal update if it's currently open
+      if (taskDetailModal.isOpen && taskDetailModal.task?.id === taskId) {
+        const originalFormattedDueDate = originalScheduledDate
+          ? formatDate(originalScheduledDate)
+          : "No due date";
+        setTaskDetailModal((prev) => ({
+          ...prev,
+          task: {
+            ...prev.task,
+            scheduledDate: originalScheduledDate,
+            dueDate: originalFormattedDueDate,
+          },
+        }));
+      }
+    }
+  };
 
   // Table columns configuration
   const taskColumnsTable = [
@@ -694,13 +786,13 @@ export default function MyTasks() {
                 // Update both task lists
                 setTasks((prevTasks) =>
                   prevTasks.map((t) =>
-                    t.id === task.id ? { ...t, name: newName } : t
-                  )
+                    t.id === task.id ? { ...t, name: newName } : t,
+                  ),
                 );
                 setAllTasks((prevTasks) =>
                   prevTasks.map((t) =>
-                    t.id === task.id ? { ...t, name: newName } : t
-                  )
+                    t.id === task.id ? { ...t, name: newName } : t,
+                  ),
                 );
               } catch (error) {
                 console.error("Error updating task name:", error);
@@ -813,10 +905,10 @@ export default function MyTasks() {
           onUpdate={(updatedTask) => {
             // Update both tasks and allTasks states
             setTasks((prevTasks) =>
-              prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+              prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
             );
             setAllTasks((prevTasks) =>
-              prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+              prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
             );
 
             // Update taskDetailModal if it's showing this task
@@ -858,7 +950,7 @@ export default function MyTasks() {
           collaborators = task.collaborators.filter(
             (c) =>
               c &&
-              (c.id || c._id || c.firstName || c.lastName || c.name || c.email)
+              (c.id || c._id || c.firstName || c.lastName || c.name || c.email),
           );
         } else if (hasAssignee) {
           collaborators = [assignee];
@@ -939,11 +1031,16 @@ export default function MyTasks() {
         // Convert scheduledDate to date format (YYYY-MM-DD)
         const getDateValue = (dateString) => {
           if (!dateString) return "";
-          const date = new Date(dateString);
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, "0");
-          const day = String(date.getDate()).padStart(2, "0");
-          return `${year}-${month}-${day}`;
+          try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return "";
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+          } catch (e) {
+            return "";
+          }
         };
 
         const currentValue = getDateValue(task.scheduledDate);
@@ -956,9 +1053,10 @@ export default function MyTasks() {
             <Calendar className="w-4 h-4 flex-shrink-0 text-gray-500" />
             <input
               type="date"
-              value={currentValue}
+              value={currentValue || ""}
               onChange={(e) => {
-                handleDueDateUpdate(task.id, e.target.value);
+                const newValue = e.target.value;
+                handleDueDateUpdate(task.id, newValue);
               }}
               className="flex-1 text-sm text-gray-700 px-2 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               placeholder="No due date"
@@ -974,7 +1072,9 @@ export default function MyTasks() {
         const statusOptions = [
           { value: "To Do", label: "To Do" },
           { value: "In Progress", label: "In Progress" },
-          { value: "In Review", label: "In Review" },
+          { value: "Internal Review", label: "Internal Review" },
+          { value: "Client Review", label: "Client Review" },
+          { value: "Approved", label: "Approved" },
           { value: "Done", label: "Done" },
           { value: "Cancelled", label: "Cancelled" },
         ];
@@ -993,10 +1093,20 @@ export default function MyTasks() {
             text: "text-yellow-800",
             border: "border-yellow-400",
           },
-          "in-review": {
+          "internal-review": {
             bg: "bg-purple-100",
             text: "text-purple-800",
             border: "border-purple-400",
+          },
+          "client-review": {
+            bg: "bg-purple-100",
+            text: "text-purple-800",
+            border: "border-purple-400",
+          },
+          approved: {
+            bg: "bg-blue-100",
+            text: "text-blue-800",
+            border: "border-blue-400",
           },
           done: {
             bg: "bg-green-100",
@@ -1057,7 +1167,19 @@ export default function MyTasks() {
           { value: "High", label: "High" },
         ];
 
-        const currentPriority = task.priority || "Medium";
+        // Normalize priority to match option values (API returns lowercase)
+        const normalizePriority = (priority) => {
+          if (!priority) return "Medium";
+          const p = String(priority).toLowerCase();
+          if (p === "low") return "Low";
+          if (p === "medium") return "Medium";
+          if (p === "high") return "High";
+          return (
+            priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase()
+          );
+        };
+
+        const currentPriority = normalizePriority(task.priority || "Medium");
         const priorityLower = currentPriority.toLowerCase();
 
         const priorityColors = {
@@ -1164,7 +1286,7 @@ export default function MyTasks() {
                 taskId,
                 {
                   populate: ["assignee", "childSubtasks"],
-                }
+                },
               );
 
               // Handle different response structures
@@ -1184,10 +1306,6 @@ export default function MyTasks() {
                 .map(transformSubtask)
                 .filter(Boolean);
 
-              console.log(
-                `Loaded ${transformedSubtasks.length} subtasks for task ${taskId}`,
-                transformedSubtasks
-              );
 
               setLoadedSubtasks((prev) => ({
                 ...prev,
@@ -1221,6 +1339,9 @@ export default function MyTasks() {
         const dropdownContent =
           isExpanded && rootSubtasks.length > 0 && dropdownPosition ? (
             <div
+              ref={(el) => {
+                if (el) subtaskDropdownRefs.current[taskId] = el;
+              }}
               className="fixed z-[9999] border border-gray-200 rounded-lg bg-white shadow-lg max-h-60 overflow-y-auto"
               style={{
                 top: `${dropdownPosition.top}px`,
@@ -1345,6 +1466,18 @@ export default function MyTasks() {
       ),
     },
     {
+      key: "createdAt",
+      label: "CREATED AT",
+      render: (_, task) => (
+        <div className="flex items-center gap-2 text-sm text-gray-700 min-w-[140px]">
+          <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <span className="whitespace-nowrap">
+            {task.createdAt ? formatDate(task.createdAt) : "N/A"}
+          </span>
+        </div>
+      ),
+    },
+    {
       key: "actions",
       label: "ACTIONS",
       render: (_, task) => (
@@ -1374,52 +1507,6 @@ export default function MyTasks() {
     },
   ];
 
-  // Handle due date updates
-  const handleDueDateUpdate = async (taskId, newDate) => {
-    if (!taskId) return;
-
-    try {
-      // Convert date to ISO string (date only, no time) if provided, or null if empty
-      const scheduledDate = newDate
-        ? new Date(newDate + "T00:00:00").toISOString()
-        : null;
-
-      await taskService.updateTask(taskId, { scheduledDate });
-
-      // Format due date for display
-      const formattedDueDate = scheduledDate
-        ? formatDate(scheduledDate)
-        : "No due date";
-
-      // Update both task lists in real-time
-      setTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task.id === taskId ? { ...task, scheduledDate: scheduledDate } : task
-        )
-      );
-
-      setAllTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task.id === taskId ? { ...task, scheduledDate: scheduledDate } : task
-        )
-      );
-
-      // Update task in modal if it's currently open and showing this task
-      if (taskDetailModal.isOpen && taskDetailModal.task?.id === taskId) {
-        setTaskDetailModal((prev) => ({
-          ...prev,
-          task: {
-            ...prev.task,
-            scheduledDate: scheduledDate,
-            dueDate: formattedDueDate,
-          },
-        }));
-      }
-    } catch (error) {
-      console.error("Error updating due date:", error);
-    }
-  };
-
   // Handle status updates
   const handleStatusUpdate = async (taskId, newStatus) => {
     if (!taskId) return;
@@ -1439,14 +1526,14 @@ export default function MyTasks() {
     // Update both task lists immediately (optimistic update)
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
-        task.id === taskId ? { ...task, status: newStatus } : task
-      )
+        task.id === taskId ? { ...task, status: newStatus } : task,
+      ),
     );
 
     setAllTasks((prevTasks) =>
       prevTasks.map((task) =>
-        task.id === taskId ? { ...task, status: newStatus } : task
-      )
+        task.id === taskId ? { ...task, status: newStatus } : task,
+      ),
     );
 
     // Update taskDetailModal immediately if it's currently open and showing this task
@@ -1526,14 +1613,14 @@ export default function MyTasks() {
     // Update both task lists immediately (optimistic update - like status)
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
-        task.id === taskId ? { ...task, priority: newPriority } : task
-      )
+        task.id === taskId ? { ...task, priority: newPriority } : task,
+      ),
     );
 
     setAllTasks((prevTasks) =>
       prevTasks.map((task) =>
-        task.id === taskId ? { ...task, priority: newPriority } : task
-      )
+        task.id === taskId ? { ...task, priority: newPriority } : task,
+      ),
     );
 
     // Update taskDetailModal immediately if it's currently open and showing this task (like status)
@@ -1625,7 +1712,7 @@ export default function MyTasks() {
       router.push(`/projects/${project.slug}`);
     } else if (project?.name) {
       router.push(
-        `/projects/${project.name.toLowerCase().replace(/\s+/g, "-")}`
+        `/projects/${project.name.toLowerCase().replace(/\s+/g, "-")}`,
       );
     }
   };
@@ -1633,6 +1720,13 @@ export default function MyTasks() {
   const handleOpenFullPage = (task) => {
     if (task?.id) {
       router.push(`/my-task/${task.id}`);
+    }
+  };
+
+  const handleEditTask = (task) => {
+    if (task?.id) {
+      setTaskDetailModal({ isOpen: false, task: null });
+      router.push(`/my-task/${task.id}/edit`);
     }
   };
 
@@ -1668,7 +1762,7 @@ export default function MyTasks() {
 
     // Find the first selected task for the delete modal
     const firstSelectedTask = filteredTasks.find(
-      (task) => task.id === selectedTaskIds[0]
+      (task) => task.id === selectedTaskIds[0],
     );
 
     if (firstSelectedTask) {
@@ -1692,8 +1786,8 @@ export default function MyTasks() {
       // Update all selected tasks
       await Promise.all(
         selectedTaskIds.map((taskId) =>
-          taskService.updateTaskStatus(taskId, strapiStatus)
-        )
+          taskService.updateTaskStatus(taskId, strapiStatus),
+        ),
       );
 
       // Update local state
@@ -1701,15 +1795,15 @@ export default function MyTasks() {
         prevTasks.map((task) =>
           selectedTaskIds.includes(task.id)
             ? { ...task, status: newStatus }
-            : task
-        )
+            : task,
+        ),
       );
       setAllTasks((prevTasks) =>
         prevTasks.map((task) =>
           selectedTaskIds.includes(task.id)
             ? { ...task, status: newStatus }
-            : task
-        )
+            : task,
+        ),
       );
 
       // Clear selection
@@ -1719,7 +1813,7 @@ export default function MyTasks() {
       setToastMessage(
         `Updated ${selectedTaskIds.length} task${
           selectedTaskIds.length !== 1 ? "s" : ""
-        } successfully!`
+        } successfully!`,
       );
       setShowSuccessMessage(true);
       setTimeout(() => {
@@ -1846,24 +1940,23 @@ export default function MyTasks() {
   const handleExport = (format) => {
     try {
       let exportFormat = format;
-      if (format && typeof format === 'object' && format.target) {
+      if (format && typeof format === "object" && format.target) {
         exportFormat = "csv";
-      } else if (!format || typeof format !== 'string') {
+      } else if (!format || typeof format !== "string") {
         exportFormat = "csv";
       } else {
         // Normalize to lowercase
         exportFormat = format.toLowerCase();
         // Handle "export" as CSV (default export format)
-        if (exportFormat === 'export') {
+        if (exportFormat === "export") {
           exportFormat = "csv";
         }
         // If it's not a recognized format, default to CSV
-        if (!['csv', 'pdf', 'excel'].includes(exportFormat)) {
+        if (!["csv", "pdf", "excel"].includes(exportFormat)) {
           exportFormat = "csv";
         }
       }
 
-      console.log(`Exporting ${filteredTasks.length} tasks as ${exportFormat}`);
 
       const exportData = filteredTasks.map((task) => {
         const assignee = task.assignee;
@@ -1874,36 +1967,38 @@ export default function MyTasks() {
             "Unassigned"
           : "Unassigned";
 
-        const project = task.projects && task.projects.length > 0 ? task.projects[0] : null;
+        const project =
+          task.projects && task.projects.length > 0 ? task.projects[0] : null;
         const projectName = project?.name || "No Project";
 
         const collaborators = task.collaborators || [];
         const collaboratorNames = collaborators
-          .map((collab) =>
-            `${collab.firstName || ""} ${collab.lastName || ""}`.trim() ||
-            collab.name ||
-            collab.email ||
-            ""
+          .map(
+            (collab) =>
+              `${collab.firstName || ""} ${collab.lastName || ""}`.trim() ||
+              collab.name ||
+              collab.email ||
+              "",
           )
           .filter((name) => name)
           .join("; ");
 
         return {
           "Task Name": task.name || "",
-          "Status": task.status || "",
-          "Priority": task.priority || "",
-          "Assignee": assigneeName,
-          "Project": projectName,
-          "Collaborators": collaboratorNames || "None",
+          Status: task.status || "",
+          Priority: task.priority || "",
+          Assignee: assigneeName,
+          Project: projectName,
+          Collaborators: collaboratorNames || "None",
           "Due Date": task.scheduledDate
             ? new Date(task.scheduledDate).toLocaleDateString()
             : "",
           "Created Date": task.createdAt
             ? new Date(task.createdAt).toLocaleDateString()
             : "",
-          "Progress": task.progress ? `${task.progress}%` : "0%",
-          "Description": task.description || "",
-          "Notes": task.notes || "",
+          Progress: task.progress ? `${task.progress}%` : "0%",
+          Description: task.description || "",
+          Notes: task.notes || "",
         };
       });
 
@@ -1920,9 +2015,9 @@ export default function MyTasks() {
             headers
               .map(
                 (header) =>
-                  `"${(row[header] || "").toString().replace(/"/g, '""')}"`
+                  `"${(row[header] || "").toString().replace(/"/g, '""')}"`,
               )
-              .join(",")
+              .join(","),
           ),
         ].join("\n");
 
@@ -1934,14 +2029,18 @@ export default function MyTasks() {
         link.setAttribute("href", url);
         link.setAttribute(
           "download",
-          `tasks_${new Date().toISOString().split("T")[0]}.csv`
+          `tasks_${new Date().toISOString().split("T")[0]}.csv`,
         );
         link.style.visibility = "hidden";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
-        setToastMessage(`Exported ${exportData.length} task${exportData.length !== 1 ? 's' : ''} successfully!`);
+        setToastMessage(
+          `Exported ${exportData.length} task${
+            exportData.length !== 1 ? "s" : ""
+          } successfully!`,
+        );
         setShowSuccessMessage(true);
         setTimeout(() => {
           setShowSuccessMessage(false);
@@ -1974,6 +2073,47 @@ export default function MyTasks() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // Close subtask dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check each open dropdown individually
+      const dropdownsToClose = [];
+      Object.keys(expandedSubtasks).forEach((taskId) => {
+        const buttonRef = subtaskButtonRefs.current[taskId];
+        const dropdownRef = subtaskDropdownRefs.current[taskId];
+        const isClickInsideButton =
+          buttonRef && buttonRef.contains(event.target);
+        const isClickInsideDropdown =
+          dropdownRef && dropdownRef.contains(event.target);
+
+        // If click is outside both button and dropdown, mark for closing
+        if (!isClickInsideButton && !isClickInsideDropdown) {
+          dropdownsToClose.push(taskId);
+        }
+      });
+
+      // Close dropdowns that were clicked outside of
+      if (dropdownsToClose.length > 0) {
+        setExpandedSubtasks((prev) => {
+          const updated = { ...prev };
+          dropdownsToClose.forEach((taskId) => {
+            delete updated[taskId];
+            delete subtaskDropdownRefs.current[taskId];
+          });
+          return updated;
+        });
+      }
+    };
+
+    // Only add listener if there are open dropdowns
+    if (Object.keys(expandedSubtasks).length > 0) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [expandedSubtasks]);
 
   // Loading state (including auth loading)
   if (loading || authLoading) {
@@ -2157,7 +2297,11 @@ export default function MyTasks() {
                           <option value="">Change Status...</option>
                           <option value="To Do">To Do</option>
                           <option value="In Progress">In Progress</option>
-                          <option value="In Review">In Review</option>
+                          <option value="Internal Review">
+                            Internal Review
+                          </option>
+                          <option value="Client Review">Client Review</option>
+                          <option value="Approved">Approved</option>
                           <option value="Done">Done</option>
                           <option value="Cancelled">Cancelled</option>
                         </select>
@@ -2203,6 +2347,17 @@ export default function MyTasks() {
           task={taskDetailModal.task}
           onOpenProject={handleOpenProject}
           onOpenFullPage={handleOpenFullPage}
+          onEditTask={handleEditTask}
+          onSubtaskClick={(subtaskId) => {
+            setTaskDetailModal((prev) => {
+              setSubtaskDetailModal({
+                isOpen: true,
+                subtaskId,
+                task: prev.task,
+              });
+              return { ...prev, isOpen: false };
+            });
+          }}
           onTaskRefresh={async () => {
             // Refresh task data in modal AND update the task list in real-time
             if (taskDetailModal.task?.id) {
@@ -2224,14 +2379,14 @@ export default function MyTasks() {
                 // Update task lists immediately with the updated task (real-time update)
                 setTasks((prevTasks) =>
                   prevTasks.map((task) =>
-                    task.id === taskId ? transformedTask : task
-                  )
+                    task.id === taskId ? transformedTask : task,
+                  ),
                 );
 
                 setAllTasks((prevTasks) =>
                   prevTasks.map((task) =>
-                    task.id === taskId ? transformedTask : task
-                  )
+                    task.id === taskId ? transformedTask : task,
+                  ),
                 );
 
                 // Refresh subtask count for this task
@@ -2240,7 +2395,7 @@ export default function MyTasks() {
                     taskId,
                     {
                       populate: ["assignee"],
-                    }
+                    },
                   );
 
                   let subtasksData = [];
@@ -2267,7 +2422,7 @@ export default function MyTasks() {
                 } catch (subtaskError) {
                   console.error(
                     `Error refreshing subtasks for task ${taskId}:`,
-                    subtaskError
+                    subtaskError,
                   );
                 }
 
@@ -2278,9 +2433,8 @@ export default function MyTasks() {
 
                 let comments = [];
                 try {
-                  const commentsResponse = await commentService.getTaskComments(
-                    taskId
-                  );
+                  const commentsResponse =
+                    await commentService.getTaskComments(taskId);
                   comments = commentsResponse.data?.map(transformComment) || [];
                 } catch (commentError) {
                   console.error("Error fetching comments:", commentError);
@@ -2306,6 +2460,59 @@ export default function MyTasks() {
           }}
         />
 
+        {/* Subtask Detail Modal - replaces task modal when opening a subtask from My Tasks */}
+        <SubtaskDetailModal
+          isOpen={subtaskDetailModal.isOpen}
+          onClose={() =>
+            setSubtaskDetailModal({
+              isOpen: false,
+              subtaskId: null,
+              task: null,
+            })
+          }
+          subtaskId={subtaskDetailModal.subtaskId}
+          task={subtaskDetailModal.task}
+          onTaskRefresh={async () => {
+            if (subtaskDetailModal.task?.id) {
+              const taskId = subtaskDetailModal.task.id;
+              try {
+                const fullTaskData = await taskService.getTaskById(taskId, [
+                  "project",
+                  "assignee",
+                  "createdBy",
+                  "subtasks",
+                  "subtasks.assignee",
+                  "subtasks.childSubtasks",
+                  "collaborators",
+                ]);
+                const transformedTask = transformTask(fullTaskData);
+                setTasks((prev) =>
+                  prev.map((t) => (t.id === taskId ? transformedTask : t)),
+                );
+                setAllTasks((prev) =>
+                  prev.map((t) => (t.id === taskId ? transformedTask : t)),
+                );
+                setSubtaskDetailModal((prev) =>
+                  prev.task?.id === taskId
+                    ? { ...prev, task: transformedTask }
+                    : prev,
+                );
+              } catch (err) {
+                console.error("Error refreshing after subtask update:", err);
+              }
+            }
+          }}
+          onNavigateToSubtask={(subtaskId) =>
+            setSubtaskDetailModal((prev) => ({ ...prev, subtaskId }))
+          }
+          onNavigateToTask={() => {
+            setSubtaskDetailModal((prev) => {
+              setTaskDetailModal({ isOpen: true, task: prev.task });
+              return { isOpen: false, subtaskId: null, task: null };
+            });
+          }}
+        />
+
         {/* Collaborator Modal */}
         <CollaboratorModal
           isOpen={collaboratorModal.isOpen}
@@ -2314,10 +2521,10 @@ export default function MyTasks() {
           onUpdate={async (updatedTask) => {
             // Update both tasks and allTasks states
             setTasks((prevTasks) =>
-              prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+              prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
             );
             setAllTasks((prevTasks) =>
-              prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+              prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
             );
 
             // Also update taskDetailModal if it's showing the same task
@@ -2341,23 +2548,23 @@ export default function MyTasks() {
                 if (deleteModal.task.bulkDelete && deleteModal.task.taskIds) {
                   const taskIds = deleteModal.task.taskIds;
                   await Promise.all(
-                    taskIds.map((taskId) => taskService.deleteTask(taskId))
+                    taskIds.map((taskId) => taskService.deleteTask(taskId)),
                   );
                   setTasks((prevTasks) =>
-                    prevTasks.filter((task) => !taskIds.includes(task.id))
+                    prevTasks.filter((task) => !taskIds.includes(task.id)),
                   );
                   setAllTasks((prevTasks) =>
-                    prevTasks.filter((task) => !taskIds.includes(task.id))
+                    prevTasks.filter((task) => !taskIds.includes(task.id)),
                   );
                   setSelectedTaskIds([]);
                 } else if (deleteModal.task.id) {
                   // Single task delete
                   await taskService.deleteTask(deleteModal.task.id);
                   setTasks((prevTasks) =>
-                    prevTasks.filter((task) => task.id !== deleteModal.task.id)
+                    prevTasks.filter((task) => task.id !== deleteModal.task.id),
                   );
                   setAllTasks((prevTasks) =>
-                    prevTasks.filter((task) => task.id !== deleteModal.task.id)
+                    prevTasks.filter((task) => task.id !== deleteModal.task.id),
                   );
                 }
                 setDeleteModal({ isOpen: false, task: null });

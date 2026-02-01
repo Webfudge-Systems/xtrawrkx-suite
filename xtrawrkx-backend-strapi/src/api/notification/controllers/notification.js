@@ -22,11 +22,9 @@ module.exports = createCoreController('api::notification.notification', ({ strap
                 // Check if user is in state (set by auth middleware if token is valid)
                 if (ctx.state && ctx.state.user && ctx.state.user.id) {
                     authenticatedUserId = ctx.state.user.id;
-                    console.log('Authenticated user found:', authenticatedUserId);
                 }
             } catch (authError) {
                 // Auth is optional, continue without user
-                console.log('No authenticated user (auth optional), proceeding with query filters');
             }
 
             // Parse filters from query
@@ -38,7 +36,6 @@ module.exports = createCoreController('api::notification.notification', ({ strap
                 const userId = parseInt(query['filters[user][id][$eq]'], 10);
                 if (!isNaN(userId) && userId > 0) {
                     filters.user = { id: userId };
-                    console.log('Using user filter from query:', userId);
                 }
             } else if (query['filters[user][documentId][$eq]']) {
                 const documentId = String(query['filters[user][documentId][$eq]']);
@@ -49,10 +46,8 @@ module.exports = createCoreController('api::notification.notification', ({ strap
                     });
                     if (userByDocId && userByDocId.id) {
                         filters.user = { id: userByDocId.id };
-                        console.log('Found user by documentId, using id:', userByDocId.id);
                     } else {
                         filters.user = { documentId: documentId };
-                        console.log('Using documentId filter directly:', documentId);
                     }
                 } catch (docIdError) {
                     console.error('Error looking up user by documentId:', docIdError);
@@ -61,12 +56,10 @@ module.exports = createCoreController('api::notification.notification', ({ strap
             } else if (authenticatedUserId) {
                 // If no query filter but user is authenticated, use authenticated user
                 filters.user = { id: authenticatedUserId };
-                console.log('Using authenticated user ID:', authenticatedUserId);
             }
             
             // If no user filter at all, return empty (security: don't return all notifications)
             if (!filters.user) {
-                console.log('No user filter provided, returning empty results for security');
                 return {
                     data: [],
                     meta: {
@@ -106,16 +99,6 @@ module.exports = createCoreController('api::notification.notification', ({ strap
                 populate = { user: true };
             }
 
-            console.log('=== Fetching notifications ===', {
-                filters,
-                page,
-                pageSize,
-                sort: sortStr,
-                populate,
-                queryParams: Object.keys(query),
-                userFilterFromQuery: query['filters[user][id][$eq]'] || query['filters[user][documentId][$eq]'],
-                authenticatedUserId: authenticatedUserId
-            });
 
             // Build query options
             const queryOptions = {
@@ -131,22 +114,6 @@ module.exports = createCoreController('api::notification.notification', ({ strap
                 queryOptions
             );
 
-            console.log(`Found ${results.length} notifications`, {
-                filters: filters,
-                resultsCount: results.length,
-                firstResult: results.length > 0 ? {
-                    id: results[0].id,
-                    userId: results[0].user?.id || results[0].user,
-                    type: results[0].type,
-                    title: results[0].title
-                } : null,
-                allResults: results.map(r => ({
-                    id: r.id,
-                    userId: r.user?.id || r.user,
-                    type: r.type,
-                    title: r.title
-                }))
-            });
 
             return {
                 data: results,

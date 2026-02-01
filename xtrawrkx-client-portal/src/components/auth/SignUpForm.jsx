@@ -6,6 +6,10 @@ import AuthCard from "./AuthCard";
 import AuthInput from "./AuthInput";
 import AuthButton from "./AuthButton";
 import AuthToggle from "./AuthToggle";
+import { Select } from "@/components/ui/Select";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
+import { checkEmailExists } from "@/lib/api/authService";
 
 const COMMUNITIES = [
   {
@@ -22,7 +26,7 @@ const COMMUNITIES = [
     code: "XEN",
     description: "Entrepreneur Network",
     icon: "mdi:lightbulb-on",
-    color: "from-purple-500 to-pink-500",
+    color: "from-orange-500 to-pink-500",
   },
   {
     id: "xevfin",
@@ -65,6 +69,105 @@ const EMPLOYEE_RANGES = [
   "1000+",
 ];
 
+const COMPANY_TYPES = [
+  { id: "startup-corporate", name: "Startup and Corporates" },
+  { id: "investor", name: "Investors" },
+  { id: "enablers-academia", name: "Enablers & Academia" },
+];
+
+const subTypeOptions = {
+  "startup-corporate": [
+    "EV 2W",
+    "EV 3W",
+    "EV OEM",
+    "EV 4W",
+    "Motor OEM",
+    "Motor Controller OEM",
+    "Batteries",
+    "Charging Infra",
+    "Drones",
+    "AGVs",
+    "Consumer electronics",
+    "Incubator / accelerator",
+    "Power electronics",
+    "Other OE",
+    "Group",
+    "EV Fleet",
+    "E-commerce companies",
+    "3rd party logistics",
+    "Vehicle Smarts",
+    "Swapping",
+    "EV Leasing",
+    "EV Rentals",
+    "EV NBFC",
+    "Power electronics+Vechicle smart",
+    "Electronics Components",
+    "1DL/MDL",
+    "Franchisee",
+    "Smart Battery",
+    "Dealer",
+    "Motor Parts",
+    "Spare Part",
+    "Traditional Auto",
+    "Smart Electronic",
+    "Mech Parts",
+    "Energy Storing",
+    "Automotive Parts_ EV manufacturers",
+    "IOT",
+    "Inverter",
+    "Aggregator",
+  ],
+  investor: [
+    "Future Founder",
+    "Private Lender P2P",
+    "Angel",
+    "Angel Network",
+    "Micro VC",
+    "VC",
+    "Family Office",
+    "Private Equity PE",
+    "Debt",
+    "WC Working Capital",
+    "NBFC",
+    "Bill discounting",
+    "Investment Bank",
+    "Banks",
+    "Asset Investor",
+    "Asset Financier",
+    "Asset Leasing",
+    "Op Franchisee",
+    "Franchise Network",
+    "Incubation Center",
+    "Accelerator",
+    "Industry body",
+    "Gov Body",
+    "Gov Policy",
+    "Alternative Investment Platform",
+    "Strategic investor",
+    "CVC",
+    "HNI",
+  ],
+  "enablers-academia": [
+    "Incubator",
+    "Accelerator",
+    "Venture Studio",
+    "Academia",
+    "Government Office",
+    "Mentor",
+    "Investment Banker",
+  ],
+};
+
+const REVENUE_RANGES = [
+  "Less than $100K",
+  "$100K - $500K",
+  "$500K - $1M",
+  "$1M - $5M",
+  "$5M - $10M",
+  "$10M - $50M",
+  "$50M+",
+];
+
 export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -97,20 +200,53 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
   const [errors, setErrors] = useState({});
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      // Reset subType when type changes
+      if (name === "companyType") {
+        updated.subType = "";
+      }
+      return updated;
+    });
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
         [name]: "",
       }));
     }
+  };
+
+  const handleSelectChange = (name, value) => {
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      // Reset subType when type changes
+      if (name === "companyType") {
+        updated.subType = "";
+      }
+      return updated;
+    });
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
+    }
+  };
+
+  // Get sub-type options based on selected type
+  const getSubTypeOptions = () => {
+    if (!formData.companyType) return [];
+    return (
+      subTypeOptions[formData.companyType]?.map((subType) => ({
+        value: subType,
+        label: subType,
+      })) || []
+    );
   };
 
   const toggleCommunity = (communityId) => {
@@ -122,7 +258,7 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
     }));
   };
 
-  const validateStep1 = () => {
+  const validateStep1 = async () => {
     const newErrors = {};
 
     if (!formData.name.trim()) {
@@ -133,6 +269,20 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = "Email is invalid";
+    } else {
+      // Check if email already exists
+      setCheckingEmail(true);
+      try {
+        const emailCheck = await checkEmailExists(formData.email);
+        if (emailCheck.exists) {
+          newErrors.email = "An account with this email already exists";
+        }
+      } catch (error) {
+        console.error("Error checking email:", error);
+        // Don't block on error, but log it
+      } finally {
+        setCheckingEmail(false);
+      }
     }
 
     if (!formData.phone) {
@@ -181,11 +331,14 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setErrors({});
 
-    if (currentStep === 1 && validateStep1()) {
-      setCurrentStep(2);
+    if (currentStep === 1) {
+      const isValid = await validateStep1();
+      if (isValid) {
+        setCurrentStep(2);
+      }
     } else if (currentStep === 2 && validateStep2()) {
       setCurrentStep(3);
     }
@@ -224,49 +377,20 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
     }
   };
 
-  const renderStepIndicator = () => (
-    <div className="flex items-center justify-center mb-8">
-      {[1, 2, 3].map((step) => (
-        <div key={step} className="flex items-center">
-          <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-              step === currentStep
-                ? "bg-purple-600 text-white scale-110"
-                : step < currentStep
-                ? "bg-green-500 text-white"
-                : "bg-gray-200 text-gray-500"
-            }`}
-          >
-            {step < currentStep ? (
-              <Icon icon="mdi:check" className="w-6 h-6" />
-            ) : (
-              step
-            )}
-          </div>
-          {step < 3 && (
-            <div
-              className={`w-16 h-1 mx-2 transition-all ${
-                step < currentStep ? "bg-green-500" : "bg-gray-200"
-              }`}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-
   const renderStep1 = () => (
-    <div className="space-y-6">
-      <AuthInput
-        type="text"
-        name="name"
-        label="Full Name"
-        placeholder="Enter your full name"
-        value={formData.name}
-        onChange={handleInputChange}
-        error={errors.name}
-        required
-      />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="md:col-span-2">
+        <AuthInput
+          type="text"
+          name="name"
+          label="Full Name"
+          placeholder="Enter your full name"
+          value={formData.name}
+          onChange={handleInputChange}
+          error={errors.name}
+          required
+        />
+      </div>
 
       <AuthInput
         type="email"
@@ -290,27 +414,29 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
         required
       />
 
-      <div className="relative">
-        <AuthInput
-          type={showPassword ? "text" : "password"}
-          name="password"
-          label="Password"
-          placeholder="At least 8 characters"
-          value={formData.password}
-          onChange={handleInputChange}
-          error={errors.password}
-          required
-        />
-        <button
-          type="button"
-          onClick={() => setShowPassword(!showPassword)}
-          className="absolute right-3 top-9 text-gray-400 hover:text-gray-600 focus:outline-none"
-        >
-          <Icon
-            icon={showPassword ? "mdi:eye-off" : "mdi:eye"}
-            className="w-5 h-5"
+      <div className="md:col-span-2">
+        <div className="relative">
+          <AuthInput
+            type={showPassword ? "text" : "password"}
+            name="password"
+            label="Password"
+            placeholder="At least 8 characters"
+            value={formData.password}
+            onChange={handleInputChange}
+            error={errors.password}
+            required
           />
-        </button>
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-[2.5rem] translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none flex items-center justify-center"
+          >
+            <Icon
+              icon={showPassword ? "mdi:eye-off" : "mdi:eye"}
+              className="w-5 h-5"
+            />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -323,165 +449,130 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
           Basic Information
         </h4>
 
-        <AuthInput
-          type="text"
-          name="companyName"
-          label="Company Name"
-          placeholder="Enter your company name"
-          value={formData.companyName}
-          onChange={handleInputChange}
-          error={errors.companyName}
-          required
-        />
-
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Input
+              label="Company Name *"
+              value={formData.companyName}
+              onChange={(e) => handleInputChange(e)}
+              name="companyName"
+              error={errors.companyName}
+              placeholder="Enter company name"
+              required
+            />
+          </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Industry <span className="text-red-500">*</span>
-            </label>
-            <select
-              name="industry"
+            <Select
+              label="Industry *"
               value={formData.industry}
-              onChange={handleInputChange}
-              className={`w-full px-4 py-3 border rounded-xl shadow-sm outline-none transition-all ${
-                errors.industry
-                  ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100"
-                  : "border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-              }`}
+              onChange={(value) => handleSelectChange("industry", value)}
+              options={INDUSTRIES.map((industry) => ({
+                value: industry,
+                label: industry,
+              }))}
+              error={errors.industry}
+              placeholder="Select industry"
               required
-            >
-              <option value="">Select industry</option>
-              {INDUSTRIES.map((industry) => (
-                <option key={industry} value={industry}>
-                  {industry}
-                </option>
-              ))}
-            </select>
-            {errors.industry && (
-              <p className="mt-1 text-sm text-red-600">{errors.industry}</p>
-            )}
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Company Type <span className="text-red-500">*</span>
-            </label>
-            <select
-              name="companyType"
+            <Select
+              label="Company Type"
               value={formData.companyType}
-              onChange={handleInputChange}
-              className={`w-full px-4 py-3 border rounded-xl shadow-sm outline-none transition-all ${
-                errors.companyType
-                  ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100"
-                  : "border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-              }`}
-              required
-            >
-              <option value="">Select type</option>
-              {COMPANY_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-            {errors.companyType && (
-              <p className="mt-1 text-sm text-red-600">{errors.companyType}</p>
-            )}
+              onChange={(value) => handleSelectChange("companyType", value)}
+              options={COMPANY_TYPES.map((type) => ({
+                value: type.id,
+                label: type.name,
+              }))}
+              placeholder="Select company type"
+            />
           </div>
-        </div>
 
-        <AuthInput
-          type="text"
-          name="subType"
-          label="Sub Type (Optional)"
-          placeholder="e.g., SaaS, E-commerce, etc."
-          value={formData.subType}
-          onChange={handleInputChange}
-          error={errors.subType}
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <AuthInput
-            type="url"
-            name="website"
-            label="Website (Optional)"
-            placeholder="https://yourcompany.com"
-            value={formData.website}
-            onChange={handleInputChange}
-            error={errors.website}
-          />
-
-          <AuthInput
-            type="text"
-            name="founded"
-            label="Founded Year (Optional)"
-            placeholder="2020"
-            value={formData.founded}
-            onChange={handleInputChange}
-            error={errors.founded}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Number of Employees <span className="text-red-500">*</span>
-            </label>
-            <select
-              name="employees"
+            <Select
+              label="Sub-Type"
+              value={formData.subType}
+              onChange={(value) => handleSelectChange("subType", value)}
+              options={getSubTypeOptions()}
+              placeholder={
+                formData.companyType
+                  ? "Select sub-type"
+                  : "Select company type first"
+              }
+              disabled={!formData.companyType}
+            />
+          </div>
+
+          <div>
+            <Input
+              label="Website"
+              type="url"
+              value={formData.website}
+              onChange={(e) => handleInputChange(e)}
+              name="website"
+              placeholder="https://company.com"
+            />
+          </div>
+          <div>
+            <Input
+              label="Phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => handleInputChange(e)}
+              name="phone"
+              placeholder="+1 (555) 123-4567"
+            />
+          </div>
+          <div>
+            <Input
+              label="Founded Year"
+              value={formData.founded}
+              onChange={(e) => handleInputChange(e)}
+              name="founded"
+              placeholder="2020"
+            />
+          </div>
+
+          <div>
+            <Select
+              label="Number of Employees *"
               value={formData.employees}
-              onChange={handleInputChange}
-              className={`w-full px-4 py-3 border rounded-xl shadow-sm outline-none transition-all ${
-                errors.employees
-                  ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100"
-                  : "border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-              }`}
+              onChange={(value) => handleSelectChange("employees", value)}
+              options={EMPLOYEE_RANGES.map((range) => ({
+                value: range,
+                label: `${range} employees`,
+              }))}
+              error={errors.employees}
+              placeholder="Select range"
               required
-            >
-              <option value="">Select range</option>
-              {EMPLOYEE_RANGES.map((range) => (
-                <option key={range} value={range}>
-                  {range} employees
-                </option>
-              ))}
-            </select>
-            {errors.employees && (
-              <p className="mt-1 text-sm text-red-600">{errors.employees}</p>
-            )}
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Annual Revenue (Optional)
-            </label>
-            <select
-              name="revenue"
+            <Select
+              label="Annual Revenue"
               value={formData.revenue}
-              onChange={handleInputChange}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm outline-none transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-            >
-              <option value="">Select range</option>
-              {REVENUE_RANGES.map((range) => (
-                <option key={range} value={range}>
-                  {range}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => handleSelectChange("revenue", value)}
+              options={REVENUE_RANGES.map((range) => ({
+                value: range,
+                label: range,
+              }))}
+              placeholder="Select range"
+            />
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Company Description (Optional)
-          </label>
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleInputChange}
-            placeholder="Tell us about your company..."
-            rows="3"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm outline-none transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-100 resize-none"
-          />
+          <div className="lg:col-span-3">
+            <Textarea
+              label="Company Description"
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              rows={4}
+              placeholder="Tell us about your company..."
+              className="focus:ring-orange-500 focus:border-orange-500"
+            />
+          </div>
         </div>
       </div>
 
@@ -501,7 +592,7 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
             onChange={handleInputChange}
             placeholder="Street address"
             rows="2"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm outline-none transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-100 resize-none"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm outline-none transition-all focus:border-[#FF4A74] focus:ring-2 focus:ring-orange-100 resize-none"
           />
         </div>
 
@@ -598,7 +689,7 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
               onClick={() => toggleCommunity(community.id)}
               className={`p-6 rounded-xl border-2 transition-all text-left ${
                 formData.selectedCommunities.includes(community.id)
-                  ? "border-purple-500 bg-purple-50"
+                  ? "border-[#FF4A74] bg-orange-50"
                   : "border-gray-200 hover:border-gray-300 bg-white"
               }`}
             >
@@ -625,7 +716,7 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
                   <div
                     className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                       formData.selectedCommunities.includes(community.id)
-                        ? "border-purple-500 bg-purple-500"
+                        ? "border-[#FF4A74] bg-[#FF4A74]"
                         : "border-gray-300"
                     }`}
                   >
@@ -669,11 +760,9 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
   };
 
   return (
-    <div className={`w-full ${className}`}>
+    <div className={`w-full max-w-full overflow-hidden ${className}`}>
       <AuthCard title={getStepTitle()} subtitle={getStepSubtitle()}>
-        {renderStepIndicator()}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 w-full">
           {errors.general && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
               {errors.general}
@@ -682,7 +771,7 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
 
           <div
             className={
-              currentStep === 2 ? "max-h-[500px] overflow-y-auto pr-2" : ""
+              currentStep === 2 ? "max-h-[500px] overflow-y-auto pr-2 overflow-x-hidden" : ""
             }
           >
             {currentStep === 1 && renderStep1()}
@@ -692,21 +781,26 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
 
           <div className="flex gap-4 pt-4">
             {currentStep > 1 && (
-              <button
+              <AuthButton
                 type="button"
                 onClick={handleBack}
-                className="flex-1 py-3 px-4 border-2 border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-200"
+                variant="outline"
+                size="lg"
+                className="flex-1"
               >
                 Back
-              </button>
+              </AuthButton>
             )}
             <AuthButton
               type="submit"
-              loading={loading}
-              disabled={loading}
+              loading={loading || checkingEmail}
+              disabled={loading || checkingEmail}
+              size="lg"
               className="flex-1"
             >
-              {loading
+              {checkingEmail
+                ? "Checking email..."
+                : loading
                 ? "Processing..."
                 : currentStep === 3
                 ? "Complete Registration"
@@ -719,7 +813,7 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
               text="Already have an account?"
               linkText="Sign In"
               onClick={onSignIn}
-              className="mt-6"
+              className="mt-4"
             />
           )}
         </form>

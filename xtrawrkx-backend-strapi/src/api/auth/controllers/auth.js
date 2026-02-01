@@ -18,14 +18,12 @@ module.exports = {
      */
     async internalLogin(ctx) {
         try {
-            console.log('Internal login attempt:', ctx.request.body);
             const { email, password } = ctx.request.body;
 
             if (!email || !password) {
                 return ctx.badRequest('Email and password are required');
             }
 
-            console.log('Looking for user with email:', email.toLowerCase());
 
             // Find user by email
             let user = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
@@ -46,18 +44,15 @@ module.exports = {
                 });
             }
 
-            console.log('Found user:', user ? 'Yes' : 'No');
 
             if (!user) {
                 // For development, create a default admin user if none exists
                 if (email.toLowerCase() === 'admin@xtrawrkx.com' && password === 'password1234') {
-                    console.log('Creating default admin user for development');
 
                     try {
                         const bcrypt = require('bcryptjs');
                         const hashedPassword = await bcrypt.hash(password, 12);
 
-                        console.log('Password hashed successfully');
 
                         // Check if user already exists (in case of race condition)
                         const existingUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
@@ -65,7 +60,6 @@ module.exports = {
                         });
 
                         if (existingUser) {
-                            console.log('User already exists, proceeding with login');
                             user = existingUser;
                         } else {
                             const newUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').create({
@@ -81,7 +75,6 @@ module.exports = {
                                 },
                             });
 
-                            console.log('User created successfully:', newUser.id);
                             user = newUser;
                         }
 
@@ -94,7 +87,6 @@ module.exports = {
                             department: user.department
                         }, JWT_SECRET, { expiresIn: '7d' });
 
-                        console.log('JWT token generated successfully');
 
                         // Log the login activity
                         try {
@@ -104,7 +96,6 @@ module.exports = {
                                 ctx.request.headers['user-agent']
                             );
                         } catch (logError) {
-                            console.log('Failed to log login activity:', logError.message);
                         }
 
                         return ctx.send({
@@ -126,7 +117,6 @@ module.exports = {
                         return ctx.internalServerError('Failed to create user: ' + createError.message);
                     }
                 }
-                console.log('Invalid credentials - user not found and not default admin');
                 return ctx.badRequest('Invalid credentials');
             }
 
@@ -159,7 +149,6 @@ module.exports = {
                     ctx.request.headers['user-agent']
                 );
             } catch (logError) {
-                console.log('Failed to log login activity:', logError.message);
             }
 
             ctx.send({
@@ -260,6 +249,33 @@ module.exports = {
     },
 
     /**
+     * Check if email already exists (for client signup validation)
+     */
+    async checkEmailExists(ctx) {
+        try {
+            const { email } = ctx.query;
+
+            if (!email) {
+                return ctx.badRequest('Email is required');
+            }
+
+            // Check if client account already exists
+            const existingAccount = await strapi.db.query('api::client-account.client-account').findOne({
+                where: {
+                    email: email.toLowerCase()
+                }
+            });
+
+            return ctx.send({
+                exists: !!existingAccount
+            });
+        } catch (error) {
+            console.error('Error checking email existence:', error);
+            ctx.internalServerError('Failed to check email existence');
+        }
+    },
+
+    /**
      * Client account signup (Client portal registration)
      */
     async clientSignup(ctx) {
@@ -271,9 +287,20 @@ module.exports = {
                 password,
                 companyName,
                 industry,
+                companyType,
+                subType,
                 website,
                 employees,
+                founded,
+                revenue,
                 description,
+                address,
+                city,
+                state,
+                country,
+                zipCode,
+                linkedIn,
+                twitter,
                 location,
                 selectedCommunities
             } = ctx.request.body;
@@ -315,35 +342,47 @@ module.exports = {
             const firstName = nameParts[0] || '';
             const lastName = nameParts.slice(1).join(' ') || '';
 
+            // Prepare account data
+            const accountData = {
+                email: email.toLowerCase(),
+                phone: phone,
+                password: hashedPassword,
+                companyName: companyName,
+                industry: industry,
+                companyType: companyType || null,
+                subType: subType || null,
+                website: website || null,
+                employees: employees || null,
+                founded: founded || null,
+                description: description || null,
+                address: address || null,
+                city: city || null,
+                state: state || null,
+                country: country || null,
+                zipCode: zipCode || null,
+                linkedIn: linkedIn || null,
+                twitter: twitter || null,
+                type: 'CUSTOMER',
+                emailVerificationToken: otp,
+                emailVerified: false,
+                isActive: false, // Inactive until OTP is verified
+                source: 'ONBOARDING'
+            };
+
+            // Only add revenue if it's a valid number (not a range string)
+            if (revenue) {
+                // Try to parse revenue as a number
+                const revenueNum = parseFloat(revenue);
+                if (!isNaN(revenueNum) && isFinite(revenueNum)) {
+                    accountData.revenue = revenueNum;
+                }
+                // If revenue is a string range (like "$100K - $500K"), don't include it
+                // The schema expects a decimal number, not a string
+            }
+
             // Create client account with all provided information
             const account = await strapi.db.query('api::client-account.client-account').create({
-                data: {
-                    email: email.toLowerCase(),
-                    phone: phone,
-                    password: hashedPassword,
-                    companyName: companyName,
-                    industry: industry,
-                    companyType: companyType,
-                    subType: subType || null,
-                    website: website || null,
-                    employees: employees || null,
-                    founded: founded || null,
-                    revenue: revenue || null,
-                    description: description || null,
-                    address: address || null,
-                    city: city || null,
-                    state: state || null,
-                    country: country || null,
-                    zipCode: zipCode || null,
-                    linkedIn: linkedIn || null,
-                    twitter: twitter || null,
-                    selectedCommunities: selectedCommunities || [],
-                    type: 'CUSTOMER',
-                    emailVerificationToken: otp,
-                    emailVerified: false,
-                    isActive: false, // Inactive until OTP is verified
-                    source: 'ONBOARDING'
-                }
+                data: accountData
             });
 
             // Create primary contact for the client account
@@ -362,7 +401,6 @@ module.exports = {
                         source: 'ONBOARDING'
                     }
                 });
-                console.log('Primary contact created successfully:', contact.id);
             } catch (contactError) {
                 console.error('Failed to create contact:', contactError);
                 // If contact creation fails, delete the account to maintain data integrity
@@ -370,6 +408,59 @@ module.exports = {
                     where: { id: account.id }
                 });
                 return ctx.internalServerError('Failed to create contact. Please try again.');
+            }
+
+            // Create initial project for the client account
+            let project = null;
+            try {
+                // Generate slug from company name
+                const baseSlug = companyName
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/(^-|-$)/g, "");
+
+                // Ensure slug is unique by checking existing projects
+                let slug = baseSlug;
+                let counter = 1;
+                let slugExists = true;
+                
+                while (slugExists) {
+                    const existingProject = await strapi.db.query('api::project.project').findOne({
+                        where: { slug: slug }
+                    });
+                    
+                    if (!existingProject) {
+                        slugExists = false;
+                    } else {
+                        slug = `${baseSlug}-${counter}`;
+                        counter++;
+                    }
+                }
+
+                // Generate icon from first letter of company name
+                const icon = companyName.charAt(0).toUpperCase();
+
+                // Create project
+                project = await strapi.db.query('api::project.project').create({
+                    data: {
+                        name: `${companyName} - Initial Project`,
+                        slug: slug,
+                        description: description || `Initial project for ${companyName}`,
+                        status: 'PLANNING',
+                        icon: icon,
+                        color: 'from-blue-400 to-blue-600',
+                        clientAccount: account.id,
+                        startDate: new Date()
+                    }
+                });
+            } catch (projectError) {
+                // Log error but don't fail signup - project creation is not critical
+                console.error('Failed to create initial project:', projectError);
+                console.error('Project creation error details:', {
+                    message: projectError.message,
+                    stack: projectError.stack
+                });
+                // Continue with signup even if project creation fails
             }
 
             // Send OTP email
@@ -393,7 +484,6 @@ module.exports = {
                         `
                     });
                     emailSent = true;
-                    console.log('OTP email sent successfully to:', email);
                 } else {
                     console.warn('Email plugin not available. OTP will be returned in response for development.');
                 }
@@ -427,7 +517,8 @@ module.exports = {
                     : 'Account created successfully. Please use the verification code below (email service not configured).',
                 accountId: account.id,
                 email: email.toLowerCase(),
-                contactId: contact ? contact.id : null
+                contactId: contact ? contact.id : null,
+                projectId: project ? project.id : null
             };
 
             // Include OTP in response for development/testing if email wasn't sent
@@ -542,7 +633,6 @@ module.exports = {
             } = ctx.request.body;
 
             // Temporarily skip authentication for testing
-            console.log('CreateInternalUser called - temporarily skipping auth for debugging');
 
             if (!email || !firstName || !lastName || !department) {
                 return ctx.badRequest('Required fields: email, firstName, lastName, department');
@@ -597,9 +687,6 @@ module.exports = {
 
             // Use provided password
             const tempPassword = password;
-            console.log('=== USING PROVIDED PASSWORD ===');
-            console.log('Email:', email);
-            console.log('=============================');
 
             const hashedPassword = await bcrypt.hash(tempPassword, 12);
             const invitationToken = crypto.randomBytes(32).toString('hex');
@@ -653,7 +740,6 @@ module.exports = {
                     status: 'COMPLETED'
                 });
             } catch (logError) {
-                console.log('Failed to log user creation activity:', logError.message);
             }
 
             // Send invitation email if requested
@@ -705,22 +791,18 @@ module.exports = {
      */
     async getCurrentUser(ctx) {
         try {
-            console.log('=== GET CURRENT USER CALLED ===');
 
             // Get token from headers
             const token = ctx.request.headers.authorization?.replace('Bearer ', '');
 
             if (!token) {
-                console.log('No token provided');
                 return ctx.unauthorized('No token provided');
             }
 
             let decoded;
             try {
                 decoded = jwt.verify(token, JWT_SECRET);
-                console.log('Token decoded:', decoded);
             } catch (jwtError) {
-                console.log('JWT verification failed:', jwtError.message);
                 return ctx.unauthorized('Invalid token');
             }
 
@@ -773,7 +855,6 @@ module.exports = {
                 userRoles: user.userRoles
             };
 
-            console.log('Returning user data:', userData);
 
             return ctx.send({
                 success: true,
@@ -853,7 +934,6 @@ module.exports = {
                         ctx.request.headers['user-agent']
                     );
                 } catch (logError) {
-                    console.log('Failed to log profile update activity:', logError.message);
                 }
 
                 ctx.send({
@@ -968,7 +1048,6 @@ module.exports = {
                     ctx.request.headers['user-agent']
                 );
             } catch (logError) {
-                console.log('Failed to log avatar upload activity:', logError.message);
             }
 
             // Return success response with avatar URL
@@ -1060,7 +1139,6 @@ module.exports = {
                     ctx.request.headers['user-agent']
                 );
             } catch (logError) {
-                console.log('Failed to log password change activity:', logError.message);
             }
 
             ctx.send({
@@ -1226,7 +1304,6 @@ module.exports = {
 
     async getUserActivities(ctx) {
         try {
-            console.log('=== GET USER ACTIVITIES CALLED ===');
 
             // For now, we'll use a mock user ID since we're bypassing auth
             // In a real implementation, this would come from the authenticated user
@@ -1237,13 +1314,11 @@ module.exports = {
             try {
                 realActivities = await activityLogger.getUserActivities(userId, 20);
             } catch (error) {
-                console.log('Error fetching real activities:', error.message);
             }
 
             // Only show real activities - no sample data
             let activities = realActivities;
 
-            console.log(`Returning ${activities.length} activities for user ${userId}`);
 
             return ctx.send({
                 success: true,
@@ -1260,7 +1335,6 @@ module.exports = {
 
     async getAllActivities(ctx) {
         try {
-            console.log('=== GET ALL ACTIVITIES CALLED ===');
 
             // Get query parameters
             const { limit = 50, type, timeRange, search } = ctx.query;
@@ -1270,11 +1344,9 @@ module.exports = {
             try {
                 activities = await activityLogger.getAllActivities(parseInt(limit), type, timeRange);
             } catch (error) {
-                console.log('Error fetching all activities:', error.message);
             }
 
             // No fallback data - only show real activities
-            console.log(`Found ${activities.length} real activities`);
 
             // Apply search filter if provided
             if (search && search.trim()) {
@@ -1289,7 +1361,6 @@ module.exports = {
             // Get activity statistics
             const stats = await activityLogger.getActivityStats();
 
-            console.log(`Returning ${activities.length} total activities`);
 
             return ctx.send({
                 success: true,
@@ -1307,7 +1378,6 @@ module.exports = {
 
     async getActivityStats(ctx) {
         try {
-            console.log('=== GET ACTIVITY STATS CALLED ===');
 
             const stats = await activityLogger.getActivityStats();
 
@@ -1324,7 +1394,6 @@ module.exports = {
 
     async clearAllActivities(ctx) {
         try {
-            console.log('=== CLEAR ALL ACTIVITIES CALLED ===');
 
             // Clear all activities
             if (global.userActivities) {

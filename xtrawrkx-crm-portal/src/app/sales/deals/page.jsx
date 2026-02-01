@@ -484,9 +484,7 @@ export default function DealsPage() {
         }
       }
 
-      console.log("Fetching deals with params:", params);
       const response = await dealService.getAll(params);
-      console.log("Deals response:", response);
 
       const dealsData = response?.data || [];
 
@@ -632,15 +630,8 @@ export default function DealsPage() {
   const handleDragEnd = async (result) => {
     const { destination, source, draggableId } = result;
 
-    console.log("Drag end result:", result);
-    console.log("Draggable ID:", draggableId);
-    console.log(
-      "Filtered deals:",
-      filteredDeals.map((d) => ({ id: d.id, name: d.name }))
-    );
 
     if (!destination) {
-      console.log("No destination, cancelling drag");
       return;
     }
 
@@ -653,11 +644,9 @@ export default function DealsPage() {
     );
 
     if (!draggedDeal) {
-      console.log("Deal not found for draggableId:", draggableId);
       return;
     }
 
-    console.log("Found dragged deal:", draggedDeal);
 
     // Map column IDs to deal stages
     const stageMap = {
@@ -683,7 +672,6 @@ export default function DealsPage() {
         )
       );
 
-      console.log(`Deal "${draggedDeal.name}" moved to ${newStage}`);
     } catch (error) {
       console.error("Error updating deal stage:", error);
       // You could show a toast notification here
@@ -946,7 +934,6 @@ export default function DealsPage() {
   };
 
   const handleApplyFilters = (filters) => {
-    console.log("Applying filters:", filters);
 
     // Check if any filters are active
     const hasActiveFilters = Object.values(filters).some(
@@ -1013,7 +1000,6 @@ export default function DealsPage() {
     setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
 
     try {
-      console.log(`Deleting deal ${dealToDelete.id}`);
 
       // Delete the deal via API
       await dealService.delete(dealToDelete.id);
@@ -1031,7 +1017,6 @@ export default function DealsPage() {
       setShowDeleteModal(false);
       setDealToDelete(null);
 
-      console.log("Deal deleted successfully");
     } catch (error) {
       console.error("Error deleting deal:", error);
       alert("Failed to delete deal. Please try again.");
@@ -1051,7 +1036,6 @@ export default function DealsPage() {
 
   const handleEmailDeal = (deal) => {
     // Implement email functionality
-    console.log("Email deal:", deal);
   };
 
   const handleDeleteDealFromTable = (deal) => {
@@ -1088,7 +1072,6 @@ export default function DealsPage() {
     setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
 
     try {
-      console.log(`Updating deal ${dealId} stage to ${strapiStage}`);
 
       // Update the stage via API
       await dealService.update(dealId, { stage: strapiStage });
@@ -1126,9 +1109,6 @@ export default function DealsPage() {
               leadCompanyData?.convertedAccount;
 
             if (!convertedAccount) {
-              console.log(
-                `Converting lead company ${leadCompanyId} to client account for deal ${dealId}`
-              );
 
               // Convert lead company to client account
               const conversionResponse =
@@ -1147,9 +1127,6 @@ export default function DealsPage() {
                   clientAccount: clientAccountId,
                 });
 
-                console.log(
-                  `Successfully converted lead company to client account and linked to deal ${dealId}`
-                );
 
                 toast.success(
                   `Lead company "${
@@ -1170,9 +1147,6 @@ export default function DealsPage() {
                 clientAccount: existingClientAccountId,
               });
 
-              console.log(
-                `Linked existing client account ${existingClientAccountId} to deal ${dealId}`
-              );
             }
           }
         } catch (conversionError) {
@@ -1225,7 +1199,6 @@ export default function DealsPage() {
         setShowCreateProjectPrompt(true);
       }
 
-      console.log(`Successfully updated deal ${dealId} to ${strapiStage}`);
     } catch (error) {
       console.error("Error updating deal stage:", error);
       console.error("Error details:", error.message);
@@ -1281,10 +1254,6 @@ export default function DealsPage() {
           }
         }
       } catch (accountError) {
-        console.log(
-          "Could not find account, proceeding without account relation:",
-          accountError
-        );
         // Continue without account relation
       }
 

@@ -192,13 +192,11 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
      */
     async getStats(ctx) {
         try {
-            console.log('Getting client account stats...');
 
             // Get all client accounts first
             const result = await strapi.entityService.findMany('api::client-account.client-account');
             const clientAccounts = result?.data || result || [];
 
-            console.log('Found client accounts:', Array.isArray(clientAccounts) ? clientAccounts.length : 0);
 
             const stats = {
                 byStatus: {
@@ -240,7 +238,6 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
                 ? Math.round(totalHealthScore / healthScoreCount)
                 : 0;
 
-            console.log('Returning client stats:', stats);
             return { data: stats };
         } catch (error) {
             console.error('Client account stats error:', error);
@@ -372,7 +369,6 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
     async delete(ctx) {
         try {
             const { id } = ctx.params;
-            console.log(`Deleting client account ${id} with cascade deletion`);
 
             // First, get the client account with all relations
             const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', id, {
@@ -391,7 +387,6 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
 
             // Delete related contacts (only if they're not linked to lead companies)
             if (clientAccount.contacts && clientAccount.contacts.length > 0) {
-                console.log(`Processing ${clientAccount.contacts.length} related contacts`);
                 for (const contact of clientAccount.contacts) {
                     // Get full contact data to check if it's linked to a lead company
                     const fullContact = await strapi.entityService.findOne('api::contact.contact', contact.id, {
@@ -403,18 +398,15 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
                         await strapi.entityService.update('api::contact.contact', contact.id, {
                             data: { clientAccount: null }
                         });
-                        console.log(`Unlinked contact ${contact.id} from client account (kept lead company link)`);
                     } else {
                         // Contact is only linked to this client account, delete it
                         await strapi.entityService.delete('api::contact.contact', contact.id);
-                        console.log(`Deleted contact ${contact.id}`);
                     }
                 }
             }
 
             // Delete related projects
             if (clientAccount.projects && clientAccount.projects.length > 0) {
-                console.log(`Deleting ${clientAccount.projects.length} related projects`);
                 for (const project of clientAccount.projects) {
                     await strapi.entityService.delete('api::project.project', project.id);
                 }
@@ -422,7 +414,6 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
 
             // Delete related invoices
             if (clientAccount.invoices && clientAccount.invoices.length > 0) {
-                console.log(`Deleting ${clientAccount.invoices.length} related invoices`);
                 for (const invoice of clientAccount.invoices) {
                     await strapi.entityService.delete('api::invoice.invoice', invoice.id);
                 }
@@ -430,7 +421,6 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
 
             // Delete related activities
             if (clientAccount.activities && clientAccount.activities.length > 0) {
-                console.log(`Deleting ${clientAccount.activities.length} related activities`);
                 for (const activity of clientAccount.activities) {
                     await strapi.entityService.delete('api::activity.activity', activity.id);
                 }
@@ -438,7 +428,6 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
 
             // If this account was converted from a lead, update the lead company
             if (clientAccount.convertedFromLead) {
-                console.log(`Updating converted lead company ${clientAccount.convertedFromLead.id}`);
                 await strapi.entityService.update('api::lead-company.lead-company', clientAccount.convertedFromLead.id, {
                     data: {
                         status: 'QUALIFIED', // Reset to qualified status
@@ -451,7 +440,6 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
             // Finally, delete the client account itself
             await strapi.entityService.delete('api::client-account.client-account', id);
 
-            console.log(`Successfully deleted client account ${id} and all related data`);
             return { data: { id, deleted: true } };
         } catch (error) {
             console.error('Client account deletion error:', error);

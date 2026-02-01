@@ -627,7 +627,6 @@ export default function EventsPage() {
                       event={selectedEvent}
                       onEdit={() => {
                         // Handle edit registration
-                        console.log("Edit registration for:", selectedEvent.id);
                       }}
                     />
                   )}
@@ -638,7 +637,6 @@ export default function EventsPage() {
                         event={selectedEvent}
                         onDownload={() => {
                           // Handle ticket download
-                          console.log("Download ticket for:", selectedEvent.id);
                         }}
                       />
                     )}

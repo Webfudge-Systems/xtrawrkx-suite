@@ -1,162 +1,419 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   FolderOpen,
   Calendar,
   Users,
   DollarSign,
-  TrendingUp,
-  MoreVertical,
-  Grid3X3,
-  Columns,
-  BarChart3,
-  Activity,
   Search,
   Filter,
-  Plus,
+  Eye,
+  List,
+  Grid3X3,
+  CheckCircle,
+  Clock,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  Activity,
 } from "lucide-react";
-import ModernButton from "@/components/ui/ModernButton";
-
-// Projects data
-const projectsData = [
-  {
-    id: 1,
-    name: "Event Organization Website",
-    client: "EventPro Inc",
-    status: "In Progress",
-    progress: 75,
-    priority: "High",
-    health: "Good",
-    budget: 15000,
-    spent: 11250,
-    endDate: "2024-03-15",
-    team: [
-      {
-        name: "Gabrial Matula",
-        avatar:
-          "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face",
-      },
-      {
-        name: "Sarah Johnson",
-        avatar:
-          "https://images.unsplash.com/photo-1494790108755-2616b612b47e?w=32&h=32&fit=crop&crop=face",
-      },
-    ],
-    hourlyRate: 40,
-    totalSpend: 3700,
-    daysLeft: 15,
-    documentsSubmitted: 2,
-  },
-  {
-    id: 2,
-    name: "Health Mobile App Design",
-    client: "HealthTech Solutions",
-    status: "Planning",
-    progress: 25,
-    priority: "Medium",
-    health: "Excellent",
-    budget: 25000,
-    spent: 5000,
-    endDate: "2024-04-20",
-    team: [
-      {
-        name: "Layla Amora",
-        avatar:
-          "https://images.unsplash.com/photo-1494790108755-2616b612b47e?w=32&h=32&fit=crop&crop=face",
-      },
-    ],
-    hourlyRate: 40,
-    totalSpend: 2500,
-    daysLeft: 45,
-    documentsSubmitted: 3,
-  },
-  {
-    id: 3,
-    name: "Advance SEO Service",
-    client: "Digital Marketing Co",
-    status: "Completed",
-    progress: 100,
-    priority: "Low",
-    health: "Good",
-    budget: 8000,
-    spent: 7500,
-    endDate: "2024-02-10",
-    team: [
-      {
-        name: "Ansel Finn",
-        avatar:
-          "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=32&h=32&fit=crop&crop=face",
-      },
-    ],
-    hourlyRate: 20,
-    totalSpend: 1500,
-    daysLeft: 0,
-    documentsSubmitted: 4,
-  },
-  {
-    id: 4,
-    name: "E-commerce Platform",
-    client: "Retail Solutions",
-    status: "In Progress",
-    progress: 60,
-    priority: "High",
-    health: "At Risk",
-    budget: 30000,
-    spent: 18000,
-    endDate: "2024-05-30",
-    team: [
-      {
-        name: "Mike Chen",
-        avatar:
-          "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=32&h=32&fit=crop&crop=face",
-      },
-      {
-        name: "Lisa Brown",
-        avatar:
-          "https://images.unsplash.com/photo-1494790108755-2616b612b47e?w=32&h=32&fit=crop&crop=face",
-      },
-    ],
-    hourlyRate: 50,
-    totalSpend: 8500,
-    daysLeft: 90,
-    documentsSubmitted: 5,
-  },
-];
+import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { useSession } from "@/lib/auth";
+import strapiClient from "@/lib/strapiClient";
 
 export default function ProjectsPage() {
+  const router = useRouter();
+  const { data: session } = useSession();
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeView, setActiveView] = useState("grid");
   const [activeTab, setActiveTab] = useState("all");
+  const [activeView, setActiveView] = useState("list");
+  const [activeFilters, setActiveFilters] = useState([]);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // Filter projects based on active tab
+  // Fetch projects from API
+  useEffect(() => {
+    if (session) {
+      fetchProjects();
+    }
+  }, [session]);
+
+  const fetchProjects = async () => {
+    try {
+      setLoading(true);
+
+      // Get client account ID from session or localStorage
+      // Try multiple sources for account ID
+      let accountId =
+        session?.account?.id ||
+        session?.account?.documentId ||
+        session?.user?.id ||
+        session?.user?.profile?.id ||
+        session?.id ||
+        session?.documentId;
+
+      // If not in session, try to get from localStorage
+      if (!accountId && typeof window !== "undefined") {
+        const accountData = localStorage.getItem("client_account");
+        if (accountData) {
+          try {
+            const account = JSON.parse(accountData);
+            accountId = account.id || account.documentId;
+          } catch (error) {
+            console.error("Error parsing client account data:", error);
+          }
+        }
+      }
+
+      // Also try using strapiClient helper
+      if (!accountId) {
+        accountId = strapiClient.getCurrentAccountId();
+      }
+
+      // Try to get from getCurrentUser if available
+      if (!accountId) {
+        try {
+          const currentUser = await strapiClient.getCurrentUser();
+          if (currentUser?.account) {
+            accountId =
+              currentUser.account.id || currentUser.account.documentId;
+          }
+        } catch (error) {
+          console.warn("Could not get current user:", error);
+        }
+      }
+
+      if (!accountId) {
+        console.warn("No account ID found in session or localStorage");
+        setProjects([]);
+        setLoading(false);
+        return;
+      }
+
+
+      // Fetch all projects and filter by clientAccount client-side
+      // This is more reliable than server-side filtering until the relation is fully set up
+      const queryParams = strapiClient.buildQueryString({
+        populate: ["projectManager", "teamMembers", "account", "clientAccount"],
+        pagination: {
+          pageSize: 100,
+        },
+      });
+
+      // Build full URL using buildURL method
+      const fullUrl = strapiClient.buildURL("/projects", {});
+      const urlWithParams = `${fullUrl}?${queryParams}`;
+
+
+      let response;
+      try {
+        response = await strapiClient.request(urlWithParams, {
+          method: "GET",
+        });
+      } catch (error) {
+        console.error("Error fetching projects - request failed:", error);
+        console.error("Error details:", {
+          message: error.message,
+          url: urlWithParams,
+        });
+
+        // If it's a JSON parse error (HTML response), log the actual response
+        if (
+          error.message?.includes("JSON") ||
+          error.message?.includes("DOCTYPE")
+        ) {
+          try {
+            const errorResponse = await fetch(urlWithParams, {
+              method: "GET",
+              headers: strapiClient.getHeaders(),
+            });
+            const errorText = await errorResponse.text();
+            console.error(
+              "Server returned HTML instead of JSON. Status:",
+              errorResponse.status
+            );
+            console.error("Response preview:", errorText.substring(0, 500));
+            console.error("Full URL attempted:", urlWithParams);
+          } catch (fetchError) {
+            console.error("Could not fetch error details:", fetchError);
+          }
+        }
+
+        // Set empty projects and stop loading
+        setProjects([]);
+        setLoading(false);
+        return;
+      }
+
+
+      // Handle different response structures
+      let allProjects = [];
+      if (Array.isArray(response?.data)) {
+        allProjects = response.data;
+      } else if (Array.isArray(response)) {
+        allProjects = response;
+      } else if (response?.data?.data) {
+        allProjects = response.data.data;
+      }
+
+
+      // Log the first project's full structure to debug
+      if (allProjects.length > 0) {
+      }
+
+      // Filter projects by clientAccount ID with comprehensive matching
+      const projectsData = allProjects.filter((project) => {
+        const projectData = project.attributes || project;
+
+        // Check direct clientAccount relation - handle multiple possible structures
+        let projectClientAccount = null;
+        let projectClientAccountId = null;
+
+        // Try different ways to access clientAccount
+        if (projectData.clientAccount) {
+          if (projectData.clientAccount.attributes) {
+            projectClientAccount = projectData.clientAccount.attributes;
+            projectClientAccountId =
+              projectClientAccount.id || projectClientAccount.documentId;
+          } else if (
+            projectData.clientAccount.id ||
+            projectData.clientAccount.documentId
+          ) {
+            projectClientAccount = projectData.clientAccount;
+            projectClientAccountId =
+              projectClientAccount.id || projectClientAccount.documentId;
+          } else if (
+            typeof projectData.clientAccount === "number" ||
+            typeof projectData.clientAccount === "string"
+          ) {
+            // clientAccount might be just an ID
+            projectClientAccountId = projectData.clientAccount;
+          }
+        }
+
+        // Debug logging for each project
+
+        // If clientAccount is null or undefined, log it but don't skip yet
+        // Sometimes projects might not have clientAccount set but still belong to the account
+        if (!projectClientAccountId) {
+          // Don't return false immediately - check if account matches
+          // Some projects might use 'account' instead of 'clientAccount'
+          const projectAccount =
+            projectData.account?.attributes || projectData.account;
+          if (projectAccount) {
+            const projectAccountId =
+              projectAccount.id || projectAccount.documentId;
+            if (projectAccountId) {
+              projectClientAccountId = projectAccountId;
+            }
+          }
+
+          // If still no ID, skip
+          if (!projectClientAccountId) {
+            return false;
+          }
+        }
+
+        // Normalize IDs for comparison
+        const accountIdNum =
+          typeof accountId === "string" ? parseInt(accountId, 10) : accountId;
+        const projectClientAccountIdNum =
+          typeof projectClientAccountId === "string"
+            ? parseInt(projectClientAccountId, 10)
+            : projectClientAccountId;
+
+        // Try multiple comparison methods
+        const matches =
+          projectClientAccountIdNum === accountIdNum ||
+          projectClientAccountId?.toString() === accountId?.toString() ||
+          projectClientAccountId == accountId ||
+          projectClientAccountId === parseInt(accountId) ||
+          parseInt(projectClientAccountId) === parseInt(accountId);
+
+        if (matches) {
+        } else {
+        }
+
+        return matches;
+      });
+
+
+      // TEMPORARY DEBUG: If no projects found, show all projects for debugging
+      if (projectsData.length === 0 && allProjects.length > 0) {
+        console.warn(
+          "⚠️ No projects matched the filter. Showing all projects for debugging:"
+        );
+        allProjects.forEach((project, index) => {
+          const projectData = project.attributes || project;
+        });
+      }
+
+      // Transform projects to match UI format
+      const transformedProjects = projectsData.map((project) => {
+        const projectData = project.attributes || project;
+        const projectManager =
+          projectData.projectManager?.attributes || projectData.projectManager;
+
+        return {
+          id: project.id || project.documentId,
+          slug: projectData.slug || null,
+          name: projectData.name || "Unnamed Project",
+          status: projectData.status || "PLANNING",
+          progress: projectData.progress || 0,
+          startDate: projectData.startDate || null,
+          endDate: projectData.endDate || null,
+          manager: projectManager
+            ? `${projectManager.firstName || ""} ${
+                projectManager.lastName || ""
+              }`.trim() ||
+              projectManager.username ||
+              "Unassigned"
+            : "Unassigned",
+          description: projectData.description || "",
+          budget: projectData.budget || 0,
+          spent: projectData.spent || 0,
+        };
+      });
+
+      setProjects(transformedProjects);
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      setProjects([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate project statistics
+  const projectStats = {
+    all: projects.length,
+    active: projects.filter(
+      (p) =>
+        p.status === "IN_PROGRESS" ||
+        p.status === "ACTIVE" ||
+        p.status === "in-progress" ||
+        p.status === "active"
+    ).length,
+    planning: projects.filter(
+      (p) =>
+        p.status === "PLANNING" ||
+        p.status === "PLANNED" ||
+        p.status === "planning" ||
+        p.status === "planned"
+    ).length,
+    completed: projects.filter(
+      (p) => p.status === "COMPLETED" || p.status === "completed"
+    ).length,
+    onHold: projects.filter(
+      (p) =>
+        p.status === "ON_HOLD" ||
+        p.status === "ONHOLD" ||
+        p.status === "on-hold" ||
+        p.status === "on_hold"
+    ).length,
+  };
+
+  // Status stats for KPI cards
+  const statusStats = [
+    {
+      label: "Active",
+      count: projectStats.active,
+      color: "bg-xtrawrkx-50",
+      borderColor: "border-xtrawrkx-200",
+      iconColor: "text-xtrawrkx-600",
+      icon: Activity,
+    },
+    {
+      label: "Planning",
+      count: projectStats.planning,
+      color: "bg-yellow-50",
+      borderColor: "border-yellow-200",
+      iconColor: "text-yellow-600",
+      icon: Clock,
+    },
+    {
+      label: "Completed",
+      count: projectStats.completed,
+      color: "bg-green-50",
+      borderColor: "border-green-200",
+      iconColor: "text-green-600",
+      icon: CheckCircle,
+    },
+    {
+      label: "On Hold",
+      count: projectStats.onHold,
+      color: "bg-red-50",
+      borderColor: "border-red-200",
+      iconColor: "text-red-600",
+      icon: XCircle,
+    },
+  ];
+
+  // Tab items
+  const tabItems = [
+    { key: "all", label: "All Projects", badge: projectStats.all.toString() },
+    {
+      key: "active",
+      label: "Active",
+      badge: projectStats.active.toString(),
+    },
+    {
+      key: "planning",
+      label: "Planning",
+      badge: projectStats.planning.toString(),
+    },
+    {
+      key: "completed",
+      label: "Completed",
+      badge: projectStats.completed.toString(),
+    },
+    {
+      key: "on-hold",
+      label: "On Hold",
+      badge: projectStats.onHold.toString(),
+    },
+  ];
+
+  // Filter projects based on active tab and search
   const getFilteredProjects = () => {
-    let filtered = projectsData;
+    let filtered = projects;
 
+    // Filter by tab
     if (activeTab !== "all") {
       filtered = filtered.filter((project) => {
+        const status = project.status?.toUpperCase() || "";
         switch (activeTab) {
           case "active":
             return (
-              project.status === "In Progress" || project.status === "Planning"
+              status === "IN_PROGRESS" ||
+              status === "ACTIVE" ||
+              status === "IN-PROGRESS"
             );
+          case "planning":
+            return status === "PLANNING" || status === "PLANNED";
           case "completed":
-            return project.status === "Completed";
+            return status === "COMPLETED";
           case "on-hold":
-            return project.status === "On Hold";
+            return status === "ON_HOLD" || status === "ONHOLD";
           default:
             return true;
         }
       });
     }
 
+    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(
         (project) =>
-          project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          project.client.toLowerCase().includes(searchQuery.toLowerCase())
+          project.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          project.description
+            ?.toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          project.manager?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -165,365 +422,448 @@ export default function ProjectsPage() {
 
   const filteredProjects = getFilteredProjects();
 
-  // Calculate stats
-  const projectStats = {
-    total: projectsData.length,
-    active: projectsData.filter(
-      (p) => p.status === "In Progress" || p.status === "Planning"
-    ).length,
-    completed: projectsData.filter((p) => p.status === "Completed").length,
-    onHold: projectsData.filter((p) => p.status === "On Hold").length,
-    totalBudget: projectsData.reduce((sum, p) => sum + p.budget, 0),
-    totalSpent: projectsData.reduce((sum, p) => sum + p.spent, 0),
-  };
-
   const getStatusColor = (status) => {
-    const colors = {
-      Planning: "bg-blue-100 text-blue-700 border-blue-200",
-      "In Progress": "bg-yellow-100 text-yellow-700 border-yellow-200",
-      Completed: "bg-green-100 text-green-700 border-green-200",
-      "On Hold": "bg-red-100 text-red-700 border-red-200",
-    };
-    return colors[status] || "bg-gray-100 text-gray-700 border-gray-200";
+    const statusUpper = status?.toUpperCase() || "";
+    switch (statusUpper) {
+      case "COMPLETED":
+        return "bg-green-100 text-green-800 border-green-400";
+      case "IN_PROGRESS":
+      case "ACTIVE":
+      case "IN-PROGRESS":
+        return "bg-yellow-100 text-yellow-800 border-yellow-400";
+      case "PLANNING":
+      case "PLANNED":
+        return "bg-blue-100 text-blue-800 border-blue-400";
+      case "ON_HOLD":
+      case "ONHOLD":
+        return "bg-yellow-100 text-yellow-800 border-yellow-400";
+      case "CANCELLED":
+        return "bg-gray-100 text-gray-800 border-gray-400";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-400";
+    }
   };
 
-  const getHealthColor = (health) => {
-    const colors = {
-      Excellent: "bg-green-100 text-green-700",
-      Good: "bg-blue-100 text-blue-700",
-      "At Risk": "bg-yellow-100 text-yellow-700",
-      Critical: "bg-red-100 text-red-700",
+  const formatStatus = (status) => {
+    const statusMap = {
+      PLANNING: "Planning",
+      IN_PROGRESS: "In Progress",
+      COMPLETED: "Completed",
+      ON_HOLD: "On Hold",
+      CANCELLED: "Cancelled",
+      PLANNED: "Planned",
+      ACTIVE: "Active",
     };
-    return colors[health] || "bg-gray-100 text-gray-700";
+    return (
+      statusMap[status?.toUpperCase()] ||
+      status?.replace("_", " ") ||
+      "Planning"
+    );
   };
 
-  return (
-    <div className="min-h-screen p-6">
-      <div className="w-full space-y-6">
-        {/* Page Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-8"
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                Projects
-              </h1>
-              <p className="text-gray-600 mt-2">
-                Manage and track all your projects
-              </p>
-            </div>
+  if (loading) {
+    return (
+      <div className="bg-white min-h-screen">
+        <div className="px-4 pt-4">
+          <PageHeader
+            title="Projects"
+            subtitle="Manage and track all your projects"
+          />
+        </div>
+        <div className="p-4">
+          <div className="flex justify-center items-center h-64">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search projects..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-white/80 border border-gray-200/50 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all duration-200"
-                />
-              </div>
-              <ModernButton
-                type="secondary"
-                icon={Filter}
-                text="Filter"
-                size="sm"
-              />
-              <ModernButton
-                type="primary"
-                icon={Plus}
-                text="New Project"
-                size="sm"
-              />
+              <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+              <span className="text-gray-600">Loading projects...</span>
             </div>
           </div>
-        </motion.div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">
-                  Total Projects
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {projectStats.total}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">All time</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <FolderOpen className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">
-                  Active Projects
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {projectStats.active}
-                </p>
-                <p className="text-xs text-green-600 mt-1">+2 this month</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <Activity className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">
-                  Total Budget
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  ${(projectStats.totalBudget / 1000).toFixed(0)}K
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Allocated</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">
-                  Budget Utilized
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {Math.round(
-                    (projectStats.totalSpent / projectStats.totalBudget) * 100
-                  )}
-                  %
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  ${(projectStats.totalSpent / 1000).toFixed(0)}K spent
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </motion.div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Status Filters & View Toggle */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6"
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            {/* Status Filter Buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {[
-                {
-                  key: "all",
-                  label: "All Projects",
-                  count: projectStats.total,
-                },
-                { key: "active", label: "Active", count: projectStats.active },
-                {
-                  key: "completed",
-                  label: "Completed",
-                  count: projectStats.completed,
-                },
-                {
-                  key: "on-hold",
-                  label: "On Hold",
-                  count: projectStats.onHold,
-                },
-              ].map((tab) => (
+  return (
+    <div className="bg-white min-h-screen">
+      {/* Page Header */}
+      <div className="px-4 pt-4">
+        <PageHeader
+          title="Projects"
+          subtitle="Manage and track all your projects"
+          showActions={true}
+          onFilterClick={() => setShowFilterModal(true)}
+          hasActiveFilters={activeFilters.length > 0 || searchQuery.length > 0}
+        />
+      </div>
+
+      <div className="px-3 mt-6">
+        <div className="space-y-4">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {statusStats.map((stat) => {
+              const IconComponent = stat.icon;
+              return (
+                <div
+                  key={stat.label}
+                  className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-600 mb-1 font-medium">
+                        {stat.label} Projects
+                      </p>
+                      <p className="text-3xl font-black text-gray-800">
+                        {stat.count}
+                      </p>
+                      <div className="mt-2 flex items-center text-xs text-gray-500">
+                        <span
+                          className={`w-2 h-2 rounded-full mr-2 ${stat.color.replace(
+                            "-50",
+                            "-500"
+                          )}`}
+                        ></span>
+                        {stat.count === 0
+                          ? "No projects"
+                          : `${stat.count} ${
+                              stat.count === 1 ? "project" : "projects"
+                            }`}
+                      </div>
+                    </div>
+                    <div
+                      className={`w-16 h-16 ${stat.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${stat.borderColor}`}
+                    >
+                      <IconComponent className={`w-8 h-8 ${stat.iconColor}`} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Tabs and View Toggle */}
+          <div className="flex items-center justify-between gap-3 bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-xl p-3">
+            {/* Left: Tabs */}
+            <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+              {tabItems.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap ${
                     activeTab === tab.key
-                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
-                      : "bg-white/80 text-gray-700 hover:bg-white border border-gray-200/50 backdrop-blur-sm"
+                      ? "bg-xtrawrkx-500 text-white shadow-lg"
+                      : "bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white/90 border border-white/40"
                   }`}
                 >
-                  {tab.label}
-                  <span className="bg-white/20 text-xs px-2 py-1 rounded-lg">
-                    {tab.count}
+                  <span>{tab.label}</span>
+                  <span
+                    className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                      activeTab === tab.key
+                        ? "bg-white/30 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {tab.badge}
                   </span>
                 </button>
               ))}
             </div>
 
-            {/* View Toggle */}
-            <div className="flex items-center bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl p-1">
+            {/* Center: Search Bar */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search projects..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-64 pl-10 pr-4 py-2 bg-white/80 backdrop-blur-sm border border-white/40 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/90 transition-all duration-300 placeholder:text-gray-500 shadow-sm"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Right: View Toggle */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setActiveView("list")}
+                className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
+                  activeView === "list"
+                    ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
+                    : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
+                }`}
+                title="List View"
+              >
+                <List className="w-5 h-5" />
+              </button>
               <button
                 onClick={() => setActiveView("grid")}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
                   activeView === "grid"
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
+                    : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
                 }`}
+                title="Grid View"
               >
-                <Grid3X3 className="w-4 h-4" />
-                Grid
-              </button>
-              <button
-                onClick={() => setActiveView("kanban")}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  activeView === "kanban"
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <Columns className="w-4 h-4" />
-                Kanban
-              </button>
-              <button
-                onClick={() => setActiveView("gantt")}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  activeView === "gantt"
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                Gantt
+                <Grid3X3 className="w-5 h-5" />
               </button>
             </div>
           </div>
-        </motion.div>
 
-        {/* Content Views */}
-        {activeView === "grid" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.map((project, index) => (
-              <Link key={project.id} href={`/projects/${project.id}`}>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 + index * 0.1 }}
-                  className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 hover:shadow-xl transition-all duration-300 p-6 cursor-pointer"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 truncate text-lg">
-                        {project.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 truncate">
-                        {project.client}
-                      </p>
-                    </div>
-                    <div
-                      className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(project.status)}`}
-                    >
-                      {project.status}
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="text-gray-600">Progress</span>
-                      <span className="font-medium">{project.progress}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${project.progress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-sm text-gray-600 mb-4">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      <span>
-                        {new Date(project.endDate).toLocaleDateString()}
+          {/* Projects List/Grid */}
+          {activeView === "list" ? (
+            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 rounded-3xl bg-white/70 backdrop-blur-xl border border-white/40 transition-shadow duration-300">
+              <table className="w-full rounded-3xl overflow-hidden min-w-[1600px]">
+                <thead className="bg-white/90 backdrop-blur-lg border-b border-xtrawrkx-200/50 shadow-sm">
+                  <tr>
+                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
+                      PROJECT NAME
+                    </th>
+                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
+                      STATUS
+                    </th>
+                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
+                      MANAGER
+                    </th>
+                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
+                      PROGRESS
+                    </th>
+                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
+                      BUDGET
+                    </th>
+                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
+                      ACTIONS
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white/60 backdrop-blur-sm divide-y divide-white/20">
+                  {filteredProjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          <FolderOpen className="w-12 h-12 text-gray-400 mb-4" />
+                          <p className="text-gray-600 font-medium">
+                            No projects found
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {searchQuery || activeTab !== "all"
+                              ? "Try adjusting your filters"
+                              : "Get started by creating your first project"}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProjects.map((project) => (
+                      <tr
+                        key={project.id}
+                        className="hover:bg-xtrawrkx-50/50 hover:shadow-lg transition-all duration-300 group bg-white/40 shadow-sm hover:shadow-xtrawrkx-100/50 cursor-pointer"
+                        onClick={() => {
+                          if (project.slug || project.id) {
+                            router.push(
+                              `/projects/${project.slug || project.id}`
+                            );
+                          }
+                        }}
+                      >
+                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300">
+                          <div className="min-w-[200px]">
+                            <div className="font-medium text-gray-900 truncate">
+                              {project.name}
+                            </div>
+                            {project.description && (
+                              <div className="text-sm text-gray-500 truncate mt-1">
+                                {project.description}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
+                          <div className="min-w-[100px]">
+                            <span
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(
+                                project.status
+                              )}`}
+                            >
+                              {formatStatus(project.status)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
+                          <div className="flex items-center gap-2 min-w-[140px]">
+                            {project.manager ? (
+                              <div className="flex items-center gap-1">
+                                <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0 border border-white">
+                                  {project.manager?.charAt(0)?.toUpperCase() ||
+                                    "U"}
+                                </div>
+                                <span className="text-sm text-gray-600 truncate ml-1">
+                                  {project.manager}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-500">
+                                Unassigned
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
+                          <div className="min-w-[120px]">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
+                                  style={{ width: `${project.progress || 0}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-medium text-gray-900">
+                                {project.progress || 0}%
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
+                          {project.budget > 0 ? (
+                            <div className="min-w-[120px]">
+                              <span className="font-semibold text-gray-900 whitespace-nowrap">
+                                ₹{(project.budget || 0).toLocaleString()}
+                              </span>
+                              {project.spent > 0 && (
+                                <div className="text-xs text-gray-500">
+                                  Spent: ₹
+                                  {(project.spent || 0).toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">
+                              Not set
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
+                          <div
+                            className="flex items-center gap-1 min-w-[120px]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              className="p-1.5 text-xtrawrkx-600 hover:text-xtrawrkx-700 hover:bg-xtrawrkx-50 rounded transition-colors"
+                              title="View Project"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (project.slug || project.id) {
+                                  router.push(
+                                    `/projects/${project.slug || project.id}`
+                                  );
+                                }
+                              }}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredProjects.length === 0 ? (
+                <div className="col-span-full rounded-3xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-12 text-center">
+                  <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium">No projects found</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {searchQuery || activeTab !== "all"
+                      ? "Try adjusting your filters"
+                      : "Get started by creating your first project"}
+                  </p>
+                </div>
+              ) : (
+                filteredProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+                    onClick={() => {
+                      if (project.slug || project.id) {
+                        router.push(`/projects/${project.slug || project.id}`);
+                      }
+                    }}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate text-lg">
+                          {project.name}
+                        </h3>
+                        {project.description && (
+                          <p className="text-sm text-gray-600 truncate mt-1">
+                            {project.description}
+                          </p>
+                        )}
+                      </div>
+                      <span
+                        className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(
+                          project.status
+                        )}`}
+                      >
+                        {formatStatus(project.status)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      <span>{project.team.length} members</span>
+
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span className="text-gray-600">Progress</span>
+                        <span className="font-medium">
+                          {project.progress || 0}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-xtrawrkx-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${project.progress || 0}%` }}
+                        ></div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="w-4 h-4" />
-                      <span>
-                        ${(project.spent / 1000).toFixed(0)}K / $
-                        {(project.budget / 1000).toFixed(0)}K
-                      </span>
+
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {project.manager && (
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          <span>{project.manager}</span>
+                        </div>
+                      )}
+                      {project.endDate && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          <span>
+                            {new Date(project.endDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                      {project.budget > 0 && (
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4" />
+                          <span>
+                            ₹{(project.spent || 0).toLocaleString()} / ₹
+                            {(project.budget || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <div
-                      className={`px-2 py-1 rounded-lg text-xs font-medium ${getHealthColor(project.health)}`}
-                    >
-                      {project.health}
-                    </div>
-                    <button
-                      className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      <MoreVertical className="w-4 h-4 text-gray-400" />
-                    </button>
-                  </div>
-                </motion.div>
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {activeView === "kanban" && (
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6">
-            <div className="text-center py-12">
-              <Columns className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Kanban View
-              </h3>
-              <p className="text-gray-600">Kanban board view coming soon...</p>
+                ))
+              )}
             </div>
-          </div>
-        )}
-
-        {activeView === "gantt" && (
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6">
-            <div className="text-center py-12">
-              <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Gantt View
-              </h3>
-              <p className="text-gray-600">Gantt chart view coming soon...</p>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

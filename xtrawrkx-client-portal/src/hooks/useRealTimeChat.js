@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useRef } from "react";
-import { chatWebSocket } from "@/lib/chatAPI";
+import { chatWebSocket } from "@/lib/api/chatService";
 
 export function useRealTimeChat() {
     const wsRef = useRef(null);
@@ -18,11 +18,9 @@ export function useRealTimeChat() {
 
         // Set up event listeners
         wsRef.current.on('connected', () => {
-            console.log('Chat WebSocket connected');
         });
 
         wsRef.current.on('disconnected', () => {
-            console.log('Chat WebSocket disconnected');
             // Attempt to reconnect
             attemptReconnect(userId);
         });
@@ -41,7 +39,6 @@ export function useRealTimeChat() {
         const reconnectDelay = Math.min(1000 * Math.pow(2, 5), 30000); // Max 30 seconds
 
         reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('Attempting to reconnect to chat...');
             initializeConnection(userId);
         }, reconnectDelay);
     }, [initializeConnection]);

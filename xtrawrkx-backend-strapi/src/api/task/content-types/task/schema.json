@@ -25,6 +25,8 @@
                 "SCHEDULED",
                 "IN_PROGRESS",
                 "IN_REVIEW",
+                "CLIENT_REVIEW",
+                "APPROVED",
                 "COMPLETED",
                 "CANCELLED"
             ],
@@ -106,6 +108,20 @@
             "type": "relation",
             "relation": "manyToMany",
             "target": "api::xtrawrkx-user.xtrawrkx-user"
+        },
+        "clientApproval": {
+            "type": "enumeration",
+            "enum": [
+                "approved",
+                "rejected"
+            ]
+        },
+        "approvedAt": {
+            "type": "datetime"
+        },
+        "requiresApproval": {
+            "type": "boolean",
+            "default": false
         }
     }
 }

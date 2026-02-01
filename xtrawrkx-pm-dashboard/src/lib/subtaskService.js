@@ -45,7 +45,7 @@ class SubtaskService {
      * @param {Array} populate - Relations to populate
      * @returns {Promise<Object>} - Subtask data
      */
-    async getSubtaskById(id, populate = ['task', 'assignee', 'parentSubtask', 'childSubtasks', 'childSubtasks.assignee']) {
+    async getSubtaskById(id, populate = ['task', 'assignee', 'collaborators', 'parentSubtask', 'childSubtasks', 'childSubtasks.assignee', 'childSubtasks.collaborators']) {
         try {
             const params = {
                 populate: populate.join(',')
@@ -70,7 +70,7 @@ class SubtaskService {
             page = 1,
             pageSize = 100,
             sort = 'order:asc',
-            populate = ['assignee', 'parentSubtask', 'childSubtasks']
+            populate = ['assignee', 'collaborators', 'parentSubtask', 'childSubtasks']
         } = options;
 
         try {

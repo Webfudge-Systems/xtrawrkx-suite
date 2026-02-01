@@ -4,7 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Menu, User, LogOut, Home } from "lucide-react";
+import { Menu, User, LogOut, Home, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
@@ -29,58 +29,72 @@ export function TopNavbar({ onMenuClick }) {
 
   return (
     <>
-      {/* Floating Header matching reference */}
+      {/* Floating Header matching CRM style */}
       <header className="sticky top-0 z-40 w-full px-4 pt-4">
-        <div className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl mx-auto max-w-7xl">
+        <div className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl mx-auto w-full">
           <div className="flex h-16 items-center justify-between px-6">
             {/* Left side - Logo + Mobile Menu */}
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center">
               {/* Mobile menu button */}
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={onMenuClick}
-                className="lg:hidden"
+                className="lg:hidden hover:bg-white/20"
               >
-                <Menu className="h-5 w-5" />
+                <Menu className="h-5 w-5 text-gray-900" />
               </Button>
 
-              {/* Logo matching reference */}
+              {/* Logo */}
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center shadow-md">
                   <Home className="h-4 w-4 text-white" />
                 </div>
                 <h1 className="text-lg font-semibold text-gray-900">
-                  ABC Inc Portal
+                  {session?.account?.companyName || "Client Portal"}
                 </h1>
               </div>
 
-              {/* Navigation Tabs matching reference */}
+              {/* Navigation Tabs */}
               <nav className="hidden md:flex items-center space-x-2 ml-8">
-                {navigationTabs.map((tab) => (
-                  <Link key={tab.key} href={tab.href}>
-                    <span
-                      className={cn(
-                        "px-4 py-2 text-sm font-medium transition-all duration-200 rounded-xl",
-                        pathname === tab.href
-                          ? "bg-gray-900 text-white shadow-sm"
-                          : "text-gray-700 hover:text-gray-900 hover:bg-white/50"
-                      )}
-                    >
-                      {tab.label}
-                    </span>
-                  </Link>
-                ))}
+                {navigationTabs.map((tab) => {
+                  const isActive =
+                    pathname === tab.href ||
+                    pathname.startsWith(tab.href + "/");
+                  return (
+                    <Link key={tab.key} href={tab.href}>
+                      <span
+                        className={cn(
+                          "px-4 py-2 text-sm font-medium transition-all duration-200 rounded-xl",
+                          isActive
+                            ? "bg-xtrawrkx-500 text-white shadow-sm"
+                            : "text-gray-700 hover:text-gray-900 hover:bg-white/50"
+                        )}
+                      >
+                        {tab.label}
+                      </span>
+                    </Link>
+                  );
+                })}
               </nav>
             </div>
 
-            {/* Right side - Notifications + User */}
+            {/* Right side - Search + Notifications + User */}
             <div className="flex items-center space-x-3">
+              {/* Search Bar */}
+              <div className="hidden lg:block relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search anything..."
+                  className="w-64 pl-10 pr-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/25 transition-all duration-300 text-sm placeholder:text-gray-400 shadow-lg"
+                />
+              </div>
+
               {/* Chat Notifications */}
               <ChatNotifications
                 onNotificationClick={(notification) => {
                   // Handle notification click - could navigate to specific conversation
-                  console.log("Notification clicked:", notification);
                 }}
               />
 
@@ -90,9 +104,9 @@ export function TopNavbar({ onMenuClick }) {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="p-2 bg-white/50 hover:bg-white/70 rounded-xl transition-colors"
+                  className="p-2 bg-white/20 backdrop-blur-md border border-white/30 hover:bg-white/30 hover:border-white/40 rounded-xl transition-all duration-300 shadow-lg"
                 >
-                  <User className="h-5 w-5 text-gray-600" />
+                  <User className="h-5 w-5 text-gray-900" />
                 </motion.button>
 
                 {/* User dropdown */}
@@ -101,13 +115,13 @@ export function TopNavbar({ onMenuClick }) {
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50"
+                    className="absolute right-0 mt-2 w-64 bg-white/95 backdrop-blur-xl border border-white/30 rounded-xl shadow-2xl py-2 z-50"
                   >
                     <div className="px-4 py-3 border-b border-gray-100">
                       <div className="flex items-center space-x-3">
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={session?.avatarUrl} />
-                          <AvatarFallback className="bg-blue-500 text-white font-semibold">
+                          <AvatarFallback className="bg-xtrawrkx-500 text-white font-semibold">
                             {session?.name?.charAt(0) ||
                               session?.email?.charAt(0) ||
                               "A"}
@@ -144,6 +158,36 @@ export function TopNavbar({ onMenuClick }) {
             </div>
           </div>
         </div>
+      </header>
+
+      {/* Click outside handlers */}
+      {showUserMenu && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => {
+            setShowUserMenu(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+      </header>
+
+      {/* Click outside handlers */}
+      {showUserMenu && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => {
+            setShowUserMenu(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
       </header>
 
       {/* Click outside handlers */}

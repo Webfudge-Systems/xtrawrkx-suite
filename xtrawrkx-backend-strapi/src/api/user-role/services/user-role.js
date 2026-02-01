@@ -439,11 +439,9 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     await strapi.db.query('api::user-role.user-role').create({
                         data: roleData
                     });
-                    console.log(`Created default role: ${roleData.name}`);
                 }
             }
 
-            console.log('Default roles initialization completed');
         } catch (error) {
             console.error('Error creating default roles:', error);
         }

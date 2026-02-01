@@ -35,7 +35,10 @@ import {
 import PageHeader from "../../components/shared/PageHeader";
 import { Card, Pagination } from "../../components/ui";
 import projectService from "../../lib/projectService";
-import { transformProject, transformStatusToStrapi } from "../../lib/dataTransformers";
+import {
+  transformProject,
+  transformStatusToStrapi,
+} from "../../lib/dataTransformers";
 import { useAuth } from "../../contexts/AuthContext";
 import apiClient from "../../lib/apiClient";
 import confetti from "canvas-confetti";
@@ -66,7 +69,10 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [teamModal, setTeamModal] = useState({ isOpen: false, project: null });
-  const [projectLeadModal, setProjectLeadModal] = useState({ isOpen: false, project: null });
+  const [projectLeadModal, setProjectLeadModal] = useState({
+    isOpen: false,
+    project: null,
+  });
   const [allUsers, setAllUsers] = useState([]);
   const [toastMessage, setToastMessage] = useState("");
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
@@ -103,7 +109,8 @@ export default function ProjectsPage() {
           const firstName = userData.firstName || "";
           const lastName = userData.lastName || "";
           const email = userData.email || "";
-          const name = `${firstName} ${lastName}`.trim() || email || "Unknown User";
+          const name =
+            `${firstName} ${lastName}`.trim() || email || "Unknown User";
 
           return {
             id: user.id,
@@ -114,7 +121,6 @@ export default function ProjectsPage() {
           };
         });
 
-      console.log("Loaded users for team management:", transformedUsers.length);
       setAllUsers(transformedUsers);
     } catch (error) {
       console.error("Error loading users:", error);
@@ -256,8 +262,16 @@ export default function ProjectsPage() {
       label: "Completed",
       badge: projectStats.completed.toString(),
     },
-    { key: "on-hold", label: "On Hold", badge: projectStats["on-hold"].toString() },
-    { key: "overdue", label: "Overdue", badge: projectStats.overdue.toString() },
+    {
+      key: "on-hold",
+      label: "On Hold",
+      badge: projectStats["on-hold"].toString(),
+    },
+    {
+      key: "overdue",
+      label: "Overdue",
+      badge: projectStats.overdue.toString(),
+    },
   ];
 
   // Filter projects based on search, active tab, and applied filters
@@ -273,7 +287,8 @@ export default function ProjectsPage() {
         project.description.toLowerCase().includes(searchQuery.toLowerCase()));
 
     // Handle tab filtering
-    const projectStatus = project.status?.toLowerCase().replace(/\s+/g, "-") || "";
+    const projectStatus =
+      project.status?.toLowerCase().replace(/\s+/g, "-") || "";
     const matchesTab =
       activeTab === "all" ||
       projectStatus === activeTab ||
@@ -286,7 +301,7 @@ export default function ProjectsPage() {
 
     // Applied filters
     let matchesFilters = true;
-    
+
     if (Object.keys(appliedFilters).length > 0) {
       // Status filter
       if (appliedFilters.status) {
@@ -296,30 +311,34 @@ export default function ProjectsPage() {
           matchesFilters = false;
         }
       }
-      
+
       // Project Manager filter
       if (appliedFilters.projectManager) {
         const projectManager = project.projectManager;
         const managerId = projectManager
-          ? (projectManager.id || projectManager._id || projectManager.documentId)?.toString()
+          ? (
+              projectManager.id ||
+              projectManager._id ||
+              projectManager.documentId
+            )?.toString()
           : "";
         const filterManagerId = appliedFilters.projectManager.toString();
         if (managerId !== filterManagerId) {
           matchesFilters = false;
         }
       }
-      
+
       // Date range filter (created date)
       if (appliedFilters.dateRange && project.createdAt) {
         const now = new Date();
         let startDate;
-        
+
         switch (appliedFilters.dateRange) {
           case "today":
             startDate = new Date(
               now.getFullYear(),
               now.getMonth(),
-              now.getDate()
+              now.getDate(),
             );
             break;
           case "week":
@@ -333,7 +352,7 @@ export default function ProjectsPage() {
             startDate = new Date(now.getFullYear(), quarterStart, 1);
             break;
         }
-        
+
         if (startDate) {
           const projectCreatedDate = new Date(project.createdAt);
           if (projectCreatedDate < startDate) {
@@ -341,7 +360,7 @@ export default function ProjectsPage() {
           }
         }
       }
-      
+
       // Start date range filter
       if (appliedFilters.startDateFrom || appliedFilters.startDateTo) {
         if (!project.startDate) {
@@ -364,7 +383,7 @@ export default function ProjectsPage() {
           }
         }
       }
-      
+
       // End date range filter
       if (appliedFilters.endDateFrom || appliedFilters.endDateTo) {
         if (!project.endDate) {
@@ -407,12 +426,18 @@ export default function ProjectsPage() {
   const prevFilteredCountRef = useRef(null);
   useEffect(() => {
     const hasActiveFilters = Object.values(appliedFilters).some(
-      (value) => value && value.toString().trim() !== ""
+      (value) => value && value.toString().trim() !== "",
     );
-    
-    if (hasActiveFilters && !loading && filteredProjects.length !== prevFilteredCountRef.current) {
+
+    if (
+      hasActiveFilters &&
+      !loading &&
+      filteredProjects.length !== prevFilteredCountRef.current
+    ) {
       prevFilteredCountRef.current = filteredProjects.length;
-      setToastMessage(`Filters applied. Showing ${filteredProjects.length} result${filteredProjects.length !== 1 ? 's' : ''}`);
+      setToastMessage(
+        `Filters applied. Showing ${filteredProjects.length} result${filteredProjects.length !== 1 ? "s" : ""}`,
+      );
       setShowSuccessMessage(true);
       setTimeout(() => {
         setShowSuccessMessage(false);
@@ -556,9 +581,7 @@ export default function ProjectsPage() {
                 <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0">
                   {initial}
                 </div>
-                <span className="text-sm text-gray-600 truncate">
-                  {name}
-                </span>
+                <span className="text-sm text-gray-600 truncate">{name}</span>
               </>
             ) : (
               <>
@@ -798,14 +821,14 @@ export default function ProjectsPage() {
       await projectService.updateProject(project.id, {
         status: "ARCHIVED",
       });
-      
+
       // Update local state
       setProjects((prev) =>
         prev.map((p) =>
-          p.id === project.id ? { ...p, status: "ARCHIVED" } : p
-        )
+          p.id === project.id ? { ...p, status: "ARCHIVED" } : p,
+        ),
       );
-      
+
       setToastMessage("Project archived successfully");
       setShowSuccessMessage(true);
       setTimeout(() => {
@@ -837,14 +860,13 @@ export default function ProjectsPage() {
     setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
 
     try {
-      console.log(`Deleting project ${projectToDelete.id}`);
 
       // Delete the project via API
       await projectService.deleteProject(projectToDelete.id);
 
       // Remove from local state
       setProjects((prev) =>
-        prev.filter((project) => project.id !== projectToDelete.id)
+        prev.filter((project) => project.id !== projectToDelete.id),
       );
 
       // Close modal and reset state
@@ -859,7 +881,6 @@ export default function ProjectsPage() {
         setToastMessage("");
       }, 3000);
 
-      console.log("Project deleted successfully");
     } catch (error) {
       console.error("Error deleting project:", error);
       setToastMessage("Failed to delete project. Please try again.");
@@ -878,36 +899,31 @@ export default function ProjectsPage() {
     try {
       // Check if project is being marked as completed
       const isCompleting = newStatus === "Completed";
-      
+
       // Get current project to check previous status
       const currentProject = projects.find((p) => p.id === projectId);
       const wasAlreadyCompleted = currentProject?.status === "Completed";
-      
+
       // Transform frontend status to Strapi enum format
       const strapiStatus = transformStatusToStrapi(newStatus);
-      
-      console.log("Updating project status:", {
-        projectId,
-        frontendStatus: newStatus,
-        strapiStatus
-      });
-      
+
+
       await projectService.updateProject(projectId, { status: strapiStatus });
-      
+
       // Trigger confetti animation only when completing a project (not when uncompleting)
       if (isCompleting && !wasAlreadyCompleted) {
         triggerProjectCompletionAnimation();
       }
-      
+
       // Reload projects to get updated data from server
       const projectsResponse = await projectService.getAllProjects({
         pageSize: 100,
         populate: ["projectManager", "teamMembers", "tasks"],
       });
-      
+
       const transformedProjects =
         projectsResponse.data?.map(transformProject) || [];
-      
+
       setProjects(transformedProjects);
     } catch (error) {
       console.error("Error updating project status:", error);
@@ -924,7 +940,16 @@ export default function ProjectsPage() {
       spread: 360,
       ticks: 100,
       zIndex: 99999,
-      colors: ["#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316"],
+      colors: [
+        "#10B981",
+        "#3B82F6",
+        "#F59E0B",
+        "#EF4444",
+        "#8B5CF6",
+        "#EC4899",
+        "#14B8A6",
+        "#F97316",
+      ],
     };
 
     function randomInRange(min, max) {
@@ -1020,21 +1045,21 @@ export default function ProjectsPage() {
   // Handle project lead update
   const handleProjectLeadUpdate = async (projectId, userId) => {
     try {
-      const updateData = userId 
+      const updateData = userId
         ? { projectManager: parseInt(userId, 10) }
         : { projectManager: null };
-      
+
       await projectService.updateProject(projectId, updateData);
-      
+
       // Reload projects to get updated projectManager with full data
       const projectsResponse = await projectService.getAllProjects({
         pageSize: 100,
         populate: ["projectManager", "teamMembers", "tasks"],
       });
-      
+
       const transformedProjects =
         projectsResponse.data?.map(transformProject) || [];
-      
+
       setProjects(transformedProjects);
     } catch (error) {
       console.error("Error updating project lead:", error);
@@ -1059,8 +1084,8 @@ export default function ProjectsPage() {
       await projectService.updateProject(projectId, updateData);
       setProjects((prevProjects) =>
         prevProjects.map((p) =>
-          p.id === projectId ? { ...p, ...updateData } : p
-        )
+          p.id === projectId ? { ...p, ...updateData } : p,
+        ),
       );
     } catch (error) {
       console.error("Error updating project date:", error);
@@ -1071,17 +1096,15 @@ export default function ProjectsPage() {
   const handleTeamUpdate = async (projectId, teamMemberIds) => {
     try {
       // Ensure all IDs are integers
-      const parsedIds = teamMemberIds.map((id) => 
-        typeof id === 'string' ? parseInt(id, 10) : id
-      ).filter((id) => !isNaN(id));
+      const parsedIds = teamMemberIds
+        .map((id) => (typeof id === "string" ? parseInt(id, 10) : id))
+        .filter((id) => !isNaN(id));
 
-      console.log("Updating project team:", { projectId, teamMemberIds, parsedIds });
 
       const updatedProject = await projectService.updateProject(projectId, {
         teamMembers: parsedIds,
       });
 
-      console.log("Project updated successfully:", updatedProject);
 
       // Reload all projects to get updated team members with full populate
       const projectsResponse = await projectService.getAllProjects({
@@ -1091,8 +1114,7 @@ export default function ProjectsPage() {
       const transformedProjects =
         projectsResponse.data?.map(transformProject) || [];
       setProjects(transformedProjects);
-      
-      console.log("Projects reloaded, team members should be updated");
+
     } catch (error) {
       console.error("Error updating project team:", error);
       console.error("Error details:", {
@@ -1108,24 +1130,23 @@ export default function ProjectsPage() {
   const handleExport = (format) => {
     try {
       let exportFormat = format;
-      if (format && typeof format === 'object' && format.target) {
+      if (format && typeof format === "object" && format.target) {
         exportFormat = "csv";
-      } else if (!format || typeof format !== 'string') {
+      } else if (!format || typeof format !== "string") {
         exportFormat = "csv";
       } else {
         // Normalize to lowercase
         exportFormat = format.toLowerCase();
         // Handle "export" as CSV (default export format)
-        if (exportFormat === 'export') {
+        if (exportFormat === "export") {
           exportFormat = "csv";
         }
         // If it's not a recognized format, default to CSV
-        if (!['csv', 'pdf', 'excel'].includes(exportFormat)) {
+        if (!["csv", "pdf", "excel"].includes(exportFormat)) {
           exportFormat = "csv";
         }
       }
 
-      console.log(`Exporting ${filteredProjects.length} projects as ${exportFormat}`);
 
       const exportData = filteredProjects.map((project) => {
         const projectManager = project.projectManager;
@@ -1141,9 +1162,9 @@ export default function ProjectsPage() {
 
         return {
           "Project Name": project.name || "",
-          "Status": project.status || "",
+          Status: project.status || "",
           "Project Lead": managerName,
-          "Progress": project.progress ? `${project.progress}%` : "0%",
+          Progress: project.progress ? `${project.progress}%` : "0%",
           "Team Size": teamSize.toString(),
           "Start Date": project.startDate
             ? new Date(project.startDate).toLocaleDateString()
@@ -1154,11 +1175,11 @@ export default function ProjectsPage() {
           "Created Date": project.createdAt
             ? new Date(project.createdAt).toLocaleDateString()
             : "",
-          "Description": project.description || "",
-          "Budget": project.budget ? `₹${project.budget.toLocaleString()}` : "",
-          "Health": project.health || "",
-          "Priority": project.priority || "",
-          "Notes": project.notes || "",
+          Description: project.description || "",
+          Budget: project.budget ? `₹${project.budget.toLocaleString()}` : "",
+          Health: project.health || "",
+          Priority: project.priority || "",
+          Notes: project.notes || "",
         };
       });
 
@@ -1175,9 +1196,9 @@ export default function ProjectsPage() {
             headers
               .map(
                 (header) =>
-                  `"${(row[header] || "").toString().replace(/"/g, '""')}"`
+                  `"${(row[header] || "").toString().replace(/"/g, '""')}"`,
               )
-              .join(",")
+              .join(","),
           ),
         ].join("\n");
 
@@ -1189,14 +1210,16 @@ export default function ProjectsPage() {
         link.setAttribute("href", url);
         link.setAttribute(
           "download",
-          `projects_${new Date().toISOString().split("T")[0]}.csv`
+          `projects_${new Date().toISOString().split("T")[0]}.csv`,
         );
         link.style.visibility = "hidden";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
-        setToastMessage(`Exported ${exportData.length} project${exportData.length !== 1 ? 's' : ''} successfully!`);
+        setToastMessage(
+          `Exported ${exportData.length} project${exportData.length !== 1 ? "s" : ""} successfully!`,
+        );
         setShowSuccessMessage(true);
         setTimeout(() => {
           setShowSuccessMessage(false);
@@ -1238,7 +1261,10 @@ export default function ProjectsPage() {
           <PageHeader
             title="Projects"
             subtitle="Manage and track all of your projects here"
-            breadcrumb={[{ label: "Dashboard", href: "/" }, { label: "Projects", href: "/projects" }]}
+            breadcrumb={[
+              { label: "Dashboard", href: "/" },
+              { label: "Projects", href: "/projects" },
+            ]}
             showSearch={true}
             showActions={true}
             showProfile={true}
@@ -1271,7 +1297,10 @@ export default function ProjectsPage() {
           <PageHeader
             title="Projects"
             subtitle="Manage and track all of your projects here"
-            breadcrumb={[{ label: "Dashboard", href: "/" }, { label: "Projects", href: "/projects" }]}
+            breadcrumb={[
+              { label: "Dashboard", href: "/" },
+              { label: "Projects", href: "/projects" },
+            ]}
             showSearch={true}
             showActions={true}
             showProfile={true}
@@ -1338,7 +1367,9 @@ export default function ProjectsPage() {
                   className={`w-12 h-12 bg-gradient-to-br ${project.color || "from-blue-400 to-blue-600"} rounded-xl flex items-center justify-center shadow-lg`}
                 >
                   <span className="text-white font-bold text-lg">
-                    {project.icon || project.name?.charAt(0)?.toUpperCase() || "P"}
+                    {project.icon ||
+                      project.name?.charAt(0)?.toUpperCase() ||
+                      "P"}
                   </span>
                 </div>
                 <div>
@@ -1347,15 +1378,16 @@ export default function ProjectsPage() {
                   </h3>
                   <span
                     className={`text-xs font-medium px-2 py-1 rounded-full border ${
-                      project.status === "Active" || project.status === "In Progress"
+                      project.status === "Active" ||
+                      project.status === "In Progress"
                         ? "bg-blue-100 text-blue-700 border-blue-200"
                         : project.status === "Planning"
-                        ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                        : project.status === "Completed"
-                        ? "bg-green-100 text-green-700 border-green-200"
-                        : project.status === "On Hold"
-                        ? "bg-red-100 text-red-700 border-red-200"
-                        : "bg-gray-100 text-gray-700 border-gray-200"
+                          ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                          : project.status === "Completed"
+                            ? "bg-green-100 text-green-700 border-green-200"
+                            : project.status === "On Hold"
+                              ? "bg-red-100 text-red-700 border-red-200"
+                              : "bg-gray-100 text-gray-700 border-gray-200"
                     }`}
                   >
                     {project.status}
@@ -1384,7 +1416,7 @@ export default function ProjectsPage() {
                   {project.tasks?.filter(
                     (t) =>
                       t.status?.toLowerCase() === "done" ||
-                      t.status?.toLowerCase() === "completed"
+                      t.status?.toLowerCase() === "completed",
                   ).length || 0}
                 </div>
                 <div className="text-xs text-brand-text-light">Completed</div>
@@ -1425,23 +1457,25 @@ export default function ProjectsPage() {
             {/* Team Members */}
             <div className="flex items-center justify-between">
               <div className="flex -space-x-2">
-                {(project.teamMembers || []).slice(0, 3).map((member, index) => {
-                  const name =
-                    member?.name ||
-                    (member?.firstName && member?.lastName
-                      ? `${member.firstName} ${member.lastName}`
-                      : member?.firstName || member?.lastName || "Unknown");
-                  const initial = name?.charAt(0)?.toUpperCase() || "U";
-                  return (
-                    <div
-                      key={member?.id || index}
-                      className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 border-2 border-white"
-                      title={name}
-                    >
-                      {initial}
-                    </div>
-                  );
-                })}
+                {(project.teamMembers || [])
+                  .slice(0, 3)
+                  .map((member, index) => {
+                    const name =
+                      member?.name ||
+                      (member?.firstName && member?.lastName
+                        ? `${member.firstName} ${member.lastName}`
+                        : member?.firstName || member?.lastName || "Unknown");
+                    const initial = name?.charAt(0)?.toUpperCase() || "U";
+                    return (
+                      <div
+                        key={member?.id || index}
+                        className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 border-2 border-white"
+                        title={name}
+                      >
+                        {initial}
+                      </div>
+                    );
+                  })}
                 {(project.teamMembers || []).length > 3 && (
                   <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white/50">
                     +{(project.teamMembers || []).length - 3}
@@ -1468,7 +1502,10 @@ export default function ProjectsPage() {
             <PageHeader
               title="Projects"
               subtitle="Manage and track all of your projects here"
-              breadcrumb={[{ label: "Dashboard", href: "/" }, { label: "Projects", href: "/projects" }]}
+              breadcrumb={[
+                { label: "Dashboard", href: "/" },
+                { label: "Projects", href: "/projects" },
+              ]}
               showSearch={true}
               showActions={true}
               showProfile={true}
@@ -1478,10 +1515,13 @@ export default function ProjectsPage() {
               onFilterClick={() => setIsFilterModalOpen(true)}
               onExportClick={() => setShowExportDropdown(!showExportDropdown)}
             />
-            
+
             {/* Export Dropdown */}
             {showExportDropdown && (
-              <div className="absolute right-4 top-20 w-48 bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/30 z-50" ref={exportDropdownRef}>
+              <div
+                className="absolute right-4 top-20 w-48 bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/30 z-50"
+                ref={exportDropdownRef}
+              >
                 <div className="py-1">
                   <button
                     onClick={() => handleExport("pdf")}
@@ -1528,7 +1568,11 @@ export default function ProjectsPage() {
 
             {/* Results Count */}
             <div className="text-sm text-gray-600 px-1">
-              Showing <span className="font-semibold text-gray-900">{filteredProjects.length}</span> result{filteredProjects.length !== 1 ? 's' : ''}
+              Showing{" "}
+              <span className="font-semibold text-gray-900">
+                {filteredProjects.length}
+              </span>{" "}
+              result{filteredProjects.length !== 1 ? "s" : ""}
             </div>
 
             {/* Single Horizontal Scroll Container */}
@@ -1595,7 +1639,8 @@ export default function ProjectsPage() {
             <div className="mb-6">
               <p className="text-gray-700 mb-3">
                 Are you sure you want to delete{" "}
-                <strong>{projectToDelete.name || projectToDelete.title}</strong>?
+                <strong>{projectToDelete.name || projectToDelete.title}</strong>
+                ?
               </p>
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-700 font-medium mb-2">
@@ -1617,7 +1662,7 @@ export default function ProjectsPage() {
                   setShowDeleteModal(false);
                   setProjectToDelete(null);
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+                className="flex-1 px-4 py-2 border-2 border-gray-400 rounded-lg text-gray-800 bg-white hover:bg-gray-100 transition-colors font-medium"
               >
                 Cancel
               </button>
@@ -1659,7 +1704,9 @@ export default function ProjectsPage() {
           onUpdate={(updatedProject) => {
             // Update projects list
             setProjects((prevProjects) =>
-              prevProjects.map((p) => (p.id === updatedProject.id ? updatedProject : p))
+              prevProjects.map((p) =>
+                p.id === updatedProject.id ? updatedProject : p,
+              ),
             );
             // Update the project in the modal state so UI reflects changes
             setTeamModal((prev) => ({
@@ -1679,7 +1726,9 @@ export default function ProjectsPage() {
           onUpdate={(updatedProject) => {
             // Update projects list
             setProjects((prevProjects) =>
-              prevProjects.map((p) => (p.id === updatedProject.id ? updatedProject : p))
+              prevProjects.map((p) =>
+                p.id === updatedProject.id ? updatedProject : p,
+              ),
             );
             // Update the project in the modal state so UI reflects changes
             setProjectLeadModal((prev) => ({
@@ -1744,7 +1793,8 @@ function TeamManagementModal({ isOpen, onClose, project, onUpdate }) {
           const firstName = userData.firstName || "";
           const lastName = userData.lastName || "";
           const email = userData.email || "";
-          const name = `${firstName} ${lastName}`.trim() || email || "Unknown User";
+          const name =
+            `${firstName} ${lastName}`.trim() || email || "Unknown User";
 
           return {
             id: user.id,
@@ -1775,7 +1825,7 @@ function TeamManagementModal({ isOpen, onClose, project, onUpdate }) {
 
   const isTeamMember = (userId) => {
     return currentTeamMembers.some((member) => {
-      const memberId = typeof member === 'object' ? member.id : member;
+      const memberId = typeof member === "object" ? member.id : member;
       return memberId === userId;
     });
   };
@@ -1790,23 +1840,22 @@ function TeamManagementModal({ isOpen, onClose, project, onUpdate }) {
 
       if (isCurrentlyMember) {
         // Remove team member
-        updatedTeamMembers = currentTeamMembers.filter(
-          (member) => {
-            const memberId = typeof member === 'object' ? member.id : member;
-            return memberId !== user.id;
-          }
-        );
+        updatedTeamMembers = currentTeamMembers.filter((member) => {
+          const memberId = typeof member === "object" ? member.id : member;
+          return memberId !== user.id;
+        });
       } else {
         // Add team member
         updatedTeamMembers = [...currentTeamMembers, user];
       }
 
       // Get team member IDs
-      const teamMemberIds = updatedTeamMembers.map((m) => {
-        return typeof m === 'object' ? (m.id || m) : m;
-      }).filter(id => id != null);
+      const teamMemberIds = updatedTeamMembers
+        .map((m) => {
+          return typeof m === "object" ? m.id || m : m;
+        })
+        .filter((id) => id != null);
 
-      console.log("Updating team members:", { projectId: currentProject.id, teamMemberIds, isCurrentlyMember });
 
       // Update project with new team members
       await projectService.updateProject(currentProject.id, {
@@ -1814,16 +1863,13 @@ function TeamManagementModal({ isOpen, onClose, project, onUpdate }) {
       });
 
       // Reload project to get updated team members
-      const updatedProject = await projectService.getProjectById(currentProject.id, [
-        "projectManager",
-        "teamMembers",
-        "tasks",
-      ]);
+      const updatedProject = await projectService.getProjectById(
+        currentProject.id,
+        ["projectManager", "teamMembers", "tasks"],
+      );
 
       const transformedProject = transformProject(updatedProject);
 
-      console.log("Updated project:", transformedProject);
-      console.log("Updated team members:", transformedProject.teamMembers);
 
       // Update local project state immediately for UI update
       setCurrentProject(transformedProject);
@@ -1856,9 +1902,7 @@ function TeamManagementModal({ isOpen, onClose, project, onUpdate }) {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              Manage Team
-            </h2>
+            <h2 className="text-xl font-semibold text-gray-900">Manage Team</h2>
             <p className="text-sm text-gray-500 mt-1">{currentProject.name}</p>
           </div>
           <button
@@ -1890,9 +1934,7 @@ function TeamManagementModal({ isOpen, onClose, project, onUpdate }) {
               <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No users found
-            </div>
+            <div className="text-center py-8 text-gray-500">No users found</div>
           ) : (
             <div className="space-y-2">
               {filteredUsers.map((user) => {
@@ -1920,7 +1962,9 @@ function TeamManagementModal({ isOpen, onClose, project, onUpdate }) {
                       {initial}
                     </div>
                     <div className="flex-1 text-left">
-                      <div className="font-medium text-gray-900">{user.name}</div>
+                      <div className="font-medium text-gray-900">
+                        {user.name}
+                      </div>
                       <div className="text-sm text-gray-500">{user.email}</div>
                     </div>
                     {isMember ? (
@@ -1990,7 +2034,8 @@ function ProjectLeadModal({ isOpen, onClose, project, onUpdate }) {
           const firstName = userData.firstName || "";
           const lastName = userData.lastName || "";
           const email = userData.email || "";
-          const name = `${firstName} ${lastName}`.trim() || email || "Unknown User";
+          const name =
+            `${firstName} ${lastName}`.trim() || email || "Unknown User";
 
           return {
             id: user.id,
@@ -2021,7 +2066,10 @@ function ProjectLeadModal({ isOpen, onClose, project, onUpdate }) {
 
   const isProjectLead = (userId) => {
     if (!currentProjectLead) return false;
-    const leadId = typeof currentProjectLead === 'object' ? currentProjectLead.id : currentProjectLead;
+    const leadId =
+      typeof currentProjectLead === "object"
+        ? currentProjectLead.id
+        : currentProjectLead;
     return leadId === userId;
   };
 
@@ -2051,11 +2099,10 @@ function ProjectLeadModal({ isOpen, onClose, project, onUpdate }) {
       }
 
       // Reload project to get updated project manager
-      const updatedProject = await projectService.getProjectById(currentProject.id, [
-        "projectManager",
-        "teamMembers",
-        "tasks",
-      ]);
+      const updatedProject = await projectService.getProjectById(
+        currentProject.id,
+        ["projectManager", "teamMembers", "tasks"],
+      );
 
       const transformedProject = transformProject(updatedProject);
 
@@ -2071,7 +2118,9 @@ function ProjectLeadModal({ isOpen, onClose, project, onUpdate }) {
       onClose();
     } catch (error) {
       console.error("Error updating project lead:", error);
-      alert(`Failed to update project lead: ${error.message || "Unknown error"}`);
+      alert(
+        `Failed to update project lead: ${error.message || "Unknown error"}`,
+      );
     } finally {
       setSaving(false);
     }
@@ -2147,9 +2196,7 @@ function ProjectLeadModal({ isOpen, onClose, project, onUpdate }) {
               <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No users found
-            </div>
+            <div className="text-center py-8 text-gray-500">No users found</div>
           ) : (
             <div className="space-y-2">
               {filteredUsers.map((user) => {
@@ -2177,7 +2224,9 @@ function ProjectLeadModal({ isOpen, onClose, project, onUpdate }) {
                       {initial}
                     </div>
                     <div className="flex-1 text-left">
-                      <div className="font-medium text-gray-900">{user.name}</div>
+                      <div className="font-medium text-gray-900">
+                        {user.name}
+                      </div>
                       <div className="text-sm text-gray-500">{user.email}</div>
                     </div>
                     {isLead && (

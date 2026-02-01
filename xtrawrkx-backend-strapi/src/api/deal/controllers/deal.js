@@ -12,11 +12,9 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
      */
     async create(ctx) {
         try {
-            console.log('Creating deal with data:', ctx.request.body);
             const { data } = ctx.request.body;
 
             if (!data) {
-                console.log('No data provided in request body');
                 return ctx.badRequest('No data provided');
             }
 
@@ -34,7 +32,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
                 }
             });
 
-            console.log('Created deal:', entity);
 
             return { data: entity };
         } catch (error) {
@@ -49,7 +46,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
      */
     async find(ctx) {
         try {
-            console.log('Finding deals with params:', ctx.query);
 
             const { query } = ctx;
             
@@ -111,7 +107,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
                 });
             }
 
-            console.log(`Found ${entities?.length || 0} deals (after visibility filtering)`);
 
             if (Array.isArray(entities)) {
                 return {
@@ -150,7 +145,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
     async findOne(ctx) {
         try {
             const { id } = ctx.params;
-            console.log(`Finding deal with ID: ${id}`);
 
             const userId = ctx.query.userId || ctx.state?.user?.id || null;
 
@@ -173,7 +167,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
             });
 
             if (!entity) {
-                console.log(`Deal with ID ${id} not found`);
                 return ctx.notFound(`Deal with ID ${id} not found`);
             }
 
@@ -208,7 +201,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
             const { id } = ctx.params;
             const { data } = ctx.request.body;
 
-            console.log(`Updating deal ${id} with data:`, data);
 
             const entity = await strapi.entityService.update('api::deal.deal', id, {
                 data,
@@ -237,7 +229,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
     async delete(ctx) {
         try {
             const { id } = ctx.params;
-            console.log(`Deleting deal with ID: ${id}`);
 
             const entity = await strapi.entityService.delete('api::deal.deal', id);
 
@@ -254,7 +245,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
     async getByLeadCompany(ctx) {
         try {
             const { leadCompanyId } = ctx.params;
-            console.log(`Finding deals for lead company: ${leadCompanyId}`);
 
             const entities = await strapi.entityService.findMany('api::deal.deal', {
                 filters: {
@@ -271,7 +261,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
                 }
             });
 
-            console.log(`Found ${entities?.length || 0} deals for lead company ${leadCompanyId}`);
 
             return {
                 data: entities || [],
@@ -306,11 +295,9 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
     async getByClientAccount(ctx) {
         try {
             const { clientAccountId } = ctx.params;
-            console.log(`Finding deals for client account: ${clientAccountId}`);
 
             // Convert to number if it's a numeric string
             const accountId = isNaN(clientAccountId) ? clientAccountId : parseInt(clientAccountId, 10);
-            console.log(`Using account ID (parsed): ${accountId}`);
 
             // Try to find deals with the client account
             // First try with id
@@ -331,7 +318,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
 
             // If no results and accountId is a number, also try documentId
             if ((!entities || entities.length === 0) && typeof accountId === 'number') {
-                console.log(`Trying with documentId: ${accountId}`);
                 entities = await strapi.entityService.findMany('api::deal.deal', {
                     filters: {
                         clientAccount: {
@@ -348,7 +334,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
                 });
             }
 
-            console.log(`Found ${entities?.length || 0} deals for client account ${accountId}`);
 
             return {
                 data: entities || [],
@@ -382,7 +367,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
      */
     async getStats(ctx) {
         try {
-            console.log('Fetching deal statistics');
 
             const deals = await strapi.entityService.findMany('api::deal.deal', {
                 populate: {
@@ -438,7 +422,6 @@ module.exports = createCoreController('api::deal.deal', ({ strapi }) => ({
 
             stats.averageValue = dealsArray.length > 0 ? stats.totalValue / dealsArray.length : 0;
 
-            console.log('Deal stats:', stats);
 
             return { data: stats };
         } catch (error) {

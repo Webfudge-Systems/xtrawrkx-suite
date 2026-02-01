@@ -204,7 +204,6 @@ export default function EditProjectPage() {
         }
       }
       
-      console.log("Fetched accounts:", allAccounts);
       setAccounts(allAccounts);
     } catch (e) {
       console.error("Error fetching accounts:", e);
@@ -246,7 +245,6 @@ export default function EditProjectPage() {
           ]);
           setProjectId(parsedId);
         } catch (idError) {
-          console.log("Failed to fetch by ID, trying by slug:", idError);
         }
       }
 
@@ -444,11 +442,9 @@ export default function EditProjectPage() {
           ? parseInt(projectData.account, 10) 
           : projectData.account;
         updateData.account = !isNaN(accountId) ? accountId : null;
-        console.log("Setting account field:", updateData.account, "from:", projectData.account);
       } else {
         // No account selected, set to null to clear the field
         updateData.account = null;
-        console.log("No account selected, setting account to null");
       }
 
       // Handle clientAccount field
@@ -457,7 +453,6 @@ export default function EditProjectPage() {
           ? parseInt(projectData.clientAccount, 10) 
           : projectData.clientAccount;
         updateData.clientAccount = !isNaN(clientAccountId) ? clientAccountId : null;
-        console.log("Setting clientAccount field:", updateData.clientAccount);
       } else {
         updateData.clientAccount = null;
       }
@@ -469,7 +464,6 @@ export default function EditProjectPage() {
         }
       });
 
-      console.log("Updating project with data:", updateData);
       await projectService.updateProject(projectId, updateData);
 
       setShowSuccess(true);

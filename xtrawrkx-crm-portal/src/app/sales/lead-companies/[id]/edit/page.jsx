@@ -233,12 +233,9 @@ export default function EditLeadCompanyPage() {
 
   const fetchContacts = async () => {
     try {
-      console.log("Fetching contacts for lead company:", leadCompanyId);
       const response = await contactService.getByLeadCompany(leadCompanyId);
-      console.log("Contacts response:", response);
 
       const contactsData = response.data || response || [];
-      console.log("Contacts data:", contactsData);
 
       if (
         contactsData &&
@@ -249,7 +246,6 @@ export default function EditLeadCompanyPage() {
           // Handle both direct contact data and nested attributes
           const contactData = contact.attributes || contact;
 
-          console.log(`Processing contact ${index}:`, contactData);
 
           return {
             id: contact.id || contactData.id || index + 1,
@@ -269,10 +265,8 @@ export default function EditLeadCompanyPage() {
           };
         });
 
-        console.log("Formatted contacts:", formattedContacts);
         setContacts(formattedContacts);
       } else {
-        console.log("No contacts found or invalid format, setting empty array");
         setContacts([]);
       }
     } catch (error) {
@@ -287,7 +281,6 @@ export default function EditLeadCompanyPage() {
       // Use default populate from service (includes contacts, assignedTo, deals, etc.)
       const response = await leadCompanyService.getById(leadCompanyId);
 
-      console.log("Lead company response:", response);
 
       // Handle different response structures
       const leadCompany = response?.data || response;
@@ -300,7 +293,6 @@ export default function EditLeadCompanyPage() {
 
       // Check for both id and documentId (Strapi v4 uses documentId)
       if (leadCompany.id || leadCompany.documentId) {
-        console.log("Lead company data:", leadCompany);
 
         // Set company data with proper type conversion
         setCompanyData({
@@ -352,9 +344,6 @@ export default function EditLeadCompanyPage() {
         });
 
         // Contacts are now fetched separately in fetchContacts function
-        console.log(
-          "Lead company loaded successfully, contacts will be fetched separately"
-        );
       } else {
         console.error("No lead company data found - missing id or documentId");
         console.error("Lead company object:", leadCompany);

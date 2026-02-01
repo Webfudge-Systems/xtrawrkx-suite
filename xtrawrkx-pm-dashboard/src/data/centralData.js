@@ -1631,20 +1631,15 @@ export const getMessagesByChannelId = (channelId) => {
 export const getCommentsByTaskId = (taskId) => {
     if (!taskId) return [];
 
-    console.log('getCommentsByTaskId called with taskId:', taskId, 'type:', typeof taskId);
     const allComments = Object.values(taskComments);
-    console.log('All comments count:', allComments.length);
 
     // Convert taskId to number for comparison
     const numericTaskId = parseInt(taskId);
-    console.log('Numeric taskId:', numericTaskId);
 
     const filteredComments = allComments.filter(comment => {
-        console.log('Checking comment:', comment.id, 'taskId:', comment.taskId, 'matches:', comment.taskId === numericTaskId);
         return comment.taskId === numericTaskId;
     });
 
-    console.log('Filtered comments for task', numericTaskId, ':', filteredComments.length, 'comments');
     return filteredComments.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 };
 

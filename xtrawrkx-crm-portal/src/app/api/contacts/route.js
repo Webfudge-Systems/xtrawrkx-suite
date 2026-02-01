@@ -56,12 +56,6 @@ export async function POST(request) {
         // Add to mock database
         contacts.push(newContact);
 
-        console.log('New contact created via Chrome extension:', {
-            id: newContact.id,
-            name: newContact.name,
-            company: newContact.company,
-            source: 'chrome-extension'
-        });
 
         return NextResponse.json({
             success: true,

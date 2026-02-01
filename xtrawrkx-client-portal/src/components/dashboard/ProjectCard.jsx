@@ -68,7 +68,6 @@ export default function ProjectCard({
           className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-gray-100 rounded-lg"
           onClick={(e) => {
             e.stopPropagation();
-            console.log("More options clicked");
           }}
         >
           <MoreHorizontal className="w-4 h-4 text-gray-400" />

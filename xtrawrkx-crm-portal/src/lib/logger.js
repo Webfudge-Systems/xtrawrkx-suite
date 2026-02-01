@@ -13,13 +13,11 @@ class Logger {
 
     log(...args) {
         if (this.enabled) {
-            console.log(...args);
         }
     }
 
     info(...args) {
         if (this.enabled) {
-            console.info(...args);
         }
     }
 
@@ -35,7 +33,6 @@ class Logger {
 
     debug(...args) {
         if (this.enabled) {
-            console.debug(...args);
         }
     }
 

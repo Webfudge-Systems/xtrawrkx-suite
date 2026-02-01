@@ -18,7 +18,6 @@ export default function RoleList({ roles = [] }) {
   const [showActions, setShowActions] = useState(null);
 
   const handleRoleAction = (action, roleId) => {
-    console.log(`${action} role:`, roleId);
     setShowActions(null);
   };
 

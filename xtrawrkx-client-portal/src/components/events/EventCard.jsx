@@ -191,7 +191,6 @@ export default function EventCard({
                   onClick={(e) => {
                     e.stopPropagation();
                     // Handle registration
-                    console.log("Register for event:", event.id);
                   }}
                   className="text-xs"
                 />

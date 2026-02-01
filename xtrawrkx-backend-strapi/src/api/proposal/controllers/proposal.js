@@ -12,11 +12,9 @@ module.exports = createCoreController('api::proposal.proposal', ({ strapi }) => 
      */
     async create(ctx) {
         try {
-            console.log('Creating proposal with data:', ctx.request.body);
             const { data } = ctx.request.body;
 
             if (!data) {
-                console.log('No data provided in request body');
                 return ctx.badRequest('No data provided');
             }
 
@@ -31,7 +29,6 @@ module.exports = createCoreController('api::proposal.proposal', ({ strapi }) => 
                 }
             });
 
-            console.log('Created proposal:', entity);
 
             return { data: entity };
         } catch (error) {
@@ -46,7 +43,6 @@ module.exports = createCoreController('api::proposal.proposal', ({ strapi }) => 
      */
     async find(ctx) {
         try {
-            console.log('Finding proposals with params:', ctx.query);
 
             const { query } = ctx;
 
@@ -63,7 +59,6 @@ module.exports = createCoreController('api::proposal.proposal', ({ strapi }) => 
                 populate
             });
 
-            console.log(`Found ${entities?.length || 0} proposals`);
 
             if (Array.isArray(entities)) {
                 return {
@@ -102,7 +97,6 @@ module.exports = createCoreController('api::proposal.proposal', ({ strapi }) => 
     async findOne(ctx) {
         try {
             const { id } = ctx.params;
-            console.log('Finding proposal with ID:', id);
 
             const entity = await strapi.entityService.findOne('api::proposal.proposal', id, {
                 populate: {
@@ -133,7 +127,6 @@ module.exports = createCoreController('api::proposal.proposal', ({ strapi }) => 
             const { id } = ctx.params;
             const { data } = ctx.request.body;
 
-            console.log('Updating proposal', id, 'with data:', data);
 
             if (!data) {
                 return ctx.badRequest('No data provided');
@@ -163,7 +156,6 @@ module.exports = createCoreController('api::proposal.proposal', ({ strapi }) => 
     async delete(ctx) {
         try {
             const { id } = ctx.params;
-            console.log('Deleting proposal with ID:', id);
 
             const entity = await strapi.entityService.delete('api::proposal.proposal', id);
 

@@ -14,9 +14,6 @@ module.exports = {
      */
     async createUser(ctx) {
         try {
-            console.log('=== USER MANAGEMENT - CREATE USER CALLED ===');
-            console.log('Request path:', ctx.request.path);
-            console.log('Request method:', ctx.request.method);
 
             const {
                 email,
@@ -29,14 +26,11 @@ module.exports = {
                 sendInvitation = true
             } = ctx.request.body;
 
-            console.log('Request body:', ctx.request.body);
 
             // Handle authentication directly
             const token = ctx.request.headers.authorization?.replace('Bearer ', '');
-            console.log('Token received:', !!token);
 
             if (!token) {
-                console.log('No token provided');
                 return ctx.unauthorized('No token provided');
             }
 
@@ -44,11 +38,8 @@ module.exports = {
             try {
                 // Use Strapi's JWT service to verify token
                 decoded = strapi.plugins['users-permissions'].services.jwt.verify(token);
-                console.log('Token decoded successfully:', decoded);
             } catch (jwtError) {
-                console.log('JWT verification failed:', jwtError.message);
                 // For now, let's continue without strict authentication to test user creation
-                console.log('Continuing without authentication for testing...');
                 decoded = { id: 1, type: 'internal', role: 'Super Admin' }; // Mock admin user
             }
 
@@ -65,28 +56,23 @@ module.exports = {
                         }
                     });
                 } catch (userError) {
-                    console.log('User lookup failed, using mock admin');
                     currentUser = { id: 1, email: 'admin@xtrawrkx.com', primaryRole: { name: 'Super Admin' } };
                 }
             }
 
             if (!currentUser) {
-                console.log('Using mock admin user for testing');
                 currentUser = { id: 1, email: 'admin@xtrawrkx.com', primaryRole: { name: 'Super Admin' } };
             }
 
-            console.log('Current user:', currentUser.email, 'Role:', currentUser.primaryRole?.name);
 
             // Check role hierarchy permissions
             const userRole = currentUser.primaryRole?.name || decoded.role;
             const userRoleService = strapi.service('api::user-role.user-role');
 
-            console.log('Current user role:', userRole);
 
             // Check if user can create users (must be admin level or higher)
             const currentUserLevel = userRoleService.getRoleLevel(userRole);
             if (currentUserLevel < 15) { // Admin level
-                console.log('Access denied. User role:', userRole, 'Level:', currentUserLevel);
                 return ctx.forbidden(`Insufficient permissions to create users. Current role: ${userRole}`);
             }
 
@@ -94,7 +80,6 @@ module.exports = {
             if (primaryRole) {
                 const targetRoleLevel = userRoleService.getRoleLevel(primaryRole);
                 if (targetRoleLevel >= currentUserLevel) {
-                    console.log('Cannot assign role of same or higher level:', primaryRole);
                     return ctx.forbidden(`Cannot assign role "${primaryRole}". You can only assign roles lower than your own.`);
                 }
             }
@@ -154,9 +139,6 @@ module.exports = {
 
             // Use provided password
             const tempPassword = password;
-            console.log('=== USING PROVIDED PASSWORD ===');
-            console.log('Email:', email);
-            console.log('=============================');
 
             const hashedPassword = await bcrypt.hash(tempPassword, 12);
             const invitationToken = crypto.randomBytes(32).toString('hex');
@@ -187,7 +169,6 @@ module.exports = {
                 userData.primaryRole = primaryRole;
             }
 
-            console.log('Creating user with data:', { ...userData, password: '[HIDDEN]' });
 
             // Create user
             const user = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').create({
@@ -198,7 +179,6 @@ module.exports = {
                 }
             });
 
-            console.log('User created successfully:', user.id);
 
             // Log the user creation activity
             try {
@@ -215,7 +195,6 @@ module.exports = {
                     status: 'COMPLETED'
                 });
             } catch (logError) {
-                console.log('Failed to log user creation activity:', logError.message);
             }
 
             // Send invitation email if requested
@@ -235,7 +214,6 @@ module.exports = {
                             <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/login">Login Here</a></p>
                         `
                     });
-                    console.log('Invitation email sent successfully');
                 } catch (emailError) {
                     console.error('Failed to send invitation email:', emailError);
                     // Don't fail the user creation if email fails
@@ -268,7 +246,6 @@ module.exports = {
      */
     async getEditableUsers(ctx) {
         try {
-            console.log('=== GET EDITABLE USERS CALLED ===');
 
             // Get token and decode
             const token = ctx.request.headers.authorization?.replace('Bearer ', '');
@@ -360,7 +337,6 @@ module.exports = {
      */
     async updateUser(ctx) {
         try {
-            console.log('=== UPDATE USER CALLED ===');
             const { userId } = ctx.params;
             const updateData = ctx.request.body;
 

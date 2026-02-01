@@ -62,13 +62,11 @@ export function ChatWindow({
   // Handle file attachments
   const handleFileUpload = (files) => {
     // Implementation for file upload
-    console.log("Files to upload:", files);
   };
 
   // Handle emoji selection
   const handleEmojiSelect = (emoji) => {
     // Implementation for emoji insertion
-    console.log("Selected emoji:", emoji);
   };
 
   if (!conversation) {

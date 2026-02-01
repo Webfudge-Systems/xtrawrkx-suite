@@ -218,12 +218,10 @@ export default function AddClientAccountPage() {
         conversionDate: new Date().toISOString(), // Set conversion date to now
       };
 
-      console.log("Creating client account with data:", accountPayload);
 
       // Create the client account
       const createdAccount = await clientAccountService.create(accountPayload);
 
-      console.log("Created client account:", createdAccount);
 
       setShowSuccess(true);
 

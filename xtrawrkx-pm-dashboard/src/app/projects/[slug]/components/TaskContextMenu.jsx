@@ -63,7 +63,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
         navigator.clipboard.writeText(
           `${window.location.origin}/projects/${task?.projectId}/tasks/${task?.id}`
         );
-        console.log("Copied task link");
         onClose();
       },
     },
@@ -74,7 +73,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
       action: () => {
         // Copy task ID to clipboard
         navigator.clipboard.writeText(task?.id?.toString() || "");
-        console.log("Copied task ID");
         onClose();
       },
     },
@@ -83,7 +81,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
       label: "Rename",
       icon: Edit,
       action: () => {
-        console.log("Rename task", task?.name);
         onClose();
       },
     },
@@ -93,7 +90,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
       icon: Plus,
       hasSubmenu: true,
       action: () => {
-        console.log("Add to submenu for task", task?.name);
         onClose();
       },
     },
@@ -103,7 +99,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
       icon: RotateCcw,
       hasSubmenu: true,
       action: () => {
-        console.log("Convert to submenu for task", task?.name);
         onClose();
       },
     },
@@ -112,7 +107,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
       label: "Duplicate",
       icon: Copy,
       action: () => {
-        console.log("Duplicate task", task?.name);
         onClose();
       },
     },
@@ -121,7 +115,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
       label: "Send email to task",
       icon: Mail,
       action: () => {
-        console.log("Send email for task", task?.name);
         onClose();
       },
     },
@@ -130,7 +123,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
       label: "Move",
       icon: Move,
       action: () => {
-        console.log("Move task", task?.name);
         onClose();
       },
     },
@@ -139,7 +131,6 @@ const TaskContextMenu = ({ isOpen, onClose, position, task, onDelete }) => {
       label: "Archive",
       icon: Archive,
       action: () => {
-        console.log("Archive task", task?.name);
         onClose();
       },
     },

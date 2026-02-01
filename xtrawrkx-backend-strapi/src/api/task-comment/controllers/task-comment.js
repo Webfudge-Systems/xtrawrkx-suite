@@ -15,11 +15,6 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
             const { query } = ctx;
 
             // Debug: Log the entire query object to see how Strapi parses it
-            console.log('=== Comment find query ===');
-            console.log('Full query object:', JSON.stringify(query, null, 2));
-            console.log('Query keys:', Object.keys(query));
-            console.log('Request URL:', ctx.request.url);
-            console.log('Raw query string:', ctx.request.url.split('?')[1]);
 
             // Parse populate from query string
             let populate = {
@@ -87,16 +82,6 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
                 }
             }
 
-            console.log('Filter values found:', {
-                commentableTypeFilter,
-                commentableIdFilter,
-                hasFiltersObject: !!query.filters,
-                filtersObject: query.filters,
-                directAccess: {
-                    bracketType: query['filters[commentableType][$eq]'],
-                    bracketId: query['filters[commentableId][$eq]']
-                }
-            });
 
             // Handle filters from query string (Strapi format: filters[field][$operator]=value)
             if (commentableTypeFilter) {
@@ -138,23 +123,10 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
             // Add sort
             queryOptions.sort = sortStr;
 
-            console.log('Fetching comments with query options:', JSON.stringify(queryOptions, null, 2));
 
             // Use entityService to find comments
             const { results, pagination: paginationInfo } = await strapi.entityService.findPage('api::task-comment.task-comment', queryOptions);
 
-            console.log('Comments found:', {
-                count: results.length,
-                commentableTypeFilter: commentableTypeFilter || 'none',
-                commentableIdFilter: query['filters[commentableId][$eq]'] || 'none',
-                filtersApplied: filters,
-                sampleResults: results.slice(0, 3).map(r => ({
-                    id: r.id,
-                    commentableType: r.commentableType,
-                    commentableId: r.commentableId,
-                    content: r.content?.substring(0, 50)
-                }))
-            });
 
             return {
                 data: results,
@@ -279,7 +251,6 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
             };
 
             // Create comment
-            console.log('Creating comment with data:', commentData);
             const createdComment = await strapi.entityService.create('api::task-comment.task-comment', {
                 data: commentData,
                 populate: {
@@ -289,12 +260,6 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
                 }
             });
 
-            console.log('Comment created successfully:', {
-                id: createdComment.id,
-                commentableType: createdComment.commentableType,
-                commentableId: createdComment.commentableId,
-                content: createdComment.content
-            });
 
             // Verify the comment was actually saved by fetching it back
             const verifiedComment = await strapi.entityService.findOne('api::task-comment.task-comment', createdComment.id, {
@@ -310,19 +275,8 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
                 return ctx.internalServerError('Comment was created but could not be verified');
             }
 
-            console.log('Comment verified in database:', verifiedComment.id);
 
             // Create notifications for mentioned users
-            console.log('=== Creating notifications for mentions ===', {
-                hasMentions: !!data.mentions,
-                mentionsType: typeof data.mentions,
-                mentionsIsArray: Array.isArray(data.mentions),
-                mentionsLength: Array.isArray(data.mentions) ? data.mentions.length : 0,
-                mentions: data.mentions,
-                userId: userId,
-                entityType: data.commentableType,
-                entityId: data.commentableId
-            });
 
             if (data.mentions && Array.isArray(data.mentions) && data.mentions.length > 0) {
                 try {
@@ -433,7 +387,6 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
                                 String(mentionedUserId) === String(userId) ||
                                 String(mentionedUserId) === String(commenterUserId) ||
                                 String(mentionedUserId) === String(commenterDocumentId)) {
-                                console.log(`Skipping notification: mentioned user ${mentionedUserDbId} (${mentionedUser.firstName} ${mentionedUser.lastName}) is the same as commenter ${commenterUserId}`);
                                 continue;
                             }
 
@@ -450,28 +403,12 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
                                 isRead: false
                             };
 
-                            console.log('=== Creating notification ===', {
-                                notificationData: notificationData,
-                                mentionedUserDbId: mentionedUserDbId,
-                                mentionedUser: {
-                                    id: mentionedUser.id,
-                                    documentId: mentionedUser.documentId,
-                                    name: `${mentionedUser.firstName || ''} ${mentionedUser.lastName || ''}`
-                                }
-                            });
 
                             try {
                                 const createdNotification = await strapi.entityService.create('api::notification.notification', {
                                     data: notificationData
                                 });
 
-                                console.log(`✅ Notification created successfully!`, {
-                                    notificationId: createdNotification.id,
-                                    notificationData: createdNotification,
-                                    userId: mentionedUserDbId,
-                                    userName: `${mentionedUser.firstName || ''} ${mentionedUser.lastName || ''}`,
-                                    message: notificationMessage
-                                });
 
                                 // Verify notification was saved by fetching it back
                                 const verifiedNotification = await strapi.entityService.findOne('api::notification.notification', createdNotification.id, {
@@ -479,12 +416,6 @@ module.exports = createCoreController('api::task-comment.task-comment', ({ strap
                                 });
 
                                 if (verifiedNotification) {
-                                    console.log(`✅ Notification verified in database:`, {
-                                        id: verifiedNotification.id,
-                                        userId: verifiedNotification.user?.id || verifiedNotification.user,
-                                        type: verifiedNotification.type,
-                                        message: verifiedNotification.message
-                                    });
                                 } else {
                                     console.error(`❌ Notification was created but could not be verified!`);
                                 }

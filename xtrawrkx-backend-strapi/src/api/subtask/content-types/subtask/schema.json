@@ -79,6 +79,11 @@
             "relation": "manyToOne",
             "target": "api::xtrawrkx-user.xtrawrkx-user",
             "inversedBy": "assignedSubtasks"
+        },
+        "collaborators": {
+            "type": "relation",
+            "relation": "manyToMany",
+            "target": "api::xtrawrkx-user.xtrawrkx-user"
         }
     }
 }

@@ -57,7 +57,6 @@ export const UserProvider = ({ children }) => {
     // Listen for storage changes (e.g., from other tabs)
     const handleStorageChange = (e) => {
       if (e.key === "currentUser") {
-        console.log('Storage change detected for currentUser');
         loadUserFromStorage();
       }
     };
@@ -67,11 +66,9 @@ export const UserProvider = ({ children }) => {
   }, []);
 
   const login = (userData) => {
-    console.log('UserContext.login() called with:', userData);
     setCurrentUser(userData);
     try {
       localStorage.setItem("currentUser", JSON.stringify(userData));
-      console.log('User data saved to localStorage');
     } catch (error) {
       console.error('Error saving to localStorage:', error);
     }

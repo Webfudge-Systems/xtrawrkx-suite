@@ -69,16 +69,13 @@ class TaskService {
      */
     async deleteTask(taskId) {
         try {
-            console.log('TaskService.deleteTask called with ID:', taskId);
             
             // Handle both numeric ID and documentId
             const idToUse = typeof taskId === 'object' ? (taskId.id || taskId.documentId || taskId) : taskId;
             
-            console.log('Deleting task with ID:', idToUse);
             
             const response = await strapiClient.delete(`/tasks/${idToUse}`);
             
-            console.log('Delete response:', response);
             
             return response;
         } catch (error) {

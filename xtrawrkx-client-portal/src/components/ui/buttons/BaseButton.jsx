@@ -18,13 +18,13 @@ const BaseButton = ({
   };
 
   const variantClasses = {
-    primary: 'bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md focus:ring-blue-500',
-    primaryHover: 'bg-blue-700 text-white shadow-md hover:bg-blue-800 focus:ring-blue-500',
+    primary: 'bg-xtrawrkx-600 text-white shadow-sm hover:bg-xtrawrkx-700 hover:shadow-md focus:ring-xtrawrkx-500',
+    primaryHover: 'bg-xtrawrkx-700 text-white shadow-md hover:bg-xtrawrkx-800 focus:ring-xtrawrkx-500',
     primaryDisabled: 'bg-gray-100 text-gray-400 border border-gray-200 shadow-sm',
     secondary: 'bg-white text-gray-900 border border-gray-300 shadow-sm hover:bg-gray-50 hover:shadow-md focus:ring-gray-500',
     secondaryHover: 'bg-gray-50 text-gray-900 border border-gray-300 shadow-md hover:bg-gray-100 focus:ring-gray-500',
-    lightBlue: 'bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-200 hover:shadow-md focus:ring-blue-500',
-    lightBlueHover: 'bg-blue-200 text-blue-700 shadow-md hover:bg-blue-300 focus:ring-blue-500',
+    lightBlue: 'bg-xtrawrkx-100 text-xtrawrkx-700 shadow-sm hover:bg-xtrawrkx-200 hover:shadow-md focus:ring-xtrawrkx-500',
+    lightBlueHover: 'bg-xtrawrkx-200 text-xtrawrkx-700 shadow-md hover:bg-xtrawrkx-300 focus:ring-xtrawrkx-500',
     red: 'bg-orange-600 text-white shadow-sm hover:bg-orange-700 hover:shadow-md focus:ring-orange-500',
     redHover: 'bg-orange-700 text-white shadow-md hover:bg-orange-800 focus:ring-orange-500',
     green: 'bg-green-600 text-white shadow-sm hover:bg-green-700 hover:shadow-md focus:ring-green-500',

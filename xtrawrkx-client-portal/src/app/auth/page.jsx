@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@iconify/react";
 import { useAuth, useSession } from "@/lib/auth";
 import { SignInForm, SignUpForm, ForgotPasswordForm } from "@/components/auth";
-import { clientSignup, verifyOTP } from "@/lib/api";
+import { clientSignup, verifyOTP } from "@/lib/api/authService";
 
 // OTP Verification Component
 function OTPVerificationForm({ tempOTP, onVerify, onBack, email }) {
@@ -36,41 +36,56 @@ function OTPVerificationForm({ tempOTP, onVerify, onBack, email }) {
   };
 
   return (
-    <div className="w-full max-w-lg mx-auto">
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Verify Account
-          </h2>
-          <p className="text-gray-600 text-lg">
-            Enter the verification code to complete your registration
-          </p>
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-            {tempOTP ? (
-              <>
-                <p className="text-sm text-blue-800 mb-2">
-                  <strong>Development Mode:</strong> Use the code below to
-                  proceed
-                </p>
-                <p className="text-lg font-mono font-bold text-blue-900 bg-blue-100 px-3 py-2 rounded-lg inline-block">
-                  {tempOTP}
-                </p>
-                <p className="text-xs text-blue-700 mt-2">
-                  Email service not configured. Code shown for testing.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-blue-800 mb-2">
-                  <strong>Verification Code:</strong> Check your email for the
-                  verification code
-                </p>
-                <p className="text-xs text-blue-700">
-                  The code was sent to <strong>{email || "your email"}</strong>
-                </p>
-              </>
-            )}
+    <div className="w-full">
+      <div>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center shadow-md">
+            <svg
+              className="w-6 h-6 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
           </div>
+          <div>
+            <h3 className="text-3xl font-bold text-gray-900">Verify Account</h3>
+            <p className="text-base text-gray-600 mt-2">
+              Enter the verification code to complete your registration
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          {tempOTP ? (
+            <>
+              <p className="text-sm text-blue-800 mb-2">
+                <strong>Development Mode:</strong> Use the code below to proceed
+              </p>
+              <p className="text-lg font-mono font-bold text-blue-900 bg-blue-100 px-3 py-2 rounded-lg inline-block">
+                {tempOTP}
+              </p>
+              <p className="text-xs text-blue-700 mt-2">
+                Email service not configured. Code shown for testing.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-blue-800 mb-2">
+                <strong>Verification Code:</strong> Check your email for the
+                verification code
+              </p>
+              <p className="text-xs text-blue-700">
+                The code was sent to <strong>{email || "your email"}</strong>
+              </p>
+            </>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -83,21 +98,21 @@ function OTPVerificationForm({ tempOTP, onVerify, onBack, email }) {
           <div>
             <label
               htmlFor="otp"
-              className="block text-sm font-semibold text-gray-700 mb-2"
+              className="block text-base font-medium text-gray-700 mb-2"
             >
-              Enter Verification Code
+              Enter Verification Code <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               id="otp"
               value={otp}
               onChange={handleOtpChange}
-              className={`w-full px-4 py-3 border rounded-xl shadow-sm outline-none transition-all text-lg font-mono text-center tracking-widest ${
+              className={`block w-full rounded-lg border shadow-sm px-4 py-3.5 text-lg font-mono text-center tracking-widest text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors duration-200 ${
                 error
-                  ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100"
+                  ? "border-red-300 text-red-900"
                   : otp.length === 4
-                  ? "border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-100 bg-green-50"
-                  : "border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+                  ? "border-green-300 bg-green-50"
+                  : "border-gray-300"
               }`}
               placeholder="1234"
               maxLength="4"
@@ -121,26 +136,26 @@ function OTPVerificationForm({ tempOTP, onVerify, onBack, email }) {
             )}
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 pt-4">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-lg font-semibold text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 transition-all duration-200"
+              className="inline-flex items-center justify-center w-full rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 text-lg"
             >
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Starting Onboarding...
+                  Submitting...
                 </div>
               ) : (
-                "Start Onboarding"
+                "Submit"
               )}
             </button>
 
             <button
               type="button"
               onClick={onBack}
-              className="w-full flex justify-center py-3 px-4 border border-gray-200 rounded-xl shadow-sm text-lg font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200"
+              className="inline-flex items-center justify-center w-full rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 border border-gray-300 hover:bg-gray-50 text-gray-700 px-8 py-4 text-lg"
             >
               Back to Sign Up
             </button>
@@ -172,7 +187,6 @@ export default function AuthPage() {
     }
 
     if (status === "authenticated" && session?.user) {
-      console.log("User authenticated, redirecting to dashboard...");
       router.push("/dashboard");
     }
   }, [status, session, router]);
@@ -186,7 +200,7 @@ export default function AuthPage() {
       avatar: "JW",
       quote:
         "Authentication made simple. The OTP system works flawlessly and keeps our accounts secure.",
-      bgColor: "from-purple-400 to-indigo-500",
+      bgColor: "from-orange-400 to-pink-500",
     },
     {
       name: "Sarah Chen",
@@ -215,7 +229,7 @@ export default function AuthPage() {
       companyCode: "GT",
       avatar: "MP",
       quote:
-        "Smooth onboarding process that gets us started quickly with all the tools we need.",
+        "Smooth registration process that gets us started quickly with all the tools we need.",
       bgColor: "from-rose-400 to-pink-500",
     },
   ];
@@ -231,7 +245,6 @@ export default function AuthPage() {
   const handleSignIn = async (formData) => {
     try {
       await signIn(formData.email, formData.password);
-      console.log("Login successful, redirecting to dashboard...");
       router.push("/dashboard");
     } catch (error) {
       console.error("Sign in error:", error);
@@ -269,7 +282,6 @@ export default function AuthPage() {
       const response = await verifyOTP(otpData.email, otp);
 
       if (response.success && response.token) {
-        console.log("OTP verification successful, redirecting to dashboard...");
         await checkAuth();
         window.location.href = "/dashboard";
       } else {
@@ -287,17 +299,16 @@ export default function AuthPage() {
   };
 
   const handleForgotPassword = async (formData) => {
-    console.log("Forgot password:", formData);
     // TODO: Implement forgot password logic with backend
   };
 
   // Show loading state while checking authentication
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF4A74] mx-auto mb-4"></div>
+          <p className="text-white">Loading...</p>
         </div>
       </div>
     );
@@ -306,10 +317,10 @@ export default function AuthPage() {
   // If user is authenticated, don't show auth page (redirect is handled in useEffect)
   if (status === "authenticated") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecting...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF4A74] mx-auto mb-4"></div>
+          <p className="text-white">Redirecting...</p>
         </div>
       </div>
     );
@@ -318,11 +329,11 @@ export default function AuthPage() {
   // If in OTP step, show OTP verification form with split layout
   if (otpStep) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <div className="min-h-screen flex">
+      <div className="min-h-screen w-full overflow-x-hidden">
+        <div className="min-h-screen flex relative">
           {/* Left side - Welcome Section - Fixed */}
           <motion.div
-            className="w-2/5 p-16 flex flex-col justify-center overflow-hidden fixed left-0 top-0 h-screen"
+            className="hidden lg:flex w-2/5 p-8 lg:p-16 flex-col justify-center overflow-hidden fixed left-0 top-0 rounded-3xl h-[calc(100vh-3rem)] m-4 lg:m-6 z-10"
             style={{
               backgroundImage: "url('/images/download (10).png')",
               backgroundSize: "cover",
@@ -356,17 +367,19 @@ export default function AuthPage() {
 
           {/* Right side - OTP Form - Scrollable */}
           <motion.div
-            className="w-3/5 bg-gradient-to-bl from-white via-slate-50 to-gray-50 p-16 flex flex-col justify-center ml-[40%] min-h-screen overflow-y-auto"
+            className="w-full lg:w-3/5 bg-white p-4 sm:p-6 lg:p-8 space-y-6 ml-0 lg:ml-[40%] min-h-screen overflow-y-auto flex items-center justify-center"
             initial={{ x: 100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.4, duration: 0.8 }}
           >
-            <OTPVerificationForm
-              tempOTP={otpData.tempOTP}
-              onVerify={handleOTPVerification}
-              onBack={handleBackToSignUp}
-              email={otpData.email}
-            />
+            <div className="max-w-md lg:max-w-2xl w-full px-2 sm:px-4">
+              <OTPVerificationForm
+                tempOTP={otpData.tempOTP}
+                onVerify={handleOTPVerification}
+                onBack={handleBackToSignUp}
+                email={otpData.email}
+              />
+            </div>
           </motion.div>
         </div>
       </div>
@@ -374,12 +387,12 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen w-full overflow-x-hidden">
       {/* Split Layout */}
-      <div className="min-h-screen flex">
+      <div className="min-h-screen flex relative">
         {/* Left side - Welcome Section - Fixed */}
         <motion.div
-          className="w-2/5 p-16 flex flex-col justify-center overflow-hidden fixed left-0 top-0 h-screen"
+          className="hidden lg:flex w-2/5 p-8 lg:p-16 flex-col justify-center overflow-hidden fixed left-0 top-0 rounded-3xl h-[calc(100vh-2rem)] m-4 z-10"
           style={{
             backgroundImage: "url('/images/download (10).png')",
             backgroundSize: "cover",
@@ -496,33 +509,12 @@ export default function AuthPage() {
 
         {/* Right side - Forms - Scrollable */}
         <motion.div
-          className="w-3/5 bg-gradient-to-bl from-white via-slate-50 to-gray-50 p-16 flex flex-col justify-center ml-[40%] min-h-screen overflow-y-auto"
+          className="w-full lg:w-3/5 bg-white p-4 sm:p-6 lg:p-8 space-y-6 ml-0 lg:ml-[40%] min-h-screen overflow-y-auto flex items-center justify-center"
           initial={{ x: 100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.8 }}
         >
-          <div className="max-w-lg mx-auto w-full">
-            {/* Back to Home Button */}
-            <button
-              onClick={() => router.push("/")}
-              className="absolute top-8 right-8 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors bg-white/80 backdrop-blur-sm px-4 py-2 rounded-xl shadow-sm border border-white/20"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
-              </svg>
-              Back to Home
-            </button>
-
+          <div className="max-w-md lg:max-w-2xl w-full px-2 sm:px-4">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeForm}

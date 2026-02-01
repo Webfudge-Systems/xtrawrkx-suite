@@ -125,13 +125,11 @@ export default function UserPermissionsAssignment() {
   };
 
   const handleBulkRoleChange = (role) => {
-    console.log("Bulk role change:", role, selectedUsers);
     setSelectedUsers([]);
     setShowBulkActions(false);
   };
 
   const handleBulkPermissionChange = (permission, add) => {
-    console.log("Bulk permission change:", permission, add, selectedUsers);
     setSelectedUsers([]);
     setShowBulkActions(false);
   };
@@ -142,7 +140,6 @@ export default function UserPermissionsAssignment() {
   };
 
   const handleSaveUser = (userData) => {
-    console.log("Saving user:", userData);
     setShowUserModal(false);
     setEditingUser(null);
   };

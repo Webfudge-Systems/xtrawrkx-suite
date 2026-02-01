@@ -5,7 +5,6 @@ import {
   X,
   Maximize2,
   ExternalLink,
-  User,
   Calendar,
   Flag,
   ChevronDown,
@@ -29,7 +28,9 @@ const TaskDetailModal = ({
   task,
   onOpenProject,
   onOpenFullPage,
+  onEditTask,
   onTaskRefresh,
+  onSubtaskClick,
 }) => {
   const [activeTab, setActiveTab] = useState("subtasks");
   const [projects, setProjects] = useState([]);
@@ -230,15 +231,11 @@ const TaskDetailModal = ({
 
     try {
       // Transform frontend status to Strapi format before sending
-      const { transformStatusToStrapi } = await import(
-        "../../lib/dataTransformers"
-      );
+      const { transformStatusToStrapi } =
+        await import("../../lib/dataTransformers");
       const strapiStatus = transformStatusToStrapi(newStatus);
 
       // Update on server using the transformed status
-      console.log(
-        `Updating task ${taskId} status: ${newStatus} -> ${strapiStatus}`
-      );
       await taskService.updateTask(taskId, { status: strapiStatus });
 
       // Notify parent immediately to update the table (same pattern as due date)
@@ -265,7 +262,7 @@ const TaskDetailModal = ({
       ) {
         console.error("Backend connection error. Please ensure:");
         console.error(
-          "1. The Strapi backend is running on http://localhost:1337"
+          "1. The Strapi backend is running on http://localhost:1337",
         );
         console.error("2. CORS is configured correctly in Strapi");
         console.error("3. Check the backend server logs for errors");
@@ -288,15 +285,11 @@ const TaskDetailModal = ({
 
     try {
       // Transform frontend priority to Strapi format before sending
-      const { transformPriorityToStrapi } = await import(
-        "../../lib/dataTransformers"
-      );
+      const { transformPriorityToStrapi } =
+        await import("../../lib/dataTransformers");
       const strapiPriority = transformPriorityToStrapi(newPriority);
 
       // Update on server using the transformed priority
-      console.log(
-        `Updating task ${taskId} priority: ${newPriority} -> ${strapiPriority}`
-      );
       await taskService.updateTask(taskId, { priority: strapiPriority });
 
       // Notify parent immediately to update the table (same pattern as status and due date)
@@ -323,7 +316,7 @@ const TaskDetailModal = ({
       ) {
         console.error("Backend connection error. Please ensure:");
         console.error(
-          "1. The Strapi backend is running on http://localhost:1337"
+          "1. The Strapi backend is running on http://localhost:1337",
         );
         console.error("2. CORS is configured correctly in Strapi");
         console.error("3. Check the backend server logs for errors");
@@ -468,27 +461,16 @@ const TaskDetailModal = ({
   // };
 
   const modalClasses =
-    "fixed inset-y-0 right-0 bg-black/50 backdrop-blur-sm flex items-center justify-end z-[80]";
+    "fixed inset-0 top-0 flex items-stretch justify-end z-[80] pointer-events-none !mt-0";
   const contentClasses =
-    "bg-white shadow-2xl w-[600px] h-screen max-h-screen border-l border-gray-200 flex flex-col";
+    "bg-white shadow-2xl w-[600px] h-full border-l border-gray-200 flex flex-col pointer-events-auto";
 
   return (
     <div className={modalClasses}>
       <div className={contentClasses}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 bg-white">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <button
-              onClick={handleToggleComplete}
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
-                isComplete
-                  ? "bg-green-500 border-green-500 text-white"
-                  : "border-gray-300 hover:border-green-500"
-              }`}
-              title={isComplete ? "Mark as incomplete" : "Mark as complete"}
-            >
-              {isComplete && <CheckCircle2 className="w-4 h-4" />}
-            </button>
             <h1
               className={`text-xl font-semibold truncate pr-4 ${
                 isComplete ? "text-gray-500 line-through" : "text-gray-900"
@@ -499,6 +481,17 @@ const TaskDetailModal = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Edit Task Button */}
+            {onEditTask && (
+              <button
+                onClick={() => onEditTask(safeTask)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+                title="Edit task"
+              >
+                <Edit className="w-4 h-4" />
+                Edit
+              </button>
+            )}
             {/* Open Project Button */}
             <button
               onClick={() => onOpenProject?.(safeTask.project)}
@@ -510,15 +503,7 @@ const TaskDetailModal = ({
 
             {/* Full Page Button */}
             <button
-              onClick={() => {
-                console.log("Full button clicked for task:", safeTask);
-                console.log("onOpenFullPage function:", onOpenFullPage);
-                if (onOpenFullPage) {
-                  onOpenFullPage(safeTask);
-                } else {
-                  console.error("onOpenFullPage function is not provided!");
-                }
-              }}
+              onClick={() => onOpenFullPage?.(safeTask)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
             >
               <Maximize2 className="w-4 h-4" />
@@ -535,11 +520,11 @@ const TaskDetailModal = ({
           </div>
         </div>
 
-        {/* Content - Full Height No Scroll */}
-        <div className="flex-1 flex flex-col h-full overflow-y-auto bg-gray-50">
-          {/* Task Details Card - Matching my-task details page */}
-          <div className="p-6 flex-shrink-0">
-            <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
+        {/* Content - Single scroll for whole modal body */}
+        <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50">
+          {/* Task Details Card - Matching lead-companies detail page */}
+          <div className="px-4 py-4">
+            <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-4">
               {/* Mark Complete Bar */}
               <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <button
@@ -574,323 +559,329 @@ const TaskDetailModal = ({
                 </button>
               </div>
               {isDetailsExpanded && (
-                <div className="space-y-3">
-                  {/* Assignee */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Assignee
-                    </label>
-                    <div className="flex-1 flex items-center gap-2 justify-end">
-                      {editingField === "assignee" ? (
-                        <select
-                          value={editingValue || ""}
-                          onChange={(e) => {
-                            handleAssigneeUpdate(e.target.value);
-                            setEditingField(null);
-                          }}
-                          onBlur={() => setEditingField(null)}
-                          autoFocus
-                          className="w-full px-3 py-2 border border-blue-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        >
-                          <option value="">Unassigned</option>
-                          {users.map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <>
-                          {(() => {
-                            const assigneeAvatar = getAssigneeAvatar(
-                              safeTask.assignee
-                            );
-                            return (
-                              <>
-                                <div
-                                  className={`w-8 h-8 ${assigneeAvatar.color} rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}
-                                >
-                                  {assigneeAvatar.initials}
-                                </div>
-                                <span
-                                  className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
-                                  onClick={() => {
-                                    setEditingValue(
-                                      safeTask.assignee?.id?.toString() || ""
-                                    );
-                                    setEditingField("assignee");
-                                  }}
-                                >
-                                  {typeof safeTask.assignee === "object"
-                                    ? safeTask.assignee?.name || "Unassigned"
-                                    : safeTask.assignee || "Unassigned"}
-                                </span>
-                                {safeTask.assignee && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Assignee */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Assignee
+                      </label>
+                      <div className="mt-1">
+                        {editingField === "assignee" ? (
+                          <select
+                            value={editingValue || ""}
+                            onChange={(e) => {
+                              handleAssigneeUpdate(e.target.value);
+                              setEditingField(null);
+                            }}
+                            onBlur={() => setEditingField(null)}
+                            autoFocus
+                            className="w-full px-3 py-2 border border-blue-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                          >
+                            <option value="">Unassigned</option>
+                            {users.map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const assigneeAvatar = getAssigneeAvatar(
+                                safeTask.assignee,
+                              );
+                              return (
+                                <>
+                                  <div
+                                    className={`w-8 h-8 ${assigneeAvatar.color} rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}
+                                  >
+                                    {assigneeAvatar.initials}
+                                  </div>
+                                  <span
+                                    className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded flex-1"
+                                    onClick={() => {
+                                      setEditingValue(
+                                        safeTask.assignee?.id?.toString() || "",
+                                      );
+                                      setEditingField("assignee");
+                                    }}
+                                  >
+                                    {typeof safeTask.assignee === "object"
+                                      ? safeTask.assignee?.name || "Unassigned"
+                                      : safeTask.assignee || "Unassigned"}
+                                  </span>
+                                  {safeTask.assignee && (
+                                    <button
+                                      onClick={() => handleAssigneeUpdate(null)}
+                                      className="p-1 hover:bg-gray-100 rounded"
+                                    >
+                                      <X className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => handleAssigneeUpdate(null)}
+                                    onClick={() => {
+                                      setEditingValue(
+                                        safeTask.assignee?.id?.toString() || "",
+                                      );
+                                      setEditingField("assignee");
+                                    }}
                                     className="p-1 hover:bg-gray-100 rounded"
                                   >
-                                    <X className="w-4 h-4 text-gray-400" />
+                                    <ChevronDown className="w-4 h-4 text-gray-400" />
                                   </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setEditingValue(
-                                      safeTask.assignee?.id?.toString() || ""
-                                    );
-                                    setEditingField("assignee");
-                                  }}
-                                  className="p-1 hover:bg-gray-100 rounded"
-                                >
-                                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                                </button>
-                              </>
-                            );
-                          })()}
-                        </>
-                      )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Due Date */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Due date
-                    </label>
-                    <div className="flex-1 flex items-center gap-2 justify-end">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      {editingField === "dueDate" ? (
-                        <input
-                          type="date"
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.target.value)}
-                          onBlur={() => {
-                            handleDueDateUpdate(editingValue);
-                            setEditingField(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
+                    {/* Due Date */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Due date
+                      </label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        {editingField === "dueDate" ? (
+                          <input
+                            type="date"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onBlur={() => {
                               handleDueDateUpdate(editingValue);
                               setEditingField(null);
-                            } else if (e.key === "Escape") {
-                              setEditingField(null);
-                            }
-                          }}
-                          autoFocus
-                          className="text-sm text-gray-900 px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      ) : (
-                        <>
-                          <span
-                            className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
-                            onClick={() => {
-                              const dateValue = safeTask.scheduledDate
-                                ? new Date(safeTask.scheduledDate)
-                                    .toISOString()
-                                    .split("T")[0]
-                                : "";
-                              setEditingValue(dateValue);
-                              setEditingField("dueDate");
                             }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleDueDateUpdate(editingValue);
+                                setEditingField(null);
+                              } else if (e.key === "Escape") {
+                                setEditingField(null);
+                              }
+                            }}
+                            autoFocus
+                            className="flex-1 text-sm text-gray-900 px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 flex-1">
+                            <p
+                              className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded flex-1"
+                              onClick={() => {
+                                const dateValue = safeTask.scheduledDate
+                                  ? new Date(safeTask.scheduledDate)
+                                      .toISOString()
+                                      .split("T")[0]
+                                  : "";
+                                setEditingValue(dateValue);
+                                setEditingField("dueDate");
+                              }}
+                            >
+                              {safeTask.dueDate || "No due date"}
+                            </p>
+                            {safeTask.dueDate && (
+                              <button
+                                onClick={() => handleDueDateUpdate(null)}
+                                className="p-1 hover:bg-gray-100 rounded"
+                              >
+                                <X className="w-4 h-4 text-gray-400" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Status
+                      </label>
+                      <div className="mt-1">
+                        {editingField === "status" ? (
+                          <select
+                            value={editingValue}
+                            onChange={async (e) => {
+                              const newStatus = e.target.value;
+                              setEditingValue(newStatus);
+                              await handleStatusUpdate(newStatus);
+                              setEditingField(null);
+                            }}
+                            onBlur={() => setEditingField(null)}
+                            autoFocus
+                            className={`w-full px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getStatusColor(
+                              editingValue,
+                            )}`}
                           >
-                            {safeTask.dueDate || "No due date"}
+                            <option value="To Do">To Do</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Internal Review">
+                              Internal Review
+                            </option>
+                            <option value="Done">Done</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        ) : (
+                          <span
+                            onClick={() => {
+                              setEditingValue(safeTask.status || "To Do");
+                              setEditingField("status");
+                            }}
+                            className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getStatusColor(
+                              safeTask.status,
+                            )}`}
+                          >
+                            {safeTask.status || "To Do"}
                           </span>
-                          {safeTask.dueDate && (
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Priority */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Priority
+                      </label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Flag className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        {editingField === "priority" ? (
+                          <select
+                            value={editingValue}
+                            onChange={async (e) => {
+                              const newPriority = e.target.value;
+                              setEditingValue(newPriority);
+                              await handlePriorityUpdate(newPriority);
+                              setEditingField(null);
+                            }}
+                            onBlur={() => setEditingField(null)}
+                            autoFocus
+                            className={`flex-1 px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getPriorityColor(
+                              editingValue,
+                            )}`}
+                          >
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                          </select>
+                        ) : (
+                          <span
+                            onClick={() => {
+                              setEditingValue(safeTask.priority || "Medium");
+                              setEditingField("priority");
+                            }}
+                            className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getPriorityColor(
+                              safeTask.priority,
+                            )}`}
+                          >
+                            {safeTask.priority || "Medium"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Project */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Project
+                      </label>
+                      <div className="mt-1">
+                        <ProjectSelector
+                          task={safeTask}
+                          projects={projects}
+                          onUpdate={(updatedTask) => {
+                            setLocalTask(updatedTask);
+                            if (onTaskRefresh) onTaskRefresh();
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Collaborators */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Collaborators
+                      </label>
+                      <div className="mt-1">
+                        {safeTask.collaborators &&
+                        safeTask.collaborators.length > 0 ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {safeTask.collaborators
+                              .slice(0, 3)
+                              .map((collab, index) => {
+                                const name =
+                                  collab?.name ||
+                                  (collab?.firstName && collab?.lastName
+                                    ? `${collab.firstName} ${collab.lastName}`
+                                    : collab?.firstName ||
+                                      collab?.lastName ||
+                                      "Unknown");
+                                const initial =
+                                  name?.charAt(0)?.toUpperCase() || "U";
+                                return (
+                                  <div
+                                    key={collab?.id || index}
+                                    className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white"
+                                    title={name}
+                                    style={{
+                                      marginLeft: index > 0 ? "-4px" : "0",
+                                      zIndex: 10 - index,
+                                    }}
+                                  >
+                                    {initial}
+                                  </div>
+                                );
+                              })}
+                            {safeTask.collaborators.length > 3 && (
+                              <div
+                                className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-bold border-2 border-white"
+                                title={`${
+                                  safeTask.collaborators.length - 3
+                                } more`}
+                                style={{ marginLeft: "-4px", zIndex: 7 }}
+                              >
+                                +{safeTask.collaborators.length - 3}
+                              </div>
+                            )}
                             <button
-                              onClick={() => handleDueDateUpdate(null)}
-                              className="p-1 hover:bg-gray-100 rounded"
+                              onClick={() =>
+                                setCollaboratorModal({ isOpen: true })
+                              }
+                              className="ml-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
                             >
-                              <X className="w-4 h-4 text-gray-400" />
+                              Manage
                             </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Status */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Status
-                    </label>
-                    <div className="flex-1 flex justify-end">
-                      {editingField === "status" ? (
-                        <select
-                          value={editingValue}
-                          onChange={async (e) => {
-                            const newStatus = e.target.value;
-                            setEditingValue(newStatus);
-                            await handleStatusUpdate(newStatus);
-                            setEditingField(null);
-                          }}
-                          onBlur={() => setEditingField(null)}
-                          autoFocus
-                          className={`px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getStatusColor(
-                            editingValue
-                          )}`}
-                        >
-                          <option value="To Do">To Do</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="In Review">In Review</option>
-                          <option value="Done">Done</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
-                      ) : (
-                        <span
-                          onClick={() => {
-                            setEditingValue(safeTask.status || "To Do");
-                            setEditingField("status");
-                          }}
-                          className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getStatusColor(
-                            safeTask.status
-                          )}`}
-                        >
-                          {safeTask.status || "To Do"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Priority */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Priority
-                    </label>
-                    <div className="flex-1 flex items-center gap-2 justify-end">
-                      <Flag className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      {editingField === "priority" ? (
-                        <select
-                          value={editingValue}
-                          onChange={async (e) => {
-                            const newPriority = e.target.value;
-                            setEditingValue(newPriority);
-                            await handlePriorityUpdate(newPriority);
-                            setEditingField(null);
-                          }}
-                          onBlur={() => setEditingField(null)}
-                          autoFocus
-                          className={`px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getPriorityColor(
-                            editingValue
-                          )}`}
-                        >
-                          <option value="Low">Low</option>
-                          <option value="Medium">Medium</option>
-                          <option value="High">High</option>
-                        </select>
-                      ) : (
-                        <span
-                          onClick={() => {
-                            setEditingValue(safeTask.priority || "Medium");
-                            setEditingField("priority");
-                          }}
-                          className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getPriorityColor(
-                            safeTask.priority
-                          )}`}
-                        >
-                          {safeTask.priority || "Medium"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Project */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Project
-                    </label>
-                    <div className="flex-1 flex items-center justify-end">
-                      <ProjectSelector
-                        task={safeTask}
-                        projects={projects}
-                        onUpdate={(updatedTask) => {
-                          setLocalTask(updatedTask);
-                          if (onTaskRefresh) onTaskRefresh();
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Collaborators */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Collaborators
-                    </label>
-                    <div className="flex-1 flex items-center gap-2 justify-end flex-wrap">
-                      {safeTask.collaborators &&
-                      safeTask.collaborators.length > 0 ? (
-                        <>
-                          {safeTask.collaborators
-                            .slice(0, 3)
-                            .map((collab, index) => {
-                              const name =
-                                collab?.name ||
-                                (collab?.firstName && collab?.lastName
-                                  ? `${collab.firstName} ${collab.lastName}`
-                                  : collab?.firstName ||
-                                    collab?.lastName ||
-                                    "Unknown");
-                              const initial =
-                                name?.charAt(0)?.toUpperCase() || "U";
-                              return (
-                                <div
-                                  key={collab?.id || index}
-                                  className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white"
-                                  title={name}
-                                  style={{
-                                    marginLeft: index > 0 ? "-4px" : "0",
-                                    zIndex: 10 - index,
-                                  }}
-                                >
-                                  {initial}
-                                </div>
-                              );
-                            })}
-                          {safeTask.collaborators.length > 3 && (
-                            <div
-                              className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-bold border-2 border-white"
-                              title={`${
-                                safeTask.collaborators.length - 3
-                              } more`}
-                              style={{ marginLeft: "-4px", zIndex: 7 }}
-                            >
-                              +{safeTask.collaborators.length - 3}
-                            </div>
-                          )}
+                          </div>
+                        ) : (
                           <button
                             onClick={() =>
                               setCollaboratorModal({ isOpen: true })
                             }
-                            className="ml-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                            className="text-xs text-blue-600 hover:text-blue-700"
                           >
-                            Manage
+                            Add collaborators
                           </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => setCollaboratorModal({ isOpen: true })}
-                          className="text-xs text-blue-600 hover:text-blue-700"
-                        >
-                          Add collaborators
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Progress */}
-                  <div className="flex items-center justify-between py-2">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Progress
-                    </label>
-                    <div className="flex-1 flex items-center gap-3 justify-end">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[200px]">
-                        <div
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${safeTask.progress || 0}%` }}
-                        ></div>
+                        )}
                       </div>
-                      <span className="text-sm font-semibold text-gray-700 min-w-[3rem]">
-                        {safeTask.progress || 0}%
-                      </span>
+                    </div>
+
+                    {/* Progress */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Progress
+                      </label>
+                      <div className="mt-1 flex items-center gap-3">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[200px]">
+                          <div
+                            className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${safeTask.progress || 0}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 min-w-[3rem]">
+                          {safeTask.progress || 0}%
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -900,7 +891,7 @@ const TaskDetailModal = ({
               {isDetailsExpanded && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-gray-700">
+                    <label className="text-sm font-medium text-gray-500">
                       Description
                     </label>
                     {editingField !== "description" && (
@@ -909,7 +900,7 @@ const TaskDetailModal = ({
                           e.stopPropagation();
                           setEditingField("description");
                           setEditingValue(
-                            task.description || safeTask.description || ""
+                            task.description || safeTask.description || "",
                           );
                         }}
                         className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
@@ -958,7 +949,7 @@ const TaskDetailModal = ({
                         e.stopPropagation();
                         setEditingField("description");
                         setEditingValue(
-                          task.description || safeTask.description || ""
+                          task.description || safeTask.description || "",
                         );
                       }}
                       className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap cursor-pointer hover:bg-gray-50 px-2 py-1 rounded transition-colors min-h-[60px]"
@@ -973,38 +964,46 @@ const TaskDetailModal = ({
             </div>
           </div>
 
-          {/* Tabs Section - Full Height */}
-          <div className="flex-1 flex flex-col min-h-0">
+          {/* Tabs Section */}
+          <div>
             {/* Tab Headers */}
-            <div className="flex border-b border-gray-200 flex-shrink-0 px-6">
-              <button
-                onClick={() => setActiveTab("subtasks")}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === "subtasks"
-                    ? "text-blue-600 border-blue-600"
-                    : "text-gray-500 border-transparent hover:text-gray-700"
-                }`}
-              >
-                Sub-Tasks
-              </button>
-              <button
-                onClick={() => setActiveTab("comments")}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === "comments"
-                    ? "text-blue-600 border-blue-600"
-                    : "text-gray-500 border-transparent hover:text-gray-700"
-                }`}
-              >
-                Comment
-              </button>
+            <div className="mb-4 px-4">
+              <div className="flex items-center gap-2 bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl p-2 shadow-lg">
+                <button
+                  onClick={() => setActiveTab("subtasks")}
+                  className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === "subtasks"
+                      ? "bg-orange-500 text-white shadow-lg"
+                      : "bg-transparent text-gray-700 hover:bg-white/50"
+                  }`}
+                >
+                  Sub-Tasks
+                </button>
+                <button
+                  onClick={() => setActiveTab("comments")}
+                  className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                    activeTab === "comments"
+                      ? "bg-orange-500 text-white shadow-lg"
+                      : "bg-transparent text-gray-700 hover:bg-white/50"
+                  }`}
+                >
+                  Comment
+                </button>
+              </div>
             </div>
 
-            {/* Tab Content - Full Height */}
-            <div className="flex-1 min-h-0">
+            {/* Tab Content - Comments use fixed height (like lead companies) to avoid gap at bottom */}
+            <div className="bg-gray-50 px-4 pb-6">
               {activeTab === "subtasks" ? (
-                <SubTasksSection task={safeTask} onTaskUpdate={onTaskRefresh} />
+                <SubTasksSection
+                  task={safeTask}
+                  onTaskUpdate={onTaskRefresh}
+                  onSubtaskClick={onSubtaskClick}
+                />
               ) : (
-                <CommentsSection task={safeTask} />
+                <div className="flex flex-col h-[600px] min-h-0 rounded-2xl overflow-hidden bg-white border border-white/40 shadow-sm">
+                  <CommentsSection task={safeTask} />
+                </div>
               )}
             </div>
           </div>

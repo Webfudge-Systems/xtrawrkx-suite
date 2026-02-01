@@ -82,7 +82,6 @@ export default function TasksPage() {
         "pagination[pageSize]": 1000, // Get all tasks for now
       });
 
-      console.log("Tasks API Response:", response);
 
       // Handle Strapi v5 response format
       // Response can be: { data: [...], meta: {...} } or directly an array
@@ -103,8 +102,6 @@ export default function TasksPage() {
         tasksData = [];
       }
 
-      console.log("Extracted tasks data:", tasksData);
-      console.log("Number of tasks:", tasksData.length);
 
       const transformed = tasksData
         .map((task) => {
@@ -159,8 +156,6 @@ export default function TasksPage() {
         })
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-      console.log("Transformed tasks:", transformed);
-      console.log("Number of transformed tasks:", transformed.length);
 
       setTasksList(transformed);
 
@@ -179,7 +174,6 @@ export default function TasksPage() {
         ).length,
       };
 
-      console.log("Calculated stats:", newStats);
       setStats(newStats);
     } catch (error) {
       console.error("Error fetching tasks:", error);
@@ -325,9 +319,7 @@ export default function TasksPage() {
 
     try {
       setIsDeleting(true);
-      console.log("Deleting task with ID:", taskId);
       await taskService.deleteTask(taskId);
-      console.log("Task deleted successfully");
 
       // Close modal and reset state
       setShowDeleteModal(false);
@@ -797,7 +789,6 @@ export default function TasksPage() {
                 onAddClick={() => setShowNewTask(true)}
                 onRowClick={(row) => {
                   // Navigate to task detail if needed
-                  console.log("Task clicked:", row);
                 }}
               />
             ) : (

@@ -119,19 +119,15 @@ function UserManagementPage() {
 
   const checkUserPermissions = async () => {
     try {
-      console.log("Checking user permissions...");
       const user = await getCurrentUser();
-      console.log("Current user:", user);
 
       // For development, allow access if user exists (temporary fix)
       if (!user) {
-        console.log("No user found, checking local storage...");
 
         // Check for currentUser in localStorage (your actual structure)
         const currentUserData = localStorage.getItem("currentUser");
         if (currentUserData) {
           const parsedUser = JSON.parse(currentUserData);
-          console.log("Using cached user data from currentUser:", parsedUser);
 
           // Convert to the expected format
           const userObj = {
@@ -162,19 +158,16 @@ function UserManagementPage() {
         user.user.role === "ADMIN"; // Fallback for old system
 
       if (user.type !== "internal" || !hasAdminAccess) {
-        console.log("Access denied - not admin. User role:", user.user.role);
         setError("Access denied. Admin privileges required.");
         setLoading(false);
         return;
       }
-      console.log("Admin access granted");
       setCurrentUser(user.user);
     } catch (error) {
       console.error("Permission check error:", error);
       // For development, try to use cached data from currentUser
       const currentUserData = localStorage.getItem("currentUser");
       if (currentUserData) {
-        console.log("Using cached user data from currentUser due to error");
         const parsedUser = JSON.parse(currentUserData);
 
         // Convert to the expected format
@@ -199,7 +192,6 @@ function UserManagementPage() {
 
   const fetchUsers = async () => {
     try {
-      console.log("Fetching users from Strapi...");
       setLoading(true);
       setError("");
 
@@ -213,7 +205,6 @@ function UserManagementPage() {
         return;
       }
 
-      console.log("Auth token obtained successfully");
 
       // Fetch users using AuthService with populated roles
       // Use the editable users endpoint to get only users that current user can edit
@@ -286,10 +277,6 @@ function UserManagementPage() {
           return;
         }
       } catch (hierarchicalError) {
-        console.log(
-          "Hierarchical endpoint not available, falling back to regular endpoint:",
-          hierarchicalError.message
-        );
       }
 
       // Fallback to regular endpoint - ensure department is fully populated
@@ -576,7 +563,6 @@ function UserManagementPage() {
         }
       );
 
-      console.log("Delete response:", response);
 
       // Immediately remove from UI for better UX
       setUsers((prevUsers) =>
@@ -753,13 +739,8 @@ function UserManagementPage() {
           return;
         }
         updateData.data.password = editingUser.newPassword;
-        console.log("Password update included for user:", editingUser.id);
       }
 
-      console.log("Updating user with data:", {
-        ...updateData.data,
-        password: updateData.data.password ? "***HIDDEN***" : undefined,
-      });
 
       // Update user with populated department in response
       const response = await AuthService.apiRequest(
@@ -1242,14 +1223,7 @@ function UserManagementPage() {
                       >
                         <Building className="w-3 h-3" />
                         {(() => {
-                          console.log(
-                            "[Table] Rendering department for user:",
-                            user.email,
-                            "Department:",
-                            user.department
-                          );
                           const info = getDepartmentInfo(user.department);
-                          console.log("[Table] Department info:", info);
                           return info.name;
                         })()}
                       </span>

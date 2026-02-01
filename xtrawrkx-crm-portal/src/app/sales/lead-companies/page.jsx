@@ -254,14 +254,7 @@ export default function LeadCompaniesPage() {
         populate: ["contacts", "assignedTo", "deals"],
       });
 
-      console.log("Frontend fetchLeadCompanies response:", response);
-      console.log("Response data:", response.data);
       if (response.data && response.data.length > 0) {
-        console.log("First company contacts:", response.data[0].contacts);
-        console.log(
-          "First company contacts count:",
-          response.data[0].contacts?.length || 0
-        );
       }
 
       setLeadCompanies(response.data || []);
@@ -313,7 +306,6 @@ export default function LeadCompaniesPage() {
   };
 
   const handleItemClick = (item) => {
-    console.log("Lead Company clicked:", item);
   };
 
   const updatedColumns = boardColumns;
@@ -945,14 +937,12 @@ export default function LeadCompaniesPage() {
     setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
 
     try {
-      console.log(`Updating company ${companyId} status to ${newStatus}`);
 
       // Update the status via API
       const response = await leadCompanyService.update(companyId, {
         status: newStatus.toUpperCase(),
       });
 
-      console.log("Status update response:", response);
 
       // Update local state with lowercase status for UI consistency
       setLeadCompanies((prevCompanies) =>
@@ -970,7 +960,6 @@ export default function LeadCompaniesPage() {
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 3000);
 
-      console.log(`Successfully updated company ${companyId} to ${newStatus}`);
     } catch (error) {
       console.error("Error updating status:", error);
       console.error("Error details:", error.message);
@@ -995,12 +984,10 @@ export default function LeadCompaniesPage() {
     setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
 
     try {
-      console.log(`Converting company ${companyToConvert.id} to client`);
 
       const response = await leadCompanyService.convertToClient(
         companyToConvert.id
       );
-      console.log("Conversion response:", response);
 
       // Store company name for success animation
       const companyName = companyToConvert.companyName;
@@ -1036,9 +1023,6 @@ export default function LeadCompaniesPage() {
         setConvertedCompanyName("");
       }, 3500);
 
-      console.log(
-        `Successfully converted company ${companyToConvert.id} to client`
-      );
     } catch (error) {
       console.error("Error converting to client:", error);
       console.error("Error details:", error.message);
@@ -1064,7 +1048,6 @@ export default function LeadCompaniesPage() {
     setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
 
     try {
-      console.log(`Deleting company ${companyToDelete.id}`);
 
       // Delete the company via API (this will cascade delete linked data)
       await leadCompanyService.delete(companyToDelete.id);
@@ -1081,7 +1064,6 @@ export default function LeadCompaniesPage() {
       setShowDeleteModal(false);
       setCompanyToDelete(null);
 
-      console.log("Company deleted successfully");
     } catch (error) {
       console.error("Error deleting company:", error);
       alert("Failed to delete company. Please try again.");
@@ -1103,7 +1085,6 @@ export default function LeadCompaniesPage() {
         exportFormat = "csv";
       }
       
-      console.log(`Exporting ${filteredCompanies.length} lead companies as ${exportFormat}`);
 
       // Check if there's data to export
       if (filteredCompanies.length === 0) {
@@ -1188,7 +1169,6 @@ export default function LeadCompaniesPage() {
 
   // Handle filter application
   const handleApplyFilters = (filters) => {
-    console.log("Applying filters:", filters);
     
     // Check if any filters are active
     const hasActiveFilters = Object.values(filters).some(
@@ -1205,7 +1185,6 @@ export default function LeadCompaniesPage() {
 
   // Handle import
   const handleImport = async (file) => {
-    console.log("Import completed, refreshing lead companies...");
     // Refresh the data after import
     await fetchLeadCompanies();
     await fetchStats();

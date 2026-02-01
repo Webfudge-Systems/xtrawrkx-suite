@@ -250,7 +250,6 @@ export default function AuditLogTable({ auditLogs = [] }) {
   };
 
   const handleExport = () => {
-    console.log("Exporting logs:", selectedLogs.length > 0 ? selectedLogs : "all");
   };
 
   const paginatedLogs = filteredLogs.slice(

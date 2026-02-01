@@ -3,16 +3,14 @@
  * Placeholder for NextAuth integration later
  */
 
-import { mockSessionUser } from './msw/fixtures.js';
-
 /**
  * Get current user session (mock implementation)
  * @returns {Promise<import('./types.js').SessionUser>}
  */
 export async function getSession() {
-    // For now, return mock session
     // TODO: Replace with NextAuth getSession()
-    return mockSessionUser;
+    // Return null for now since MSW is removed
+    return null;
 }
 
 /**
@@ -58,11 +56,11 @@ export async function getUserCommunities() {
  * @returns {import('./types.js').SessionUser|null}
  */
 export function useSession() {
-    // For now, return mock session
     // TODO: Replace with NextAuth useSession()
+    // Return unauthenticated for now since MSW is removed
     return {
-        data: mockSessionUser,
-        status: 'authenticated'
+        data: null,
+        status: 'unauthenticated'
     };
 }
 

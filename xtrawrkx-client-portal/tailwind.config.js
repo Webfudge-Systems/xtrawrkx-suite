@@ -107,10 +107,24 @@
           orange: '#F97316',
         },
 
+        // Xtrawrkx brand color (#FF4A74) with shades
+        xtrawrkx: {
+          50: '#FFF1F5',
+          100: '#FFE4EB',
+          200: '#FFC7D7',
+          300: '#FF9FB8',
+          400: '#FF6B94',
+          500: '#FF4A74', // Main brand color
+          600: '#E6395F',
+          700: '#CC2A4A',
+          800: '#B31F3A',
+          900: '#99182F',
+        },
+
         // Legacy brand colors for backward compatibility
         brand: {
-          primary: '#F97316',
-          secondary: '#FB923C',
+          primary: '#FF4A74', // Updated to Xtrawrkx brand color
+          secondary: '#FF6B94',
           foreground: '#18181B',
           'text-light': '#71717A',
           'text-muted': '#A1A1AA',
@@ -120,7 +134,7 @@
           success: '#22C55E',
           warning: '#FACC15',
           error: '#EF4444',
-          info: '#3B82F6',
+          info: '#FF4A74', // Updated to Xtrawrkx brand color
         }
       },
       fontFamily: {

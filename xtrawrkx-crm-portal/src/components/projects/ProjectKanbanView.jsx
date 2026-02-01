@@ -128,7 +128,6 @@ export default function ProjectKanbanView({ projects, onProjectMove, onAddProjec
   };
 
   const handleItemClick = (item) => {
-    console.log('Project clicked:', item);
   };
 
   const handleColumnClick = (column) => {

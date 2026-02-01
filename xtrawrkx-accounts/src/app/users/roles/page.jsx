@@ -186,7 +186,6 @@ function UserRolesPage() {
 
       // Fetch roles using AuthService
       const data = await AuthService.apiRequest("/user-roles");
-      console.log("Roles API response:", data);
 
       setRoles(data.data || []);
     } catch (error) {

@@ -25,6 +25,7 @@ import {
   Eye,
   Trash2,
   Search,
+  Filter,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import PageHeader from "../../../components/shared/PageHeader";
@@ -41,6 +42,7 @@ import {
 import CommentsSection from "../../../components/shared/CommentsSection";
 import CollaboratorModal from "../../../components/my-task/CollaboratorModal";
 import ProjectSelector from "../../../components/my-task/ProjectSelector";
+import SubtasksFilterModal from "../../../components/my-task/SubtasksFilterModal";
 import { Table, Button } from "../../../components/ui";
 import subtaskService from "../../../lib/subtaskService";
 import {
@@ -64,6 +66,8 @@ export default function TaskDetailPage({ params: paramsProp }) {
   const [editedDescription, setEditedDescription] = useState("");
   const [collaboratorModal, setCollaboratorModal] = useState({
     isOpen: false,
+    task: null,
+    subtask: null, // Track if this is for a subtask
   });
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -81,9 +85,20 @@ export default function TaskDetailPage({ params: paramsProp }) {
     subtaskId: null,
   });
   const [showAddSubtaskModal, setShowAddSubtaskModal] = useState(false);
+  const [showSubtasksFilterModal, setShowSubtasksFilterModal] = useState(false);
+  const [subtaskFilters, setSubtaskFilters] = useState({
+    sortBy: "",
+    sortOrder: "asc",
+    assignee: "",
+    createdDateFrom: "",
+    createdDateTo: "",
+    dueDateFrom: "",
+    dueDateTo: "",
+  });
   const [newSubtaskData, setNewSubtaskData] = useState({
     title: "",
-    assignee: "",
+    assignee: null, // Single assignee
+    collaborators: [], // Multiple collaborators
     dueDate: "",
     status: "SCHEDULED",
     priority: "MEDIUM",
@@ -143,22 +158,22 @@ export default function TaskDetailPage({ params: paramsProp }) {
         // Fetch comments for this task
         let commentsData = [];
         try {
-          const commentsResponse = await commentService.getTaskComments(
-            parsedId
-          );
+          const commentsResponse =
+            await commentService.getTaskComments(parsedId);
           commentsData = commentsResponse.data?.map(transformComment) || [];
         } catch (commentError) {
           console.error("Error fetching comments:", commentError);
         }
 
         // Load subtasks separately to avoid nested populate issues
+        // IMPORTANT: Include both assignee and collaborators
         let subtasksData = [];
         try {
           const subtasksResponse = await subtaskService.getRootSubtasksByTask(
             parsedId,
             {
-              populate: ["assignee", "childSubtasks"],
-            }
+              populate: ["assignee", "collaborators", "childSubtasks"],
+            },
           );
           let rawSubtasks = [];
           if (Array.isArray(subtasksResponse.data)) {
@@ -188,7 +203,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
         setIsComplete(
           taskForPage.status === "Done" ||
             taskForPage.status === "COMPLETED" ||
-            taskForPage.status?.toLowerCase() === "done"
+            taskForPage.status?.toLowerCase() === "done",
         );
         setEditedDescription(taskForPage.description || "");
 
@@ -306,10 +321,20 @@ export default function TaskDetailPage({ params: paramsProp }) {
         text: "text-yellow-800",
         border: "border-yellow-400",
       },
-      "in-review": {
+      "internal-review": {
         bg: "bg-purple-100",
         text: "text-purple-800",
         border: "border-purple-400",
+      },
+      "client-review": {
+        bg: "bg-purple-100",
+        text: "text-purple-800",
+        border: "border-purple-400",
+      },
+      approved: {
+        bg: "bg-blue-100",
+        text: "text-blue-800",
+        border: "border-blue-400",
       },
       done: {
         bg: "bg-green-100",
@@ -481,14 +506,15 @@ export default function TaskDetailPage({ params: paramsProp }) {
   const handleStatusUpdate = async (newStatus) => {
     if (!task) return;
     try {
+      const strapiStatus = transformStatusToStrapi(newStatus);
       await taskService.updateTask(task.id, {
-        status: newStatus,
+        status: strapiStatus,
       });
       setTask({ ...task, status: newStatus });
       setIsComplete(
         newStatus === "Done" ||
           newStatus === "COMPLETED" ||
-          newStatus?.toLowerCase() === "done"
+          newStatus?.toLowerCase() === "done",
       );
     } catch (error) {
       console.error("Error updating status:", error);
@@ -578,7 +604,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
     try {
       await subtaskService.updateSubtaskStatus(
         subtaskId,
-        transformStatusToStrapi(newStatus)
+        transformStatusToStrapi(newStatus),
       );
       // Reload task to get updated subtasks
       const fullTaskData = await taskService.getTaskById(task.id, [
@@ -700,20 +726,211 @@ export default function TaskDetailPage({ params: paramsProp }) {
     );
   });
 
-  // Filter subtasks by search query
-  const filteredSubtasks = rootSubtasks.filter((subtask) => {
-    if (!subtaskSearchQuery.trim()) return true;
-    const query = subtaskSearchQuery.toLowerCase();
-    const name = (subtask.name || subtask.title || "").toLowerCase();
-    const assigneeName =
-      typeof subtask.assignee === "object"
-        ? (subtask.assignee?.name || "").toLowerCase()
-        : (subtask.assignee || "").toLowerCase();
-    return name.includes(query) || assigneeName.includes(query);
-  });
+  // Check if any filters are active
+  const hasActiveFilters = () => {
+    return !!(
+      subtaskFilters.sortBy ||
+      subtaskFilters.assignee ||
+      subtaskFilters.createdDateFrom ||
+      subtaskFilters.createdDateTo ||
+      subtaskFilters.dueDateFrom ||
+      subtaskFilters.dueDateTo
+    );
+  };
+
+  // Get active filter labels for display
+  const getActiveFilterLabels = () => {
+    const labels = [];
+
+    if (subtaskFilters.sortBy) {
+      const sortLabels = {
+        assignee: "Assignee",
+        createdAt: "Created Date",
+        dueDate: "Deadline",
+        name: "Name",
+        status: "Status",
+        priority: "Priority",
+      };
+      const orderLabel =
+        subtaskFilters.sortOrder === "desc" ? " (Desc)" : " (Asc)";
+      labels.push(
+        `Sort: ${sortLabels[subtaskFilters.sortBy] || subtaskFilters.sortBy}${orderLabel}`,
+      );
+    }
+
+    if (subtaskFilters.assignee) {
+      const assignee = users.find(
+        (u) =>
+          String(u.id || u._id || u.documentId) === subtaskFilters.assignee,
+      );
+      const assigneeName = assignee
+        ? `${assignee.firstName || ""} ${assignee.lastName || ""}`.trim() ||
+          assignee.name ||
+          assignee.email
+        : "Unknown";
+      labels.push(`Assignee: ${assigneeName}`);
+    }
+
+    if (subtaskFilters.createdDateFrom || subtaskFilters.createdDateTo) {
+      const from = subtaskFilters.createdDateFrom || "Any";
+      const to = subtaskFilters.createdDateTo || "Any";
+      labels.push(`Created: ${from} to ${to}`);
+    }
+
+    if (subtaskFilters.dueDateFrom || subtaskFilters.dueDateTo) {
+      const from = subtaskFilters.dueDateFrom || "Any";
+      const to = subtaskFilters.dueDateTo || "Any";
+      labels.push(`Deadline: ${from} to ${to}`);
+    }
+
+    return labels;
+  };
+
+  // Clear a specific filter
+  const clearFilter = (filterKey) => {
+    setSubtaskFilters((prev) => {
+      const newFilters = { ...prev };
+      if (filterKey === "sortBy") {
+        newFilters.sortBy = "";
+        newFilters.sortOrder = "asc";
+      } else {
+        newFilters[filterKey] = "";
+      }
+      return newFilters;
+    });
+  };
+
+  // Filter and sort subtasks
+  const filteredAndSortedSubtasks = rootSubtasks
+    .filter((subtask) => {
+      // Search filter
+      if (subtaskSearchQuery.trim()) {
+        const query = subtaskSearchQuery.toLowerCase();
+        const name = (subtask.name || subtask.title || "").toLowerCase();
+        const assigneeName =
+          typeof subtask.assignee === "object"
+            ? (subtask.assignee?.name || "").toLowerCase()
+            : (subtask.assignee || "").toLowerCase();
+        if (!name.includes(query) && !assigneeName.includes(query)) {
+          return false;
+        }
+      }
+
+      // Assignee filter
+      if (subtaskFilters.assignee) {
+        const assigneeId =
+          typeof subtask.assignee === "object"
+            ? (
+                subtask.assignee?.id ||
+                subtask.assignee?._id ||
+                subtask.assignee?.documentId
+              )?.toString()
+            : subtask.assignee?.toString();
+        if (assigneeId !== subtaskFilters.assignee) {
+          return false;
+        }
+      }
+
+      // Created date filter
+      if (subtaskFilters.createdDateFrom || subtaskFilters.createdDateTo) {
+        const createdAt = subtask.createdAt
+          ? new Date(subtask.createdAt)
+          : null;
+        if (!createdAt) return false;
+
+        if (subtaskFilters.createdDateFrom) {
+          const fromDate = new Date(subtaskFilters.createdDateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (createdAt < fromDate) return false;
+        }
+
+        if (subtaskFilters.createdDateTo) {
+          const toDate = new Date(subtaskFilters.createdDateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (createdAt > toDate) return false;
+        }
+      }
+
+      // Due date filter
+      if (subtaskFilters.dueDateFrom || subtaskFilters.dueDateTo) {
+        const dueDate = subtask.dueDate ? new Date(subtask.dueDate) : null;
+        if (!dueDate) return false;
+
+        if (subtaskFilters.dueDateFrom) {
+          const fromDate = new Date(subtaskFilters.dueDateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (dueDate < fromDate) return false;
+        }
+
+        if (subtaskFilters.dueDateTo) {
+          const toDate = new Date(subtaskFilters.dueDateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (dueDate > toDate) return false;
+        }
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      if (!subtaskFilters.sortBy) return 0;
+
+      const sortOrder = subtaskFilters.sortOrder === "desc" ? -1 : 1;
+
+      switch (subtaskFilters.sortBy) {
+        case "assignee": {
+          const assigneeA =
+            typeof a.assignee === "object"
+              ? (
+                  a.assignee?.name ||
+                  `${a.assignee?.firstName || ""} ${a.assignee?.lastName || ""}`.trim() ||
+                  ""
+                ).toLowerCase()
+              : (a.assignee || "").toString().toLowerCase();
+          const assigneeB =
+            typeof b.assignee === "object"
+              ? (
+                  b.assignee?.name ||
+                  `${b.assignee?.firstName || ""} ${b.assignee?.lastName || ""}`.trim() ||
+                  ""
+                ).toLowerCase()
+              : (b.assignee || "").toString().toLowerCase();
+          return assigneeA.localeCompare(assigneeB) * sortOrder;
+        }
+        case "createdAt": {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return (dateA - dateB) * sortOrder;
+        }
+        case "dueDate": {
+          const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+          const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+          return (dateA - dateB) * sortOrder;
+        }
+        case "name": {
+          const nameA = (a.name || a.title || "").toLowerCase();
+          const nameB = (b.name || b.title || "").toLowerCase();
+          return nameA.localeCompare(nameB) * sortOrder;
+        }
+        case "status": {
+          const statusA = (a.status || "").toLowerCase();
+          const statusB = (b.status || "").toLowerCase();
+          return statusA.localeCompare(statusB) * sortOrder;
+        }
+        case "priority": {
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
+          const priorityA =
+            priorityOrder[(a.priority || "").toLowerCase()] || 0;
+          const priorityB =
+            priorityOrder[(b.priority || "").toLowerCase()] || 0;
+          return (priorityB - priorityA) * sortOrder;
+        }
+        default:
+          return 0;
+      }
+    });
 
   // Transform subtasks for table
-  const transformedSubtasks = filteredSubtasks
+  const transformedSubtasks = filteredAndSortedSubtasks
     .map((st) => transformSubtask(st))
     .filter(Boolean);
 
@@ -810,11 +1027,12 @@ export default function TaskDetailPage({ params: paramsProp }) {
                 });
                 // Reload task
                 const fullTaskData = await taskService.getTaskById(task.id, [
-                  "project",
+                  "projects",
                   "assignee",
                   "createdBy",
                   "subtasks",
                   "subtasks.assignee",
+                  "subtasks.collaborators",
                   "subtasks.childSubtasks",
                   "collaborators",
                 ]);
@@ -840,7 +1058,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
                 e.stopPropagation();
                 handleSubtaskStatusUpdate(
                   subtask.id,
-                  isDone ? "To Do" : "Done"
+                  isDone ? "To Do" : "Done",
                 );
               }}
               className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all duration-200 ${
@@ -917,40 +1135,119 @@ export default function TaskDetailPage({ params: paramsProp }) {
       key: "assignee",
       label: "ASSIGNEE",
       render: (_, subtask) => {
+        // Support both single assignee and multiple collaborators (similar to my-task page)
         const assignee = subtask.assignee;
-        const hasAssignee = assignee && assignee !== "Unassigned";
-        const assigneeName =
-          typeof assignee === "object"
-            ? assignee?.name ||
-              (assignee?.firstName && assignee?.lastName
-                ? `${assignee.firstName} ${assignee.lastName}`
-                : assignee?.firstName || assignee?.lastName || "Unassigned")
-            : assignee || "Unassigned";
-        const initial = assigneeName.charAt(0).toUpperCase() || "U";
+
+        // Check if assignee is a valid user object (not null and has identifying properties)
+        const hasAssignee =
+          assignee &&
+          (assignee.id ||
+            assignee._id ||
+            assignee.firstName ||
+            assignee.lastName ||
+            assignee.name ||
+            assignee.email);
+
+        // Get collaborators - prefer subtask.collaborators array, include assignee if not already in collaborators
+        let collaborators = [];
+        if (
+          subtask.collaborators &&
+          Array.isArray(subtask.collaborators) &&
+          subtask.collaborators.length > 0
+        ) {
+          // Filter out null/undefined collaborators and ensure they have valid data
+          collaborators = subtask.collaborators.filter(
+            (c) =>
+              c &&
+              (c.id || c._id || c.firstName || c.lastName || c.name || c.email),
+          );
+        }
+
+        // If we have an assignee, add it to collaborators if not already there
+        if (hasAssignee) {
+          const assigneeInCollaborators = collaborators.find(
+            (c) => c?.id === assignee?.id || c?._id === assignee?._id,
+          );
+          if (!assigneeInCollaborators) {
+            // Add assignee at the beginning
+            collaborators = [assignee, ...collaborators];
+          }
+        }
+
+        // If no collaborators but we have assignee, use assignee
+        if (collaborators.length === 0 && hasAssignee) {
+          collaborators = [assignee];
+        }
+
+        const hasCollaborators = collaborators.length > 0;
 
         return (
           <button
             onClick={(e) => {
               e.stopPropagation();
+              // For subtasks, we need to manage subtask collaborators, not task collaborators
               setCollaboratorModal({
                 isOpen: true,
-                task: { ...task, subtasks: [subtask] },
+                task: task, // Keep parent task reference for context
+                subtask: subtask, // Mark this as a subtask operation
               });
             }}
             className="flex items-center gap-2 min-w-[140px] hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors text-left"
           >
-            <div
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
-                hasAssignee
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-200 text-gray-600"
-              }`}
-            >
-              {initial}
-            </div>
-            <span className="text-sm text-gray-600 truncate">
-              {hasAssignee ? assigneeName : "Click to assign"}
-            </span>
+            {hasCollaborators ? (
+              <div className="flex items-center gap-1">
+                {/* Show up to 3 avatars, then show count (exactly like my-task page) */}
+                {collaborators.slice(0, 3).map((person, index) => {
+                  const name =
+                    person?.name ||
+                    (person?.firstName && person?.lastName
+                      ? `${person.firstName} ${person.lastName}`
+                      : person?.firstName || person?.lastName || "Unknown");
+                  const initial = name?.charAt(0)?.toUpperCase() || "U";
+                  return (
+                    <div
+                      key={person?.id || index}
+                      className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0 border border-white"
+                      title={name}
+                      style={{
+                        marginLeft: index > 0 ? "-4px" : "0",
+                        zIndex: 10 - index,
+                      }}
+                    >
+                      {initial}
+                    </div>
+                  );
+                })}
+                {collaborators.length > 3 && (
+                  <div
+                    className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs font-medium text-gray-700 flex-shrink-0 border border-white"
+                    title={`${collaborators.length - 3} more`}
+                    style={{ marginLeft: "-4px", zIndex: 7 }}
+                  >
+                    +{collaborators.length - 3}
+                  </div>
+                )}
+                <span className="text-sm text-gray-600 truncate ml-1">
+                  {collaborators.length === 1
+                    ? collaborators[0]?.name ||
+                      (collaborators[0]?.firstName && collaborators[0]?.lastName
+                        ? `${collaborators[0].firstName} ${collaborators[0].lastName}`
+                        : collaborators[0]?.firstName ||
+                          collaborators[0]?.lastName ||
+                          "Unknown")
+                    : `${collaborators.length} people`}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0">
+                  U
+                </div>
+                <span className="text-sm text-gray-600 truncate">
+                  Click to assign
+                </span>
+              </div>
+            )}
           </button>
         );
       },
@@ -969,7 +1266,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
         };
 
         const currentValue = getDateValue(
-          subtask.dueDate || subtask.scheduledDate
+          subtask.dueDate || subtask.scheduledDate,
         );
 
         return (
@@ -998,7 +1295,9 @@ export default function TaskDetailPage({ params: paramsProp }) {
         const statusOptions = [
           { value: "To Do", label: "To Do" },
           { value: "In Progress", label: "In Progress" },
-          { value: "In Review", label: "In Review" },
+          { value: "Internal Review", label: "Internal Review" },
+          { value: "Client Review", label: "Client Review" },
+          { value: "Approved", label: "Approved" },
           { value: "Done", label: "Done" },
           { value: "Cancelled", label: "Cancelled" },
         ];
@@ -1017,10 +1316,20 @@ export default function TaskDetailPage({ params: paramsProp }) {
             text: "text-yellow-800",
             border: "border-yellow-400",
           },
-          "in-review": {
+          "internal-review": {
             bg: "bg-purple-100",
             text: "text-purple-800",
             border: "border-purple-400",
+          },
+          "client-review": {
+            bg: "bg-purple-100",
+            text: "text-purple-800",
+            border: "border-purple-400",
+          },
+          approved: {
+            bg: "bg-blue-100",
+            text: "text-blue-800",
+            border: "border-blue-400",
           },
           done: {
             bg: "bg-green-100",
@@ -1153,6 +1462,18 @@ export default function TaskDetailPage({ params: paramsProp }) {
           </div>
         );
       },
+    },
+    {
+      key: "createdAt",
+      label: "CREATED AT",
+      render: (_, subtask) => (
+        <div className="flex items-center gap-2 text-sm text-gray-700 min-w-[140px]">
+          <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <span className="whitespace-nowrap">
+            {subtask.createdAt ? formatDate(subtask.createdAt) : "N/A"}
+          </span>
+        </div>
+      ),
     },
     {
       key: "actions",
@@ -1310,7 +1631,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
                             className="text-gray-900 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
                             onClick={() => {
                               setEditingValue(
-                                task.assignee?.id?.toString() || ""
+                                task.assignee?.id?.toString() || "",
                               );
                               setEditingField("assignee");
                             }}
@@ -1330,7 +1651,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
                           <button
                             onClick={() => {
                               setEditingValue(
-                                task.assignee?.id?.toString() || ""
+                                task.assignee?.id?.toString() || "",
                               );
                               setEditingField("assignee");
                             }}
@@ -1415,12 +1736,16 @@ export default function TaskDetailPage({ params: paramsProp }) {
                           onBlur={() => setEditingField(null)}
                           autoFocus
                           className={`px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getStatusColor(
-                            editingValue
+                            editingValue,
                           )}`}
                         >
                           <option value="To Do">To Do</option>
                           <option value="In Progress">In Progress</option>
-                          <option value="In Review">In Review</option>
+                          <option value="Internal Review">
+                            Internal Review
+                          </option>
+                          <option value="Client Review">Client Review</option>
+                          <option value="Approved">Approved</option>
                           <option value="Done">Done</option>
                           <option value="Cancelled">Cancelled</option>
                         </select>
@@ -1431,7 +1756,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
                             setEditingField("status");
                           }}
                           className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs uppercase cursor-pointer hover:shadow-md transition-all ${getStatusColor(
-                            task.status
+                            task.status,
                           )}`}
                         >
                           {task.status || "To Do"}
@@ -1457,7 +1782,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
                           onBlur={() => setEditingField(null)}
                           autoFocus
                           className={`px-3 py-1.5 rounded-lg border-2 font-bold text-xs text-center shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${getPriorityColor(
-                            editingValue
+                            editingValue,
                           )}`}
                         >
                           <option value="Low">Low</option>
@@ -1471,7 +1796,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
                             setEditingField("priority");
                           }}
                           className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs uppercase cursor-pointer hover:shadow-md transition-all ${getPriorityColor(
-                            task.priority
+                            task.priority,
                           )}`}
                         >
                           {task.priority || "Medium"}
@@ -1558,21 +1883,6 @@ export default function TaskDetailPage({ params: paramsProp }) {
                       )}
                     </div>
                   </div>
-
-                  {/* Dependencies */}
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
-                      Dependencies
-                    </label>
-                    <div className="flex-1 flex items-center gap-2 justify-end">
-                      <span className="text-sm text-gray-600">
-                        No dependencies
-                      </span>
-                      <button className="p-1 hover:bg-gray-100 rounded">
-                        <ChevronDown className="w-4 h-4 text-gray-400" />
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -1602,7 +1912,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
                           setIsEditingDescription(false);
                           setEditedDescription(task.description || "");
                         }}
-                        className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+                        className="px-3 py-1.5 border-2 border-gray-400 bg-white text-gray-800 rounded-lg hover:bg-gray-100 text-sm font-medium"
                       >
                         Cancel
                       </button>
@@ -1740,7 +2050,10 @@ export default function TaskDetailPage({ params: paramsProp }) {
                       <Clock className="w-4 h-4 text-gray-400" />
                       <span className="text-gray-900">
                         {task.createdAt
-                          ? new Date(task.createdAt).toLocaleDateString()
+                          ? formatDate(task.createdAt, {
+                              includeTime: true,
+                              format: "long",
+                            })
                           : "Unknown"}
                       </span>
                     </div>
@@ -1753,7 +2066,10 @@ export default function TaskDetailPage({ params: paramsProp }) {
                       <Clock className="w-4 h-4 text-gray-400" />
                       <span className="text-gray-900">
                         {task.updatedAt
-                          ? new Date(task.updatedAt).toLocaleDateString()
+                          ? formatDate(task.updatedAt, {
+                              includeTime: true,
+                              format: "long",
+                            })
                           : "Unknown"}
                       </span>
                     </div>
@@ -1786,7 +2102,21 @@ export default function TaskDetailPage({ params: paramsProp }) {
           <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
             {/* Header with Add Button */}
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Subtasks</h3>
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Subtasks
+                </h3>
+                {hasActiveFilters() && (
+                  <span className="text-sm text-gray-600 font-medium">
+                    ({transformedSubtasks.length} of {rootSubtasks.length})
+                  </span>
+                )}
+                {!hasActiveFilters() && rootSubtasks.length > 0 && (
+                  <span className="text-sm text-gray-500">
+                    ({rootSubtasks.length})
+                  </span>
+                )}
+              </div>
               <Button
                 size="sm"
                 onClick={() => setShowAddSubtaskModal(true)}
@@ -1797,18 +2127,113 @@ export default function TaskDetailPage({ params: paramsProp }) {
               </Button>
             </div>
 
-            {/* Search Bar */}
-            <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Search subtasks..."
-                  value={subtaskSearchQuery}
-                  onChange={(e) => setSubtaskSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white/50 backdrop-blur-md border border-white/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 focus:bg-white/70 transition-all duration-300 placeholder:text-gray-500"
-                />
+            {/* Search Bar and Filter */}
+            <div className="mb-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    placeholder="Search subtasks..."
+                    value={subtaskSearchQuery}
+                    onChange={(e) => setSubtaskSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-white/50 backdrop-blur-md border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 focus:bg-white/70 transition-all duration-300 placeholder:text-gray-500"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowSubtasksFilterModal(true)}
+                  className={`px-4 py-2 rounded-xl border-2 transition-all duration-300 flex items-center gap-2 ${
+                    hasActiveFilters()
+                      ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
+                      : "bg-white/50 backdrop-blur-md border-white/20 text-gray-700 hover:bg-white/70 hover:border-orange-300"
+                  }`}
+                  title="Filter & Sort Subtasks"
+                >
+                  <Filter className="w-4 h-4" />
+                  <span className="text-sm font-medium">Filter</span>
+                  {hasActiveFilters() && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded text-xs font-bold">
+                      {getActiveFilterLabels().length}
+                    </span>
+                  )}
+                </button>
               </div>
+
+              {/* Active Filters Display */}
+              {hasActiveFilters() && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-medium text-gray-600">
+                    Active filters:
+                  </span>
+                  {getActiveFilterLabels().map((label, index) => {
+                    // Extract filter key from label
+                    let filterKey = "";
+                    if (label.startsWith("Sort:")) {
+                      filterKey = "sortBy";
+                    } else if (label.startsWith("Assignee:")) {
+                      filterKey = "assignee";
+                    } else if (label.startsWith("Created:")) {
+                      filterKey = "createdDateFrom";
+                    } else if (label.startsWith("Deadline:")) {
+                      filterKey = "dueDateFrom";
+                    }
+
+                    return (
+                      <div
+                        key={index}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg border border-orange-200 text-xs font-medium"
+                      >
+                        <span>{label}</span>
+                        <button
+                          onClick={() => {
+                            if (filterKey === "sortBy") {
+                              setSubtaskFilters((prev) => ({
+                                ...prev,
+                                sortBy: "",
+                                sortOrder: "asc",
+                              }));
+                            } else if (filterKey === "createdDateFrom") {
+                              setSubtaskFilters((prev) => ({
+                                ...prev,
+                                createdDateFrom: "",
+                                createdDateTo: "",
+                              }));
+                            } else if (filterKey === "dueDateFrom") {
+                              setSubtaskFilters((prev) => ({
+                                ...prev,
+                                dueDateFrom: "",
+                                dueDateTo: "",
+                              }));
+                            } else if (filterKey) {
+                              clearFilter(filterKey);
+                            }
+                          }}
+                          className="ml-1 hover:bg-orange-200 rounded-full p-0.5 transition-colors"
+                          title="Remove filter"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <button
+                    onClick={() => {
+                      setSubtaskFilters({
+                        sortBy: "",
+                        sortOrder: "asc",
+                        assignee: "",
+                        createdDateFrom: "",
+                        createdDateTo: "",
+                        dueDateFrom: "",
+                        dueDateTo: "",
+                      });
+                    }}
+                    className="text-xs text-orange-600 hover:text-orange-700 font-medium underline"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Subtasks Table - Full Width */}
@@ -1893,56 +2318,171 @@ export default function TaskDetailPage({ params: paramsProp }) {
         )}
       </div>
 
+      {/* Subtasks Filter Modal */}
+      <SubtasksFilterModal
+        isOpen={showSubtasksFilterModal}
+        onClose={() => setShowSubtasksFilterModal(false)}
+        onApplyFilters={(filters) => {
+          setSubtaskFilters(filters);
+        }}
+        users={users}
+        appliedFilters={subtaskFilters}
+      />
+
       {/* Collaborator Modal */}
       <CollaboratorModal
         isOpen={collaboratorModal.isOpen}
-        onClose={() => setCollaboratorModal({ isOpen: false })}
-        task={task}
-        onUpdate={async () => {
-          // Reload task data to get updated collaborators from server
-          if (task?.id) {
-            try {
-              const fullTaskData = await taskService.getTaskById(task.id, [
-                "project",
-                "assignee",
-                "createdBy",
-                "subtasks",
-                "subtasks.assignee",
-                "subtasks.childSubtasks",
-                "collaborators",
-              ]);
-              const transformedTask = transformTask(fullTaskData);
-              const formattedDueDate = transformedTask.scheduledDate
-                ? formatDate(transformedTask.scheduledDate)
-                : "No due date";
-
-              let commentsData = [];
+        onClose={() =>
+          setCollaboratorModal({ isOpen: false, task: null, subtask: null })
+        }
+        task={collaboratorModal.task || task}
+        subtask={collaboratorModal.subtask}
+        onUpdate={async (updatedTask, updatedSubtask) => {
+          if (updatedSubtask) {
+            // Update was for a subtask - reload task to get updated subtasks
+            if (task?.id) {
               try {
-                const commentsResponse = await commentService.getTaskComments(
-                  task.id
+                const fullTaskData = await taskService.getTaskById(task.id, [
+                  "projects",
+                  "assignee",
+                  "createdBy",
+                  "subtasks",
+                  "subtasks.assignee",
+                  "subtasks.collaborators",
+                  "subtasks.childSubtasks",
+                  "collaborators",
+                ]);
+                const transformedTask = transformTask(fullTaskData);
+                const formattedDueDate = transformedTask.scheduledDate
+                  ? formatDate(transformedTask.scheduledDate)
+                  : "No due date";
+
+                // Ensure subtasks are properly transformed with isolated assignees
+                let rawSubtasks = [];
+                if (
+                  fullTaskData.subtasks &&
+                  Array.isArray(fullTaskData.subtasks)
+                ) {
+                  rawSubtasks = fullTaskData.subtasks;
+                } else if (
+                  fullTaskData.data?.subtasks &&
+                  Array.isArray(fullTaskData.data.subtasks)
+                ) {
+                  rawSubtasks = fullTaskData.data.subtasks;
+                } else if (
+                  fullTaskData.attributes?.subtasks &&
+                  Array.isArray(fullTaskData.attributes.subtasks)
+                ) {
+                  rawSubtasks = fullTaskData.attributes.subtasks;
+                }
+
+                let transformedSubtasks =
+                  rawSubtasks.length > 0
+                    ? rawSubtasks
+                        .map((rawSubtask) => {
+                          const transformed = transformSubtask(rawSubtask);
+                          if (transformed) {
+                            return {
+                              ...transformed,
+                              assignee: transformed.assignee
+                                ? { ...transformed.assignee }
+                                : null,
+                              collaborators: transformed.collaborators
+                                ? transformed.collaborators.map((c) => ({
+                                    ...c,
+                                  }))
+                                : [],
+                            };
+                          }
+                          return null;
+                        })
+                        .filter(Boolean)
+                    : [];
+
+                let commentsData = [];
+                try {
+                  const commentsResponse = await commentService.getTaskComments(
+                    task.id,
+                  );
+                  commentsData =
+                    commentsResponse.data?.map(transformComment) || [];
+                } catch (commentError) {
+                  console.error("Error fetching comments:", commentError);
+                }
+
+                const taskCollaborators = (transformedTask.collaborators || [])
+                  .map((c) => ({ ...c }))
+                  .filter((c) => c && (c.id || c._id || c.name || c.email));
+
+                const taskForPage = {
+                  ...transformedTask,
+                  dueDate: formattedDueDate,
+                  description: transformedTask.description || "",
+                  subtasks: transformedSubtasks,
+                  comments: commentsData,
+                  collaborators: taskCollaborators,
+                };
+
+                setTask(taskForPage);
+                setComments(commentsData);
+              } catch (error) {
+                console.error(
+                  "Error reloading task after subtask update:",
+                  error,
                 );
-                commentsData =
-                  commentsResponse.data?.map(transformComment) || [];
-              } catch (commentError) {
-                console.error("Error fetching comments:", commentError);
               }
+            }
+          } else if (updatedTask) {
+            // Update was for the task itself - reload task data
+            if (task?.id) {
+              try {
+                const fullTaskData = await taskService.getTaskById(task.id, [
+                  "projects",
+                  "assignee",
+                  "createdBy",
+                  "subtasks",
+                  "subtasks.assignee",
+                  "subtasks.collaborators",
+                  "subtasks.childSubtasks",
+                  "collaborators",
+                ]);
+                const transformedTask = transformTask(fullTaskData);
+                const formattedDueDate = transformedTask.scheduledDate
+                  ? formatDate(transformedTask.scheduledDate)
+                  : "No due date";
 
-              const taskForPage = {
-                ...transformedTask,
-                dueDate: formattedDueDate,
-                description: transformedTask.description || "",
-                subtasks:
-                  transformedTask.subtasks || fullTaskData.subtasks || [],
-                comments: commentsData,
-              };
+                let commentsData = [];
+                try {
+                  const commentsResponse = await commentService.getTaskComments(
+                    task.id,
+                  );
+                  commentsData =
+                    commentsResponse.data?.map(transformComment) || [];
+                } catch (commentError) {
+                  console.error("Error fetching comments:", commentError);
+                }
 
-              setTask(taskForPage);
-              setComments(commentsData);
-            } catch (error) {
-              console.error(
-                "Error reloading task after collaborator update:",
-                error
-              );
+                const taskCollaborators = (transformedTask.collaborators || [])
+                  .map((c) => ({ ...c }))
+                  .filter((c) => c && (c.id || c._id || c.name || c.email));
+
+                const taskForPage = {
+                  ...transformedTask,
+                  dueDate: formattedDueDate,
+                  description: transformedTask.description || "",
+                  subtasks: transformedTask.subtasks || [],
+                  comments: commentsData,
+                  collaborators: taskCollaborators,
+                };
+
+                setTask(taskForPage);
+                setComments(commentsData);
+              } catch (error) {
+                console.error(
+                  "Error reloading task after collaborator update:",
+                  error,
+                );
+              }
             }
           }
         }}
@@ -1977,7 +2517,7 @@ export default function TaskDetailPage({ params: paramsProp }) {
             let commentsData = [];
             try {
               const commentsResponse = await commentService.getTaskComments(
-                task.id
+                task.id,
               );
               commentsData = commentsResponse.data?.map(transformComment) || [];
             } catch (commentError) {
@@ -2020,7 +2560,8 @@ export default function TaskDetailPage({ params: paramsProp }) {
                     setShowAddSubtaskModal(false);
                     setNewSubtaskData({
                       title: "",
-                      assignee: "",
+                      assignee: null,
+                      collaborators: [],
                       dueDate: "",
                       status: "SCHEDULED",
                       priority: "MEDIUM",
@@ -2047,6 +2588,8 @@ export default function TaskDetailPage({ params: paramsProp }) {
                       depth: 0,
                     };
 
+                    // Set assignee (single) and collaborators (multiple)
+                    // IMPORTANT: Only use assignee/collaborators from newSubtaskData, NOT from task or other subtasks
                     if (newSubtaskData.assignee) {
                       const assigneeId =
                         typeof newSubtaskData.assignee === "string"
@@ -2054,34 +2597,163 @@ export default function TaskDetailPage({ params: paramsProp }) {
                           : newSubtaskData.assignee;
                       if (assigneeId && !isNaN(assigneeId)) {
                         subtaskData.assignee = assigneeId;
+                      } else {
+                        subtaskData.assignee = null;
                       }
+                    } else {
+                      subtaskData.assignee = null;
+                    }
+
+                    // Set collaborators (array of user IDs)
+                    if (
+                      newSubtaskData.collaborators &&
+                      newSubtaskData.collaborators.length > 0
+                    ) {
+                      const collaboratorIds = [...newSubtaskData.collaborators]
+                        .map((id) =>
+                          typeof id === "string" ? parseInt(id, 10) : id,
+                        )
+                        .filter((id) => id && !isNaN(id));
+                      subtaskData.collaborators = collaboratorIds;
+                    } else {
+                      subtaskData.collaborators = [];
                     }
 
                     if (newSubtaskData.dueDate) {
                       subtaskData.dueDate = new Date(
-                        newSubtaskData.dueDate + "T00:00:00"
+                        newSubtaskData.dueDate + "T00:00:00",
                       ).toISOString();
                     }
 
-                    await subtaskService.createSubtask(subtaskData);
+                    const createdSubtaskResponse =
+                      await subtaskService.createSubtask(subtaskData);
 
-                    // Reload task to get updated subtasks
+                    // Get the created subtask ID
+                    const createdSubtaskId =
+                      createdSubtaskResponse?.id ||
+                      createdSubtaskResponse?.data?.id;
+
+                    // Fetch the newly created subtask with full assignee and collaborators data if we have an ID
+                    let newTransformedSubtask = null;
+                    if (createdSubtaskId) {
+                      try {
+                        const newSubtaskData =
+                          await subtaskService.getSubtaskById(
+                            createdSubtaskId,
+                            ["assignee", "collaborators"],
+                          );
+                        if (newSubtaskData) {
+                          newTransformedSubtask =
+                            transformSubtask(newSubtaskData);
+                        }
+                      } catch (err) {
+                        console.warn(
+                          "Could not fetch new subtask with assignee/collaborators:",
+                          err,
+                        );
+                      }
+                    }
+
+                    // Reload task to get updated subtasks with full assignee data
+                    // IMPORTANT: Only populate task's own collaborators, NOT subtask assignees
                     const fullTaskData = await taskService.getTaskById(
                       task.id,
                       [
-                        "project",
+                        "projects",
                         "assignee",
                         "createdBy",
                         "subtasks",
                         "subtasks.assignee",
+                        "subtasks.collaborators",
                         "subtasks.childSubtasks",
                         "collaborators",
-                      ]
+                      ],
                     );
                     const transformedTask = transformTask(fullTaskData);
                     const formattedDueDate = transformedTask.scheduledDate
                       ? formatDate(transformedTask.scheduledDate)
                       : "No due date";
+
+                    // Ensure subtasks are properly transformed with assignees
+                    // Handle different possible response structures
+                    let rawSubtasks = [];
+                    if (
+                      fullTaskData.subtasks &&
+                      Array.isArray(fullTaskData.subtasks)
+                    ) {
+                      rawSubtasks = fullTaskData.subtasks;
+                    } else if (
+                      fullTaskData.data?.subtasks &&
+                      Array.isArray(fullTaskData.data.subtasks)
+                    ) {
+                      rawSubtasks = fullTaskData.data.subtasks;
+                    } else if (
+                      fullTaskData.attributes?.subtasks &&
+                      Array.isArray(fullTaskData.attributes.subtasks)
+                    ) {
+                      rawSubtasks = fullTaskData.attributes.subtasks;
+                    }
+
+                    // Explicitly transform each subtask to ensure assignees are included
+                    // IMPORTANT: Each subtask's assignees/collaborators must be isolated
+                    let transformedSubtasks =
+                      rawSubtasks.length > 0
+                        ? rawSubtasks
+                            .map((rawSubtask) => {
+                              // Ensure each subtask is transformed independently
+                              const transformed = transformSubtask(rawSubtask);
+                              if (transformed) {
+                                // Ensure assignees/collaborators are isolated (not shared references)
+                                return {
+                                  ...transformed,
+                                  assignee: transformed.assignee
+                                    ? { ...transformed.assignee }
+                                    : null,
+                                  collaborators: transformed.collaborators
+                                    ? transformed.collaborators.map((c) => ({
+                                        ...c,
+                                      }))
+                                    : [],
+                                };
+                              }
+                              return null;
+                            })
+                            .filter(Boolean)
+                        : transformedTask.subtasks &&
+                            Array.isArray(transformedTask.subtasks)
+                          ? transformedTask.subtasks.map((st) => ({
+                              ...st,
+                              assignee: st.assignee ? { ...st.assignee } : null,
+                              collaborators: st.collaborators
+                                ? st.collaborators.map((c) => ({ ...c }))
+                                : [],
+                            }))
+                          : [];
+
+                    // If we have a newly transformed subtask and it's not in the list, add it
+                    // This ensures immediate visibility even if the reload hasn't picked it up yet
+                    if (
+                      newTransformedSubtask &&
+                      !transformedSubtasks.find(
+                        (st) => st.id === newTransformedSubtask.id,
+                      )
+                    ) {
+                      // Ensure the new subtask's assignees are also isolated
+                      transformedSubtasks = [
+                        ...transformedSubtasks,
+                        {
+                          ...newTransformedSubtask,
+                          assignee: newTransformedSubtask.assignee
+                            ? { ...newTransformedSubtask.assignee }
+                            : null,
+                          collaborators: newTransformedSubtask.collaborators
+                            ? newTransformedSubtask.collaborators.map((c) => ({
+                                ...c,
+                              }))
+                            : [],
+                        },
+                      ];
+                    }
 
                     let commentsData = [];
                     try {
@@ -2093,20 +2765,30 @@ export default function TaskDetailPage({ params: paramsProp }) {
                       console.error("Error fetching comments:", commentError);
                     }
 
+                    // Ensure task's collaborators are isolated from subtask assignees
+                    // Only use the task's own collaborators, NOT subtask assignees
+                    const taskCollaborators = (
+                      transformedTask.collaborators || []
+                    )
+                      .map((c) => ({ ...c }))
+                      .filter((c) => c && (c.id || c._id || c.name || c.email));
+
                     const taskForPage = {
                       ...transformedTask,
                       dueDate: formattedDueDate,
                       description: transformedTask.description || "",
-                      subtasks:
-                        transformedTask.subtasks || fullTaskData.subtasks || [],
+                      subtasks: transformedSubtasks,
                       comments: commentsData,
+                      // Ensure collaborators are only from the task itself, not aggregated from subtasks
+                      collaborators: taskCollaborators,
                     };
 
                     setTask(taskForPage);
                     setShowAddSubtaskModal(false);
                     setNewSubtaskData({
                       title: "",
-                      assignee: "",
+                      assignee: null,
+                      collaborators: [],
                       dueDate: "",
                       status: "SCHEDULED",
                       priority: "MEDIUM",
@@ -2137,45 +2819,142 @@ export default function TaskDetailPage({ params: paramsProp }) {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Assignee
-                    </label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Assignee
+                  </label>
+                  <select
+                    value={newSubtaskData.assignee || ""}
+                    onChange={(e) => {
+                      setNewSubtaskData({
+                        ...newSubtaskData,
+                        assignee: e.target.value ? e.target.value : null,
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="">Select assignee...</option>
+                    {users.map((user) => {
+                      const userName =
+                        user.name ||
+                        `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+                        user.email ||
+                        "Unknown User";
+                      return (
+                        <option key={user.id} value={user.id}>
+                          {userName}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Collaborators
+                  </label>
+                  <div className="space-y-2">
+                    {/* Selected Collaborators */}
+                    {newSubtaskData.collaborators.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {newSubtaskData.collaborators.map((collaboratorId) => {
+                          const selectedUser = users.find(
+                            (u) => String(u.id) === String(collaboratorId),
+                          );
+                          if (!selectedUser) return null;
+                          const userName =
+                            selectedUser.name ||
+                            `${selectedUser.firstName || ""} ${selectedUser.lastName || ""}`.trim() ||
+                            selectedUser.email ||
+                            "Unknown User";
+                          return (
+                            <span
+                              key={collaboratorId}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm"
+                            >
+                              {userName}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewSubtaskData((prev) => ({
+                                    ...prev,
+                                    collaborators: prev.collaborators.filter(
+                                      (id) => id !== collaboratorId,
+                                    ),
+                                  }));
+                                }}
+                                className="hover:bg-purple-200 rounded-full p-0.5 transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* Collaborator Select Dropdown */}
                     <select
-                      value={newSubtaskData.assignee}
-                      onChange={(e) =>
-                        setNewSubtaskData({
-                          ...newSubtaskData,
-                          assignee: e.target.value,
-                        })
-                      }
+                      value=""
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        if (
+                          selectedId &&
+                          !newSubtaskData.collaborators.includes(selectedId) &&
+                          selectedId !== newSubtaskData.assignee
+                        ) {
+                          setNewSubtaskData((prev) => ({
+                            ...prev,
+                            collaborators: [...prev.collaborators, selectedId],
+                          }));
+                        }
+                        e.target.value = ""; // Reset select
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     >
-                      <option value="">Unassigned</option>
-                      {users.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name}
-                        </option>
-                      ))}
+                      <option value="">
+                        {newSubtaskData.collaborators.length === 0
+                          ? "Select collaborators..."
+                          : "Add another collaborator..."}
+                      </option>
+                      {users
+                        .filter(
+                          (user) =>
+                            !newSubtaskData.collaborators.includes(
+                              String(user.id),
+                            ) &&
+                            String(user.id) !== String(newSubtaskData.assignee),
+                        )
+                        .map((user) => {
+                          const userName =
+                            user.name ||
+                            `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+                            user.email ||
+                            "Unknown User";
+                          return (
+                            <option key={user.id} value={user.id}>
+                              {userName}
+                            </option>
+                          );
+                        })}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Due Date
-                    </label>
-                    <input
-                      type="date"
-                      value={newSubtaskData.dueDate}
-                      onChange={(e) =>
-                        setNewSubtaskData({
-                          ...newSubtaskData,
-                          dueDate: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    />
-                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newSubtaskData.dueDate}
+                    onChange={(e) =>
+                      setNewSubtaskData({
+                        ...newSubtaskData,
+                        dueDate: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2195,7 +2974,9 @@ export default function TaskDetailPage({ params: paramsProp }) {
                     >
                       <option value="SCHEDULED">To Do</option>
                       <option value="IN_PROGRESS">In Progress</option>
-                      <option value="IN_REVIEW">In Review</option>
+                      <option value="IN_REVIEW">Internal Review</option>
+                      <option value="CLIENT_REVIEW">Client Review</option>
+                      <option value="APPROVED">Approved</option>
                       <option value="COMPLETED">Done</option>
                     </select>
                   </div>
@@ -2223,17 +3004,18 @@ export default function TaskDetailPage({ params: paramsProp }) {
                 <div className="flex items-center gap-3 pt-4">
                   <Button
                     type="button"
+                    variant="outline"
                     onClick={() => {
                       setShowAddSubtaskModal(false);
                       setNewSubtaskData({
                         title: "",
-                        assignee: "",
+                        assignees: [],
                         dueDate: "",
                         status: "SCHEDULED",
                         priority: "MEDIUM",
                       });
                     }}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700"
+                    className="flex-1"
                   >
                     Cancel
                   </Button>

@@ -75,16 +75,53 @@ module.exports = createCoreController('api::subtask.subtask', ({ strapi }) => ({
                 }
             }
 
+            // Add collaborators if provided (array of user IDs)
+            if (data.collaborators && Array.isArray(data.collaborators)) {
+                const collaboratorIds = data.collaborators
+                    .map(collab => typeof collab === 'string' ? parseInt(collab, 10) : collab)
+                    .filter(id => id && !isNaN(id));
+                
+                if (collaboratorIds.length > 0) {
+                    // Verify all collaborators exist
+                    const validCollaborators = [];
+                    for (const collabId of collaboratorIds) {
+                        const collaborator = await strapi.entityService.findOne('api::xtrawrkx-user.xtrawrkx-user', collabId);
+                        if (collaborator) {
+                            validCollaborators.push(collabId);
+                        }
+                    }
+                    if (validCollaborators.length > 0) {
+                        subtaskData.collaborators = validCollaborators;
+                    }
+                }
+            }
+
             // Create subtask
+            // IMPORTANT: Only create the subtask, do NOT modify the parent task
             const subtask = await strapi.entityService.create('api::subtask.subtask', {
                 data: subtaskData
             });
+
+            // Verify the parent task was NOT modified (safety check)
+            const parentTaskAfter = await strapi.entityService.findOne('api::task.task', taskId, {
+                populate: ['collaborators']
+            });
+            
+            // Log warning if parent task collaborators were unexpectedly modified
+            if (parentTaskAfter && parentTaskAfter.collaborators) {
+                const originalCollaboratorIds = (task.collaborators || []).map(c => c?.id || c);
+                const newCollaboratorIds = (parentTaskAfter.collaborators || []).map(c => c?.id || c);
+                if (JSON.stringify(originalCollaboratorIds.sort()) !== JSON.stringify(newCollaboratorIds.sort())) {
+                    console.warn('WARNING: Parent task collaborators were modified during subtask creation. This should not happen.');
+                }
+            }
 
             // Fetch with populated relations
             const populatedSubtask = await strapi.entityService.findOne('api::subtask.subtask', subtask.id, {
                 populate: {
                     task: true,
                     assignee: true,
+                    collaborators: true,
                     parentSubtask: true,
                     childSubtasks: true
                 }
@@ -109,6 +146,7 @@ module.exports = createCoreController('api::subtask.subtask', ({ strapi }) => ({
             let populate = {
                 task: true,
                 assignee: true,
+                collaborators: true,
                 parentSubtask: true,
                 childSubtasks: true
             };
@@ -161,6 +199,7 @@ module.exports = createCoreController('api::subtask.subtask', ({ strapi }) => ({
             let populate = {
                 task: true,
                 assignee: true,
+                collaborators: true,
                 parentSubtask: true,
                 childSubtasks: true
             };
@@ -268,6 +307,31 @@ module.exports = createCoreController('api::subtask.subtask', ({ strapi }) => ({
                 }
             }
 
+            // Handle collaborators if provided
+            if (data.collaborators !== undefined) {
+                if (data.collaborators && Array.isArray(data.collaborators)) {
+                    const collaboratorIds = data.collaborators
+                        .map(collab => typeof collab === 'string' ? parseInt(collab, 10) : collab)
+                        .filter(id => id && !isNaN(id));
+                    
+                    if (collaboratorIds.length > 0) {
+                        // Verify all collaborators exist
+                        const validCollaborators = [];
+                        for (const collabId of collaboratorIds) {
+                            const collaborator = await strapi.entityService.findOne('api::xtrawrkx-user.xtrawrkx-user', collabId);
+                            if (collaborator) {
+                                validCollaborators.push(collabId);
+                            }
+                        }
+                        updateData.collaborators = validCollaborators;
+                    } else {
+                        updateData.collaborators = [];
+                    }
+                } else {
+                    updateData.collaborators = [];
+                }
+            }
+
             // Handle parent subtask if provided
             if (data.parentSubtask !== undefined) {
                 if (data.parentSubtask) {
@@ -289,15 +353,42 @@ module.exports = createCoreController('api::subtask.subtask', ({ strapi }) => ({
             }
 
             // Update subtask
+            // IMPORTANT: Only update THIS specific subtask, do NOT modify parent task or other subtasks
+            const taskId = existingSubtask.task?.id || existingSubtask.task;
+            
+            // Get parent task before update for safety check
+            let parentTaskBefore = null;
+            if (taskId) {
+                parentTaskBefore = await strapi.entityService.findOne('api::task.task', taskId, {
+                    populate: ['collaborators']
+                });
+            }
+            
             const updatedSubtask = await strapi.entityService.update('api::subtask.subtask', id, {
                 data: updateData,
                 populate: {
                     task: true,
                     assignee: true,
+                    collaborators: true,
                     parentSubtask: true,
                     childSubtasks: true
                 }
             });
+
+            // Verify the parent task was NOT modified (safety check)
+            if (parentTaskBefore && taskId) {
+                const parentTaskAfter = await strapi.entityService.findOne('api::task.task', taskId, {
+                    populate: ['collaborators']
+                });
+                
+                if (parentTaskAfter && parentTaskAfter.collaborators) {
+                    const originalCollaboratorIds = (parentTaskBefore.collaborators || []).map(c => c?.id || c).sort();
+                    const newCollaboratorIds = (parentTaskAfter.collaborators || []).map(c => c?.id || c).sort();
+                    if (JSON.stringify(originalCollaboratorIds) !== JSON.stringify(newCollaboratorIds)) {
+                        console.warn('WARNING: Parent task collaborators were modified during subtask update. This should not happen.');
+                    }
+                }
+            }
 
             return { data: updatedSubtask };
         } catch (error) {

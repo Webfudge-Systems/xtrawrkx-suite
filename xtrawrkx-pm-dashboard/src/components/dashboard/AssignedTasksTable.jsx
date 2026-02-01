@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Table } from "../ui";
 import { Check, Calendar, Eye, GitBranch } from "lucide-react";
@@ -9,6 +9,7 @@ import taskService from "../../lib/taskService";
 import projectService from "../../lib/projectService";
 import subtaskService from "../../lib/subtaskService";
 import {
+  transformStatus,
   transformStatusToStrapi,
   transformPriorityToStrapi,
   transformSubtask,
@@ -17,11 +18,16 @@ import {
 const AssignedTasksTable = ({
   data,
   onTaskComplete = () => {},
+  onTaskUpdate = () => {},
   projects = [],
 }) => {
   const router = useRouter();
   const [loadedSubtasks, setLoadedSubtasks] = useState({});
   const [allProjects, setAllProjects] = useState(projects);
+  // Local state to track status updates for immediate UI feedback
+  const [localStatusUpdates, setLocalStatusUpdates] = useState({});
+  // Local state to track due date updates for immediate UI feedback
+  const [localDueDateUpdates, setLocalDueDateUpdates] = useState({});
 
   // Load projects if not provided
   React.useEffect(() => {
@@ -107,34 +113,118 @@ const AssignedTasksTable = ({
 
   // Handle status updates
   const handleStatusUpdate = async (taskId, newStatus) => {
+    if (!taskId) return;
+
+    // Optimistically update local state immediately for instant UI feedback
+    setLocalStatusUpdates((prev) => ({
+      ...prev,
+      [taskId]: newStatus,
+    }));
+
     const strapiStatus = transformStatusToStrapi(newStatus);
+
+    // Notify parent to update its state
+    if (onTaskComplete) {
+      onTaskComplete(taskId, newStatus);
+    }
+
     try {
       await taskService.updateTaskStatus(taskId, strapiStatus);
-      onTaskComplete(taskId, newStatus);
     } catch (error) {
       console.error("Error updating task status:", error);
+      // Revert optimistic update on error
+      setLocalStatusUpdates((prev) => {
+        const updated = { ...prev };
+        delete updated[taskId];
+        return updated;
+      });
     }
   };
+
+  // Merge local status and due date updates with data prop for immediate UI feedback
+  const tasksWithLocalUpdates = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    return data.map((task) => {
+      // Use local update if available, otherwise transform the status from backend
+      const status =
+        localStatusUpdates[task.id] !== undefined
+          ? localStatusUpdates[task.id]
+          : transformStatus(task.status || "To Do");
+
+      // ALWAYS use local due date update if available - it takes precedence
+      // This ensures optimistic updates are never overwritten
+      let scheduledDate = task.scheduledDate;
+      if (localDueDateUpdates[task.id] !== undefined) {
+        scheduledDate = localDueDateUpdates[task.id];
+      }
+
+      return {
+        ...task,
+        status: status,
+        scheduledDate: scheduledDate,
+      };
+    });
+  }, [data, localStatusUpdates, localDueDateUpdates]);
 
   // Handle priority updates
   const handlePriorityUpdate = async (taskId, newPriority) => {
     const strapiPriority = transformPriorityToStrapi(newPriority);
     try {
       await taskService.updateTask(taskId, { priority: strapiPriority });
+
+      // Notify parent component to update the task
+      if (onTaskUpdate) {
+        onTaskUpdate(taskId, { priority: newPriority });
+      } else if (onTaskComplete) {
+        // Fallback to onTaskComplete if onTaskUpdate is not provided
+        onTaskComplete(taskId, null);
+      }
     } catch (error) {
       console.error("Error updating task priority:", error);
     }
   };
 
-  // Handle due date updates
+  // Handle due date updates - using same pattern as handleStatusUpdate
   const handleDueDateUpdate = async (taskId, newDate) => {
+    if (!taskId) return;
+
     const scheduledDate = newDate
       ? new Date(newDate + "T00:00:00").toISOString()
       : null;
+
+    // Find the original task to store for potential rollback
+    const originalTask = data.find((task) => task.id === taskId);
+    const originalScheduledDate = originalTask?.scheduledDate;
+
+    // Optimistically update local state immediately for instant UI feedback - same as status
+    setLocalDueDateUpdates((prev) => ({
+      ...prev,
+      [taskId]: scheduledDate,
+    }));
+
+    // Notify parent to update its state immediately - same as status
+    if (onTaskUpdate) {
+      onTaskUpdate(taskId, { scheduledDate });
+    }
+
     try {
       await taskService.updateTask(taskId, { scheduledDate });
     } catch (error) {
       console.error("Error updating due date:", error);
+      // Revert optimistic update on error - same as status
+      setLocalDueDateUpdates((prev) => {
+        const updated = { ...prev };
+        if (originalScheduledDate !== undefined) {
+          updated[taskId] = originalScheduledDate;
+        } else {
+          delete updated[taskId];
+        }
+        return updated;
+      });
+      // Revert parent state
+      if (onTaskUpdate) {
+        onTaskUpdate(taskId, { scheduledDate: originalScheduledDate });
+      }
     }
   };
 
@@ -323,9 +413,10 @@ const AssignedTasksTable = ({
             <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-gray-500" />
             <input
               type="date"
-              value={currentValue}
+              value={currentValue || ""}
               onChange={(e) => {
-                handleDueDateUpdate(task.id, e.target.value);
+                const newValue = e.target.value;
+                handleDueDateUpdate(task.id, newValue);
               }}
               className="flex-1 text-xs text-gray-700 px-1.5 py-0.5 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               placeholder="dd-mm-yyyy"
@@ -341,12 +432,43 @@ const AssignedTasksTable = ({
         const statusOptions = [
           { value: "To Do", label: "To Do" },
           { value: "In Progress", label: "In Progress" },
-          { value: "In Review", label: "In Review" },
+          { value: "Internal Review", label: "Internal Review" },
+          { value: "Client Review", label: "Client Review" },
+          { value: "Approved", label: "Approved" },
           { value: "Done", label: "Done" },
           { value: "Cancelled", label: "Cancelled" },
         ];
 
-        const currentStatus = task.status || "To Do";
+        // Transform status from Strapi format to frontend format
+        // task.status should already be in frontend format from tasksWithLocalUpdates
+        const rawStatus = task.status || "To Do";
+        let currentStatus = transformStatus(rawStatus);
+
+        // Ensure currentStatus exactly matches one of the option values
+        const validStatuses = [
+          "To Do",
+          "In Progress",
+          "Internal Review",
+          "Client Review",
+          "Approved",
+          "Done",
+          "Cancelled",
+        ];
+        if (!validStatuses.includes(currentStatus)) {
+          // If transformed status doesn't match, try to find a match
+          const normalized = currentStatus.toLowerCase().trim();
+          if (
+            normalized === "client review" ||
+            normalized === "client_review"
+          ) {
+            currentStatus = "Client Review";
+          } else if (normalized === "approved") {
+            currentStatus = "Approved";
+          } else {
+            currentStatus = "To Do"; // Default fallback
+          }
+        }
+
         const status = currentStatus?.toLowerCase().replace(/\s+/g, "-") || "";
 
         const statusColors = {
@@ -360,10 +482,20 @@ const AssignedTasksTable = ({
             text: "text-yellow-800",
             border: "border-yellow-400",
           },
-          "in-review": {
+          "internal-review": {
             bg: "bg-purple-100",
             text: "text-purple-800",
             border: "border-purple-400",
+          },
+          "client-review": {
+            bg: "bg-purple-100",
+            text: "text-purple-800",
+            border: "border-purple-400",
+          },
+          approved: {
+            bg: "bg-blue-100",
+            text: "text-blue-800",
+            border: "border-blue-400",
           },
           done: {
             bg: "bg-green-100",
@@ -389,19 +521,20 @@ const AssignedTasksTable = ({
         };
 
         return (
-          <div className="min-w-[120px]" onClick={(e) => e.stopPropagation()}>
+          <div className="min-w-[140px]" onClick={(e) => e.stopPropagation()}>
             <select
               value={currentStatus}
               onChange={(e) => {
                 e.stopPropagation();
-                handleStatusUpdate(task.id, e.target.value);
+                const selectedStatus = e.target.value;
+                handleStatusUpdate(task.id, selectedStatus);
               }}
-              className={`w-full ${colors.bg} ${colors.text} ${colors.border} border-2 rounded-lg px-2 py-1.5 font-bold text-xs text-center shadow-md transition-all duration-200 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none`}
+              className={`w-full ${colors.bg} ${colors.text} ${colors.border} border-2 rounded-lg px-3 py-2 font-bold text-xs text-center shadow-md transition-all duration-200 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none`}
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
                 backgroundRepeat: "no-repeat",
-                backgroundPosition: "right 0.4rem center",
-                paddingRight: "1.75rem",
+                backgroundPosition: "right 0.5rem center",
+                paddingRight: "2rem",
               }}
             >
               {statusOptions.map((option) => (
@@ -558,7 +691,7 @@ const AssignedTasksTable = ({
           <div className="rounded-3xl overflow-hidden">
             <Table
               columns={columns}
-              data={data}
+              data={tasksWithLocalUpdates}
               onRowClick={handleTaskClick}
               className="min-w-[1600px] text-sm"
             />

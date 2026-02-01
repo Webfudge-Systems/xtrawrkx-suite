@@ -12,11 +12,9 @@ module.exports = createCoreController('api::invoice.invoice', ({ strapi }) => ({
      */
     async create(ctx) {
         try {
-            console.log('Creating invoice with data:', ctx.request.body);
             const { data } = ctx.request.body;
 
             if (!data) {
-                console.log('No data provided in request body');
                 return ctx.badRequest('No data provided');
             }
 
@@ -30,7 +28,6 @@ module.exports = createCoreController('api::invoice.invoice', ({ strapi }) => ({
                 }
             });
 
-            console.log('Created invoice:', entity);
 
             return { data: entity };
         } catch (error) {
@@ -45,7 +42,6 @@ module.exports = createCoreController('api::invoice.invoice', ({ strapi }) => ({
      */
     async find(ctx) {
         try {
-            console.log('Finding invoices with params:', ctx.query);
 
             const { query } = ctx;
 
@@ -61,7 +57,6 @@ module.exports = createCoreController('api::invoice.invoice', ({ strapi }) => ({
                 populate
             });
 
-            console.log(`Found ${entities?.length || 0} invoices`);
 
             if (Array.isArray(entities)) {
                 return {
@@ -100,7 +95,6 @@ module.exports = createCoreController('api::invoice.invoice', ({ strapi }) => ({
     async findOne(ctx) {
         try {
             const { id } = ctx.params;
-            console.log('Finding invoice with ID:', id);
 
             const entity = await strapi.entityService.findOne('api::invoice.invoice', id, {
                 populate: {
@@ -130,7 +124,6 @@ module.exports = createCoreController('api::invoice.invoice', ({ strapi }) => ({
             const { id } = ctx.params;
             const { data } = ctx.request.body;
 
-            console.log('Updating invoice', id, 'with data:', data);
 
             if (!data) {
                 return ctx.badRequest('No data provided');
@@ -159,7 +152,6 @@ module.exports = createCoreController('api::invoice.invoice', ({ strapi }) => ({
     async delete(ctx) {
         try {
             const { id } = ctx.params;
-            console.log('Deleting invoice with ID:', id);
 
             const entity = await strapi.entityService.delete('api::invoice.invoice', id);
 

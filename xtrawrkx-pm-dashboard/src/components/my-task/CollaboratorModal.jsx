@@ -1,27 +1,98 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X, UserPlus, UserMinus, Search } from "lucide-react";
 import apiClient from "../../lib/apiClient";
 import taskService from "../../lib/taskService";
+import subtaskService from "../../lib/subtaskService";
 
-const CollaboratorModal = ({ isOpen, onClose, task, onUpdate }) => {
+const CollaboratorModal = ({ isOpen, onClose, task, subtask, onUpdate }) => {
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [localTask, setLocalTask] = useState(task);
+  const [localSubtask, setLocalSubtask] = useState(subtask);
 
-  // Update local task when prop changes
+  // Update local task/subtask when props change
   useEffect(() => {
     setLocalTask(task);
-  }, [task]);
+    setLocalSubtask(subtask);
+  }, [task, subtask]);
 
-  // Get current collaborators from local task state
-  const currentCollaborators =
-    localTask?.collaborators ||
-    (localTask?.assignee ? [localTask.assignee] : []);
+  // Determine if we're managing a subtask or a task
+  const isSubtaskMode = !!subtask;
+  const targetEntity = isSubtaskMode ? localSubtask : localTask;
+
+  // Get current collaborators from the target entity (subtask or task)
+  // For subtasks: include both assignee and collaborators (avoid duplicates)
+  // For tasks: include both assignee and collaborators
+  const currentCollaborators = useMemo(() => {
+    if (isSubtaskMode) {
+      const collaborators = localSubtask?.collaborators || [];
+      const assignee = localSubtask?.assignee;
+      
+      // Combine assignee and collaborators, avoiding duplicates
+      const allCollaborators = [];
+      const seenIds = new Set();
+      
+      // Add assignee first if it exists
+      if (assignee) {
+        const assigneeId = assignee?.id || assignee?._id || assignee;
+        if (assigneeId && !seenIds.has(assigneeId)) {
+          allCollaborators.push(typeof assignee === 'object' ? assignee : { id: assigneeId });
+          seenIds.add(assigneeId);
+        }
+      }
+      
+      // Add other collaborators
+      if (Array.isArray(collaborators)) {
+        collaborators.forEach((collab) => {
+          if (collab) {
+            const collabId = collab?.id || collab?._id || collab;
+            if (collabId && !seenIds.has(collabId)) {
+              allCollaborators.push(typeof collab === 'object' ? collab : { id: collabId });
+              seenIds.add(collabId);
+            }
+          }
+        });
+      }
+      
+      return allCollaborators;
+    } else {
+      // For tasks: include both assignee and collaborators
+      const collaborators = localTask?.collaborators || [];
+      const assignee = localTask?.assignee;
+      
+      const allCollaborators = [];
+      const seenIds = new Set();
+      
+      // Add assignee first if it exists
+      if (assignee) {
+        const assigneeId = assignee?.id || assignee?._id || assignee;
+        if (assigneeId && !seenIds.has(assigneeId)) {
+          allCollaborators.push(typeof assignee === 'object' ? assignee : { id: assigneeId });
+          seenIds.add(assigneeId);
+        }
+      }
+      
+      // Add other collaborators
+      if (Array.isArray(collaborators)) {
+        collaborators.forEach((collab) => {
+          if (collab) {
+            const collabId = collab?.id || collab?._id || collab;
+            if (collabId && !seenIds.has(collabId)) {
+              allCollaborators.push(typeof collab === 'object' ? collab : { id: collabId });
+              seenIds.add(collabId);
+            }
+          }
+        });
+      }
+      
+      return allCollaborators;
+    }
+  }, [isSubtaskMode, localSubtask, localTask]);
 
   useEffect(() => {
     if (isOpen) {
@@ -83,11 +154,15 @@ const CollaboratorModal = ({ isOpen, onClose, task, onUpdate }) => {
   });
 
   const isCollaborator = (userId) => {
-    return currentCollaborators.some((collab) => collab?.id === userId);
+    if (!userId) return false;
+    return currentCollaborators.some((collab) => {
+      const collabId = collab?.id || collab?._id;
+      return collabId && (collabId === userId || collabId.toString() === userId.toString());
+    });
   };
 
   const handleToggleCollaborator = async (user) => {
-    if (!task) return;
+    if (!targetEntity) return;
 
     setSaving(true);
     try {
@@ -104,29 +179,59 @@ const CollaboratorModal = ({ isOpen, onClose, task, onUpdate }) => {
         updatedCollaborators = [...currentCollaborators, user];
       }
 
-      // Update task with new collaborators
-      // Keep the assignee as the first collaborator if there are any
-      const updateData = {
-        assignee:
-          updatedCollaborators.length > 0 ? updatedCollaborators[0].id : null,
-        collaborators: updatedCollaborators.map((c) => c.id),
-      };
+      if (isSubtaskMode) {
+        // Update SUBTASK, not the parent task
+        // Set primary assignee (first one) and collaborators (rest)
+        const updateData = {
+          assignee:
+            updatedCollaborators.length > 0 ? updatedCollaborators[0].id : null,
+          collaborators: updatedCollaborators.length > 1 
+            ? updatedCollaborators.slice(1).map((c) => c.id)
+            : [],
+        };
 
-      await taskService.updateTask(localTask.id, updateData);
+        await subtaskService.updateSubtask(localSubtask.id, updateData);
 
-      // Create updated task object
-      const taskToUpdate = {
-        ...localTask,
-        assignee: updatedCollaborators[0] || null,
-        collaborators: updatedCollaborators,
-      };
+        // Create updated subtask object
+        const subtaskToUpdate = {
+          ...localSubtask,
+          assignee: updatedCollaborators[0] || null,
+          collaborators: updatedCollaborators.length > 1 
+            ? updatedCollaborators.slice(1)
+            : [],
+        };
 
-      // Update local state immediately for instant UI feedback
-      setLocalTask(taskToUpdate);
+        // Update local state immediately for instant UI feedback
+        setLocalSubtask(subtaskToUpdate);
+      } else {
+        // Update TASK
+        // Keep the assignee as the first collaborator if there are any
+        const updateData = {
+          assignee:
+            updatedCollaborators.length > 0 ? updatedCollaborators[0].id : null,
+          collaborators: updatedCollaborators.map((c) => c.id),
+        };
+
+        await taskService.updateTask(localTask.id, updateData);
+
+        // Create updated task object
+        const taskToUpdate = {
+          ...localTask,
+          assignee: updatedCollaborators[0] || null,
+          collaborators: updatedCollaborators,
+        };
+
+        // Update local state immediately for instant UI feedback
+        setLocalTask(taskToUpdate);
+      }
 
       // Update parent component state
       if (onUpdate) {
-        await onUpdate(taskToUpdate);
+        if (isSubtaskMode) {
+          await onUpdate(null, localSubtask); // Pass subtask as second param
+        } else {
+          await onUpdate(localTask);
+        }
       }
 
       setError(null);
@@ -144,7 +249,7 @@ const CollaboratorModal = ({ isOpen, onClose, task, onUpdate }) => {
     }
   };
 
-  if (!isOpen || !task) return null;
+  if (!isOpen || !targetEntity) return null;
 
   return (
     <div
@@ -161,7 +266,9 @@ const CollaboratorModal = ({ isOpen, onClose, task, onUpdate }) => {
             <h2 className="text-xl font-semibold text-gray-900">
               Manage Collaborators
             </h2>
-            <p className="text-sm text-gray-500 mt-1">{task.name}</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {isSubtaskMode ? subtask?.title || subtask?.name : task?.name}
+            </p>
           </div>
           <button
             onClick={onClose}

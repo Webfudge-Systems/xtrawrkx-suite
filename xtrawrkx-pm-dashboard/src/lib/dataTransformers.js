@@ -7,10 +7,14 @@
  * @returns {string} - Frontend status
  */
 export const transformStatus = (strapiStatus) => {
+    if (!strapiStatus) return 'To Do';
+
     const statusMap = {
         'SCHEDULED': 'To Do',
         'IN_PROGRESS': 'In Progress',
-        'IN_REVIEW': 'In Review',
+        'IN_REVIEW': 'Internal Review',
+        'CLIENT_REVIEW': 'Client Review',
+        'APPROVED': 'Approved',
         'COMPLETED': 'Done',
         'CANCELLED': 'Cancelled',
         'TODO': 'To Do',
@@ -20,8 +24,25 @@ export const transformStatus = (strapiStatus) => {
         'ACTIVE': 'Active',
         'ON_HOLD': 'On Hold'
     };
-    
-    return statusMap[strapiStatus] || strapiStatus;
+
+    // Try exact match first
+    if (statusMap[strapiStatus]) {
+        return statusMap[strapiStatus];
+    }
+
+    // Try case-insensitive match
+    const upperStatus = strapiStatus.toUpperCase();
+    if (statusMap[upperStatus]) {
+        return statusMap[upperStatus];
+    }
+
+    // If already in frontend format, return as is
+    const frontendFormats = ['To Do', 'In Progress', 'Internal Review', 'Client Review', 'Approved', 'Done', 'Cancelled'];
+    if (frontendFormats.includes(strapiStatus)) {
+        return strapiStatus;
+    }
+
+    return strapiStatus;
 };
 
 /**
@@ -38,7 +59,7 @@ export const transformProjectStatus = (strapiStatus) => {
         'ON_HOLD': 'On Hold',
         'CANCELLED': 'Cancelled'
     };
-    
+
     return statusMap[strapiStatus] || strapiStatus || 'Planning';
 };
 
@@ -49,12 +70,14 @@ export const transformProjectStatus = (strapiStatus) => {
  */
 export const transformStatusToStrapi = (frontendStatus) => {
     if (!frontendStatus) return 'SCHEDULED';
-    
+
     const statusMap = {
         // Task statuses
         'To Do': 'SCHEDULED',
         'In Progress': 'IN_PROGRESS',
-        'In Review': 'IN_REVIEW',
+        'Internal Review': 'IN_REVIEW',
+        'Client Review': 'CLIENT_REVIEW',
+        'Approved': 'APPROVED',
         'Done': 'COMPLETED',
         'Cancelled': 'CANCELLED',
         'Canceled': 'CANCELLED', // Handle US spelling
@@ -64,19 +87,21 @@ export const transformStatusToStrapi = (frontendStatus) => {
         'Completed': 'COMPLETED',
         'On Hold': 'ON_HOLD'
     };
-    
+
     // Try exact match first
     if (statusMap[frontendStatus]) {
         return statusMap[frontendStatus];
     }
-    
+
     // Try case-insensitive match
     const lowerStatus = frontendStatus.toLowerCase();
     const lowerMap = {
         // Task statuses
         'to do': 'SCHEDULED',
         'in progress': 'IN_PROGRESS',
-        'in review': 'IN_REVIEW',
+        'internal review': 'IN_REVIEW',
+        'client review': 'CLIENT_REVIEW',
+        'approved': 'APPROVED',
         'done': 'COMPLETED',
         'completed': 'COMPLETED',
         'cancelled': 'CANCELLED',
@@ -86,11 +111,11 @@ export const transformStatusToStrapi = (frontendStatus) => {
         'active': 'ACTIVE',
         'on hold': 'ON_HOLD'
     };
-    
+
     if (lowerMap[lowerStatus]) {
         return lowerMap[lowerStatus];
     }
-    
+
     // Fallback: normalize to uppercase with underscores
     return frontendStatus.toUpperCase().replace(/\s+/g, '_');
 };
@@ -106,7 +131,7 @@ export const transformPriority = (strapiPriority) => {
         'MEDIUM': 'medium',
         'HIGH': 'high'
     };
-    
+
     return priorityMap[strapiPriority] || strapiPriority?.toLowerCase();
 };
 
@@ -117,27 +142,27 @@ export const transformPriority = (strapiPriority) => {
  */
 export const transformPriorityToStrapi = (frontendPriority) => {
     if (!frontendPriority) return 'MEDIUM';
-    
+
     // Normalize to lowercase first for consistent matching
     const normalized = String(frontendPriority).toLowerCase().trim();
-    
+
     const priorityMap = {
         'low': 'LOW',
         'medium': 'MEDIUM',
         'high': 'HIGH'
     };
-    
+
     // Check map with normalized value first
     if (priorityMap[normalized]) {
         return priorityMap[normalized];
     }
-    
+
     // Fallback: try original value (for capitalized versions)
     const original = String(frontendPriority).trim();
     if (priorityMap[original.toLowerCase()]) {
         return priorityMap[original.toLowerCase()];
     }
-    
+
     // Final fallback: uppercase the normalized value or default to MEDIUM
     return normalized.toUpperCase() || 'MEDIUM';
 };
@@ -150,28 +175,28 @@ export const transformPriorityToStrapi = (frontendPriority) => {
  */
 export const formatDate = (dateString, options = {}) => {
     if (!dateString) return null;
-    
+
     const date = new Date(dateString);
     const {
         format = 'short', // 'short', 'long', 'relative'
         includeTime = false
     } = options;
-    
+
     if (format === 'relative') {
         return formatRelativeDate(date);
     }
-    
+
     const dateOptions = {
         year: format === 'long' ? 'numeric' : '2-digit',
         month: format === 'long' ? 'long' : 'short',
         day: 'numeric'
     };
-    
+
     if (includeTime) {
         dateOptions.hour = '2-digit';
         dateOptions.minute = '2-digit';
     }
-    
+
     return date.toLocaleDateString('en-US', dateOptions);
 };
 
@@ -186,7 +211,7 @@ export const formatRelativeDate = (date) => {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
     const diffMinutes = Math.ceil(diffTime / (1000 * 60));
-    
+
     if (Math.abs(diffMinutes) < 60) {
         if (diffMinutes === 0) return 'now';
         return diffMinutes > 0 ? `in ${diffMinutes} min` : `${Math.abs(diffMinutes)} min ago`;
@@ -210,32 +235,32 @@ export const formatRelativeDate = (date) => {
  */
 export const transformUser = (strapiUser) => {
     if (!strapiUser) return null;
-    
+
     // Handle case where strapiUser might be just an ID
     if (typeof strapiUser === 'number' || typeof strapiUser === 'string') {
         return null; // Can't transform just an ID without full user data
     }
-    
+
     // Handle Strapi v4 attributes format
     const userData = strapiUser.attributes || strapiUser;
-    
+
     // Extract ID - handle both documentId and id
     const userId = strapiUser.id || strapiUser.documentId || userData.id || userData.documentId;
-    
+
     if (!userId) {
         console.warn('transformUser: No ID found for user:', strapiUser);
         return null;
     }
-    
+
     // Handle case where user data might be minimal
     const firstName = userData.firstName || '';
     const lastName = userData.lastName || '';
-    const name = userData.name || 
-                 `${firstName} ${lastName}`.trim() ||
-                 userData.username ||
-                 userData.email ||
-                 'Unknown User';
-    
+    const name = userData.name ||
+        `${firstName} ${lastName}`.trim() ||
+        userData.username ||
+        userData.email ||
+        'Unknown User';
+
     return {
         id: userId,
         _id: userId, // For backward compatibility
@@ -274,7 +299,7 @@ export const getUserColor = (userId) => {
         'bg-indigo-500', 'bg-yellow-500', 'bg-red-500', 'bg-teal-500',
         'bg-orange-500', 'bg-cyan-500'
     ];
-    
+
     return colors[userId % colors.length];
 };
 
@@ -285,10 +310,10 @@ export const getUserColor = (userId) => {
  */
 export const transformProject = (strapiProject) => {
     if (!strapiProject) return null;
-    
+
     // Handle both Strapi v4 attributes format and direct format
     const projectData = strapiProject.attributes || strapiProject;
-    
+
     // Extract clientAccount - handle different possible structures
     let clientAccount = null;
     if (projectData.clientAccount) {
@@ -305,7 +330,7 @@ export const transformProject = (strapiProject) => {
             ...clientAccountData
         };
     }
-    
+
     return {
         id: strapiProject.id,
         name: projectData.name || strapiProject.name,
@@ -340,7 +365,7 @@ export const transformProject = (strapiProject) => {
 export const calculateProjectProgress = (strapiProject) => {
     const tasks = strapiProject.tasks || [];
     if (tasks.length === 0) return 0;
-    
+
     const totalProgress = tasks.reduce((sum, task) => sum + (task.progress || 0), 0);
     return Math.round(totalProgress / tasks.length);
 };
@@ -360,7 +385,7 @@ export const getProjectBgColor = (projectName) => {
         'Carl UI/UX': 'bg-orange-100',
         'Fitness App Design': 'bg-purple-100'
     };
-    
+
     return colorMap[projectName] || 'bg-gray-100';
 };
 
@@ -379,7 +404,7 @@ export const getProjectTextColor = (projectName) => {
         'Carl UI/UX': 'text-orange-800',
         'Fitness App Design': 'text-purple-800'
     };
-    
+
     return colorMap[projectName] || 'text-gray-800';
 };
 
@@ -390,32 +415,41 @@ export const getProjectTextColor = (projectName) => {
  */
 export const transformTask = (strapiTask) => {
     if (!strapiTask) return null;
+
+    // Handle Strapi v4 attributes format
+    const taskData = strapiTask.attributes || strapiTask;
     
+    // Extract createdAt and updatedAt from both possible locations
+    const createdAt = strapiTask.createdAt || taskData.createdAt || strapiTask.created_at || taskData.created_at;
+    const updatedAt = strapiTask.updatedAt || taskData.updatedAt || strapiTask.updated_at || taskData.updated_at;
+
     return {
         id: strapiTask.id,
-        name: strapiTask.title, // Map title to name for frontend compatibility
-        title: strapiTask.title,
-        description: strapiTask.description,
-        status: transformStatus(strapiTask.status),
-        priority: transformPriority(strapiTask.priority),
-        dueDate: formatDate(strapiTask.scheduledDate),
-        scheduledDate: strapiTask.scheduledDate,
-        completedDate: strapiTask.completedDate,
-        progress: strapiTask.progress || 0,
-        tags: strapiTask.tags || [],
+        name: taskData.title || strapiTask.title, // Map title to name for frontend compatibility
+        title: taskData.title || strapiTask.title,
+        description: taskData.description || strapiTask.description,
+        status: transformStatus(taskData.status || strapiTask.status),
+        priority: transformPriority(taskData.priority || strapiTask.priority),
+        dueDate: formatDate(taskData.scheduledDate || strapiTask.scheduledDate),
+        scheduledDate: taskData.scheduledDate || strapiTask.scheduledDate,
+        completedDate: taskData.completedDate || strapiTask.completedDate,
+        progress: taskData.progress || strapiTask.progress || 0,
+        tags: taskData.tags || strapiTask.tags || [],
+        createdAt: createdAt,
+        updatedAt: updatedAt,
         // Relations
-        projects: (strapiTask.projects || (strapiTask.project ? [strapiTask.project] : [])).map(transformProject).filter(Boolean),
+        projects: (taskData.projects || strapiTask.projects || (taskData.project || strapiTask.project ? [taskData.project || strapiTask.project] : [])).map(transformProject).filter(Boolean),
         // Backward compatibility: keep project as first project for components that still reference it
-        project: transformProject(strapiTask.projects?.[0] || strapiTask.project),
-        assignee: transformUser(strapiTask.assignee),
-        assigneeId: strapiTask.assignee?.id,
-        createdBy: transformUser(strapiTask.createdBy),
-        collaborators: strapiTask.collaborators?.map(transformUser) || [],
-        subtasks: strapiTask.subtasks?.map(transformSubtask) || [],
+        project: transformProject(taskData.projects?.[0] || strapiTask.projects?.[0] || taskData.project || strapiTask.project),
+        assignee: transformUser(taskData.assignee || strapiTask.assignee),
+        assigneeId: (taskData.assignee || strapiTask.assignee)?.id,
+        createdBy: transformUser(taskData.createdBy || strapiTask.createdBy),
+        collaborators: (taskData.collaborators || strapiTask.collaborators || [])?.map(transformUser) || [],
+        subtasks: (taskData.subtasks || strapiTask.subtasks || [])?.map(transformSubtask) || [],
         // Additional computed fields
-        time: strapiTask.scheduledDate ? formatDate(strapiTask.scheduledDate, { includeTime: true }) : null,
-        hasMultipleAssignees: (strapiTask.collaborators?.length || 0) > 1 || false,
-        borderColor: getTaskBorderColor(strapiTask.projects?.[0]?.name || strapiTask.project?.name)
+        time: (taskData.scheduledDate || strapiTask.scheduledDate) ? formatDate(taskData.scheduledDate || strapiTask.scheduledDate, { includeTime: true }) : null,
+        hasMultipleAssignees: ((taskData.collaborators || strapiTask.collaborators)?.length || 0) > 1 || false,
+        borderColor: getTaskBorderColor((taskData.projects?.[0] || strapiTask.projects?.[0] || taskData.project || strapiTask.project)?.name)
     };
 };
 
@@ -426,25 +460,88 @@ export const transformTask = (strapiTask) => {
  */
 export const transformSubtask = (strapiSubtask) => {
     if (!strapiSubtask) return null;
+
+    // Handle Strapi v4 attributes format
+    const subtaskData = strapiSubtask.attributes || strapiSubtask;
     
+    // Extract assignee - handle both direct object and nested formats
+    // Check multiple possible locations for assignee data
+    let assigneeData = strapiSubtask.assignee || subtaskData.assignee;
+    
+    // Handle Strapi relation format (data wrapper)
+    if (assigneeData?.data) {
+      assigneeData = assigneeData.data;
+    }
+    // Handle array format (sometimes Strapi returns arrays)
+    if (Array.isArray(assigneeData) && assigneeData.length > 0) {
+      assigneeData = assigneeData[0];
+    }
+    
+    let transformedAssignee = null;
+    
+    // Handle assignee in different formats
+    if (assigneeData) {
+      // If it's already an object with id, use transformUser
+      if (typeof assigneeData === 'object' && assigneeData !== null && (assigneeData.id || assigneeData.documentId)) {
+        transformedAssignee = transformUser(assigneeData);
+      } 
+      // If it's just an ID, we can't transform it without full data
+      else if (typeof assigneeData === 'number' || typeof assigneeData === 'string') {
+        // Keep as ID for now - will need to be populated separately
+        transformedAssignee = null;
+      }
+    }
+
+    // Extract assignee ID safely
+    let assigneeIdValue = null;
+    if (assigneeData) {
+      if (typeof assigneeData === 'object' && assigneeData !== null) {
+        assigneeIdValue = assigneeData.id || assigneeData.documentId;
+      } else if (typeof assigneeData === 'number' || typeof assigneeData === 'string') {
+        assigneeIdValue = assigneeData;
+      }
+    }
+
+    // Extract collaborators - handle both direct object and nested formats
+    let collaboratorsData = strapiSubtask.collaborators || subtaskData.collaborators;
+    
+    // Handle Strapi relation format (data wrapper or array)
+    if (collaboratorsData?.data) {
+      collaboratorsData = Array.isArray(collaboratorsData.data) ? collaboratorsData.data : [collaboratorsData.data];
+    } else if (!Array.isArray(collaboratorsData)) {
+      collaboratorsData = collaboratorsData ? [collaboratorsData] : [];
+    }
+    
+    const transformedCollaborators = (collaboratorsData || [])
+      .filter(c => c !== null && c !== undefined)
+      .map(transformUser)
+      .filter(Boolean);
+
+    // Extract createdAt and updatedAt from both possible locations
+    const createdAt = strapiSubtask.createdAt || subtaskData.createdAt || strapiSubtask.created_at || subtaskData.created_at;
+    const updatedAt = strapiSubtask.updatedAt || subtaskData.updatedAt || strapiSubtask.updated_at || subtaskData.updated_at;
+
     return {
         id: strapiSubtask.id,
-        name: strapiSubtask.title,
-        title: strapiSubtask.title,
-        description: strapiSubtask.description,
-        status: transformStatus(strapiSubtask.status),
-        priority: transformPriority(strapiSubtask.priority),
-        dueDate: formatDate(strapiSubtask.dueDate),
-        progress: strapiSubtask.progress || 0,
-        depth: strapiSubtask.depth || 0,
-        order: strapiSubtask.order || 0,
+        name: subtaskData.title || strapiSubtask.title,
+        title: subtaskData.title || strapiSubtask.title,
+        description: subtaskData.description || strapiSubtask.description,
+        status: transformStatus(subtaskData.status || strapiSubtask.status),
+        priority: transformPriority(subtaskData.priority || strapiSubtask.priority),
+        dueDate: formatDate(subtaskData.dueDate || strapiSubtask.dueDate),
+        progress: subtaskData.progress || strapiSubtask.progress || 0,
+        depth: subtaskData.depth || strapiSubtask.depth || 0,
+        order: subtaskData.order || strapiSubtask.order || 0,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
         // Relations
-        task: transformTask(strapiSubtask.task),
-        assignee: transformUser(strapiSubtask.assignee),
-        assigneeId: strapiSubtask.assignee?.id,
-        parentSubtask: strapiSubtask.parentSubtask ? transformSubtask(strapiSubtask.parentSubtask) : null,
-        childSubtasks: strapiSubtask.childSubtasks?.map(transformSubtask) || [],
-        subtasks: strapiSubtask.childSubtasks?.map(transformSubtask) || [] // Alias for compatibility
+        task: transformTask(subtaskData.task || strapiSubtask.task),
+        assignee: transformedAssignee || transformUser(assigneeData),
+        assigneeId: assigneeIdValue,
+        collaborators: transformedCollaborators,
+        parentSubtask: (subtaskData.parentSubtask || strapiSubtask.parentSubtask) ? transformSubtask(subtaskData.parentSubtask || strapiSubtask.parentSubtask) : null,
+        childSubtasks: (subtaskData.childSubtasks || strapiSubtask.childSubtasks || [])?.map(transformSubtask) || [],
+        subtasks: (subtaskData.childSubtasks || strapiSubtask.childSubtasks || [])?.map(transformSubtask) || [] // Alias for compatibility
     };
 };
 
@@ -455,7 +552,7 @@ export const transformSubtask = (strapiSubtask) => {
  */
 export const transformComment = (strapiComment) => {
     if (!strapiComment) return null;
-    
+
     return {
         id: strapiComment.id,
         content: strapiComment.content,
@@ -490,7 +587,7 @@ export const getTaskBorderColor = (projectName) => {
         'Carl UI/UX': 'border-orange-400',
         'Fitness App Design': 'border-purple-400'
     };
-    
+
     return colorMap[projectName] || 'border-gray-400';
 };
 
@@ -512,7 +609,7 @@ export const transformArray = (items, transformer) => {
  */
 export const transformPagination = (strapiPagination) => {
     if (!strapiPagination) return null;
-    
+
     return {
         page: strapiPagination.page,
         pageSize: strapiPagination.pageSize,
@@ -532,10 +629,10 @@ export const transformPagination = (strapiPagination) => {
  */
 export const buildHierarchy = (items, parentKey = 'parentId', childrenKey = 'children') => {
     if (!Array.isArray(items)) return [];
-    
+
     const itemMap = new Map();
     const rootItems = [];
-    
+
     // First pass: create map and identify roots
     items.forEach(item => {
         itemMap.set(item.id, { ...item, [childrenKey]: [] });
@@ -543,7 +640,7 @@ export const buildHierarchy = (items, parentKey = 'parentId', childrenKey = 'chi
             rootItems.push(item.id);
         }
     });
-    
+
     // Second pass: build parent-child relationships
     items.forEach(item => {
         if (item[parentKey]) {
@@ -553,7 +650,7 @@ export const buildHierarchy = (items, parentKey = 'parentId', childrenKey = 'chi
             }
         }
     });
-    
+
     // Return root items with their hierarchies
     return rootItems.map(id => itemMap.get(id)).filter(Boolean);
 };
@@ -566,20 +663,20 @@ export const buildHierarchy = (items, parentKey = 'parentId', childrenKey = 'chi
  */
 export const flattenHierarchy = (tree, childrenKey = 'children') => {
     if (!Array.isArray(tree)) return [];
-    
+
     const result = [];
-    
+
     const flatten = (items) => {
         items.forEach(item => {
             const { [childrenKey]: children, ...itemWithoutChildren } = item;
             result.push(itemWithoutChildren);
-            
+
             if (children && children.length > 0) {
                 flatten(children);
             }
         });
     };
-    
+
     flatten(tree);
     return result;
 };
@@ -609,8 +706,3 @@ export default {
     getProjectTextColor,
     getTaskBorderColor
 };
-
-
-
-
-

@@ -178,7 +178,7 @@ const CommentsTab = ({ entityType, entityId }) => {
         // Filter to only root comments (no parent)
         const rootComments = commentsData.filter(
           (comment) =>
-            !comment.parentComment && !comment.attributes?.parentComment
+            !comment.parentComment && !comment.attributes?.parentComment,
         );
         const transformedComments = rootComments
           .map(transformComment)
@@ -355,15 +355,9 @@ const CommentsTab = ({ entityType, entityId }) => {
           (m) =>
             m === userIdToAdd ||
             m === parseInt(userIdToAdd) ||
-            String(m) === String(userIdToAdd)
+            String(m) === String(userIdToAdd),
         )
       ) {
-        console.log("Adding user to mentions:", {
-          userId: userIdToAdd,
-          userName: selectedUser.name,
-          currentMentions: mentions,
-          newMentions: [...mentions, userIdToAdd],
-        });
         setMentions([...mentions, userIdToAdd]);
       }
 
@@ -390,7 +384,7 @@ const CommentsTab = ({ entityType, entityId }) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedMentionIndex((prev) =>
-        Math.min(prev + 1, filteredUsersForMention.length - 1)
+        Math.min(prev + 1, filteredUsersForMention.length - 1),
       );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -427,19 +421,6 @@ const CommentsTab = ({ entityType, entityId }) => {
     try {
       setSubmitting(true);
 
-      // Log mentions before sending
-      console.log("=== Creating comment with mentions ===", {
-        entityType,
-        entityId,
-        userId,
-        mentions,
-        mentionsCount: mentions.length,
-        mentionsDetails: mentions.map((m) => {
-          const user = users.find((u) => u.id === m || u.id === parseInt(m));
-          return { mentionId: m, userName: user?.name || "Unknown" };
-        }),
-      });
-
       let createdComment;
       try {
         if (entityType === "leadCompany") {
@@ -447,28 +428,28 @@ const CommentsTab = ({ entityType, entityId }) => {
             entityId,
             newComment.trim(),
             userId,
-            mentions
+            mentions,
           );
         } else if (entityType === "clientAccount") {
           createdComment = await commentService.createClientAccountComment(
             entityId,
             newComment.trim(),
             userId,
-            mentions
+            mentions,
           );
         } else if (entityType === "deal") {
           createdComment = await commentService.createDealComment(
             entityId,
             newComment.trim(),
             userId,
-            mentions
+            mentions,
           );
         } else if (entityType === "contact") {
           createdComment = await commentService.createContactComment(
             entityId,
             newComment.trim(),
             userId,
-            mentions
+            mentions,
           );
         } else {
           throw new Error(`Unsupported entity type: ${entityType}`);
@@ -526,7 +507,7 @@ const CommentsTab = ({ entityType, entityId }) => {
 
       const rootComments = commentsData.filter(
         (comment) =>
-          !comment.parentComment && !comment.attributes?.parentComment
+          !comment.parentComment && !comment.attributes?.parentComment,
       );
       const transformedComments = rootComments
         .map(transformComment)
@@ -567,7 +548,7 @@ const CommentsTab = ({ entityType, entityId }) => {
       await commentService.replyToComment(
         parentCommentId,
         replyContent,
-        userId
+        userId,
       );
 
       // Reload comments
@@ -602,7 +583,7 @@ const CommentsTab = ({ entityType, entityId }) => {
 
       const rootComments = commentsData.filter(
         (comment) =>
-          !comment.parentComment && !comment.attributes?.parentComment
+          !comment.parentComment && !comment.attributes?.parentComment,
       );
       const transformedComments = rootComments
         .map(transformComment)
@@ -663,7 +644,7 @@ const CommentsTab = ({ entityType, entityId }) => {
 
       const rootComments = commentsData.filter(
         (comment) =>
-          !comment.parentComment && !comment.attributes?.parentComment
+          !comment.parentComment && !comment.attributes?.parentComment,
       );
       const transformedComments = rootComments
         .map(transformComment)
@@ -723,7 +704,7 @@ const CommentsTab = ({ entityType, entityId }) => {
     if (mentions && Array.isArray(mentions)) {
       mentions.forEach((mentionId) => {
         const mentionedUser = users.find(
-          (u) => u.id === mentionId || u.id === parseInt(mentionId)
+          (u) => u.id === mentionId || u.id === parseInt(mentionId),
         );
         if (mentionedUser) {
           mentionMap.set(mentionId.toString(), mentionedUser.name);
@@ -744,14 +725,14 @@ const CommentsTab = ({ entityType, entityId }) => {
         parts.push(
           <span key={`text-${lastIndex}`}>
             {content.substring(lastIndex, match.index)}
-          </span>
+          </span>,
         );
       }
 
       const mentionText = match[1];
       // Check if this mention matches any user in the mentions array
       const isMentioned = Array.from(mentionMap.values()).some(
-        (name) => name.toLowerCase() === mentionText.toLowerCase()
+        (name) => name.toLowerCase() === mentionText.toLowerCase(),
       );
 
       if (isMentioned) {
@@ -762,14 +743,14 @@ const CommentsTab = ({ entityType, entityId }) => {
             className="font-semibold text-blue-600 bg-blue-50 px-1 rounded"
           >
             {match[0]}
-          </span>
+          </span>,
         );
       } else {
         // Regular @mention that's not in the mentions array
         parts.push(
           <span key={`mention-${match.index}`} className="text-blue-500">
             {match[0]}
-          </span>
+          </span>,
         );
       }
 
@@ -779,7 +760,7 @@ const CommentsTab = ({ entityType, entityId }) => {
     // Add remaining text
     if (lastIndex < content.length) {
       parts.push(
-        <span key={`text-${lastIndex}`}>{content.substring(lastIndex)}</span>
+        <span key={`text-${lastIndex}`}>{content.substring(lastIndex)}</span>,
       );
     }
 
@@ -848,7 +829,7 @@ const CommentsTab = ({ entityType, entityId }) => {
             {filteredComments.map((comment) => {
               const userDisplay = getUserDisplay(comment.user);
               const timestamp = getTimeAgo(
-                comment.createdAt || comment.timestamp
+                comment.createdAt || comment.timestamp,
               );
               const isReplying = replyingTo === comment.id;
 
@@ -898,7 +879,7 @@ const CommentsTab = ({ entityType, entityId }) => {
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">
                         {renderCommentContent(
                           comment.content,
-                          comment.mentions
+                          comment.mentions,
                         )}
                       </p>
                     </div>
@@ -988,7 +969,7 @@ const CommentsTab = ({ entityType, entityId }) => {
                         {comment.replies.map((reply) => {
                           const replyUserDisplay = getUserDisplay(reply.user);
                           const replyTimestamp = getTimeAgo(
-                            reply.createdAt || reply.timestamp
+                            reply.createdAt || reply.timestamp,
                           );
                           return (
                             <div key={reply.id} className="flex gap-2">
@@ -1033,7 +1014,7 @@ const CommentsTab = ({ entityType, entityId }) => {
                                   <p className="text-xs text-gray-700 whitespace-pre-wrap">
                                     {renderCommentContent(
                                       reply.content,
-                                      reply.mentions
+                                      reply.mentions,
                                     )}
                                   </p>
                                 </div>
@@ -1109,18 +1090,18 @@ const CommentsTab = ({ entityType, entityId }) => {
                             const newCursorPos = cursorPos + 1;
                             textarea.setSelectionRange(
                               newCursorPos,
-                              newCursorPos
+                              newCursorPos,
                             );
                             // Manually trigger the mention dropdown logic
                             const textBeforeCursor = newValue.substring(
                               0,
-                              newCursorPos
+                              newCursorPos,
                             );
                             const lastAtIndex =
                               textBeforeCursor.lastIndexOf("@");
                             if (lastAtIndex !== -1) {
                               const textAfterAt = textBeforeCursor.substring(
-                                lastAtIndex + 1
+                                lastAtIndex + 1,
                               );
                               if (
                                 !textAfterAt.includes(" ") &&
@@ -1280,8 +1261,8 @@ const CommentsTab = ({ entityType, entityId }) => {
                           mentions.length === 1 ? "person" : "people"
                         } will be notified`
                       : newComment.trim()
-                      ? "Type @ to mention someone"
-                      : ""}
+                        ? "Type @ to mention someone"
+                        : ""}
                   </span>
                 </div>
                 <button
@@ -1304,10 +1285,10 @@ const CommentsTab = ({ entityType, entityId }) => {
                     !user
                       ? "Please log in to add comments"
                       : !newComment.trim()
-                      ? "Enter a comment"
-                      : submitting
-                      ? "Submitting..."
-                      : "Add comment"
+                        ? "Enter a comment"
+                        : submitting
+                          ? "Submitting..."
+                          : "Add comment"
                   }
                 >
                   {submitting ? "Submitting..." : "Comment"}
@@ -1386,7 +1367,7 @@ const CommentsTab = ({ entityType, entityId }) => {
               </div>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
     </div>
   );

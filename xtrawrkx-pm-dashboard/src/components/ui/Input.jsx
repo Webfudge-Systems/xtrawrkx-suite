@@ -5,6 +5,7 @@ export function Input({
   label,
   error,
   icon: Icon,
+  prefix,
   type = "text",
   required = false,
   className,
@@ -25,6 +26,11 @@ export function Input({
             <Icon className="h-5 w-5 text-gray-400" />
           </div>
         )}
+        {prefix && (
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span className="text-gray-700 font-medium">{prefix}</span>
+          </div>
+        )}
         <input
           type={type}
           className={clsx(
@@ -33,6 +39,8 @@ export function Input({
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
             "transition-colors duration-200",
             Icon && "pl-10",
+            prefix && !Icon && "pl-8",
+            prefix && Icon && "pl-16",
             error ? "border-red-300 text-red-900" : "border-gray-300",
             className
           )}

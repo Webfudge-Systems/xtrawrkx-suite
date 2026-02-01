@@ -15,9 +15,7 @@ class ClientAccountService {
                 ...params
             };
 
-            console.log('Fetching client accounts with params:', queryParams);
             const response = await strapiClient.getClientAccounts(queryParams);
-            console.log('Client accounts response:', response);
 
             // Return the response as-is since the API returns data directly
             return response;
@@ -97,9 +95,7 @@ class ClientAccountService {
      */
     async getStats() {
         try {
-            console.log('Fetching client account stats...');
             const response = await strapiClient.getClientAccountStats();
-            console.log('Stats response:', response);
             return response.data || response;
         } catch (error) {
             console.error('Error fetching client account stats:', error);

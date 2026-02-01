@@ -16,7 +16,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
             const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', clientAccountId);
 
             if (!clientAccount) {
-                console.log('Client account not found:', clientAccountId);
                 return null;
             }
 
@@ -31,7 +30,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
             });
 
             if (existingAccounts && existingAccounts.length > 0) {
-                console.log('Found existing account for client account:', existingAccounts[0].id);
                 return existingAccounts[0].id;
             }
 
@@ -53,7 +51,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                 }
             });
 
-            console.log('Created new account from client account:', newAccount.id);
             return newAccount.id;
         } catch (error) {
             console.error('Error finding/creating account from client account:', error);
@@ -67,10 +64,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
          */
         async find(ctx) {
             try {
-                console.log('=== find method called for projects ===');
-                console.log('Request URL:', ctx.request.url);
-                console.log('Request method:', ctx.request.method);
-                console.log('Query object:', ctx.query);
 
                 const { query } = ctx;
 
@@ -103,7 +96,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                 // Always ensure clientAccount is populated
                 populate.clientAccount = true;
 
-                console.log('Project find - populate object:', JSON.stringify(populate, null, 2));
 
                 // Parse filters from query string
                 let filters = {};
@@ -147,7 +139,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                     }
                 }
 
-                console.log('Query parameters:', { filters, sort, pagination, populate });
 
                 // Fetch projects using entityService
                 const projects = await strapi.entityService.findPage('api::project.project', {
@@ -157,7 +148,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                     pagination
                 });
 
-                console.log('Projects fetched from database:', projects);
 
                 // Handle both 'data' and 'results' properties (Strapi might use either)
                 let projectsData = [];
@@ -181,20 +171,11 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                     }
                 }
 
-                console.log('Number of projects:', projectsData.length);
-                console.log('Projects data structure:', {
-                    hasData: projectsData.length > 0,
-                    dataLength: projectsData.length,
-                    hasMeta: !!projectsMeta
-                });
 
                 // Debug: Log first project's clientAccount
                 if (projectsData.length > 0) {
                     const firstProject = projectsData[0];
                     const projectData = firstProject.attributes || firstProject;
-                    console.log('First project name:', projectData.name);
-                    console.log('First project clientAccount:', projectData.clientAccount);
-                    console.log('First project full (first 500 chars):', JSON.stringify(firstProject).substring(0, 500));
                 }
 
                 // Ensure we return a proper format even if empty
@@ -236,7 +217,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
         async findOne(ctx) {
             try {
                 const { id } = ctx.params;
-                console.log('Fetching project by ID:', id);
 
                 const { query } = ctx;
 
@@ -321,26 +301,21 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
          */
         async create(ctx) {
             try {
-                console.log('Creating project with data:', ctx.request.body);
                 const { data } = ctx.request.body;
 
                 if (!data) {
-                    console.log('No data provided in request body');
                     return ctx.badRequest('No data provided');
                 }
 
                 // Handle clientAccount field - set it directly if provided
                 if (data.clientAccount) {
-                    console.log('Setting clientAccount field:', data.clientAccount);
                     // clientAccount is already the correct ID, just ensure it's valid
                     try {
                         const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', data.clientAccount);
                         if (!clientAccount) {
-                            console.log('Client account not found, removing clientAccount field');
                             delete data.clientAccount;
                         }
                     } catch (error) {
-                        console.log('Error validating client account:', error);
                         delete data.clientAccount;
                     }
                 }
@@ -352,7 +327,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                         const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', data.account);
                         if (clientAccount) {
                             // It's a client account, find or create the corresponding account
-                            console.log('Account ID is a client account, converting...');
                             const accountId = await findOrCreateAccountFromClientAccount(data.account);
                             if (accountId) {
                                 data.account = accountId;
@@ -363,7 +337,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                         }
                     } catch (error) {
                         // If it's not a client account, it might be a regular account - proceed as normal
-                        console.log('Account ID is not a client account, using as-is');
                     }
                 }
 
@@ -377,7 +350,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                     }
                 });
 
-                console.log('Created project:', entity);
 
                 return { data: entity };
             } catch (error) {
@@ -395,7 +367,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                 const { id } = ctx.params;
                 const { data } = ctx.request.body;
 
-                console.log(`Updating project ${id} with data:`, data);
 
                 // Ensure teamMembers IDs are integers if present
                 if (data.teamMembers !== undefined && Array.isArray(data.teamMembers)) {
@@ -411,13 +382,11 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                 // Handle account field - check if it's a client account ID
                 if (data.account !== undefined && data.account !== null) {
-                    console.log('Processing account field:', data.account, typeof data.account);
 
                     // Convert to number if it's a string
                     const accountIdToCheck = typeof data.account === 'string' ? parseInt(data.account, 10) : data.account;
 
                     if (isNaN(accountIdToCheck)) {
-                        console.log('Invalid account ID, setting to null');
                         data.account = null;
                     } else {
                         // First, try to find it as a client account
@@ -426,19 +395,15 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                             const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', accountIdToCheck);
                             if (clientAccount) {
                                 isClientAccount = true;
-                                console.log('Account ID is a client account, converting...', clientAccount.companyName || clientAccount.id);
                                 const accountId = await findOrCreateAccountFromClientAccount(accountIdToCheck);
                                 if (accountId) {
-                                    console.log('Successfully converted client account to account ID:', accountId);
                                     data.account = accountId;
                                 } else {
-                                    console.log('Failed to convert client account, setting account to null');
                                     data.account = null;
                                 }
                             }
                         } catch (clientAccountError) {
                             // Not a client account or error finding it
-                            console.log('Not a client account (or error finding it):', clientAccountError.message);
                         }
 
                         // If it's not a client account, verify it's a valid regular account
@@ -446,38 +411,30 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                             try {
                                 const regularAccount = await strapi.entityService.findOne('api::account.account', accountIdToCheck);
                                 if (regularAccount) {
-                                    console.log('It\'s a valid regular account, using as-is');
                                     data.account = accountIdToCheck;
                                 } else {
-                                    console.log('Account ID not found in accounts, setting to null');
                                     data.account = null;
                                 }
                             } catch (accountError) {
-                                console.log('Error checking regular account:', accountError.message);
                                 // If we can't verify, try to use the ID as-is (might work)
-                                console.log('Using account ID as-is (unverified)');
                                 data.account = accountIdToCheck;
                             }
                         }
                     }
                 } else {
-                    console.log('Account field is null or undefined, setting to null');
                     data.account = null;
                 }
 
                 // Handle clientAccount field - set it directly if provided
                 if (data.clientAccount !== undefined) {
                     if (data.clientAccount) {
-                        console.log('Setting clientAccount field:', data.clientAccount);
                         // Validate client account exists
                         try {
                             const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', data.clientAccount);
                             if (!clientAccount) {
-                                console.log('Client account not found, setting to null');
                                 data.clientAccount = null;
                             }
                         } catch (error) {
-                            console.log('Error validating client account:', error);
                             data.clientAccount = null;
                         }
                     } else {
@@ -485,7 +442,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                     }
                 }
 
-                console.log('Updating project with final data:', JSON.stringify(data, null, 2));
 
                 // Update the project using entityService
                 const entity = await strapi.entityService.update('api::project.project', id, {
@@ -499,9 +455,7 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                     }
                 });
 
-                console.log('Updated project clientAccount:', entity?.clientAccount || entity?.attributes?.clientAccount);
 
-                console.log('Updated project:', entity);
 
                 return { data: entity };
             } catch (error) {
@@ -518,7 +472,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
         async delete(ctx) {
             try {
                 const { id } = ctx.params;
-                console.log(`Deleting project ${id} with cascade deletion`);
 
                 // First, get the project with all relations
                 const project = await strapi.entityService.findOne('api::project.project', id, {
@@ -537,7 +490,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                 // Delete all related tasks (and their subtasks and comments)
                 if (project.tasks && project.tasks.length > 0) {
-                    console.log(`Processing ${project.tasks.length} related tasks`);
                     for (const task of project.tasks) {
                         try {
                             // Get task with all projects to check if it belongs to other projects
@@ -553,7 +505,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                                 fullTask.projects.some(p => p.id !== parseInt(id));
 
                             if (belongsToOtherProjects) {
-                                console.log(`Task ${task.id} belongs to other projects, unlinking from this project only`);
                                 // Just unlink the task from this project, don't delete it
                                 const currentProjects = fullTask.projects
                                     .filter(p => p.id !== parseInt(id))
@@ -567,7 +518,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                                 continue; // Skip deletion, move to next task
                             }
 
-                            console.log(`Deleting task ${task.id} (only belongs to this project)`);
 
                             // Delete all task comments first (comments are linked by commentableId and commentableType)
                             try {
@@ -579,7 +529,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                                 });
 
                                 if (taskComments && taskComments.length > 0) {
-                                    console.log(`Deleting ${taskComments.length} comments for task ${task.id}`);
                                     for (const comment of taskComments) {
                                         try {
                                             // Delete comment replies first (recursive)
@@ -610,7 +559,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                             // Delete all subtasks first (and their comments)
                             if (fullTask && fullTask.subtasks && fullTask.subtasks.length > 0) {
-                                console.log(`Deleting ${fullTask.subtasks.length} subtasks for task ${task.id}`);
                                 for (const subtask of fullTask.subtasks) {
                                     try {
                                         // Delete subtask comments
@@ -645,7 +593,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                                         }
 
                                         await strapi.entityService.delete('api::subtask.subtask', subtask.id);
-                                        console.log(`Deleted subtask ${subtask.id}`);
                                     } catch (subtaskError) {
                                         console.error(`Error deleting subtask ${subtask.id}:`, subtaskError.message);
                                     }
@@ -654,7 +601,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                             // Delete the task itself
                             await strapi.entityService.delete('api::task.task', task.id);
-                            console.log(`Deleted task ${task.id}`);
                         } catch (taskError) {
                             console.error(`Error deleting task ${task.id}:`, taskError.message);
                             // Continue with other deletions even if one fails
@@ -664,11 +610,9 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                 // Delete all related activities
                 if (project.activities && project.activities.length > 0) {
-                    console.log(`Deleting ${project.activities.length} related activities`);
                     for (const activity of project.activities) {
                         try {
                             await strapi.entityService.delete('api::activity.activity', activity.id);
-                            console.log(`Deleted activity ${activity.id}`);
                         } catch (activityError) {
                             console.error(`Error deleting activity ${activity.id}:`, activityError.message);
                         }
@@ -677,11 +621,9 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                 // Delete all related time entries
                 if (project.timeEntries && project.timeEntries.length > 0) {
-                    console.log(`Deleting ${project.timeEntries.length} related time entries`);
                     for (const timeEntry of project.timeEntries) {
                         try {
                             await strapi.entityService.delete('api::time-entry.time-entry', timeEntry.id);
-                            console.log(`Deleted time entry ${timeEntry.id}`);
                         } catch (timeEntryError) {
                             console.error(`Error deleting time entry ${timeEntry.id}:`, timeEntryError.message);
                         }
@@ -690,11 +632,9 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                 // Delete all related files
                 if (project.files && project.files.length > 0) {
-                    console.log(`Deleting ${project.files.length} related files`);
                     for (const file of project.files) {
                         try {
                             await strapi.entityService.delete('api::file.file', file.id);
-                            console.log(`Deleted file ${file.id}`);
                         } catch (fileError) {
                             console.error(`Error deleting file ${file.id}:`, fileError.message);
                         }
@@ -704,7 +644,6 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                 // Delete the project itself
                 const deletedProject = await strapi.entityService.delete('api::project.project', id);
 
-                console.log(`Project ${id} deleted successfully`);
 
                 return { data: deletedProject };
             } catch (error) {

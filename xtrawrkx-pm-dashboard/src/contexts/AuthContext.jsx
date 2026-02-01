@@ -35,7 +35,6 @@ export const AuthProvider = ({ children }) => {
 
           if (hasAuthCookie) {
             // Cookie exists but no localStorage token - clear the stale cookie
-            console.log("Found stale auth cookie, clearing it...");
             authService.logout();
             setUser(null);
             setIsAuthenticated(false);
@@ -89,7 +88,6 @@ export const AuthProvider = ({ children }) => {
       const response = await authService.login(email, password);
 
       if (response.user && response.token) {
-        console.log("Login successful, setting auth state");
         setUser(response.user);
         setIsAuthenticated(true);
         return { success: true, user: response.user };

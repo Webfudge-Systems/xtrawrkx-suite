@@ -84,6 +84,12 @@ export function Table({
                 row.status?.toLowerCase() === "done" ||
                 row.status?.toLowerCase() === "completed";
               
+              // Check if task is in Client Review status (waiting for client approval)
+              const isClientReview =
+                row.status?.toUpperCase() === "CLIENT_REVIEW" ||
+                row.status?.toUpperCase() === "CLIENT REVIEW" ||
+                row.status === "Client Review";
+              
               return (
               <tr
                 key={row.id || rowIndex}
@@ -94,7 +100,9 @@ export function Table({
                     "bg-blue-50/50 backdrop-blur-sm",
                   isDone
                     ? "bg-gray-100/60 opacity-75"
-                    : "bg-white/40"
+                    : "bg-white/40",
+                  isClientReview &&
+                    "border-l-4 border-purple-500 bg-purple-50/30 hover:bg-purple-50/50"
                 )}
                 onClick={() => onRowClick && onRowClick(row)}
               >

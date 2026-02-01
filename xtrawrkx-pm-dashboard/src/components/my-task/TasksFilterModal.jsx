@@ -111,7 +111,7 @@ export default function TasksFilterModal({
                   { value: '', label: 'All Statuses' },
                   { value: 'To Do', label: 'To Do' },
                   { value: 'In Progress', label: 'In Progress' },
-                  { value: 'In Review', label: 'In Review' },
+                  { value: 'Internal Review', label: 'Internal Review' },
                   { value: 'Done', label: 'Done' },
                   { value: 'Cancelled', label: 'Cancelled' }
                 ]}

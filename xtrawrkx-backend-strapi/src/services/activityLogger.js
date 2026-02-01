@@ -34,7 +34,6 @@ const activityLogger = {
         customTimestamp = null
     }) {
         try {
-            console.log('📝 Logging activity:', { userId, action, type, activityType });
 
             // For now, we'll store activities in memory/mock storage
             // Later this can be connected to the actual Activity or AuditLog models
@@ -72,7 +71,6 @@ const activityLogger = {
                     };
                 }
             } catch (error) {
-                console.log('Could not fetch user details:', error.message);
                 // Continue without user details
                 activity.user = {
                     id: userId,
@@ -93,7 +91,6 @@ const activityLogger = {
                 global.userActivities = global.userActivities.slice(0, 100);
             }
 
-            console.log('✅ Activity logged successfully:', activity.id);
             return activity;
 
         } catch (error) {
@@ -119,7 +116,6 @@ const activityLogger = {
                 .filter(activity => activity.userId === userId)
                 .slice(0, limit);
 
-            console.log(`📋 Retrieved ${userActivities.length} activities for user ${userId}`);
             return userActivities;
 
         } catch (error) {
@@ -182,7 +178,6 @@ const activityLogger = {
             // Limit results
             activities = activities.slice(0, limit);
 
-            console.log(`📋 Retrieved ${activities.length} total activities (type: ${type || 'all'}, range: ${timeRange || 'all'})`);
             return activities;
 
         } catch (error) {

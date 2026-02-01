@@ -99,16 +99,13 @@ export default function EditContactPage() {
   const fetchContactData = async () => {
     try {
       setIsLoading(true);
-      console.log("Fetching contact data for ID:", contactId);
       const response = await contactService.getById(contactId, {
         populate: ["leadCompany", "clientAccount"],
       });
 
-      console.log("Contact response:", response);
 
       // Handle the service response structure
       const contact = response?.data || response;
-      console.log("Contact data:", contact);
 
       if (contact && contact.id) {
         // Handle both direct contact data and nested attributes
@@ -188,17 +185,14 @@ export default function EditContactPage() {
 
   const fetchDropdownOptions = async (currentClientAccountId = null) => {
     try {
-      console.log("Fetching dropdown options for contact edit...");
       
       // Fetch lead companies
       const leadCompaniesResponse = await leadCompanyService.getAll({
         pagination: { pageSize: 1000 },
         sort: ["companyName:asc"],
       });
-      console.log("Lead companies response:", leadCompaniesResponse);
       const leadCompaniesData = leadCompaniesResponse?.data || [];
       setLeadCompanies(leadCompaniesData);
-      console.log("Set lead companies:", leadCompaniesData);
 
       // Fetch client accounts with convertedFromLead populated
       const clientAccountsResponse = await clientAccountService.getAll({
@@ -206,7 +200,6 @@ export default function EditContactPage() {
         sort: ["companyName:asc"],
         populate: ["convertedFromLead"],
       });
-      console.log("Client accounts response:", clientAccountsResponse);
       const clientAccountsData = clientAccountsResponse?.data || [];
       
       // Filter to only show client accounts that were converted from lead companies
@@ -223,7 +216,6 @@ export default function EditContactPage() {
           accountId === Number(currentClientAccountId) ||
           accountId === currentClientAccountId
         )) {
-          console.log("Including currently assigned account:", accountId, account.companyName || account.attributes?.companyName);
           return true; // Always show currently assigned account
         }
         
@@ -240,7 +232,6 @@ export default function EditContactPage() {
         );
         
         if (isConverted) {
-          console.log("Including converted account:", accountId, account.companyName || account.attributes?.companyName);
         }
         
         return isConverted;
@@ -256,12 +247,10 @@ export default function EditContactPage() {
         });
         
         if (!isCurrentAccountInList) {
-          console.log("Currently assigned account not in list, fetching separately:", currentClientAccountId);
           try {
             const currentAccount = await clientAccountService.getById(currentClientAccountId);
             if (currentAccount) {
               const accountData = currentAccount.data || currentAccount;
-              console.log("Fetched current account:", accountData);
               // Add to the beginning of the list
               finalClientAccounts = [accountData, ...finalClientAccounts];
             }
@@ -272,9 +261,6 @@ export default function EditContactPage() {
       }
       
       setClientAccounts(finalClientAccounts);
-      console.log("Set filtered client accounts (converted only):", finalClientAccounts);
-      console.log("Current client account ID:", currentClientAccountId);
-      console.log("Total client accounts:", clientAccountsData.length, "Filtered:", finalClientAccounts.length);
     } catch (error) {
       console.error("Error fetching dropdown options:", error);
     }
@@ -306,13 +292,11 @@ export default function EditContactPage() {
   const checkLeadCompanyConversion = async (leadCompanyId) => {
     try {
       setIsCheckingLeadCompany(true);
-      console.log("Checking if lead company is converted:", leadCompanyId);
       
       const leadCompany = await leadCompanyService.getById(leadCompanyId, {
         populate: ["convertedAccount"],
       });
       
-      console.log("Lead company data:", leadCompany);
       
       const convertedAccount = 
         leadCompany?.convertedAccount || 
@@ -321,10 +305,8 @@ export default function EditContactPage() {
       
       if (convertedAccount) {
         const accountId = convertedAccount.id || convertedAccount.documentId || convertedAccount;
-        console.log("Lead company has been converted to client account:", accountId);
         setSelectedLeadCompanyConvertedAccount(accountId);
       } else {
-        console.log("Lead company has NOT been converted to client account");
         setSelectedLeadCompanyConvertedAccount(null);
       }
     } catch (error) {
@@ -413,7 +395,6 @@ export default function EditContactPage() {
         }
       });
 
-      console.log("Updating contact with data:", updateData);
       await contactService.update(contactId, updateData);
 
       setShowSuccess(true);

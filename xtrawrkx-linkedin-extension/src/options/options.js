@@ -49,6 +49,17 @@ class OptionsController {
         document.getElementById('auto-assign').addEventListener('change', this.saveImportSettings.bind(this));
         document.getElementById('check-duplicates').addEventListener('change', this.saveImportSettings.bind(this));
         document.getElementById('show-notifications').addEventListener('change', this.saveImportSettings.bind(this));
+
+        // API Configuration
+        document.getElementById('save-api-config').addEventListener('click', () => {
+            this.saveApiConfig();
+        });
+        document.getElementById('test-connection').addEventListener('click', () => {
+            this.testConnection();
+        });
+        document.getElementById('environment').addEventListener('change', () => {
+            this.onEnvironmentChange();
+        });
     }
 
     async loadConfiguration() {
@@ -56,7 +67,9 @@ class OptionsController {
             const config = await chrome.storage.sync.get([
                 'autoAssign',
                 'checkDuplicates',
-                'showNotifications'
+                'showNotifications',
+                'environment',
+                'apiBaseUrl'
             ]);
 
             // Load import settings
@@ -64,24 +77,151 @@ class OptionsController {
             document.getElementById('check-duplicates').checked = config.checkDuplicates !== false;
             document.getElementById('show-notifications').checked = config.showNotifications !== false;
 
+            // Load API configuration
+            if (config.environment) {
+                document.getElementById('environment').value = config.environment;
+            } else {
+                // Auto-detect environment
+                const isDev = typeof getConfig !== 'undefined' && getConfig().isDevelopment();
+                document.getElementById('environment').value = isDev ? 'development' : 'production';
+            }
+
+            if (config.apiBaseUrl) {
+                document.getElementById('api-url').value = config.apiBaseUrl;
+            } else {
+                // Set default based on environment
+                const env = document.getElementById('environment').value;
+                const defaultUrl = env === 'development' 
+                    ? 'http://localhost:1337' 
+                    : 'https://xtrawrkxsuits-production.up.railway.app';
+                document.getElementById('api-url').value = defaultUrl;
+            }
+
         } catch (error) {
             console.error('Failed to load configuration:', error);
         }
     }
 
-    async checkConnectionStatus() {
-        try {
-            // Use hardcoded production URL
-            const baseURL = 'https://xtrawrkxsuits-production.up.railway.app';
+    async onEnvironmentChange() {
+        const environment = document.getElementById('environment').value;
+        const apiUrlInput = document.getElementById('api-url');
+        
+        // If no custom URL is set, update to default for selected environment
+        const stored = await chrome.storage.sync.get(['apiBaseUrl']);
+        if (!stored.apiBaseUrl) {
+            const defaultUrl = environment === 'development' 
+                ? 'http://localhost:1337' 
+                : 'https://xtrawrkxsuits-production.up.railway.app';
+            apiUrlInput.value = defaultUrl;
+        }
+    }
 
+    async saveApiConfig() {
+        try {
+            const environment = document.getElementById('environment').value;
+            const apiUrl = document.getElementById('api-url').value.trim();
+
+            if (!apiUrl) {
+                this.showStatus('error', 'Invalid Configuration', 'Please enter an API URL');
+                return;
+            }
+
+            // Validate URL
+            if (typeof getConfig !== 'undefined') {
+                const configManager = getConfig();
+                try {
+                    configManager.validateApiUrl(apiUrl, environment === 'development');
+                } catch (error) {
+                    this.showStatus('error', 'Invalid URL', error.message);
+                    return;
+                }
+            }
+
+            // Save configuration
+            await chrome.storage.sync.set({
+                environment: environment,
+                apiBaseUrl: apiUrl
+            });
+
+            // Reinitialize API client with new URL
+            if (this.apiClient) {
+                this.apiClient.initialized = false;
+                await this.apiClient.init();
+            }
+
+            this.showStatus('success', 'Configuration Saved', 'API configuration has been updated');
+            
+            // Update connection status
+            await this.checkConnectionStatus();
+
+        } catch (error) {
+            console.error('Failed to save API configuration:', error);
+            this.showStatus('error', 'Save Failed', error.message || 'Failed to save configuration');
+        }
+    }
+
+    async testConnection() {
+        try {
+            const apiUrl = document.getElementById('api-url').value.trim() || 
+                          (document.getElementById('environment').value === 'development' 
+                            ? 'http://localhost:1337' 
+                            : 'https://xtrawrkxsuits-production.up.railway.app');
+
+            this.updateConnectionStatus('checking', 'Testing...', 'Testing connection to API server...');
+            
             // Test basic connectivity
-            const response = await fetch(`${baseURL}/api/test`, {
+            const response = await fetch(`${apiUrl}/api/auth/me`, {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
             });
 
-            if (response.ok || response.status === 404) {
-                this.updateConnectionStatus('connected', 'Connected', 'API server is reachable');
+            // 401 is OK (means server is reachable, just not authenticated)
+            if (response.ok || response.status === 401 || response.status === 404) {
+                this.updateConnectionStatus('connected', 'Connected', `Successfully connected to ${apiUrl}`);
+            } else {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+        } catch (error) {
+            console.error('Connection test failed:', error);
+            const apiUrl = document.getElementById('api-url').value.trim() || 'Unknown';
+            this.updateConnectionStatus('error', 'Connection Failed', `Unable to reach ${apiUrl}. ${error.message}`);
+        }
+    }
+
+    async checkConnectionStatus() {
+        try {
+            // Get configured API URL
+            let baseURL;
+            if (typeof getConfig !== 'undefined') {
+                const configManager = getConfig();
+                baseURL = await configManager.getApiUrl();
+            } else {
+                const stored = await chrome.storage.sync.get(['apiBaseUrl', 'environment']);
+                if (stored.apiBaseUrl) {
+                    baseURL = stored.apiBaseUrl;
+                } else {
+                    baseURL = stored.environment === 'development' 
+                        ? 'http://localhost:1337' 
+                        : 'https://xtrawrkxsuits-production.up.railway.app';
+                }
+            }
+
+            // Update connection info display
+            const connectionUrl = document.getElementById('connection-url');
+            const connectionMessage = document.getElementById('connection-message');
+            if (connectionUrl) connectionUrl.textContent = baseURL;
+            if (connectionMessage) connectionMessage.textContent = `Connecting to ${baseURL}...`;
+
+            // Test basic connectivity
+            const response = await fetch(`${baseURL}/api/auth/me`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            // 401 is OK (means server is reachable, just not authenticated)
+            if (response.ok || response.status === 401 || response.status === 404) {
+                this.updateConnectionStatus('connected', 'Connected', `Successfully connected to API server`);
             } else {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -95,14 +235,14 @@ class OptionsController {
     updateConnectionStatus(type, status, message) {
         const statusBadge = document.getElementById('connection-status');
         const connectionInfo = document.getElementById('connection-info');
+        const connectionMessage = document.getElementById('connection-message');
         
         statusBadge.className = `status-badge ${type}`;
         statusBadge.querySelector('span').textContent = status;
         
         connectionInfo.className = `connection-info ${type}`;
-        const firstP = connectionInfo.querySelector('p:first-child');
-        if (firstP) {
-            firstP.textContent = message;
+        if (connectionMessage) {
+            connectionMessage.textContent = message;
         }
     }
 

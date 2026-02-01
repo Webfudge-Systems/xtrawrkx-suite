@@ -59,7 +59,6 @@ export default function ForgotPasswordForm({
         setSuccess(true);
       } else {
         // Default behavior - just log for now
-        console.log("Password reset attempt:", formData);
         await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API call
         setSuccess(true);
       }
@@ -75,7 +74,7 @@ export default function ForgotPasswordForm({
 
   if (success) {
     return (
-      <div className={`w-full ${className}`}>
+      <div className={`w-full max-w-full overflow-hidden ${className}`}>
         <AuthCard
           title="Check Your Email"
           subtitle="We've sent password reset instructions to your email address."
@@ -107,7 +106,7 @@ export default function ForgotPasswordForm({
               </p>
             </div>
 
-            <AuthButton onClick={() => setSuccess(false)} variant="secondary">
+            <AuthButton onClick={() => setSuccess(false)} variant="outline" size="lg">
               Try Different Email
             </AuthButton>
 
@@ -115,7 +114,7 @@ export default function ForgotPasswordForm({
               text="Remembered your password?"
               linkText="Sign In"
               onClick={onSignIn}
-              className="mt-6"
+              className="mt-4"
             />
           </div>
         </AuthCard>
@@ -124,12 +123,12 @@ export default function ForgotPasswordForm({
   }
 
   return (
-    <div className={`w-full ${className}`}>
+    <div className={`w-full max-w-full overflow-hidden ${className}`}>
       <AuthCard
         title="Reset Your Password"
         subtitle="Enter your email and we'll send reset instructions"
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 w-full">
           {errors.general && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
               {errors.general}
@@ -147,7 +146,7 @@ export default function ForgotPasswordForm({
             required
           />
 
-          <AuthButton type="submit" loading={loading} disabled={loading}>
+          <AuthButton type="submit" loading={loading} disabled={loading} size="lg">
             Send Reset Link
           </AuthButton>
 
@@ -155,7 +154,7 @@ export default function ForgotPasswordForm({
             text="Remembered your password?"
             linkText="Back to Login"
             onClick={onSignIn}
-            className="mt-6"
+            className="mt-4"
           />
         </form>
       </AuthCard>

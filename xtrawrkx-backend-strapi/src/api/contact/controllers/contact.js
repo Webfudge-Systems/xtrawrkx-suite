@@ -12,11 +12,9 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
      */
     async create(ctx) {
         try {
-            console.log('Creating contact with data:', ctx.request.body);
             const { data } = ctx.request.body;
 
             if (!data) {
-                console.log('No data provided in request body');
                 return ctx.badRequest('No data provided');
             }
 
@@ -30,12 +28,10 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                     if (linkedInMatch && linkedInMatch[1]) {
                         const linkedInUsername = linkedInMatch[1].toLowerCase().replace(/[^a-z0-9-]/g, '-');
                         data.email = `${linkedInUsername}@xtrawrkx.placeholder`;
-                        console.log('Generated placeholder email from LinkedIn URL:', data.email);
                     } else {
                         // Fallback: use normalized LinkedIn URL as base
                         const normalizedLinkedIn = data.linkedIn.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 50);
                         data.email = `${normalizedLinkedIn}@xtrawrkx.placeholder`;
-                        console.log('Generated fallback placeholder email from LinkedIn URL:', data.email);
                     }
                 } else {
                     // Last resort: use name-based placeholder (deterministic)
@@ -43,11 +39,9 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                     const lastName = (data.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                     const namePart = firstName && lastName ? `${firstName}.${lastName}` : firstName || lastName || 'contact';
                     data.email = `${namePart}@xtrawrkx.placeholder`;
-                    console.log('Generated name-based placeholder email:', data.email);
                 }
             }
 
-            console.log('Contact data (after email generation):', data);
 
             const entity = await strapi.entityService.create('api::contact.contact', {
                 data,
@@ -60,7 +54,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                 }
             });
 
-            console.log('Created contact:', entity);
 
             return { data: entity };
         } catch (error) {
@@ -76,7 +69,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
      */
     async find(ctx) {
         try {
-            console.log('Finding contacts with params:', ctx.query);
 
             const { query } = ctx;
 
@@ -92,7 +84,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                 populate
             });
 
-            console.log(`Found ${entities?.length || 0} contacts`);
 
             // Ensure we return the expected format
             if (Array.isArray(entities)) {
@@ -135,7 +126,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
     async findOne(ctx) {
         try {
             const { id } = ctx.params;
-            console.log(`Finding contact with ID: ${id}`);
 
             const entity = await strapi.entityService.findOne('api::contact.contact', id, {
                 populate: {
@@ -153,11 +143,9 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
             });
 
             if (!entity) {
-                console.log(`Contact with ID ${id} not found`);
                 return ctx.notFound(`Contact with ID ${id} not found`);
             }
 
-            console.log('Found contact:', entity);
 
             // Handle both direct object and { data: object } formats
             if (entity.data) {
@@ -180,7 +168,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
             const { id } = ctx.params;
             const { data } = ctx.request.body;
 
-            console.log(`Updating contact ${id} with data:`, data);
 
             const entity = await strapi.entityService.update('api::contact.contact', id, {
                 data,
@@ -193,7 +180,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                 }
             });
 
-            console.log('Updated contact:', entity);
 
             return { data: entity };
         } catch (error) {
@@ -209,7 +195,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
     async delete(ctx) {
         try {
             const { id } = ctx.params;
-            console.log(`Deleting contact ${id} with cascade deletion`);
 
             // First, get the contact with all relations
             const contact = await strapi.entityService.findOne('api::contact.contact', id, {
@@ -233,20 +218,17 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Delete related deals (only if contact is the primary contact)
             if (contact.deals && contact.deals.length > 0) {
-                console.log(`Processing ${contact.deals.length} related deals`);
                 for (const deal of contact.deals) {
                     // For deals, we might want to unlink rather than delete
                     // since deals can exist without a primary contact
                     await strapi.entityService.update('api::deal.deal', deal.id, {
                         data: { contact: null }
                     });
-                    console.log(`Unlinked deal ${deal.id} from contact`);
                 }
             }
 
             // Delete related activities
             if (contact.activities && contact.activities.length > 0) {
-                console.log(`Deleting ${contact.activities.length} related activities`);
                 for (const activity of contact.activities) {
                     try {
                         await strapi.entityService.delete('api::activity.activity', activity.id);
@@ -259,7 +241,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Delete community memberships
             if (contact.communityMemberships && contact.communityMemberships.length > 0) {
-                console.log(`Deleting ${contact.communityMemberships.length} community memberships`);
                 for (const membership of contact.communityMemberships) {
                     try {
                         await strapi.entityService.delete('api::community-membership.community-membership', membership.id);
@@ -272,7 +253,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Delete portal access
             if (contact.portalAccess) {
-                console.log(`Deleting portal access for contact`);
                 try {
                     await strapi.entityService.delete('api::client-portal-access.client-portal-access', contact.portalAccess.id);
                 } catch (portalError) {
@@ -283,7 +263,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Delete related files
             if (contact.files && contact.files.length > 0) {
-                console.log(`Deleting ${contact.files.length} related files`);
                 for (const file of contact.files) {
                     try {
                         await strapi.entityService.delete('api::file.file', file.id);
@@ -296,7 +275,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Handle proposals (unlink rather than delete as they might be shared)
             if (contact.proposals && contact.proposals.length > 0) {
-                console.log(`Unlinking ${contact.proposals.length} proposals`);
                 for (const proposal of contact.proposals) {
                     await strapi.entityService.update('api::proposal.proposal', proposal.id, {
                         data: { contact: null }
@@ -306,7 +284,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Handle proposals sent to this contact
             if (contact.proposalsSentTo && contact.proposalsSentTo.length > 0) {
-                console.log(`Unlinking ${contact.proposalsSentTo.length} proposals sent to contact`);
                 for (const proposal of contact.proposalsSentTo) {
                     await strapi.entityService.update('api::proposal.proposal', proposal.id, {
                         data: { sentToContact: null }
@@ -316,7 +293,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Handle contracts (unlink rather than delete)
             if (contact.contracts && contact.contracts.length > 0) {
-                console.log(`Unlinking ${contact.contracts.length} contracts`);
                 for (const contract of contact.contracts) {
                     await strapi.entityService.update('api::contract.contract', contract.id, {
                         data: { contact: null }
@@ -326,7 +302,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Handle contracts signed by this contact
             if (contact.contractsSignedBy && contact.contractsSignedBy.length > 0) {
-                console.log(`Unlinking ${contact.contractsSignedBy.length} contracts signed by contact`);
                 for (const contract of contact.contractsSignedBy) {
                     await strapi.entityService.update('api::contract.contract', contract.id, {
                         data: { signedByContact: null }
@@ -336,7 +311,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
 
             // Handle converted leads (unlink rather than delete)
             if (contact.convertedLeads && contact.convertedLeads.length > 0) {
-                console.log(`Unlinking ${contact.convertedLeads.length} converted leads`);
                 for (const lead of contact.convertedLeads) {
                     await strapi.entityService.update('api::lead.lead', lead.id, {
                         data: { convertedContact: null }
@@ -348,7 +322,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
             let entity;
             try {
                 entity = await strapi.entityService.delete('api::contact.contact', id);
-                console.log(`Successfully deleted contact ${id} and processed all related data`);
             } catch (contactDeleteError) {
                 console.error(`Failed to delete contact ${id}:`, contactDeleteError);
                 throw new Error(`Failed to delete contact: ${contactDeleteError.message}`);
@@ -367,7 +340,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
     async getByLeadCompany(ctx) {
         try {
             const { leadCompanyId } = ctx.params;
-            console.log(`Finding contacts for lead company: ${leadCompanyId}`);
 
             const entities = await strapi.entityService.findMany('api::contact.contact', {
                 filters: {
@@ -384,7 +356,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                 }
             });
 
-            console.log(`Found ${entities?.length || 0} contacts for lead company ${leadCompanyId}`);
 
             return {
                 data: entities || [],
@@ -419,7 +390,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
     async getByClientAccount(ctx) {
         try {
             const { clientAccountId } = ctx.params;
-            console.log(`Finding contacts for client account: ${clientAccountId}`);
 
             const entities = await strapi.entityService.findMany('api::contact.contact', {
                 filters: {
@@ -436,7 +406,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                 }
             });
 
-            console.log(`Found ${entities?.length || 0} contacts for client account ${clientAccountId}`);
 
             return {
                 data: entities || [],
@@ -470,7 +439,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
      */
     async getStats(ctx) {
         try {
-            console.log('Fetching contact statistics');
 
             const contacts = await strapi.entityService.findMany('api::contact.contact', {
                 populate: {
@@ -524,7 +492,6 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                 }
             });
 
-            console.log('Contact stats:', stats);
 
             return { data: stats };
         } catch (error) {

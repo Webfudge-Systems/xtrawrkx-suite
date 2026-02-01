@@ -117,20 +117,17 @@ export default function ProposalsPage() {
 
   const fetchClientAccounts = async () => {
     try {
-      console.log("Fetching client accounts for proposals...");
       const response = await clientAccountService.getAll({
         pagination: {
           pageSize: 1000,
         },
       });
-      console.log("Client accounts response:", response);
 
       // Handle different response structures
       const accounts = Array.isArray(response)
         ? response
         : response?.data || [];
       setClientAccounts(accounts);
-      console.log(`Loaded ${accounts.length} client accounts for proposals`);
     } catch (err) {
       console.error("Error fetching client accounts:", err);
       console.error("Error details:", err.response?.data || err.message);
@@ -147,7 +144,6 @@ export default function ProposalsPage() {
       });
       const dealsData = response.data || [];
       setDeals(dealsData);
-      console.log(`Loaded ${dealsData.length} deals for proposals`);
     } catch (err) {
       console.error("Error fetching deals:", err);
       setDeals([]);

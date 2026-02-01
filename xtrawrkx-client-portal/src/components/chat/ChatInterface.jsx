@@ -73,11 +73,9 @@ export function ChatInterface() {
         break;
       case "archive":
         // Implementation for archiving
-        console.log("Archive conversation:", conversationId);
         break;
       case "delete":
         // Implementation for deletion
-        console.log("Delete conversation:", conversationId);
         break;
       default:
         break;

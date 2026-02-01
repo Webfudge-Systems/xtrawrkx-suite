@@ -137,19 +137,12 @@ export default function DealsPipelinePage() {
     );
 
     if (draggedDeal) {
-      console.log("Deal moved:", {
-        deal: draggedDeal.name,
-        from: source.droppableId,
-        to: destination.droppableId,
-        index: destination.index,
-      });
 
       // Here you would typically make an API call to update the deal stage
     }
   };
 
   const handleDealClick = (deal) => {
-    console.log("Deal clicked:", deal.name);
     // Navigate to deal detail page
   };
 
@@ -865,7 +858,6 @@ function AddDealModal({ isOpen, onClose }) {
 
     try {
       // Add deal logic here
-      console.log("New deal:", formData);
       handleClose();
     } catch (error) {
       console.error("Error adding deal:", error);

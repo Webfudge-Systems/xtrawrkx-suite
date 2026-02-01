@@ -20,14 +20,14 @@ export default function AuthToggle({
         {href ? (
           <Link
             href={href}
-            className="text-purple-600 hover:text-purple-700 font-medium transition-colors"
+            className="text-[#FF4A74] hover:text-orange-600 font-medium transition-colors"
           >
             {linkText}
           </Link>
         ) : (
           <button
             onClick={onClick}
-            className="text-purple-600 hover:text-purple-700 font-medium transition-colors"
+            className="text-[#FF4A74] hover:text-orange-600 font-medium transition-colors"
           >
             {linkText}
           </button>

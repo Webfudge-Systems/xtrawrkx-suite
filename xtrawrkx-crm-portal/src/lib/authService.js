@@ -48,8 +48,6 @@ class AuthService {
                 // Extract error message from various possible structures
                 let errorMessage = 'Login failed. Please try again.';
 
-                console.log('Login failed - Response status:', response.status);
-                console.log('Login failed - Response data:', JSON.stringify(data, null, 2));
 
                 // Strapi v4 error structure is typically: { error: { status: 400, message: "..." } }
                 // But can also be: { error: "..." } or { message: "..." }
@@ -92,7 +90,6 @@ class AuthService {
                     }
                 }
 
-                console.log('Extracted error message:', errorMessage);
                 throw new Error(errorMessage);
             }
 
@@ -136,7 +133,6 @@ class AuthService {
                 if (response.ok) {
                     const data = await response.json();
                     const userData = data.user || data;
-                    console.log('Fetched user data from API:', userData);
 
                     // Handle Strapi v4 structure (with attributes)
                     if (userData.attributes) {
@@ -169,7 +165,6 @@ class AuthService {
             // Fallback to stored user data
             const storedUser = this.getStoredUser();
             if (storedUser) {
-                console.log('Using stored user data:', storedUser);
                 return storedUser;
             }
 

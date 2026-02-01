@@ -2000,6 +2000,10 @@ export interface ApiSubtaskSubtask extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::subtask.subtask'
     >;
+    collaborators: Schema.Attribute.Relation<
+      'manyToMany',
+      'api::xtrawrkx-user.xtrawrkx-user'
+    >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -2100,6 +2104,7 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    approvedAt: Schema.Attribute.DateTime;
     assignee: Schema.Attribute.Relation<
       'manyToOne',
       'api::xtrawrkx-user.xtrawrkx-user'
@@ -2108,6 +2113,7 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
       'manyToOne',
       'api::client-account.client-account'
     >;
+    clientApproval: Schema.Attribute.Enumeration<['approved', 'rejected']>;
     collaborators: Schema.Attribute.Relation<
       'manyToMany',
       'api::xtrawrkx-user.xtrawrkx-user'
@@ -2143,9 +2149,19 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
       Schema.Attribute.DefaultTo<0>;
     projects: Schema.Attribute.Relation<'manyToMany', 'api::project.project'>;
     publishedAt: Schema.Attribute.DateTime;
+    requiresApproval: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     scheduledDate: Schema.Attribute.DateTime;
     status: Schema.Attribute.Enumeration<
-      ['SCHEDULED', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED', 'CANCELLED']
+      [
+        'SCHEDULED',
+        'IN_PROGRESS',
+        'IN_REVIEW',
+        'CLIENT_REVIEW',
+        'APPROVED',
+        'COMPLETED',
+        'CANCELLED',
+      ]
     > &
       Schema.Attribute.DefaultTo<'SCHEDULED'>;
     subtasks: Schema.Attribute.Relation<'oneToMany', 'api::subtask.subtask'>;

@@ -28,6 +28,43 @@
 
         <!-- Main Content -->
         <div class="main-content">
+            <!-- API Configuration -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>API Configuration</h2>
+                </div>
+                <div class="card-content">
+                    <div class="form-group">
+                        <label for="environment">Environment</label>
+                        <select id="environment" class="input">
+                            <option value="production">Production</option>
+                            <option value="development">Development</option>
+                        </select>
+                        <small class="form-help">Select your environment. Development uses localhost:1337, Production uses the live server.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="api-url">API Base URL</label>
+                        <input 
+                            type="url" 
+                            id="api-url" 
+                            class="input" 
+                            placeholder="https://xtrawrkxsuits-production.up.railway.app"
+                        >
+                        <small class="form-help">Override the default API URL. Leave empty to use environment defaults.</small>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" id="save-api-config" class="btn-primary">
+                            <span>Save Configuration</span>
+                        </button>
+                        <button type="button" id="test-connection" class="btn-ghost">
+                            <span>Test Connection</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Connection Status -->
             <div class="card">
                 <div class="card-header">
@@ -39,8 +76,8 @@
                 </div>
                 <div class="card-content">
                     <div id="connection-info" class="connection-info">
-                        <p>Connected to XtraWrkx CRM Production</p>
-                        <p class="connection-url">https://xtrawrkxsuits-production.up.railway.app</p>
+                        <p id="connection-message">Checking connection...</p>
+                        <p id="connection-url" class="connection-url">-</p>
                     </div>
                 </div>
             </div>
@@ -194,6 +231,7 @@
         </div>
     </div>
 
+    <script src="../utils/config.js"></script>
     <script src="../utils/api-client.js"></script>
     <script src="options.js"></script>
 </body>

@@ -102,12 +102,10 @@ export default function RoleTemplates() {
   ];
 
   const handleUseTemplate = (template) => {
-    console.log("Using template:", template);
     setSelectedTemplate(template);
   };
 
   const handleCloneTemplate = (template) => {
-    console.log("Cloning template:", template);
     // Here you would typically open the role editor with the template data
   };
 

@@ -127,9 +127,7 @@ class ProjectService {
      */
     async deleteProject(id) {
         try {
-            console.log(`Attempting to delete project ${id}...`);
             const response = await apiClient.delete(`/api/projects/${id}`);
-            console.log(`Delete project response:`, response);
             
             // Handle different response structures
             // Strapi DELETE endpoints may return { data: {...} } or just the data directly

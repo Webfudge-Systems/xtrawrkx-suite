@@ -51,7 +51,7 @@ class TaskService {
             const validPopulate = populate
                 .filter(p => p && typeof p === 'string')
                 .join(',');
-            
+
             const params = {
                 populate: validPopulate
             };
@@ -147,7 +147,7 @@ class TaskService {
             // Project is optional, so we don't filter by project existence
             // Ensure userId is a number for proper comparison
             const userIdNum = typeof userId === 'string' ? parseInt(userId) : userId;
-            
+
             const params = {
                 'pagination[page]': page,
                 'pagination[pageSize]': pageSize,
@@ -201,17 +201,15 @@ class TaskService {
      */
     async updateTask(id, taskData) {
         try {
-            console.log(`Updating task ${id} with data:`, taskData);
             const response = await apiClient.put(`/api/tasks/${id}`, {
                 data: taskData
             });
-            console.log(`Task ${id} update response:`, response);
-            
+
             // Verify the response structure
             if (!response || (!response.data && !response)) {
                 console.warn(`Unexpected response structure for task ${id}:`, response);
             }
-            
+
             return response.data || response;
         } catch (error) {
             console.error(`Error updating task ${id}:`, error);

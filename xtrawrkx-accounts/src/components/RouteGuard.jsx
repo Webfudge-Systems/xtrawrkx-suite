@@ -35,7 +35,6 @@ export default function RouteGuard({
       const userData = localStorage.getItem("currentUser");
 
       if (!userData) {
-        console.log("No user data found, redirecting to login");
         router.push(fallbackRoute);
         return;
       }
@@ -45,7 +44,6 @@ export default function RouteGuard({
 
       // Check if user is authenticated
       if (!user || !user.role) {
-        console.log("Invalid user data, redirecting to login");
         router.push(fallbackRoute);
         return;
       }
@@ -53,9 +51,6 @@ export default function RouteGuard({
       // Check role-based access
       if (requiredRole) {
         if (user.role !== requiredRole) {
-          console.log(
-            `Access denied: Required role ${requiredRole}, user has ${user.role}`
-          );
           setHasAccess(false);
           setIsChecking(false);
           return;
@@ -69,9 +64,6 @@ export default function RouteGuard({
           PermissionsService.getRoleLevel(requiredLevel);
 
         if (userLevel < requiredLevelValue) {
-          console.log(
-            `Access denied: Required level ${requiredLevel} (${requiredLevelValue}), user has ${user.role} (${userLevel})`
-          );
           setHasAccess(false);
           setIsChecking(false);
           return;
@@ -80,9 +72,6 @@ export default function RouteGuard({
 
       // Check specific route permissions
       if (!checkRoutePermissions(pathname, user.role)) {
-        console.log(
-          `Access denied for route ${pathname} with role ${user.role}`
-        );
         setHasAccess(false);
         setIsChecking(false);
         return;

@@ -131,10 +131,6 @@ export default function DealDetailPage() {
           }
         }
       } catch (accountError) {
-        console.log(
-          "Could not find account, proceeding without account relation:",
-          accountError
-        );
         // Continue without account relation
       }
 
@@ -215,7 +211,6 @@ export default function DealDetailPage() {
       setLoading(true);
       setError(null);
 
-      console.log("Fetching deal details for ID:", dealId);
 
       // Fetch deal data from Strapi
       const response = await dealService.getById(dealId, {
@@ -228,7 +223,6 @@ export default function DealDetailPage() {
         ],
       });
 
-      console.log("Deal details response:", response);
 
       const dealData = response?.data;
       if (!dealData || !dealData.id) {
@@ -692,7 +686,6 @@ export default function DealDetailPage() {
     setLoadingStatusUpdate(true);
 
     try {
-      console.log(`Updating deal ${deal.id} stage to ${strapiStage}`);
 
       // Update the stage via API
       await dealService.update(deal.id, { stage: strapiStage });
@@ -730,9 +723,6 @@ export default function DealDetailPage() {
               leadCompanyData?.convertedAccount;
 
             if (!convertedAccount) {
-              console.log(
-                `Converting lead company ${leadCompanyId} to client account for deal ${deal.id}`
-              );
 
               // Convert lead company to client account
               const conversionResponse =
@@ -751,9 +741,6 @@ export default function DealDetailPage() {
                   clientAccount: clientAccountId,
                 });
 
-                console.log(
-                  `Successfully converted lead company to client account and linked to deal ${deal.id}`
-                );
 
                 // Show success toast if toast is available
                 if (typeof window !== "undefined" && window.toast) {
@@ -777,9 +764,6 @@ export default function DealDetailPage() {
                 clientAccount: existingClientAccountId,
               });
 
-              console.log(
-                `Linked existing client account ${existingClientAccountId} to deal ${deal.id}`
-              );
             }
           }
         } catch (conversionError) {
@@ -813,7 +797,6 @@ export default function DealDetailPage() {
         setShowCreateProjectPrompt(true);
       }
 
-      console.log(`Successfully updated deal ${deal.id} to ${strapiStage}`);
     } catch (error) {
       console.error("Error updating deal stage:", error);
       console.error("Error details:", error.message);

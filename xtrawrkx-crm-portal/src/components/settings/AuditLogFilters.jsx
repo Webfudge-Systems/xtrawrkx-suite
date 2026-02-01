@@ -139,7 +139,6 @@ export default function AuditLogFilters() {
   };
 
   const applyFilters = () => {
-    console.log("Applying filters:", filters);
     // In a real app, this would trigger the actual filtering logic
   };
 

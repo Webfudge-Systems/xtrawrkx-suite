@@ -145,7 +145,6 @@ export default function NewDealPage() {
   const fetchContactsByClientAccount = async (clientAccountId) => {
     try {
       setLoadingContacts(true);
-      console.log("Fetching contacts for client account:", clientAccountId);
 
       const contactsResponse = await contactService.getByClientAccount(
         clientAccountId,
@@ -153,7 +152,6 @@ export default function NewDealPage() {
           sort: ["firstName:asc"],
         }
       );
-      console.log("Contacts response for client account:", contactsResponse);
 
       const contactsData = contactsResponse?.data || [];
       setFilteredContacts(contactsData);
@@ -169,28 +167,24 @@ export default function NewDealPage() {
 
   const fetchDropdownOptions = async () => {
     try {
-      console.log("Fetching dropdown options...");
 
       // Fetch lead companies
       const leadCompaniesResponse = await leadCompanyService.getAll({
         pagination: { pageSize: 1000 },
         sort: ["companyName:asc"],
       });
-      console.log("Lead companies response:", leadCompaniesResponse);
 
       // Handle different response structures
       const leadCompaniesData = Array.isArray(leadCompaniesResponse)
         ? leadCompaniesResponse
         : leadCompaniesResponse?.data || [];
       setLeadCompanies(leadCompaniesData);
-      console.log("Set lead companies:", leadCompaniesData);
 
       // Fetch client accounts
       const clientAccountsResponse = await clientAccountService.getAll({
         pagination: { pageSize: 1000 },
         sort: ["companyName:asc"],
       });
-      console.log("Client accounts response:", clientAccountsResponse);
 
       // Handle different response structures
       // The API returns data directly as an array, not wrapped in a data property
@@ -198,7 +192,6 @@ export default function NewDealPage() {
         ? clientAccountsResponse
         : clientAccountsResponse?.data || [];
       setClientAccounts(clientAccountsData);
-      console.log("Set client accounts:", clientAccountsData);
     } catch (error) {
       console.error("Error fetching dropdown options:", error);
       setErrors({
@@ -263,7 +256,6 @@ export default function NewDealPage() {
 
   const fetchContactsByLeadCompany = async (leadCompanyId) => {
     try {
-      console.log("Fetching contacts for lead company:", leadCompanyId);
 
       const contactsResponse = await contactService.getByLeadCompany(
         leadCompanyId,
@@ -271,11 +263,9 @@ export default function NewDealPage() {
           sort: ["firstName:asc"],
         }
       );
-      console.log("Contacts response for lead company:", contactsResponse);
 
       const contactsData = contactsResponse?.data || [];
       setContacts(contactsData);
-      console.log("Set contacts for lead company:", contactsData);
     } catch (error) {
       console.error("Error fetching contacts for lead company:", error);
       setContacts([]);
@@ -376,11 +366,9 @@ export default function NewDealPage() {
           : [],
       };
 
-      console.log("Creating deal with data:", dealPayload);
 
       // Create the deal using the dealService
       const response = await dealService.create(dealPayload);
-      console.log("Deal created successfully:", response);
 
       setShowSuccess(true);
       setTimeout(() => {

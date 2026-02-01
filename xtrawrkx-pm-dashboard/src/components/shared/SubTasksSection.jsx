@@ -73,7 +73,7 @@ const SubTasksSection = ({
             parentSubtask.id,
             {
               populate: ["assignee", "childSubtasks"],
-            }
+            },
           );
           taskSubtasks = childSubtasksResponse.data || [];
         } catch (error) {
@@ -106,10 +106,6 @@ const SubTasksSection = ({
         }
       }
 
-      console.log("SubTasksSection: Task/Parent changed, updating subtasks");
-      console.log("Parent subtask:", parentSubtask?.id);
-      console.log("Task ID:", task?.id);
-      console.log("Subtasks to show:", taskSubtasks.length);
 
       // Convert task subtasks to local format
       const updatedSubtasks = taskSubtasks.map((subtask) => {
@@ -222,7 +218,7 @@ const SubTasksSection = ({
             subtaskId,
             {
               populate: ["assignee", "childSubtasks"],
-            }
+            },
           );
 
           const transformed = (childSubtasks.data || []).map((st) => {
@@ -326,13 +322,11 @@ const SubTasksSection = ({
       if (newSubtaskDueDate) {
         // Format as date-only string (YYYY-MM-DD) and convert to ISO datetime at midnight
         newSubtaskData.dueDate = new Date(
-          newSubtaskDueDate + "T00:00:00"
+          newSubtaskDueDate + "T00:00:00",
         ).toISOString();
       }
 
-      console.log("Creating subtask with data:", newSubtaskData);
       const createdSubtask = await subtaskService.createSubtask(newSubtaskData);
-      console.log("Created subtask response:", createdSubtask);
 
       // Handle different response formats
       const subtaskData = createdSubtask?.data || createdSubtask;
@@ -341,7 +335,6 @@ const SubTasksSection = ({
       }
 
       const transformedSubtask = transformSubtask(subtaskData);
-      console.log("Transformed subtask:", transformedSubtask);
 
       if (!transformedSubtask || !transformedSubtask.id) {
         throw new Error("Failed to transform subtask data");
@@ -381,7 +374,6 @@ const SubTasksSection = ({
 
       // Notify parent to refresh task data
       if (onTaskUpdate) {
-        console.log("Calling onTaskUpdate callback");
         // Use setTimeout to ensure state update completes first
         setTimeout(() => {
           onTaskUpdate();
@@ -413,8 +405,8 @@ const SubTasksSection = ({
                 completed: newCompleted,
                 status: newCompleted ? "Done" : "To Do",
               }
-            : s
-        )
+            : s,
+        ),
       );
 
       // Update nested subtasks if this subtask is in a nested list
@@ -427,7 +419,7 @@ const SubTasksSection = ({
                 completed: newCompleted,
                 status: newCompleted ? "Done" : "To Do",
               }
-            : s
+            : s,
         );
         if (JSON.stringify(nested) !== JSON.stringify(updatedNested)) {
           setNestedSubtasks((prev) => ({ ...prev, [parentId]: updatedNested }));
@@ -541,7 +533,7 @@ const SubTasksSection = ({
                     setNewSubtaskAssignee("");
                     setNewSubtaskDueDate("");
                   }}
-                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded transition-colors"
+                  className="px-3 py-1.5 text-sm font-medium border-2 border-gray-400 bg-white text-gray-800 rounded hover:bg-gray-100 transition-colors"
                 >
                   Cancel
                 </button>
@@ -781,7 +773,6 @@ const SubTasksSection = ({
             setIsModalOpen(false);
             setSelectedSubtaskId(null);
             // Could trigger task modal here if onTaskClick is available
-            console.log("Navigate to task:", taskId);
           }}
         />
       )}

@@ -140,21 +140,13 @@ export default function ProfilePage() {
         setIsFetching(true);
 
         // First, let's use the currentUser data directly since the API might not be working properly
-        console.log("Current user data:", currentUser);
-        console.log("Current user role:", currentUser?.role);
-        console.log("getRoleDisplayName():", getRoleDisplayName());
 
         // Try to get additional data from API, but don't fail if it doesn't work
         let apiUserData = null;
         try {
           const response = await AuthService.apiRequest("/auth/me");
-          console.log("API response:", response);
           apiUserData = response.user;
         } catch (apiError) {
-          console.log(
-            "API call failed, using currentUser data:",
-            apiError.message
-          );
         }
 
         // Use currentUser as primary source, API data as enhancement
@@ -180,7 +172,6 @@ export default function ProfilePage() {
           avatar: apiUserData?.avatar || currentUser.avatar || null,
         };
 
-        console.log("Final userData:", userData);
         setProfileData(userData);
         setEditData(userData);
         setError(null); // Clear any previous errors

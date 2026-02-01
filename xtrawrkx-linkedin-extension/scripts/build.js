@@ -52,11 +52,9 @@ function copyRecursive(src, dest) {
 }
 
 // Copy source files
-console.log('Copying source files...');
 copyRecursive(srcDir, path.join(distDir, 'src'));
 
 // Copy manifest
-console.log('Copying manifest...');
 fs.copyFileSync(
     path.join(__dirname, '..', 'manifest.json'),
     path.join(distDir, 'manifest.json')
@@ -65,7 +63,6 @@ fs.copyFileSync(
 // Copy icons if they exist
 const iconsDir = path.join(__dirname, '..', 'icons');
 if (fs.existsSync(iconsDir)) {
-    console.log('Copying icons...');
     const iconsDestDir = path.join(distDir, 'icons');
     // Ensure destination directory exists
     if (!fs.existsSync(iconsDestDir)) {
@@ -76,5 +73,4 @@ if (fs.existsSync(iconsDir)) {
     console.warn('Warning: Icons directory not found');
 }
 
-console.log('Build complete! Extension files are in the dist/ folder.');
 

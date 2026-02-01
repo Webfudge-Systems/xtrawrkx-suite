@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import Link from "next/link";
 import {
   Mail,
   Lock,
@@ -42,7 +41,6 @@ export default function LoginPage() {
 
   // Safe error setter that ensures error is always a string
   const setSafeError = (errorValue) => {
-    console.log("Setting error:", errorValue, typeof errorValue);
 
     if (!errorValue) {
       setError("");
@@ -425,35 +423,7 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
-
-            {/* Footer Links */}
-            <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-              <p className="text-sm text-gray-600">
-                Need help?{" "}
-                <Link
-                  href="/support"
-                  className="text-primary-600 hover:text-primary-700 font-medium transition-colors"
-                >
-                  Contact Support
-                </Link>
-              </p>
-            </div>
           </div>
-
-          {/* Security Notice */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="mt-6 text-center"
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
-              <Shield className="w-4 h-4 text-green-600" />
-              <span className="text-sm text-green-700">
-                Connected to Railway Backend
-              </span>
-            </div>
-          </motion.div>
         </motion.div>
       </div>
     </div>

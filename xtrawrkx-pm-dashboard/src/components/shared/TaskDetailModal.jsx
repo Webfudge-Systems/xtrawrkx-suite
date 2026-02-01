@@ -29,9 +29,6 @@ const TaskDetailModal = ({
   // Reset active tab when task changes
   useEffect(() => {
     if (task?.id) {
-      console.log(
-        "Shared TaskDetailModal: Task changed, resetting to subtasks tab"
-      );
       setActiveTab("subtasks");
     }
   }, [task?.id]);
@@ -62,7 +59,7 @@ const TaskDetailModal = ({
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "In Review":
+      case "Internal Review":
         return "bg-green-100 text-green-700 border-green-200";
       case "In Progress":
         return "bg-blue-100 text-blue-700 border-blue-200";
@@ -315,12 +312,14 @@ const TaskDetailModal = ({
               </button>
             </div>
 
-            {/* Tab Content - Full Height */}
+            {/* Tab Content - Comments use fixed height (like lead companies) to avoid gap at bottom */}
             <div className="flex-1 min-h-0">
               {activeTab === "subtasks" ? (
                 <SubTasksSection task={safeTask} />
               ) : (
-                <CommentsSection task={safeTask} />
+                <div className="flex flex-col h-[600px] min-h-0 overflow-hidden bg-white rounded-lg">
+                  <CommentsSection task={safeTask} />
+                </div>
               )}
             </div>
           </div>

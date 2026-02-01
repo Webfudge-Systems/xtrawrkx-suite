@@ -12,15 +12,12 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
      */
     async create(ctx) {
         try {
-            console.log('Creating lead company with data:', ctx.request.body);
             const { data } = ctx.request.body;
 
             if (!data) {
-                console.log('No data provided in request body');
                 return ctx.badRequest('No data provided');
             }
 
-            console.log('Lead company data:', data);
 
             const entity = await strapi.entityService.create('api::lead-company.lead-company', {
                 data,
@@ -32,7 +29,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
                 }
             });
 
-            console.log('Created lead company:', entity);
 
             return { data: entity };
         } catch (error) {
@@ -48,7 +44,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
      */
     async find(ctx) {
         try {
-            console.log('Finding lead companies with query:', ctx.query);
             const { query } = ctx;
 
             // Build filters
@@ -74,7 +69,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
                 ];
             }
 
-            console.log('Using filters:', filters);
 
             // Include contacts and assignedTo in population
             const entities = await strapi.entityService.findMany('api::lead-company.lead-company', {
@@ -92,8 +86,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
                 }
             });
 
-            console.log('Found lead companies result:', entities);
-            console.log('Data array length:', entities?.data?.length || 'No data array');
 
             return entities;
         } catch (error) {
@@ -311,13 +303,11 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
      */
     async getStats(ctx) {
         try {
-            console.log('Getting lead company stats...');
 
             // Get all lead companies first
             const result = await strapi.entityService.findMany('api::lead-company.lead-company');
             const leadCompanies = result?.data || result || [];
 
-            console.log('Found lead companies:', Array.isArray(leadCompanies) ? leadCompanies.length : 0);
 
             const stats = {
                 byStatus: {
@@ -353,7 +343,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
                 ? (stats.byStatus.CONVERTED / totalCount) * 100
                 : 0;
 
-            console.log('Returning stats:', stats);
             return { data: stats };
         } catch (error) {
             console.error('Lead stats error:', error);
@@ -382,7 +371,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
     async delete(ctx) {
         try {
             const { id } = ctx.params;
-            console.log(`Deleting lead company ${id} with cascade deletion`);
 
             // First, get the lead company with all relations
             const leadCompany = await strapi.entityService.findOne('api::lead-company.lead-company', id, {
@@ -400,7 +388,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
 
             // Delete related contacts
             if (leadCompany.contacts && leadCompany.contacts.length > 0) {
-                console.log(`Deleting ${leadCompany.contacts.length} related contacts`);
                 for (const contact of leadCompany.contacts) {
                     await strapi.entityService.delete('api::contact.contact', contact.id);
                 }
@@ -408,7 +395,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
 
             // Delete related deals
             if (leadCompany.deals && leadCompany.deals.length > 0) {
-                console.log(`Deleting ${leadCompany.deals.length} related deals`);
                 for (const deal of leadCompany.deals) {
                     await strapi.entityService.delete('api::deal.deal', deal.id);
                 }
@@ -416,7 +402,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
 
             // Delete related activities
             if (leadCompany.activities && leadCompany.activities.length > 0) {
-                console.log(`Deleting ${leadCompany.activities.length} related activities`);
                 for (const activity of leadCompany.activities) {
                     await strapi.entityService.delete('api::activity.activity', activity.id);
                 }
@@ -424,7 +409,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
 
             // Delete related proposals
             if (leadCompany.proposals && leadCompany.proposals.length > 0) {
-                console.log(`Deleting ${leadCompany.proposals.length} related proposals`);
                 for (const proposal of leadCompany.proposals) {
                     await strapi.entityService.delete('api::proposal.proposal', proposal.id);
                 }
@@ -433,7 +417,6 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
             // Finally, delete the lead company itself
             await strapi.entityService.delete('api::lead-company.lead-company', id);
 
-            console.log(`Successfully deleted lead company ${id} and all related data`);
             return { data: { id, deleted: true } };
         } catch (error) {
             console.error('Lead company deletion error:', error);

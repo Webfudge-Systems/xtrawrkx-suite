@@ -46,8 +46,6 @@ class AuthService {
                 // Extract error message from various possible structures
                 let errorMessage = 'Login failed. Please try again.';
 
-                console.log('Login failed - Response status:', response.status);
-                console.log('Login failed - Response data:', JSON.stringify(data, null, 2));
 
                 // Strapi v4 error structure is typically: { error: { status: 400, message: "..." } }
                 // But can also be: { error: "..." } or { message: "..." }
@@ -90,7 +88,6 @@ class AuthService {
                     }
                 }
 
-                console.log('Extracted error message:', errorMessage);
                 throw new Error(errorMessage);
             }
 
@@ -146,15 +143,12 @@ class AuthService {
                     return data.user || data;
                 } else if (response.status === 401) {
                     // Token expired or invalid, use stored data
-                    console.log('API returned 401, using stored user data');
                 } else {
                     // API call failed, use stored data
-                    console.log('API call failed, using stored user data');
                 }
             } catch (apiError) {
                 // API call failed (network error, timeout, etc), use stored data
                 if (apiError.name !== 'AbortError') {
-                    console.log('API error, using stored user data:', apiError.message);
                 }
             }
 
