@@ -9,6 +9,7 @@ import {
   Select,
   Textarea,
   Badge,
+  Modal,
 } from "../../../../components/ui";
 import PageHeader from "../../../../components/PageHeader";
 import leadCompanyService from "../../../../lib/api/leadCompanyService";
@@ -39,6 +40,7 @@ export default function AddLeadCompanyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showValidationModal, setShowValidationModal] = useState(false);
 
   // Users for assignment dropdown
   const [users, setUsers] = useState([]);
@@ -330,7 +332,7 @@ export default function AddLeadCompanyPage() {
         lastName: "",
         email: "",
         phone: "",
-        title: "",
+        jobTitle: "",
         department: "",
         role: "CONTACT",
         isPrimary: false,
@@ -392,6 +394,10 @@ export default function AddLeadCompanyPage() {
     e.preventDefault();
 
     if (!validateForm()) {
+      // Show validation error modal
+      setShowValidationModal(true);
+      // Scroll to top to show validation error banner
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -576,6 +582,54 @@ export default function AddLeadCompanyPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Validation Error Modal */}
+      <Modal
+        isOpen={showValidationModal}
+        onClose={() => setShowValidationModal(false)}
+        title="Validation Error"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                Please fill in all required fields
+              </h4>
+              <p className="text-gray-600 mb-4">
+                The following information is required to create a lead company:
+              </p>
+              <ul className="list-disc list-inside space-y-2 text-gray-700">
+                {errors.companyName && (
+                  <li className="font-medium text-red-700">Company Name</li>
+                )}
+                {errors.industry && (
+                  <li className="font-medium text-red-700">Industry</li>
+                )}
+                {errors.email && (
+                  <li className="font-medium text-red-700">Company Email (must be valid)</li>
+                )}
+                {Object.keys(errors).filter(key => key.includes('contact_')).length > 0 && (
+                  <li className="font-medium text-red-700">
+                    Contact Information (First Name, Last Name, and valid Email are required for each contact)
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+          <div className="flex justify-end pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => setShowValidationModal(false)}
+              className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white"
+            >
+              Got it, I'll fix these
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <div className="p-4 space-y-6">
         <PageHeader
           title="Add New Lead Company"
@@ -592,6 +646,39 @@ export default function AddLeadCompanyPage() {
         />
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Validation Error Banner */}
+          {Object.keys(errors).length > 0 && !errors.submit && (
+            <div className="rounded-xl bg-red-50 border-2 border-red-300 p-5 shadow-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-red-900 font-semibold text-lg mb-2">
+                    Validation Error - Please fill in all required fields
+                  </h4>
+                  <p className="text-red-700 mb-3">
+                    The following fields are required or contain invalid information:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-red-700">
+                    {errors.companyName && (
+                      <li className="font-medium">Company Name is required</li>
+                    )}
+                    {errors.industry && (
+                      <li className="font-medium">Industry is required</li>
+                    )}
+                    {errors.email && (
+                      <li className="font-medium">{errors.email}</li>
+                    )}
+                    {Object.keys(errors).filter(key => key.includes('contact_')).length > 0 && (
+                      <li className="font-medium">
+                        Contact information: Please ensure all contacts have First Name, Last Name, and a valid Email
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Company Information */}
           <Card className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
             <div className="flex items-center gap-3 mb-6">
@@ -987,11 +1074,11 @@ export default function AddLeadCompanyPage() {
                     <div>
                       <Input
                         label="Job Title"
-                        value={contact.title}
+                        value={contact.jobTitle}
                         onChange={(e) =>
                           handleContactChange(
                             contact.id,
-                            "title",
+                            "jobTitle",
                             e.target.value
                           )
                         }

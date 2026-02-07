@@ -65,23 +65,26 @@ function getUserRoleFromStorage() {
  * Check if user has required permission level
  */
 function hasPermission(userRole, requiredLevel) {
+    // Rank-based system (lower number = higher authority). Matches PermissionsService.
     const roleLevels = {
-        'Super Admin': 20,
-        'Admin': 15,
-        'Manager': 10,
-        'Sales Manager': 10,
-        'Project Manager': 9,
-        'Finance Manager': 8,
+        'Super Admin': 0,
+        'Admin': 1,
+        'Manager': 2,
+        'Sales Manager': 3,
+        'Project Manager': 4,
+        'Finance Manager': 5,
         'Account Manager': 6,
-        'Sales Representative': 5,
-        'Developer': 2,
-        'Read-only User': 1
+        'Sales Representative': 7,
+        'Developer': 8,
+        'Read-only User': 9
     };
 
-    const userLevel = roleLevels[userRole] || 0;
-    const requiredLevelValue = roleLevels[requiredLevel] || 0;
+    const userLevel = typeof roleLevels[userRole] === 'number' ? roleLevels[userRole] : Number.MAX_SAFE_INTEGER;
+    const requiredLevelValue = typeof roleLevels[requiredLevel] === 'number' ? roleLevels[requiredLevel] : Number.MAX_SAFE_INTEGER;
 
-    return userLevel >= requiredLevelValue;
+    // Because lower numbers mean more authority, a user has permission if their rank is
+    // less-than-or-equal-to the required rank (e.g., Admin (1) <= Manager (2) => true).
+    return userLevel <= requiredLevelValue;
 }
 
 /**

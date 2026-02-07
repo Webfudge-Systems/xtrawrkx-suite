@@ -74,11 +74,13 @@ export default function GlobalSearchModal({ isOpen, onClose, initialQuery = "" }
         contacts: { data: [], total: 0 },
         clients: { data: [], total: 0 },
       });
+      setSelectedIndex(-1); // Reset selection when clearing search
       setLoading(false);
       return;
     }
 
     setLoading(true);
+    setSelectedIndex(-1); // Reset selection when new search starts
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         const results = await globalSearchService.search(searchQuery, {
@@ -119,18 +121,21 @@ export default function GlobalSearchModal({ isOpen, onClose, initialQuery = "" }
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
-      } else if (e.key === "Enter" && selectedIndex >= 0) {
+      } else if (e.key === "Enter") {
         e.preventDefault();
         const allResults = getAllResults();
-        if (allResults[selectedIndex]) {
+        if (selectedIndex >= 0 && allResults[selectedIndex]) {
           handleResultClick(allResults[selectedIndex]);
         }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, selectedIndex]);
+  }, [isOpen, selectedIndex, searchResults]);
 
   // Scroll selected item into view
   useEffect(() => {

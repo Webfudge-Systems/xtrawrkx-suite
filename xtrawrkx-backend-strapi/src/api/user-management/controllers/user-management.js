@@ -51,7 +51,6 @@ module.exports = {
                         where: { id: decoded.id, isActive: true },
                         populate: {
                             primaryRole: true,
-                            userRoles: true,
                             department: true
                         }
                     });
@@ -72,14 +71,16 @@ module.exports = {
 
             // Check if user can create users (must be admin level or higher)
             const currentUserLevel = userRoleService.getRoleLevel(userRole);
-            if (currentUserLevel < 15) { // Admin level
+            // Only roles with rank below 6 (i.e., 0..5) can create users
+            if (currentUserLevel >= 6) {
                 return ctx.forbidden(`Insufficient permissions to create users. Current role: ${userRole}`);
             }
 
             // If primaryRole is specified, check if current user can assign it
             if (primaryRole) {
                 const targetRoleLevel = userRoleService.getRoleLevel(primaryRole);
-                if (targetRoleLevel >= currentUserLevel) {
+                // Can't assign role of same or higher authority (numeric rank <= current user's rank)
+                if (targetRoleLevel <= currentUserLevel) {
                     return ctx.forbidden(`Cannot assign role "${primaryRole}". You can only assign roles lower than your own.`);
                 }
             }
@@ -260,12 +261,11 @@ module.exports = {
                 return ctx.unauthorized('Invalid token');
             }
 
-            // Get current user with department
+            // Get current user with department (excluding custom roles)
             const currentUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
                 where: { id: decoded.id, isActive: true },
                 populate: {
                     primaryRole: true,
-                    userRoles: true,
                     department: true
                 }
             });
@@ -278,24 +278,23 @@ module.exports = {
             const userRoleService = strapi.service('api::user-role.user-role');
             const currentUserLevel = userRoleService.getRoleLevel(currentUserRole);
 
-            // Get all users with their roles and departments
+            // Get all users with their primary roles and departments (excluding custom roles)
             const allUsers = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findMany({
                 where: { isActive: true },
                 populate: {
                     primaryRole: true,
-                    userRoles: true,
                     department: true
                 },
                 orderBy: { createdAt: 'desc' }
             });
 
-            // Filter users that current user can edit (lower role level)
+            // Filter users that current user can edit (target has lower authority -> higher numeric rank)
             const editableUsers = allUsers.filter(user => {
                 const targetUserRole = user.primaryRole?.name || user.role;
                 const targetUserLevel = userRoleService.getRoleLevel(targetUserRole);
 
-                // Can edit if target user has lower role level
-                return currentUserLevel > targetUserLevel;
+                // Can edit if current user has higher authority (numeric rank is lower)
+                return currentUserLevel < targetUserLevel;
             });
 
             // Format user data with populated department
@@ -353,12 +352,11 @@ module.exports = {
                 return ctx.unauthorized('Invalid token');
             }
 
-            // Get current user
+            // Get current user (excluding custom roles)
             const currentUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
                 where: { id: decoded.id, isActive: true },
                 populate: {
-                    primaryRole: true,
-                    userRoles: true
+                    primaryRole: true
                 }
             });
 
@@ -366,12 +364,11 @@ module.exports = {
                 return ctx.unauthorized('User not found');
             }
 
-            // Get target user
+            // Get target user (excluding custom roles)
             const targetUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
                 where: { id: userId },
                 populate: {
-                    primaryRole: true,
-                    userRoles: true
+                    primaryRole: true
                 }
             });
 
@@ -399,18 +396,18 @@ module.exports = {
                 const newRoleLevel = userRoleService.getRoleLevel(updateData.primaryRole);
                 const currentUserLevel = userRoleService.getRoleLevel(currentUserRole);
 
-                if (newRoleLevel >= currentUserLevel) {
+                // Can't assign role of same or higher authority (numeric rank <= current user's rank)
+                if (newRoleLevel <= currentUserLevel) {
                     return ctx.forbidden('Cannot assign role of same or higher level');
                 }
             }
 
-            // Perform the update
+            // Perform the update (excluding custom roles)
             const updatedUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').update({
                 where: { id: userId },
                 data: updateData,
                 populate: {
-                    primaryRole: true,
-                    userRoles: true
+                    primaryRole: true
                 }
             });
 

@@ -69,6 +69,7 @@ import commentService from "../../../lib/commentService";
 import CollaboratorModal from "../../../components/my-task/CollaboratorModal";
 import apiClient from "../../../lib/apiClient";
 import { Button, SearchableSelect } from "../../../components/ui";
+import InviteMemberModal from "../../../components/projects/InviteMemberModal";
 
 export default function ProjectDetail({ params }) {
   const router = useRouter();
@@ -136,6 +137,9 @@ export default function ProjectDetail({ params }) {
   const [addTaskModal, setAddTaskModal] = useState({
     isOpen: false,
     projectId: null,
+  });
+  const [inviteModal, setInviteModal] = useState({
+    isOpen: false,
   });
 
   // Drag over state for kanban (unused but kept for future functionality)
@@ -2842,7 +2846,10 @@ export default function ProjectDetail({ params }) {
                     <ArrowUpDown className="w-4 h-4" />
                     <span className="text-sm font-medium">A-Z</span>
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/80 transition-colors">
+                  <button
+                    onClick={() => setInviteModal({ isOpen: true })}
+                    className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/80 transition-colors"
+                  >
                     <UserPlus className="w-4 h-4" />
                     <span className="text-sm font-medium">Invite</span>
                   </button>
@@ -2899,22 +2906,103 @@ export default function ProjectDetail({ params }) {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {project.team.map((member) => {
-                        // Mock task data for each member
+                    {/* Prepare members list including project manager */}
+                    {(() => {
+                      const team = project?.team || [];
+                      const manager = project?.projectManager;
+                      const managerId =
+                        manager?.id || (typeof manager === "number" ? manager : null);
+                      const hasManagerInTeam =
+                        managerId != null &&
+                        team.some((t) => String(t?.id) === String(managerId));
+                      const membersList = hasManagerInTeam
+                        ? team
+                        : manager
+                        ? [manager, ...team]
+                        : team;
+
+                      return (
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {membersList.map((member) => {
+                        // Compute task stats for this project and member
+                        const memberId =
+                          member?.id || (typeof member === "number" ? member : null);
+                        const tasks = project?.tasks || [];
+
+                        const assignedTasksArr = tasks.filter((t) => {
+                          // Check assignee fields (support different shapes)
+                          const assigneeId = t?.assignee?.id || t?.assignee;
+                          if (assigneeId && String(assigneeId) === String(memberId)) {
+                            return true;
+                          }
+                          if (Array.isArray(t?.assigneeIds)) {
+                            if (t.assigneeIds.map(String).includes(String(memberId)))
+                              return true;
+                          }
+                          // Also consider collaborators
+                          if (Array.isArray(t?.collaborators)) {
+                            if (
+                              t.collaborators.some(
+                                (c) =>
+                                  String(c?.id || c) === String(memberId),
+                              )
+                            )
+                              return true;
+                          }
+                          return false;
+                        });
+
                         const taskStats = {
-                          assigned: Math.floor(Math.random() * 5) + 1,
-                          completed: Math.floor(Math.random() * 3) + 1,
-                          incompleted: Math.floor(Math.random() * 2),
-                          overdue: Math.floor(Math.random() * 2),
+                          assigned: assignedTasksArr.length,
+                          completed: assignedTasksArr.filter(
+                            (t) =>
+                              t?.status === "COMPLETED" ||
+                              t?.status === "Done",
+                          ).length,
+                          incompleted:
+                            assignedTasksArr.filter(
+                              (t) =>
+                                !(t?.status === "COMPLETED" || t?.status === "Done"),
+                            ).length,
+                          overdue: assignedTasksArr.filter((t) => {
+                            if (!t?.scheduledDate) return false;
+                            const due = new Date(t.scheduledDate);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            return (
+                              due < today &&
+                              !(t?.status === "COMPLETED" || t?.status === "Done")
+                            );
+                          }).length,
                         };
 
-                        const invitedDate = new Date();
-                        invitedDate.setDate(
-                          invitedDate.getDate() -
-                            Math.floor(Math.random() * 10) +
-                            1,
-                        );
+                        const invitedDateRaw =
+                          member?.invitedAt ||
+                          member?.joinedAt ||
+                          member?.createdAt ||
+                          member?.addedAt ||
+                          null;
+                        const invitedDate = invitedDateRaw
+                          ? new Date(invitedDateRaw)
+                          : null;
+                        const initials = (() => {
+                          const name =
+                            member?.name ||
+                            `${member?.firstName || ""} ${member?.lastName || ""}`.trim() ||
+                            member?.email ||
+                            "";
+                          const parts = name.split(/\s+/).filter(Boolean);
+                          if (parts.length >= 2) {
+                            return (
+                              (parts[0][0] || "").toUpperCase() +
+                              (parts[1][0] || "").toUpperCase()
+                            );
+                          }
+                          if (parts.length === 1) {
+                            return parts[0].slice(0, 2).toUpperCase();
+                          }
+                          return "?";
+                        })();
 
                         return (
                           <tr
@@ -2932,11 +3020,16 @@ export default function ProjectDetail({ params }) {
                                 <div
                                   className={`w-10 h-10 ${member.color} rounded-full flex items-center justify-center text-white font-bold text-sm`}
                                 >
-                                  {member.avatar}
+                                  {initials}
                                 </div>
                                 <div>
-                                  <div className="text-sm font-medium text-gray-900">
+                                  <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
                                     {member.name}
+                                    {String(member?.id) === String(managerId) && (
+                                      <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                                        Project Lead
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="text-sm text-gray-500">
                                     {member.email ||
@@ -2948,11 +3041,13 @@ export default function ProjectDetail({ params }) {
                               </div>
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-900">
-                              {invitedDate.toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })}
+                              {invitedDate
+                                ? invitedDate.toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  })
+                                : "—"}
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-900 font-medium">
                               {taskStats.assigned}
@@ -2973,18 +3068,60 @@ export default function ProjectDetail({ params }) {
                             </td>
                           </tr>
                         );
-                      })}
-                    </tbody>
+                          })}
+                        </tbody>
+                      );
+                    })()}
                   </table>
                 </div>
               </div>
 
               {/* Footer */}
               <div className="flex items-center justify-between text-sm text-gray-500">
-                <span>{project.team.length} Members</span>
+                <span>
+                  {(() => {
+                    const team = project?.team || [];
+                    const manager = project?.projectManager;
+                    const managerId =
+                      manager?.id || (typeof manager === "number" ? manager : null);
+                    const hasManagerInTeam =
+                      managerId != null &&
+                      team.some((t) => String(t?.id) === String(managerId));
+                    const membersCount = hasManagerInTeam
+                      ? team.length
+                      : manager
+                      ? team.length + 1
+                      : team.length;
+
+                    return `${membersCount} Members`;
+                  })()}
+                </span>
               </div>
             </div>
           )}
+
+          {/* Invite Member Modal */}
+          <InviteMemberModal
+            isOpen={inviteModal.isOpen}
+            onClose={() => setInviteModal({ isOpen: false })}
+            projectId={project?.id}
+            existingTeam={project?.team || []}
+            onMemberAdded={(user) => {
+              // Update project state in-place so page does not reload
+              setProject((prev) => {
+                if (!prev) return prev;
+                const existing = prev.team || [];
+                // Avoid duplicates
+                if (existing.some((m) => String(m?.id) === String(user.id))) {
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  team: [user, ...existing],
+                };
+              });
+            }}
+          />
 
           {/* Discussion Tab */}
           {activeTab === "discussion" && (

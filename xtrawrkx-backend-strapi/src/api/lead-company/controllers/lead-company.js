@@ -104,6 +104,16 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
         try {
             const { id } = ctx.params;
 
+            // Log incoming production requests to help trace unexpected calls
+            try {
+                const referer = ctx.request.header.referer || ctx.request.header.origin || 'unknown';
+                const userAgent = ctx.request.header['user-agent'] || 'unknown';
+                const remoteUser = ctx.state?.user?.id || 'anonymous';
+                console.log(`[STRAPI_TRACE] findOne lead-company called id=${id} referer=${referer} user=${remoteUser} ua=${userAgent}`);
+            } catch (e) {
+                // swallow
+            }
+
             // Include convertedAccount relation for converted leads
             // Populate assignedTo with primaryRole for role display
             const entity = await strapi.entityService.findOne('api::lead-company.lead-company', id, {
@@ -120,6 +130,7 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
             });
 
             if (!entity) {
+                console.warn(`[STRAPI_TRACE] lead-company not found id=${id}`);
                 return ctx.notFound('Lead company not found');
             }
 

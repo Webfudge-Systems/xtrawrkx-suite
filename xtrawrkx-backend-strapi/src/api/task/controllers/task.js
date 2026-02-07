@@ -300,9 +300,114 @@ module.exports = createCoreController('api::task.task', ({ strapi }) => ({
                 return ctx.badRequest(`Task schema creator target is incorrect. Expected 'api::xtrawrkx-user.xtrawrkx-user', got '${targetValue}'. Please check schema.json and restart Strapi.`);
             }
 
-            // Create the task
+            // Build validated task data
+            const taskData = {
+                title: data.title,
+                description: data.description || '',
+                status: data.status || 'SCHEDULED',
+                priority: data.priority || 'MEDIUM',
+                scheduledDate: data.scheduledDate || null,
+                progress: data.progress || 0,
+                tags: data.tags || null,
+            };
+
+            // Validate and set creator
+            const creatorId = parseInt(userId);
+            if (isNaN(creatorId)) {
+                return ctx.badRequest('Invalid creator user ID');
+            }
+
+            const creatorUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
+                where: { id: creatorId }
+            });
+
+            if (!creatorUser) {
+                return ctx.badRequest(`Creator user with ID ${creatorId} not found`);
+            }
+
+            taskData.creator = creatorId;
+
+            // Validate and set assignee if provided
+            if (data.assignee) {
+                const assigneeId = parseInt(data.assignee);
+                if (!isNaN(assigneeId)) {
+                    const assigneeUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
+                        where: { id: assigneeId }
+                    });
+
+                    if (assigneeUser) {
+                        taskData.assignee = assigneeId;
+                    } else {
+                        console.warn(`Assignee user with ID ${assigneeId} not found, skipping`);
+                    }
+                }
+            }
+
+            // Validate and set collaborators if provided
+            if (data.collaborators && Array.isArray(data.collaborators) && data.collaborators.length > 0) {
+                const collaboratorIds = data.collaborators
+                    .map(id => parseInt(id))
+                    .filter(id => !isNaN(id));
+
+                const validCollaborators = [];
+                for (const collabId of collaboratorIds) {
+                    const collabUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
+                        where: { id: collabId }
+                    });
+
+                    if (collabUser) {
+                        validCollaborators.push(collabId);
+                    } else {
+                        console.warn(`Collaborator user with ID ${collabId} not found, skipping`);
+                    }
+                }
+
+                if (validCollaborators.length > 0) {
+                    taskData.collaborators = validCollaborators;
+                }
+            }
+
+            // Validate and set projects if provided
+            if (data.projects && Array.isArray(data.projects) && data.projects.length > 0) {
+                const projectIds = data.projects
+                    .map(id => parseInt(id))
+                    .filter(id => !isNaN(id));
+
+                const validProjects = [];
+                for (const projectId of projectIds) {
+                    const project = await strapi.db.query('api::project.project').findOne({
+                        where: { id: projectId }
+                    });
+
+                    if (project) {
+                        validProjects.push(projectId);
+                    } else {
+                        console.warn(`Project with ID ${projectId} not found, skipping`);
+                    }
+                }
+
+                if (validProjects.length > 0) {
+                    taskData.projects = validProjects;
+                }
+            }
+
+            // Set entity relations if provided
+            if (data.leadCompany) {
+                taskData.leadCompany = parseInt(data.leadCompany);
+            }
+            if (data.clientAccount) {
+                taskData.clientAccount = parseInt(data.clientAccount);
+            }
+            if (data.contact) {
+                taskData.contact = parseInt(data.contact);
+            }
+            if (data.deal) {
+                taskData.deal = parseInt(data.deal);
+            }
+
+            // Create the task with validated data
             const task = await strapi.entityService.create('api::task.task', {
-                data,
+                data: taskData,
                 populate: {
                     creator: true,
                     assignee: true,

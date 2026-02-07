@@ -60,6 +60,13 @@ class StrapiClient {
 
 
         try {
+            // Debug log to help trace unexpected API calls (prints caller stack)
+            try {
+                // Visible log with marker to ensure it appears in browser console
+                console.log('[API_TRACE] StrapiClient.request ->', { url, method: config.method || 'GET', config, stack: new Error().stack });
+            } catch (e) {
+                // swallow logging errors
+            }
             const response = await fetch(url, config);
 
             if (!response.ok) {
@@ -210,6 +217,11 @@ class StrapiClient {
     }
 
     async getLeadCompany(id, params = {}) {
+        try {
+            console.log('[API_TRACE] StrapiClient.getLeadCompany called', { id, params, stack: new Error().stack });
+        } catch (e) {
+            // noop
+        }
         return this.get(`/lead-companies/${id}`, params);
     }
 
