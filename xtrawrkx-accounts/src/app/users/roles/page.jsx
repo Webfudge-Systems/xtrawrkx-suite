@@ -259,6 +259,7 @@ function UserRolesPage() {
   };
 
   const handleEditRole = (role) => {
+    setError("");
     setEditingRole({ ...role });
     setShowEditModal(true);
   };
@@ -432,7 +433,10 @@ function UserRolesPage() {
             </div>
           </div>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setError("");
+              setShowCreateModal(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -678,6 +682,7 @@ function UserRolesPage() {
         isOpen={showCreateModal}
         onClose={() => {
           setShowCreateModal(false);
+          setError("");
           setNewRole({
             name: "",
             description: "",
@@ -692,6 +697,29 @@ function UserRolesPage() {
         size="lg"
       >
         <form onSubmit={handleCreateRole} className="space-y-4">
+          {/* Error Alert inside Modal */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 border-l-4 border-red-500 bg-red-50 rounded-lg"
+            >
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800">{error}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setError("")}
+                  className="flex-shrink-0 p-1 hover:bg-red-100 rounded-full transition-colors"
+                  aria-label="Close error message"
+                >
+                  <X className="w-4 h-4 text-red-600" />
+                </button>
+              </div>
+            </motion.div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
@@ -786,7 +814,10 @@ function UserRolesPage() {
           <div className="flex justify-end space-x-2 pt-4">
             <Button
               type="button"
-              onClick={() => setShowCreateModal(false)}
+              onClick={() => {
+                setShowCreateModal(false);
+                setError("");
+              }}
               className="bg-gray-200 text-gray-800 hover:bg-gray-300 px-4 py-2"
             >
               Cancel
@@ -811,12 +842,36 @@ function UserRolesPage() {
         onClose={() => {
           setShowEditModal(false);
           setEditingRole(null);
+          setError("");
         }}
         title="Edit Role"
         size="lg"
       >
         {editingRole && (
           <form onSubmit={handleUpdateRole} className="space-y-4">
+            {/* Error Alert inside Modal */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 border-l-4 border-red-500 bg-red-50 rounded-lg"
+              >
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800">{error}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setError("")}
+                    className="flex-shrink-0 p-1 hover:bg-red-100 rounded-full transition-colors"
+                    aria-label="Close error message"
+                  >
+                    <X className="w-4 h-4 text-red-600" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
@@ -924,6 +979,7 @@ function UserRolesPage() {
                 onClick={() => {
                   setShowEditModal(false);
                   setEditingRole(null);
+                  setError("");
                 }}
                 className="bg-gray-200 text-gray-800 hover:bg-gray-300 px-4 py-2"
               >

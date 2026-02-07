@@ -72,9 +72,13 @@ export default function LoginPage() {
 
     try {
       // Call our Strapi backend API
+      // Prefer explicit NEXT_PUBLIC_STRAPI_URL. If not set, use localhost in development,
+      // otherwise fall back to production URL.
       const backendUrl =
         process.env.NEXT_PUBLIC_STRAPI_URL ||
-        "https://xtrawrkxsuits-production.up.railway.app";
+        (process.env.NODE_ENV === "development"
+          ? "http://localhost:1337"
+          : "https://xtrawrkxsuits-production.up.railway.app");
       const response = await fetch(`${backendUrl}/api/auth/internal/login`, {
         method: "POST",
         headers: {

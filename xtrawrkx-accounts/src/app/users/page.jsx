@@ -50,12 +50,10 @@ function UserManagementPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showRolesModal, setShowRolesModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingUser, setDeletingUser] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [userRoles, setUserRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loadingDepartments, setLoadingDepartments] = useState(true);
   const [availableRoles, setAvailableRoles] = useState([]);
@@ -206,8 +204,8 @@ function UserManagementPage() {
       }
 
 
-      // Fetch users using AuthService with populated roles
-      // Use the editable users endpoint to get only users that current user can edit
+      // Fetch users using AuthService with populated roles (excluding userRoles)
+      // Use the hierarchical endpoint to get only users that current user can edit
       let data;
       try {
         // Try to use the hierarchical endpoint first
@@ -260,7 +258,6 @@ function UserManagementPage() {
               emailVerified: user.emailVerified,
               lastLoginAt: user.lastLoginAt,
               createdAt: user.createdAt,
-              userRoles: [], // Will be populated separately if needed
               canEdit: user.canEdit || true, // All users from this endpoint are editable
             };
           });
@@ -279,9 +276,9 @@ function UserManagementPage() {
       } catch (hierarchicalError) {
       }
 
-      // Fallback to regular endpoint - ensure department is fully populated
+      // Fallback to regular endpoint - populate only primaryRole and department (no userRoles)
       data = await AuthService.apiRequest(
-        "/xtrawrkx-users?populate[primaryRole]=*&populate[userRoles]=*&populate[department]=*"
+        "/xtrawrkx-users?populate[primaryRole]=*&populate[department]=*"
       );
 
       // Transform Strapi data to expected format
@@ -343,7 +340,6 @@ function UserManagementPage() {
             item.attributes?.emailVerified || item.emailVerified || false,
           lastLoginAt: item.attributes?.lastLoginAt || item.lastLoginAt,
           createdAt: item.attributes?.createdAt || item.createdAt,
-          userRoles: item.attributes?.userRoles?.data || item.userRoles || [],
         };
       });
 
@@ -447,20 +443,6 @@ function UserManagementPage() {
     return PermissionsService.canEditUser(currentUserRole, targetUserRole);
   };
 
-  /**
-   * Check if current user can manage roles for a specific user
-   */
-  const canManageUserRoles = (targetUser) => {
-    if (!currentUser) return false;
-
-    const currentUserRole = currentUser.role;
-    const targetUserRole = targetUser.role;
-
-    return PermissionsService.canManageUserRoles(
-      currentUserRole,
-      targetUserRole
-    );
-  };
 
   /**
    * Check if current user can delete a specific user
@@ -519,20 +501,6 @@ function UserManagementPage() {
     setShowEditModal(true);
   };
 
-  const handleManageRoles = (user) => {
-    // Check if current user can manage roles for this user
-    if (!canManageUserRoles(user)) {
-      setError("You don't have permission to manage roles for this user");
-      return;
-    }
-
-    setEditingUser(user);
-    // Handle both data structures (attributes.id and direct id)
-    const currentRoleIds =
-      user.userRoles?.map((role) => role.attributes?.id || role.id) || [];
-    setUserRoles(currentRoleIds);
-    setShowRolesModal(true);
-  };
 
   const handleDeleteUser = (user) => {
     // Check if current user can delete this user
@@ -595,83 +563,6 @@ function UserManagementPage() {
     }
   };
 
-  const handleRoleToggle = (roleId) => {
-    setUserRoles((prev) => {
-      if (prev.includes(roleId)) {
-        return prev.filter((id) => id !== roleId);
-      } else {
-        return [...prev, roleId];
-      }
-    });
-  };
-
-  const handleUpdateUserRoles = async () => {
-    if (!editingUser) return;
-
-    setCreating(true);
-    setError("");
-
-    try {
-      const AuthService = (await import("@/lib/authService")).default;
-
-      // For each role, update the user assignments
-      for (const role of availableRoles) {
-        const shouldHaveRole = userRoles.includes(role.id);
-        const currentlyHasRole = editingUser.userRoles?.some(
-          (ur) => (ur.attributes?.id || ur.id) === role.id
-        );
-
-        if (shouldHaveRole !== currentlyHasRole) {
-          try {
-            // Get current users for this role
-            const roleData = await AuthService.apiRequest(
-              `/user-roles/${role.id}`
-            );
-            const currentUserIds = roleData.data?.users?.map((u) => u.id) || [];
-
-            let updatedUserIds;
-            if (shouldHaveRole) {
-              // Add user to role
-              updatedUserIds = [
-                ...new Set([...currentUserIds, editingUser.id]),
-              ];
-            } else {
-              // Remove user from role
-              updatedUserIds = currentUserIds.filter(
-                (id) => id !== editingUser.id
-              );
-            }
-
-            // Update the role with new user assignments
-            await AuthService.apiRequest(
-              `/user-roles/${role.id}/assign-users`,
-              {
-                method: "POST",
-                body: JSON.stringify({ userIds: updatedUserIds }),
-              }
-            );
-          } catch (roleError) {
-            console.warn(
-              `Failed to update role ${role.name}:`,
-              roleError.message
-            );
-            // Continue with other roles instead of failing completely
-          }
-        }
-      }
-
-      setSuccess("User roles updated successfully!");
-      setShowRolesModal(false);
-      setEditingUser(null);
-      setUserRoles([]);
-      fetchUsers(); // Refresh the users list
-    } catch (error) {
-      console.error("Update user roles error:", error);
-      setError("Failed to update user roles: " + error.message);
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const handleUpdateUser = async (e) => {
     e.preventDefault();
@@ -1152,9 +1043,6 @@ function UserManagementPage() {
                     Department
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                    Custom Roles
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
                     Status
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
@@ -1202,10 +1090,10 @@ function UserManagementPage() {
                           {user.role}
                         </span>
                         {currentUser &&
-                          PermissionsService.getRoleLevel(currentUser.role) <=
-                            PermissionsService.getRoleLevel(user.role) && (
+                          PermissionsService.getRoleLevel(user.role) <=
+                            PermissionsService.getRoleLevel(currentUser.role) && (
                             <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded-full font-medium">
-                              Same/Higher Level
+                              Same/Higher Authority
                             </span>
                           )}
                       </div>
@@ -1227,30 +1115,6 @@ function UserManagementPage() {
                           return info.name;
                         })()}
                       </span>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex flex-wrap gap-1">
-                        {user.userRoles && user.userRoles.length > 0 ? (
-                          user.userRoles.slice(0, 2).map((role) => (
-                            <span
-                              key={role.id}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                            >
-                              <Shield className="w-3 h-3" />
-                              {role.attributes?.name || role.name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-500">
-                            No custom roles
-                          </span>
-                        )}
-                        {user.userRoles && user.userRoles.length > 2 && (
-                          <span className="text-xs text-gray-500">
-                            +{user.userRoles.length - 2} more
-                          </span>
-                        )}
-                      </div>
                     </td>
                     <td className="py-4 px-4">
                       <span
@@ -1292,15 +1156,6 @@ function UserManagementPage() {
                             Edit
                           </button>
                         )}
-                        {canManageUserRoles(user) && (
-                          <button
-                            onClick={() => handleManageRoles(user)}
-                            className="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Shield className="w-3 h-3" />
-                            Roles
-                          </button>
-                        )}
                         {canDeleteUser(user) && (
                           <button
                             onClick={() => handleDeleteUser(user)}
@@ -1311,7 +1166,6 @@ function UserManagementPage() {
                           </button>
                         )}
                         {!canEditUser(user) &&
-                          !canManageUserRoles(user) &&
                           !canDeleteUser(user) && (
                             <span className="text-xs text-gray-400 italic">
                               No permissions
@@ -1592,137 +1446,6 @@ function UserManagementPage() {
               </Button>
             </div>
           </form>
-        )}
-      </Modal>
-
-      {/* Manage User Roles Modal */}
-      <Modal
-        isOpen={showRolesModal}
-        onClose={() => {
-          setShowRolesModal(false);
-          setEditingUser(null);
-          setUserRoles([]);
-        }}
-        title={`Manage Roles - ${editingUser?.firstName} ${editingUser?.lastName}`}
-        size="md"
-      >
-        <p className="text-sm text-gray-600 mb-4">
-          Assign custom roles to enhance or override the user's default role
-          permissions
-        </p>
-
-        {editingUser && (
-          <div className="space-y-4">
-            {/* Current Primary Role */}
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">Primary Role</h4>
-              {editingUser.primaryRole ? (
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(
-                    editingUser.primaryRole.name
-                  )}`}
-                >
-                  <Shield className="w-3 h-3" />
-                  {editingUser.primaryRole.name}
-                </span>
-              ) : (
-                <span className="text-sm text-gray-500">
-                  No primary role assigned
-                </span>
-              )}
-              <p className="text-xs text-gray-600 mt-1">
-                The primary role defines the user's main permissions. You can
-                change this in the Edit User dialog.
-              </p>
-            </div>
-
-            {/* Custom Roles */}
-            <div>
-              <h4 className="font-medium text-gray-900 mb-3">Custom Roles</h4>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {availableRoles
-                  .filter((role) => {
-                    // Filter roles based on what current user can assign
-                    const currentUserRole = currentUser?.role;
-                    return PermissionsService.canAssignRole(
-                      currentUserRole,
-                      role.name
-                    );
-                  })
-                  .map((role) => (
-                    <label
-                      key={role.id}
-                      className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={userRoles.includes(role.id)}
-                        onChange={() => handleRoleToggle(role.id)}
-                        className="rounded"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">
-                            {role.name}
-                          </span>
-                          {role.isSystemRole && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                              System
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          {role.description}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                {availableRoles.filter((role) => {
-                  const currentUserRole = currentUser?.role;
-                  return PermissionsService.canAssignRole(
-                    currentUserRole,
-                    role.name
-                  );
-                }).length === 0 && (
-                  <div className="text-center py-4 text-gray-500">
-                    <Shield className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm">No roles available for assignment</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      You can only assign roles lower than your current level
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button
-                type="button"
-                onClick={() => {
-                  setShowRolesModal(false);
-                  setEditingUser(null);
-                  setUserRoles([]);
-                }}
-                className="bg-gray-200 text-gray-800 hover:bg-gray-300 px-4 py-2"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleUpdateUserRoles}
-                disabled={creating}
-                className="px-4 py-2"
-              >
-                {creating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Updating...
-                  </>
-                ) : (
-                  "Update Roles"
-                )}
-              </Button>
-            </div>
-          </div>
         )}
       </Modal>
 

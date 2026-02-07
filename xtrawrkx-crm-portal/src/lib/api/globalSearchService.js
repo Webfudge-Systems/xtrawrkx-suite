@@ -51,17 +51,27 @@ class GlobalSearchService {
      */
     async searchLeadCompanies(query, maxResults = 5) {
         try {
+            // Search across most useful lead company fields + assignedTo name
             const params = {
-                'filters[$or][0][name][$containsi]': query,
-                'filters[$or][1][companyName][$containsi]': query,
-                'filters[$or][2][email][$containsi]': query,
-                'filters[$or][3][phone][$containsi]': query,
-                'filters[$or][4][industry][$containsi]': query,
+                'q': query, // Strapi full-text fallback if supported
+                'filters[$or][0][companyName][$containsi]': query,
+                'filters[$or][1][email][$containsi]': query,
+                'filters[$or][2][phone][$containsi]': query,
+                'filters[$or][3][industry][$containsi]': query,
+                'filters[$or][4][website][$containsi]': query,
+                'filters[$or][5][address][$containsi]': query,
+                'filters[$or][6][city][$containsi]': query,
+                'filters[$or][7][state][$containsi]': query,
+                'filters[$or][8][country][$containsi]': query,
+                'filters[$or][9][zipCode][$containsi]': query,
+                'filters[$or][10][description][$containsi]': query,
+                'filters[$or][11][notes][$containsi]': query,
+                // search assignedTo relation fields
+                'filters[$or][12][assignedTo][firstName][$containsi]': query,
+                'filters[$or][13][assignedTo][lastName][$containsi]': query,
                 populate: 'assignedTo,deals',
-                pagination: {
-                    pageSize: maxResults,
-                    page: 1
-                }
+                'pagination[pageSize]': maxResults,
+                'pagination[page]': 1
             };
 
             const response = await strapiClient.getLeadCompanies(params);
@@ -74,9 +84,9 @@ class GlobalSearchService {
                 data: data.map(item => ({
                     id: item.id || item.documentId,
                     type: 'lead',
-                    title: item.name || item.companyName || 'Unnamed Lead',
-                    subtitle: item.companyName || item.email || '',
-                    description: item.industry || '',
+                    title: item.companyName || item.name || 'Unnamed Lead',
+                    subtitle: item.industry || item.email || '',
+                    description: item.website || item.phone || item.city || '',
                     href: `/sales/lead-companies/${item.id || item.documentId}`,
                     metadata: {
                         email: item.email,
@@ -89,6 +99,7 @@ class GlobalSearchService {
             };
         } catch (error) {
             console.error('Error searching lead companies:', error);
+            console.error('Search error details:', error?.message || error);
             return { data: [], total: 0 };
         }
     }
@@ -99,14 +110,21 @@ class GlobalSearchService {
     async searchDeals(query, maxResults = 5) {
         try {
             const params = {
+                q: query,
                 'filters[$or][0][name][$containsi]': query,
                 'filters[$or][1][description][$containsi]': query,
                 'filters[$or][2][stage][$containsi]': query,
+                'filters[$or][3][value][$containsi]': query,
+                'filters[$or][4][notes][$containsi]': query,
+                'filters[$or][5][leadCompany][companyName][$containsi]': query,
+                'filters[$or][6][clientAccount][companyName][$containsi]': query,
+                'filters[$or][7][contact][firstName][$containsi]': query,
+                'filters[$or][8][contact][lastName][$containsi]': query,
+                'filters[$or][9][assignedTo][firstName][$containsi]': query,
+                'filters[$or][10][assignedTo][lastName][$containsi]': query,
                 populate: ['leadCompany', 'clientAccount', 'contact', 'assignedTo'],
-                pagination: {
-                    pageSize: maxResults,
-                    page: 1
-                }
+                'pagination[pageSize]': maxResults,
+                'pagination[page]': 1
             };
 
             const response = await dealService.getAll(params);
@@ -119,7 +137,8 @@ class GlobalSearchService {
                     id: item.id || item.documentId,
                     type: 'deal',
                     title: item.name || 'Unnamed Deal',
-                    subtitle: item.leadCompany?.name || item.clientAccount?.name || item.contact?.name || '',
+                    subtitle: item.leadCompany?.companyName || item.clientAccount?.companyName || 
+                             `${item.contact?.firstName || ''} ${item.contact?.lastName || ''}`.trim() || '',
                     description: item.description || item.stage || '',
                     href: `/sales/deals/${item.id || item.documentId}`,
                     metadata: {
@@ -133,6 +152,7 @@ class GlobalSearchService {
             };
         } catch (error) {
             console.error('Error searching deals:', error);
+            console.error('Search error details:', error.message);
             return { data: [], total: 0 };
         }
     }
@@ -143,16 +163,21 @@ class GlobalSearchService {
     async searchContacts(query, maxResults = 5) {
         try {
             const params = {
+                q: query,
                 'filters[$or][0][firstName][$containsi]': query,
                 'filters[$or][1][lastName][$containsi]': query,
                 'filters[$or][2][email][$containsi]': query,
                 'filters[$or][3][phone][$containsi]': query,
-                'filters[$or][4][company][$containsi]': query,
+                'filters[$or][4][title][$containsi]': query,
+                'filters[$or][5][department][$containsi]': query,
+                'filters[$or][6][company][$containsi]': query,
+                'filters[$or][7][role][$containsi]': query,
+                'filters[$or][8][notes][$containsi]': query,
+                'filters[$or][9][leadCompany][companyName][$containsi]': query,
+                'filters[$or][10][clientAccount][companyName][$containsi]': query,
                 populate: ['leadCompany', 'clientAccount'],
-                pagination: {
-                    pageSize: maxResults,
-                    page: 1
-                }
+                'pagination[pageSize]': maxResults,
+                'pagination[page]': 1
             };
 
             const response = await contactService.getAll(params);
@@ -162,18 +187,18 @@ class GlobalSearchService {
 
             return {
                 data: data.map(item => {
-                    const fullName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.name || 'Unnamed Contact';
+                    const fullName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'Unnamed Contact';
                     return {
                         id: item.id || item.documentId,
                         type: 'contact',
                         title: fullName,
-                        subtitle: item.company || item.leadCompany?.name || item.clientAccount?.name || '',
+                        subtitle: item.title || item.leadCompany?.companyName || item.clientAccount?.companyName || '',
                         description: item.email || item.phone || '',
                         href: `/sales/contacts/${item.id || item.documentId}`,
                         metadata: {
                             email: item.email,
                             phone: item.phone,
-                            company: item.company,
+                            company: item.leadCompany?.companyName || item.clientAccount?.companyName,
                             role: item.role
                         }
                     };
@@ -182,6 +207,7 @@ class GlobalSearchService {
             };
         } catch (error) {
             console.error('Error searching contacts:', error);
+            console.error('Search error details:', error.message);
             return { data: [], total: 0 };
         }
     }
@@ -192,15 +218,24 @@ class GlobalSearchService {
     async searchClientAccounts(query, maxResults = 5) {
         try {
             const params = {
-                'filters[$or][0][name][$containsi]': query,
-                'filters[$or][1][companyName][$containsi]': query,
-                'filters[$or][2][email][$containsi]': query,
-                'filters[$or][3][phone][$containsi]': query,
+                q: query,
+                'filters[$or][0][companyName][$containsi]': query,
+                'filters[$or][1][email][$containsi]': query,
+                'filters[$or][2][phone][$containsi]': query,
+                'filters[$or][3][industry][$containsi]': query,
+                'filters[$or][4][website][$containsi]': query,
+                'filters[$or][5][address][$containsi]': query,
+                'filters[$or][6][city][$containsi]': query,
+                'filters[$or][7][state][$containsi]': query,
+                'filters[$or][8][country][$containsi]': query,
+                'filters[$or][9][zipCode][$containsi]': query,
+                'filters[$or][10][description][$containsi]': query,
+                'filters[$or][11][notes][$containsi]': query,
+                'filters[$or][12][assignedTo][firstName][$containsi]': query,
+                'filters[$or][13][assignedTo][lastName][$containsi]': query,
                 populate: 'assignedTo,deals',
-                pagination: {
-                    pageSize: maxResults,
-                    page: 1
-                }
+                'pagination[pageSize]': maxResults,
+                'pagination[page]': 1
             };
 
             const response = await strapiClient.getClientAccounts(params);
@@ -213,9 +248,9 @@ class GlobalSearchService {
                 data: data.map(item => ({
                     id: item.id || item.documentId,
                     type: 'client',
-                    title: item.name || item.companyName || 'Unnamed Client',
-                    subtitle: item.companyName || item.email || '',
-                    description: item.industry || item.status || '',
+                    title: item.companyName || 'Unnamed Client',
+                    subtitle: item.industry || item.email || '',
+                    description: item.website || item.phone || '',
                     href: `/clients/accounts/${item.id || item.documentId}`,
                     metadata: {
                         email: item.email,
@@ -228,6 +263,7 @@ class GlobalSearchService {
             };
         } catch (error) {
             console.error('Error searching client accounts:', error);
+            console.error('Search error details:', error.message);
             return { data: [], total: 0 };
         }
     }

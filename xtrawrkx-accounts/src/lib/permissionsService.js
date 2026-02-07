@@ -9,29 +9,35 @@ class PermissionsService {
      * Must match the backend hierarchy in user-role service
      */
     static getRoleHierarchy() {
+        // Rank-based hierarchy (lower number = higher authority).
+        // Super Admin is rank 0 (highest authority).
         return {
-            'READ_ONLY': 1,
-            'Read-only User': 1,
-            'DEVELOPER': 2,
-            'Developer': 2,
-            'SALES_REP': 5,
-            'Sales Representative': 5,
-            'ACCOUNT_MANAGER': 6,
+            // Primary/system roles
+            'Super Admin': 0,
+            'SUPER_ADMIN': 0,
+            'Super Administrator': 0,
+
+            // Admins and managers (rank < 6 have access to user management)
+            'Admin': 1,
+            'ADMIN': 1,
+            'Manager': 2,
+            'MANAGER': 2,
+            'Sales Manager': 3,
+            'SALES_MANAGER': 3,
+            'Project Manager': 4,
+            'PROJECT_MANAGER': 4,
+            'Finance Manager': 5,
+            'FINANCE': 5,
+
+            // Operational roles (rank >= 6 are lower authority)
             'Account Manager': 6,
-            'FINANCE': 8,
-            'Finance Manager': 8,
-            'PROJECT_MANAGER': 9,
-            'Project Manager': 9,
-            'SALES_MANAGER': 10,
-            'Sales Manager': 10,
-            'MANAGER': 10,
-            'Manager': 10,
-            'ADMIN': 15,
-            'Admin': 15,
-            'Administrator': 15,
-            'SUPER_ADMIN': 20,
-            'Super Admin': 20,
-            'Super Administrator': 20
+            'ACCOUNT_MANAGER': 6,
+            'Sales Representative': 7,
+            'SALES_REP': 7,
+            'Developer': 8,
+            'DEVELOPER': 8,
+            'Read-only User': 9,
+            'READ_ONLY': 9,
         };
     }
 
@@ -40,50 +46,46 @@ class PermissionsService {
      */
     static getRoleLevel(role) {
         const hierarchy = this.getRoleHierarchy();
-        return hierarchy[role] || 0;
+        // Return a large number for unknown roles so they are treated as low-authority
+        const val = hierarchy[role];
+        return typeof val === 'number' ? val : Number.MAX_SAFE_INTEGER;
     }
 
     /**
      * Check if current user can edit target user based on role hierarchy
      */
     static canEditUser(currentUserRole, targetUserRole) {
-        const currentLevel = this.getRoleLevel(currentUserRole);
-        const targetLevel = this.getRoleLevel(targetUserRole);
+        const currentRank = this.getRoleLevel(currentUserRole);
+        const targetRank = this.getRoleLevel(targetUserRole);
 
-        // Super Admin can edit anyone (including other Super Admins)
-        if (currentLevel > 20) { // Super Admin level
-            return true;
-        }
+        // Super Admin (rank 0) can edit anyone
+        if (currentRank === 0) return true;
 
-        // Other users can edit users with same or lower role levels
-        return currentLevel > targetLevel;
+        // Can edit only if current user has higher authority (lower numeric rank)
+        // i.e., currentRank < targetRank
+        return currentRank < targetRank;
     }
 
     /**
      * Check if current user can manage roles for target user
      */
     static canManageUserRoles(currentUserRole, targetUserRole) {
-        const currentLevel = this.getRoleLevel(currentUserRole);
-        const targetLevel = this.getRoleLevel(targetUserRole);
+        const currentRank = this.getRoleLevel(currentUserRole);
+        const targetRank = this.getRoleLevel(targetUserRole);
 
-        // Super Admin can manage roles for anyone (including other Super Admins)
-        if (currentLevel > 20) { // Super Admin level
-            return true;
-        }
-
-        // Other users can manage roles for users with same or lower role levels
-        return currentLevel > targetLevel;
+        if (currentRank === 0) return true;
+        return currentRank < targetRank;
     }
 
     /**
      * Check if current user can assign a specific role
      */
     static canAssignRole(currentUserRole, roleToAssign) {
-        const currentLevel = this.getRoleLevel(currentUserRole);
-        const roleLevel = this.getRoleLevel(roleToAssign);
+        const currentRank = this.getRoleLevel(currentUserRole);
+        const roleRank = this.getRoleLevel(roleToAssign);
 
-        // Users can only assign roles lower than their own level
-        return currentLevel > roleLevel;
+        // Users can only assign roles with lower authority (numerically higher rank)
+        return currentRank < roleRank;
     }
 
     /**
@@ -91,15 +93,13 @@ class PermissionsService {
      */
     static getAssignableRoles(currentUserRole) {
         const hierarchy = this.getRoleHierarchy();
-        const currentLevel = this.getRoleLevel(currentUserRole);
-
+        const currentRank = this.getRoleLevel(currentUserRole);
         const assignableRoles = [];
-        for (const [role, level] of Object.entries(hierarchy)) {
-            if (level < currentLevel) {
+        for (const [role, rank] of Object.entries(hierarchy)) {
+            if (rank > currentRank) {
                 assignableRoles.push(role);
             }
         }
-
         return assignableRoles;
     }
 
@@ -107,8 +107,8 @@ class PermissionsService {
      * Check if current user can edit primary roles
      */
     static canEditPrimaryRole(currentUserRole) {
-        // Only Super Admin can edit primary roles
-        return this.getRoleLevel(currentUserRole) >= 20; // Super Admin level
+        // Only Super Admin (rank 0) can edit primary roles
+        return this.getRoleLevel(currentUserRole) === 0;
     }
 
     /**
@@ -133,9 +133,32 @@ class PermissionsService {
     static hasAdminAccess() {
         const currentRole = this.getCurrentUserRole();
         const hierarchy = this.getRoleHierarchy();
+        // Roles with rank below 6 (i.e., 0..5) have access to user management
+        const rank = this.getRoleLevel(currentRole);
+        return rank < 6;
+    }
 
-        // Must be at least Manager level to access user management
-        return this.getRoleLevel(currentRole) >= 10;
+    /**
+     * Validate that no two roles share the same numeric rank.
+     * Logs error(s) if duplicates exist and returns boolean.
+     */
+    static validateUniqueRanks() {
+        const hierarchy = this.getRoleHierarchy();
+        const seen = new Map();
+        const duplicates = [];
+        for (const [role, rank] of Object.entries(hierarchy)) {
+            if (seen.has(rank)) {
+                duplicates.push({ rank, roles: [seen.get(rank), role] });
+            } else {
+                seen.set(rank, role);
+            }
+        }
+
+        if (duplicates.length > 0) {
+            console.error('Duplicate role ranks detected:', duplicates);
+            return false;
+        }
+        return true;
     }
 
     /**

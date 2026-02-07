@@ -110,6 +110,11 @@ module.exports = createCoreController('api::user-role.user-role', ({ strapi }) =
                 return ctx.badRequest('Role name is required');
             }
 
+            // Validate rank is provided
+            if (data.rank === undefined || data.rank === null) {
+                return ctx.badRequest('Role rank is required');
+            }
+
             // Check if role name already exists
             const existingRole = await strapi.db.query('api::user-role.user-role').findOne({
                 where: { name: data.name }
@@ -117,6 +122,15 @@ module.exports = createCoreController('api::user-role.user-role', ({ strapi }) =
 
             if (existingRole) {
                 return ctx.badRequest('Role name already exists');
+            }
+
+            // Check if rank already exists (must be unique)
+            const existingRank = await strapi.db.query('api::user-role.user-role').findOne({
+                where: { rank: data.rank }
+            });
+
+            if (existingRank) {
+                return ctx.badRequest(`Rank ${data.rank} is already assigned to role "${existingRank.name}". Each role must have a unique rank.`);
             }
 
             // Set default permissions if not provided
@@ -136,7 +150,7 @@ module.exports = createCoreController('api::user-role.user-role', ({ strapi }) =
                 name: data.name,
                 description: data.description || '',
                 isSystemRole: data.isSystemRole || false,
-                rank: data.rank || 10,
+                rank: data.rank,
                 color: data.color || 'from-gray-500 to-gray-600',
                 icon: data.icon || 'Shield',
                 permissions: data.permissions || defaultPermissions,
@@ -189,6 +203,17 @@ module.exports = createCoreController('api::user-role.user-role', ({ strapi }) =
 
                 if (nameConflict) {
                     return ctx.badRequest('Role name already exists');
+                }
+            }
+
+            // Check if new rank conflicts with existing role (must be unique)
+            if (data.rank !== undefined && data.rank !== existingRole.rank) {
+                const rankConflict = await strapi.db.query('api::user-role.user-role').findOne({
+                    where: { rank: data.rank }
+                });
+
+                if (rankConflict) {
+                    return ctx.badRequest(`Rank ${data.rank} is already assigned to role "${rankConflict.name}". Each role must have a unique rank.`);
                 }
             }
 
@@ -346,6 +371,89 @@ module.exports = createCoreController('api::user-role.user-role', ({ strapi }) =
         } catch (error) {
             console.error('Error getting user permissions:', error);
             ctx.internalServerError('Failed to get user permissions');
+        }
+    },
+
+    /**
+     * Initialize or update default system roles
+     * This endpoint creates missing roles and updates ranks of existing roles
+     */
+    async initializeDefaultRoles(ctx) {
+        try {
+            const result = await strapi.service('api::user-role.user-role').createDefaultRoles();
+            
+            ctx.send({
+                success: true,
+                message: 'Default roles initialized/updated successfully'
+            });
+        } catch (error) {
+            console.error('Error initializing default roles:', error);
+            ctx.internalServerError('Failed to initialize default roles');
+        }
+    },
+
+    /**
+     * Fix duplicate ranks in existing roles
+     * Updates all roles to have unique ranks based on the hierarchy
+     */
+    async fixDuplicateRanks(ctx) {
+        try {
+            const result = await strapi.service('api::user-role.user-role').updateRolesToUniqueRanks();
+            
+            if (result.success) {
+                ctx.send({
+                    success: true,
+                    message: result.message
+                });
+            } else {
+                ctx.badRequest(result.error);
+            }
+        } catch (error) {
+            console.error('Error fixing duplicate ranks:', error);
+            ctx.internalServerError('Failed to fix duplicate ranks');
+        }
+    },
+
+    /**
+     * Validate that all roles have unique ranks
+     * Returns any duplicate ranks found
+     */
+    async validateUniqueRanks(ctx) {
+        try {
+            const allRoles = await strapi.db.query('api::user-role.user-role').findMany({
+                orderBy: { rank: 'asc' }
+            });
+
+            const rankMap = new Map();
+            const duplicates = [];
+
+            for (const role of allRoles) {
+                if (rankMap.has(role.rank)) {
+                    const existing = rankMap.get(role.rank);
+                    if (!duplicates.find(d => d.rank === role.rank)) {
+                        duplicates.push({
+                            rank: role.rank,
+                            roles: [existing.name, role.name]
+                        });
+                    } else {
+                        const dup = duplicates.find(d => d.rank === role.rank);
+                        dup.roles.push(role.name);
+                    }
+                } else {
+                    rankMap.set(role.rank, role);
+                }
+            }
+
+            ctx.send({
+                valid: duplicates.length === 0,
+                duplicates: duplicates,
+                message: duplicates.length === 0 
+                    ? 'All roles have unique ranks' 
+                    : `Found ${duplicates.length} duplicate rank(s)`
+            });
+        } catch (error) {
+            console.error('Error validating unique ranks:', error);
+            ctx.internalServerError('Failed to validate unique ranks');
         }
     }
 }));

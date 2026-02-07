@@ -189,29 +189,39 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
      * Role hierarchy levels (higher number = higher authority)
      */
     getRoleHierarchy() {
+        // Rank-based hierarchy (lower number = higher authority).
+        // Super Admin is rank 0 (highest authority).
         return {
-            'READ_ONLY': 1,
-            'Read-only User': 1,
-            'DEVELOPER': 2,
-            'Developer': 2,
-            'SALES_REP': 5,
-            'Sales Representative': 5,
-            'ACCOUNT_MANAGER': 6,
+            'Super Admin': 0,
+            'SUPER_ADMIN': 0,
+            'Super Administrator': 0,
+
+            'Admin': 1,
+            'ADMIN': 1,
+
+            'Manager': 2,
+            'MANAGER': 2,
+
+            'Sales Manager': 3,
+            'SALES_MANAGER': 3,
+
+            'Project Manager': 4,
+            'PROJECT_MANAGER': 4,
+
+            'Finance Manager': 5,
+            'FINANCE': 5,
+
             'Account Manager': 6,
-            'FINANCE': 8,
-            'Finance Manager': 8,
-            'PROJECT_MANAGER': 9,
-            'Project Manager': 9,
-            'SALES_MANAGER': 10,
-            'Sales Manager': 10,
-            'MANAGER': 10,
-            'Manager': 10,
-            'ADMIN': 15,
-            'Admin': 15,
-            'Administrator': 15,
-            'SUPER_ADMIN': 20,
-            'Super Admin': 20,
-            'Super Administrator': 20
+            'ACCOUNT_MANAGER': 6,
+
+            'Sales Representative': 7,
+            'SALES_REP': 7,
+
+            'Developer': 8,
+            'DEVELOPER': 8,
+
+            'Read-only User': 9,
+            'READ_ONLY': 9
         };
     },
 
@@ -220,26 +230,30 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
      */
     getRoleLevel(role) {
         const hierarchy = this.getRoleHierarchy();
-        return hierarchy[role] || 0;
+        const val = hierarchy[role];
+        return typeof val === 'number' ? val : Number.MAX_SAFE_INTEGER;
     },
 
     /**
      * Check if current user can edit target user based on role hierarchy
      */
     canEditUser(currentUserRole, targetUserRole) {
-        const currentLevel = this.getRoleLevel(currentUserRole);
-        const targetLevel = this.getRoleLevel(targetUserRole);
+        const currentRank = this.getRoleLevel(currentUserRole);
+        const targetRank = this.getRoleLevel(targetUserRole);
 
-        // Users can only edit users with lower role levels
-        return currentLevel > targetLevel;
+        // Super Admin (rank 0) can edit anyone
+        if (currentRank === 0) return true;
+
+        // Can edit only if current user has higher authority (lower numeric rank)
+        return currentRank < targetRank;
     },
 
     /**
      * Check if current user can edit primary roles
      */
     canEditPrimaryRole(currentUserRole) {
-        // Only Super Admin can edit primary roles
-        return this.getRoleLevel(currentUserRole) >= 20; // Super Admin level
+        // Only Super Admin (rank 0) can edit primary roles
+        return this.getRoleLevel(currentUserRole) === 0;
     },
 
     /**
@@ -247,15 +261,13 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
      */
     getAssignableRoles(currentUserRole) {
         const hierarchy = this.getRoleHierarchy();
-        const currentLevel = this.getRoleLevel(currentUserRole);
-
+        const currentRank = this.getRoleLevel(currentUserRole);
         const assignableRoles = [];
-        for (const [role, level] of Object.entries(hierarchy)) {
-            if (level < currentLevel) {
+        for (const [role, rank] of Object.entries(hierarchy)) {
+            if (rank > currentRank) {
                 assignableRoles.push(role);
             }
         }
-
         return assignableRoles;
     },
 
@@ -311,7 +323,7 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     name: 'Super Admin',
                     description: 'Full system access and control',
                     isSystemRole: true,
-                    rank: 1,
+                    rank: 0,
                     color: 'from-red-500 to-red-600',
                     icon: 'Crown',
                     visibility: 'org',
@@ -331,7 +343,7 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     name: 'Admin',
                     description: 'Administrative access with limitations',
                     isSystemRole: true,
-                    rank: 2,
+                    rank: 1,
                     color: 'from-blue-500 to-blue-600',
                     icon: 'UserCog',
                     visibility: 'org',
@@ -351,7 +363,7 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     name: 'Manager',
                     description: 'Team management and oversight',
                     isSystemRole: true,
-                    rank: 3,
+                    rank: 2,
                     color: 'from-purple-500 to-purple-600',
                     icon: 'Briefcase',
                     visibility: 'team',
@@ -368,30 +380,30 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     }
                 },
                 {
-                    name: 'Sales Representative',
-                    description: 'Sales and customer management',
+                    name: 'Sales Manager',
+                    description: 'Sales team management and oversight',
                     isSystemRole: true,
-                    rank: 4,
-                    color: 'from-green-500 to-green-600',
-                    icon: 'DollarSign',
-                    visibility: 'private',
+                    rank: 3,
+                    color: 'from-teal-500 to-teal-600',
+                    icon: 'Users',
+                    visibility: 'team',
                     permissions: {
                         leads: { create: true, read: true, update: true, delete: false, convert: true },
                         accounts: { create: true, read: true, update: true, delete: false },
                         contacts: { create: true, read: true, update: true, delete: false },
                         deals: { create: true, read: true, update: true, delete: false },
                         projects: { create: false, read: true, update: false, delete: false },
-                        tasks: { create: false, read: true, update: false, delete: false },
+                        tasks: { create: true, read: true, update: true, delete: false },
                         imports: { create: false, read: true, update: false, delete: false, import: true },
                         exports: { create: false, read: true, update: false, delete: false, export: true },
-                        reports: { create: false, read: true, update: false, delete: false }
+                        reports: { create: true, read: true, update: true, delete: false }
                     }
                 },
                 {
                     name: 'Project Manager',
                     description: 'Project and task management',
                     isSystemRole: true,
-                    rank: 5,
+                    rank: 4,
                     color: 'from-orange-500 to-orange-600',
                     icon: 'TrendingUp',
                     visibility: 'team',
@@ -408,10 +420,70 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     }
                 },
                 {
+                    name: 'Finance Manager',
+                    description: 'Financial data and reporting management',
+                    isSystemRole: true,
+                    rank: 5,
+                    color: 'from-emerald-500 to-emerald-600',
+                    icon: 'DollarSign',
+                    visibility: 'team',
+                    permissions: {
+                        leads: { create: false, read: true, update: false, delete: false, convert: false },
+                        accounts: { create: false, read: true, update: true, delete: false },
+                        contacts: { create: false, read: true, update: false, delete: false },
+                        deals: { create: false, read: true, update: true, delete: false },
+                        projects: { create: false, read: true, update: false, delete: false },
+                        tasks: { create: false, read: true, update: false, delete: false },
+                        imports: { create: true, read: true, update: false, delete: false, import: true },
+                        exports: { create: false, read: true, update: false, delete: false, export: true },
+                        reports: { create: true, read: true, update: true, delete: false }
+                    }
+                },
+                {
+                    name: 'Account Manager',
+                    description: 'Client relationship management',
+                    isSystemRole: true,
+                    rank: 6,
+                    color: 'from-cyan-500 to-cyan-600',
+                    icon: 'Briefcase',
+                    visibility: 'private',
+                    permissions: {
+                        leads: { create: true, read: true, update: true, delete: false, convert: true },
+                        accounts: { create: true, read: true, update: true, delete: false },
+                        contacts: { create: true, read: true, update: true, delete: false },
+                        deals: { create: true, read: true, update: true, delete: false },
+                        projects: { create: false, read: true, update: false, delete: false },
+                        tasks: { create: false, read: true, update: false, delete: false },
+                        imports: { create: false, read: true, update: false, delete: false, import: true },
+                        exports: { create: false, read: true, update: false, delete: false, export: true },
+                        reports: { create: false, read: true, update: false, delete: false }
+                    }
+                },
+                {
+                    name: 'Sales Representative',
+                    description: 'Sales and customer management',
+                    isSystemRole: true,
+                    rank: 7,
+                    color: 'from-green-500 to-green-600',
+                    icon: 'UserCheck',
+                    visibility: 'private',
+                    permissions: {
+                        leads: { create: true, read: true, update: true, delete: false, convert: true },
+                        accounts: { create: true, read: true, update: true, delete: false },
+                        contacts: { create: true, read: true, update: true, delete: false },
+                        deals: { create: true, read: true, update: true, delete: false },
+                        projects: { create: false, read: true, update: false, delete: false },
+                        tasks: { create: false, read: true, update: false, delete: false },
+                        imports: { create: false, read: true, update: false, delete: false, import: true },
+                        exports: { create: false, read: true, update: false, delete: false, export: true },
+                        reports: { create: false, read: true, update: false, delete: false }
+                    }
+                },
+                {
                     name: 'Developer',
                     description: 'Development team member',
                     isSystemRole: true,
-                    rank: 6,
+                    rank: 8,
                     color: 'from-indigo-500 to-indigo-600',
                     icon: 'Wrench',
                     visibility: 'private',
@@ -426,6 +498,26 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                         exports: { create: false, read: false, update: false, delete: false, export: false },
                         reports: { create: false, read: true, update: false, delete: false }
                     }
+                },
+                {
+                    name: 'Read-only User',
+                    description: 'View-only access to system data',
+                    isSystemRole: true,
+                    rank: 9,
+                    color: 'from-gray-500 to-gray-600',
+                    icon: 'Eye',
+                    visibility: 'private',
+                    permissions: {
+                        leads: { create: false, read: true, update: false, delete: false, convert: false },
+                        accounts: { create: false, read: true, update: false, delete: false },
+                        contacts: { create: false, read: true, update: false, delete: false },
+                        deals: { create: false, read: true, update: false, delete: false },
+                        projects: { create: false, read: true, update: false, delete: false },
+                        tasks: { create: false, read: true, update: false, delete: false },
+                        imports: { create: false, read: false, update: false, delete: false, import: false },
+                        exports: { create: false, read: false, update: false, delete: false, export: false },
+                        reports: { create: false, read: true, update: false, delete: false }
+                    }
                 }
             ];
 
@@ -436,14 +528,64 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                 });
 
                 if (!existingRole) {
+                    // Create new role
                     await strapi.db.query('api::user-role.user-role').create({
                         data: roleData
                     });
+                    console.log(`Created role: ${roleData.name} with rank ${roleData.rank}`);
+                } else {
+                    // Update existing role's rank to ensure consistency
+                    await strapi.db.query('api::user-role.user-role').update({
+                        where: { id: existingRole.id },
+                        data: { rank: roleData.rank }
+                    });
+                    console.log(`Updated role: ${roleData.name} to rank ${roleData.rank}`);
                 }
             }
 
         } catch (error) {
             console.error('Error creating default roles:', error);
+        }
+    },
+
+    /**
+     * Update all existing roles to have unique ranks based on the hierarchy
+     * Call this method to fix any duplicate ranks in the database
+     */
+    async updateRolesToUniqueRanks() {
+        try {
+            const rankMapping = {
+                'Super Admin': 0,
+                'Admin': 1,
+                'Manager': 2,
+                'Sales Manager': 3,
+                'Project Manager': 4,
+                'Finance Manager': 5,
+                'Account Manager': 6,
+                'Sales Representative': 7,
+                'Developer': 8,
+                'Read-only User': 9
+            };
+
+            // Get all roles
+            const allRoles = await strapi.db.query('api::user-role.user-role').findMany();
+
+            for (const role of allRoles) {
+                const newRank = rankMapping[role.name];
+                if (newRank !== undefined && role.rank !== newRank) {
+                    await strapi.db.query('api::user-role.user-role').update({
+                        where: { id: role.id },
+                        data: { rank: newRank }
+                    });
+                    console.log(`Updated ${role.name} from rank ${role.rank} to ${newRank}`);
+                }
+            }
+
+            console.log('Finished updating all roles to unique ranks');
+            return { success: true, message: 'All roles updated successfully' };
+        } catch (error) {
+            console.error('Error updating roles to unique ranks:', error);
+            return { success: false, error: error.message };
         }
     }
 }));

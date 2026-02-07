@@ -43,6 +43,40 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
             }
 
 
+            // If incoming contact is being marked as PRIMARY_CONTACT, ensure uniqueness:
+            // unset PRIMARY_CONTACT role for other contacts in same company (leadCompany or clientAccount)
+            if (data.role === "PRIMARY_CONTACT") {
+                try {
+                    const filters = {
+                        role: "PRIMARY_CONTACT",
+                    };
+
+                    if (data.leadCompany) {
+                        filters.leadCompany = { id: data.leadCompany };
+                    } else if (data.clientAccount) {
+                        filters.clientAccount = { id: data.clientAccount };
+                    }
+
+                    // Find existing primary contacts for the same company
+                    const existingPrimaries = await strapi.entityService.findMany('api::contact.contact', {
+                        filters,
+                        populate: false,
+                    });
+
+                    // Demote existing primaries to TECHNICAL_CONTACT
+                    await Promise.all(
+                        (existingPrimaries || []).map((c) =>
+                            strapi.entityService.update('api::contact.contact', c.id, {
+                                data: { role: "TECHNICAL_CONTACT" },
+                            })
+                        )
+                    );
+                } catch (err) {
+                    // Log but don't fail creation because of demotion step
+                    strapi.log.error('Error demoting existing primary contacts:', err);
+                }
+            }
+
             const entity = await strapi.entityService.create('api::contact.contact', {
                 data,
                 populate: {
@@ -168,6 +202,49 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
             const { id } = ctx.params;
             const { data } = ctx.request.body;
 
+
+            // If the role is being set to PRIMARY_CONTACT, ensure uniqueness within the same company
+            if (data && data.role === "PRIMARY_CONTACT") {
+                try {
+                    // Fetch the current contact to determine its company association
+                    const current = await strapi.entityService.findOne('api::contact.contact', id, {
+                        populate: ['leadCompany', 'clientAccount'],
+                    });
+
+                    const companyFilter = {};
+                    if (current?.leadCompany) {
+                        companyFilter.leadCompany = { id: current.leadCompany.id || current.leadCompany };
+                    } else if (current?.clientAccount) {
+                        companyFilter.clientAccount = { id: current.clientAccount.id || current.clientAccount };
+                    } else {
+                        // If no company association, nothing to enforce
+                    }
+
+                    if (Object.keys(companyFilter).length > 0) {
+                        // Find other contacts that are primary within same company
+                        const existingPrimaries = await strapi.entityService.findMany('api::contact.contact', {
+                            filters: {
+                                role: "PRIMARY_CONTACT",
+                                ...companyFilter,
+                                id: { $not: id },
+                            },
+                            populate: false,
+                        });
+
+                        // Demote them
+                        await Promise.all(
+                            (existingPrimaries || []).map((c) =>
+                                strapi.entityService.update('api::contact.contact', c.id, {
+                                    data: { role: "TECHNICAL_CONTACT" },
+                                })
+                            )
+                        );
+                    }
+                } catch (err) {
+                    strapi.log.error('Error demoting existing primary contacts on update:', err);
+                    // continue to attempt the update
+                }
+            }
 
             const entity = await strapi.entityService.update('api::contact.contact', id, {
                 data,

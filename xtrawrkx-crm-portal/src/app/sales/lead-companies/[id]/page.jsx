@@ -80,7 +80,7 @@ export default function LeadCompanyDetailPage() {
     phone: "",
     title: "",
     department: "",
-    role: "PRIMARY_CONTACT",
+    role: "TECHNICAL_CONTACT",
   });
   const [dealFormData, setDealFormData] = useState({
     name: "",
@@ -316,7 +316,18 @@ export default function LeadCompanyDetailPage() {
 
   const handleSetPrimaryContact = async (contactId) => {
     try {
-      // First, remove primary contact role from all other contacts in this company
+      const selectedContact = contacts.find((c) => c.id === contactId);
+      
+      // If already primary, demote to technical contact
+      if (selectedContact?.role === "PRIMARY_CONTACT") {
+        await contactService.update(contactId, { role: "TECHNICAL_CONTACT" });
+        await fetchContacts();
+        await fetchCompanyData();
+        alert("Contact role updated to Technical Contact");
+        return;
+      }
+
+      // Otherwise, remove primary from others and set this one as primary
       const updatePromises = contacts.map(async (contact) => {
         if (contact.id !== contactId && contact.role === "PRIMARY_CONTACT") {
           return contactService.update(contact.id, {
@@ -339,7 +350,34 @@ export default function LeadCompanyDetailPage() {
       alert("Primary contact updated successfully!");
     } catch (error) {
       console.error("Error setting primary contact:", error);
-      alert("Failed to set primary contact");
+      alert("Failed to update contact role");
+    }
+  };
+
+  const handleRoleChange = async (contactId, newRole) => {
+    try {
+      // If changing to primary contact, remove primary from others
+      if (newRole === "PRIMARY_CONTACT") {
+        const updatePromises = contacts.map(async (contact) => {
+          if (contact.id !== contactId && contact.role === "PRIMARY_CONTACT") {
+            return contactService.update(contact.id, {
+              role: "TECHNICAL_CONTACT",
+            });
+          }
+          return Promise.resolve();
+        });
+        await Promise.all(updatePromises);
+      }
+
+      // Update the contact role
+      await contactService.update(contactId, { role: newRole });
+
+      // Refresh contacts and company data
+      await fetchContacts();
+      await fetchCompanyData();
+    } catch (error) {
+      console.error("Error updating contact role:", error);
+      alert("Failed to update contact role");
     }
   };
 
@@ -527,19 +565,30 @@ export default function LeadCompanyDetailPage() {
       key: "role",
       label: "ROLE",
       render: (_, contact) => (
-        <Badge
-          variant={
-            contact.role === "PRIMARY_CONTACT"
-              ? "success"
-              : contact.role === "DECISION_MAKER"
-              ? "warning"
-              : contact.role === "INFLUENCER"
-              ? "info"
-              : "secondary"
-          }
-        >
-          {contact.role?.replace("_", " ") || "TECHNICAL CONTACT"}
-        </Badge>
+        <div className="min-w-[180px]">
+          <select
+            value={contact.role || "TECHNICAL_CONTACT"}
+            onChange={(e) => handleRoleChange(contact.id, e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+            style={{
+              color:
+                contact.role === "PRIMARY_CONTACT"
+                  ? "#10b981"
+                  : contact.role === "DECISION_MAKER"
+                  ? "#f59e0b"
+                  : contact.role === "INFLUENCER"
+                  ? "#3b82f6"
+                  : "#6b7280",
+              fontWeight: "500",
+            }}
+          >
+            <option value="PRIMARY_CONTACT">Primary Contact</option>
+            <option value="DECISION_MAKER">Decision Maker</option>
+            <option value="INFLUENCER">Influencer</option>
+            <option value="TECHNICAL_CONTACT">Technical Contact</option>
+            <option value="GATEKEEPER">Gatekeeper</option>
+          </select>
+        </div>
       ),
     },
     {
@@ -576,29 +625,48 @@ export default function LeadCompanyDetailPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push(`/sales/contacts/${contact.id}`)}
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/sales/contacts/${contact.id}`);
+            }}
             title="View Contact"
           >
             <Eye className="w-4 h-4" />
           </Button>
-          {contact.role !== "PRIMARY_CONTACT" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleSetPrimaryContact(contact.id)}
-              title="Set as Primary Contact"
-              className="text-orange-600 hover:text-orange-700"
-            >
-              <Star className="w-4 h-4" />
-            </Button>
-          )}
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {}}
-            title="More Actions"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSetPrimaryContact(contact.id);
+            }}
+            title={
+              contact.role === "PRIMARY_CONTACT"
+                ? "Remove Primary Contact"
+                : "Set as Primary Contact"
+            }
+            className={
+              contact.role === "PRIMARY_CONTACT"
+                ? "text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50"
+                : "text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+            }
           >
-            <MoreVertical className="w-4 h-4" />
+            <Star
+              className={`w-4 h-4 ${
+                contact.role === "PRIMARY_CONTACT" ? "fill-current" : ""
+              }`}
+            />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/sales/contacts/${contact.id}/edit`);
+            }}
+            title="Edit Contact"
+          >
+            <Edit className="w-4 h-4" />
           </Button>
         </div>
       ),
@@ -1040,7 +1108,7 @@ export default function LeadCompanyDetailPage() {
       phone: "",
       title: "",
       department: "",
-      role: "PRIMARY_CONTACT",
+      role: "TECHNICAL_CONTACT",
     });
     setShowAddContactModal(true);
   };
@@ -1078,6 +1146,22 @@ export default function LeadCompanyDetailPage() {
     }
 
     try {
+      // If the new contact is being created as PRIMARY_CONTACT, ensure existing
+      // primary contacts for this lead company are demoted first so we don't end up
+      // with multiple primary contacts.
+      if (contactFormData.role === "PRIMARY_CONTACT") {
+        const demotePromises = contacts
+          .filter((c) => c.role === "PRIMARY_CONTACT")
+          .map((c) =>
+            contactService.update(c.id, {
+              role: "TECHNICAL_CONTACT",
+            })
+          );
+        if (demotePromises.length > 0) {
+          await Promise.all(demotePromises);
+        }
+      }
+
       const contactData = {
         firstName: contactFormData.firstName.trim(),
         lastName: contactFormData.lastName.trim(),

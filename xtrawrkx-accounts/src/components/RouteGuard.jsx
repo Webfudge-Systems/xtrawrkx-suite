@@ -57,13 +57,14 @@ export default function RouteGuard({
         }
       }
 
-      // Check level-based access
+      // Check level-based access (rank-based: lower number = higher authority)
       if (requiredLevel) {
-        const userLevel = PermissionsService.getRoleLevel(user.role);
-        const requiredLevelValue =
+        const userRank = PermissionsService.getRoleLevel(user.role);
+        const requiredRankValue =
           PermissionsService.getRoleLevel(requiredLevel);
 
-        if (userLevel < requiredLevelValue) {
+        // Deny access if user's rank is HIGHER (numerically greater = lower authority)
+        if (userRank > requiredRankValue) {
           setHasAccess(false);
           setIsChecking(false);
           return;

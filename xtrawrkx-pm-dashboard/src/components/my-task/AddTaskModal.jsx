@@ -366,24 +366,30 @@ const AddTaskModal = ({
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        className="bg-white border border-gray-200 shadow-2xl rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Create New Task
-          </h2>
+          <div>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+              Create New Task
+            </h2>
+            <p className="text-gray-600 mt-1">Add a new task to your project</p>
+          </div>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-white/50 rounded-xl transition-colors"
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-200px)] flex-1"
+        >
           {loadingData ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -421,7 +427,7 @@ const AddTaskModal = ({
                       onChange={(e) =>
                         handleInputChange("description", e.target.value)
                       }
-                      className="block w-full rounded-lg border border-gray-300 shadow-sm px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      className="block w-full rounded-xl border border-gray-300 shadow-sm px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 resize-none"
                       rows={3}
                     />
                   </div>
@@ -494,7 +500,7 @@ const AddTaskModal = ({
                           }
                           e.target.value = ""; // Reset select
                         }}
-                        className="block w-full rounded-lg border shadow-sm appearance-none px-3 py-2.5 pr-10 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 border-gray-300"
+                        className="block w-full rounded-xl border border-gray-300 shadow-sm appearance-none px-3 py-2.5 pr-10 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-colors duration-200"
                       >
                         <option value="">
                           {formData.projects.length === 0
@@ -591,7 +597,7 @@ const AddTaskModal = ({
                           }
                           e.target.value = ""; // Reset select
                         }}
-                        className="block w-full rounded-lg border shadow-sm appearance-none px-3 py-2.5 pr-10 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 border-gray-300"
+                        className="block w-full rounded-xl border border-gray-300 shadow-sm appearance-none px-3 py-2.5 pr-10 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-colors duration-200"
                       >
                         <option value="">
                           {formData.assignees.length === 0
@@ -695,12 +701,12 @@ const AddTaskModal = ({
                           handleAddTag();
                         }
                       }}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
                     />
                     <button
                       type="button"
                       onClick={handleAddTag}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -738,12 +744,12 @@ const AddTaskModal = ({
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-6 py-2 text-gray-800 bg-white border-2 border-gray-400 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 font-medium"
+            className="px-6 py-2 text-gray-800 bg-white border border-gray-300 rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50 font-medium"
           >
             Cancel
           </button>
@@ -751,7 +757,7 @@ const AddTaskModal = ({
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting || loadingData}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {isSubmitting ? (
               <>
