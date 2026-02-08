@@ -155,15 +155,19 @@ export default function LoginPage() {
       // Import PermissionsService to check role rank
       const PermissionsService = (await import("@/lib/permissionsService")).default;
       
-      // Check if user has admin access based on rank (rank < 6 = full permissions)
-      const roleRank = PermissionsService.getRoleLevel(mappedRole);
-      const hasAdminAccess = roleRank < 6;
+      // Check if user has admin access based on rank (rank <= 5 = full permissions)
+      // Ranks 0-5: Super Admin, Admin, Manager, Sales Manager, Project Manager, Developer
+      // Support custom roles by checking primaryRole object if available
+      const primaryRole = data.user.primaryRole;
+      const roleRank = primaryRole ? PermissionsService.getRoleLevel(primaryRole) : PermissionsService.getRoleLevel(mappedRole);
+      const hasAdminAccess = roleRank <= 5;
 
       const userData = {
         email: data.user.email || formData.email,
         firstName: data.user.firstName || "",
         lastName: data.user.lastName || "",
         role: mappedRole,
+        primaryRole: primaryRole, // Include primaryRole object for custom roles
         department: data.user.department || "",
         name:
           data.user.name ||

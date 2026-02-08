@@ -11,13 +11,14 @@ class PermissionsService {
     static getRoleHierarchy() {
         // Rank-based hierarchy (lower number = higher authority).
         // Super Admin is rank 0 (highest authority).
+        // Ranks 0-5 have admin access to all features
         return {
             // Primary/system roles
             'Super Admin': 0,
             'SUPER_ADMIN': 0,
             'Super Administrator': 0,
 
-            // Admins and managers (rank < 6 have access to user management)
+            // Admins and managers (rank <= 5 have access to user management)
             'Admin': 1,
             'ADMIN': 1,
             'Manager': 2,
@@ -26,16 +27,16 @@ class PermissionsService {
             'SALES_MANAGER': 3,
             'Project Manager': 4,
             'PROJECT_MANAGER': 4,
-            'Finance Manager': 5,
-            'FINANCE': 5,
+            'Developer': 5,
+            'DEVELOPER': 5,
 
-            // Operational roles (rank >= 6 are lower authority)
-            'Account Manager': 6,
-            'ACCOUNT_MANAGER': 6,
-            'Sales Representative': 7,
-            'SALES_REP': 7,
-            'Developer': 8,
-            'DEVELOPER': 8,
+            // Operational roles (rank > 5 have limited access)
+            'Finance Manager': 6,
+            'FINANCE': 6,
+            'Account Manager': 7,
+            'ACCOUNT_MANAGER': 7,
+            'Sales Representative': 8,
+            'SALES_REP': 8,
             'Read-only User': 9,
             'READ_ONLY': 9,
         };
@@ -43,12 +44,23 @@ class PermissionsService {
 
     /**
      * Get role level for comparison
+     * Accepts either a role name (string) or a role object with rank property
      */
     static getRoleLevel(role) {
-        const hierarchy = this.getRoleHierarchy();
+        // If role is an object with a rank property (custom role from DB), use that
+        if (typeof role === 'object' && role !== null && typeof role.rank === 'number') {
+            return role.rank;
+        }
+        
+        // If role is a string, check the hardcoded hierarchy (for built-in roles)
+        if (typeof role === 'string') {
+            const hierarchy = this.getRoleHierarchy();
+            const val = hierarchy[role];
+            return typeof val === 'number' ? val : Number.MAX_SAFE_INTEGER;
+        }
+        
         // Return a large number for unknown roles so they are treated as low-authority
-        const val = hierarchy[role];
-        return typeof val === 'number' ? val : Number.MAX_SAFE_INTEGER;
+        return Number.MAX_SAFE_INTEGER;
     }
 
     /**
@@ -113,6 +125,7 @@ class PermissionsService {
 
     /**
      * Get current user role from stored user data
+     * Returns primaryRole object if available (for custom roles), otherwise role name
      */
     static getCurrentUserRole() {
         try {
@@ -120,7 +133,8 @@ class PermissionsService {
             if (!userData) return null;
 
             const parsed = JSON.parse(userData);
-            return parsed.role;
+            // Return primaryRole object if available (supports custom roles with rank)
+            return parsed.primaryRole || parsed.role;
         } catch (error) {
             console.error('Error getting current user role:', error);
             return null;
@@ -129,13 +143,15 @@ class PermissionsService {
 
     /**
      * Check if current user has admin access (can view user management)
+     * Works with both built-in roles and custom roles
      */
     static hasAdminAccess() {
-        const currentRole = this.getCurrentUserRole();
-        const hierarchy = this.getRoleHierarchy();
-        // Roles with rank below 6 (i.e., 0..5) have access to user management
-        const rank = this.getRoleLevel(currentRole);
-        return rank < 6;
+        const currentRoleOrObject = this.getCurrentUserRole();
+        // Roles with rank 5 or below (0-5) have access to user management
+        // 0: Super Admin, 1: Admin, 2: Manager, 3: Sales Manager, 4: Project Manager, 5: Developer
+        // Custom roles: any role with rank <= 5
+        const rank = this.getRoleLevel(currentRoleOrObject);
+        return rank <= 5;
     }
 
     /**

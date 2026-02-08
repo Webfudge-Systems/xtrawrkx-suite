@@ -58,8 +58,10 @@ export default function RouteGuard({
       }
 
       // Check level-based access (rank-based: lower number = higher authority)
+      // Support custom roles by using primaryRole object if available
       if (requiredLevel) {
-        const userRank = PermissionsService.getRoleLevel(user.role);
+        const userRoleOrObject = user.primaryRole || user.role;
+        const userRank = PermissionsService.getRoleLevel(userRoleOrObject);
         const requiredRankValue =
           PermissionsService.getRoleLevel(requiredLevel);
 
@@ -72,7 +74,9 @@ export default function RouteGuard({
       }
 
       // Check specific route permissions
-      if (!checkRoutePermissions(pathname, user.role)) {
+      // Use primaryRole object if available (for custom roles)
+      const userRoleOrObject = user.primaryRole || user.role;
+      if (!checkRoutePermissions(pathname, userRoleOrObject)) {
         setHasAccess(false);
         setIsChecking(false);
         return;
@@ -86,74 +90,44 @@ export default function RouteGuard({
     }
   };
 
-  const checkRoutePermissions = (route, userRole) => {
-    const routePermissions = {
-      // Admin-only routes (Manager level and above)
-      "/users": ["Super Admin", "Admin", "Manager"],
-      "/users/new": ["Super Admin", "Admin", "Manager"],
-      "/users/roles": ["Super Admin", "Admin", "Manager"],
-      "/organization": ["Super Admin", "Admin", "Manager"],
-      "/organization/departments": ["Super Admin", "Admin", "Manager"],
-      "/settings": ["Super Admin", "Admin", "Manager"],
-      "/settings/general": ["Super Admin", "Admin", "Manager"],
-      "/settings/notifications": ["Super Admin", "Admin", "Manager"],
-      "/settings/integrations": ["Super Admin", "Admin", "Manager"],
+  const checkRoutePermissions = (route, userRoleOrObject) => {
+    // Support both role names (string) and role objects with rank property
+    const userRank = PermissionsService.getRoleLevel(userRoleOrObject);
 
-      // Super Admin only routes
-      "/settings/advanced": ["Super Admin"],
-      "/system": ["Super Admin"],
-
-      // Public routes (all authenticated users)
-      "/": [
-        "Super Admin",
-        "Admin",
-        "Manager",
-        "Sales Manager",
-        "Project Manager",
-        "Finance Manager",
-        "Account Manager",
-        "Sales Representative",
-        "Developer",
-        "Read-only User",
-      ],
-      "/profile": [
-        "Super Admin",
-        "Admin",
-        "Manager",
-        "Sales Manager",
-        "Project Manager",
-        "Finance Manager",
-        "Account Manager",
-        "Sales Representative",
-        "Developer",
-        "Read-only User",
-      ],
-      "/activity": [
-        "Super Admin",
-        "Admin",
-        "Manager",
-        "Sales Manager",
-        "Project Manager",
-        "Finance Manager",
-        "Account Manager",
-        "Sales Representative",
-        "Developer",
-        "Read-only User",
-      ],
-    };
-
-    // Find matching route
-    const matchingRoute = Object.keys(routePermissions).find((routeKey) =>
-      route.startsWith(routeKey)
-    );
-
-    if (!matchingRoute) {
-      // If no specific route found, allow access (fallback)
-      return true;
+    // Rank-based route permissions
+    // Ranks 0-5 (Super Admin to Developer) have admin access
+    // Rank 0 (Super Admin) only for advanced routes
+    
+    // Super Admin only routes (rank 0)
+    const superAdminRoutes = ["/settings/advanced", "/system"];
+    if (superAdminRoutes.some(r => route.startsWith(r))) {
+      return userRank === 0;
     }
 
-    const allowedRoles = routePermissions[matchingRoute];
-    return allowedRoles.includes(userRole);
+    // Admin routes (rank <= 5: Super Admin, Admin, Manager, Sales Manager, Project Manager, Developer)
+    const adminRoutes = [
+      "/users",
+      "/users/new", 
+      "/users/roles",
+      "/organization",
+      "/organization/departments",
+      "/settings",
+      "/settings/general",
+      "/settings/notifications",
+      "/settings/integrations"
+    ];
+    if (adminRoutes.some(r => route.startsWith(r))) {
+      return userRank <= 5;
+    }
+
+    // Public routes (all authenticated users with any rank)
+    const publicRoutes = ["/", "/profile", "/activity"];
+    if (publicRoutes.some(r => route.startsWith(r))) {
+      return true; // All authenticated users can access public routes
+    }
+
+    // If no specific route found, allow access (fallback for other routes)
+    return true;
   };
 
   // Show loading state while checking

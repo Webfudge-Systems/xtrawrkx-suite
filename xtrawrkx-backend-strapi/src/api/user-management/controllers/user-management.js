@@ -78,8 +78,9 @@ module.exports = {
 
             // Check if user can create users (must be admin level or higher)
             const currentUserLevel = userRoleService.getRoleLevel(userRole);
-            // Only roles with rank below 6 (i.e., 0..5) can create users
-            if (currentUserLevel >= 6) {
+            // Only roles with rank 5 or below (0-5) can create users
+            // 0: Super Admin, 1: Admin, 2: Manager, 3: Sales Manager, 4: Project Manager, 5: Developer
+            if (currentUserLevel > 5) {
                 return ctx.forbidden(`Insufficient permissions to create users. Current role: ${userRole}`);
             }
 
@@ -312,7 +313,7 @@ module.exports = {
                 return currentUserLevel < targetUserLevel;
             });
 
-            // Format user data with populated department
+            // Format user data with populated department and primaryRole
             const formattedUsers = editableUsers.map(user => ({
                 id: user.id,
                 email: user.email,
@@ -320,6 +321,7 @@ module.exports = {
                 lastName: user.lastName,
                 name: `${user.firstName} ${user.lastName}`.trim(),
                 role: user.primaryRole?.name || user.role,
+                primaryRole: user.primaryRole, // Include full primaryRole object for custom role support
                 department: user.department ? {
                     id: user.department.id,
                     name: user.department.name,

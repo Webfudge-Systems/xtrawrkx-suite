@@ -191,6 +191,7 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
     getRoleHierarchy() {
         // Rank-based hierarchy (lower number = higher authority).
         // Super Admin is rank 0 (highest authority).
+        // Ranks 0-5 have admin access to all features
         return {
             'Super Admin': 0,
             'SUPER_ADMIN': 0,
@@ -208,17 +209,17 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
             'Project Manager': 4,
             'PROJECT_MANAGER': 4,
 
-            'Finance Manager': 5,
-            'FINANCE': 5,
+            'Developer': 5,
+            'DEVELOPER': 5,
 
-            'Account Manager': 6,
-            'ACCOUNT_MANAGER': 6,
+            'Finance Manager': 6,
+            'FINANCE': 6,
 
-            'Sales Representative': 7,
-            'SALES_REP': 7,
+            'Account Manager': 7,
+            'ACCOUNT_MANAGER': 7,
 
-            'Developer': 8,
-            'DEVELOPER': 8,
+            'Sales Representative': 8,
+            'SALES_REP': 8,
 
             'Read-only User': 9,
             'READ_ONLY': 9
@@ -420,10 +421,30 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     }
                 },
                 {
+                    name: 'Developer',
+                    description: 'Development team member with full access',
+                    isSystemRole: true,
+                    rank: 5,
+                    color: 'from-indigo-500 to-indigo-600',
+                    icon: 'Wrench',
+                    visibility: 'team',
+                    permissions: {
+                        leads: { create: true, read: true, update: true, delete: false, convert: true },
+                        accounts: { create: true, read: true, update: true, delete: false },
+                        contacts: { create: true, read: true, update: true, delete: false },
+                        deals: { create: true, read: true, update: true, delete: false },
+                        projects: { create: true, read: true, update: true, delete: false },
+                        tasks: { create: true, read: true, update: true, delete: false },
+                        imports: { create: true, read: true, update: true, delete: false, import: true },
+                        exports: { create: true, read: true, update: true, delete: false, export: true },
+                        reports: { create: true, read: true, update: true, delete: false }
+                    }
+                },
+                {
                     name: 'Finance Manager',
                     description: 'Financial data and reporting management',
                     isSystemRole: true,
-                    rank: 5,
+                    rank: 6,
                     color: 'from-emerald-500 to-emerald-600',
                     icon: 'DollarSign',
                     visibility: 'team',
@@ -443,7 +464,7 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     name: 'Account Manager',
                     description: 'Client relationship management',
                     isSystemRole: true,
-                    rank: 6,
+                    rank: 7,
                     color: 'from-cyan-500 to-cyan-600',
                     icon: 'Briefcase',
                     visibility: 'private',
@@ -463,7 +484,7 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                     name: 'Sales Representative',
                     description: 'Sales and customer management',
                     isSystemRole: true,
-                    rank: 7,
+                    rank: 8,
                     color: 'from-green-500 to-green-600',
                     icon: 'UserCheck',
                     visibility: 'private',
@@ -476,26 +497,6 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
                         tasks: { create: false, read: true, update: false, delete: false },
                         imports: { create: false, read: true, update: false, delete: false, import: true },
                         exports: { create: false, read: true, update: false, delete: false, export: true },
-                        reports: { create: false, read: true, update: false, delete: false }
-                    }
-                },
-                {
-                    name: 'Developer',
-                    description: 'Development team member',
-                    isSystemRole: true,
-                    rank: 8,
-                    color: 'from-indigo-500 to-indigo-600',
-                    icon: 'Wrench',
-                    visibility: 'private',
-                    permissions: {
-                        leads: { create: false, read: false, update: false, delete: false, convert: false },
-                        accounts: { create: false, read: false, update: false, delete: false },
-                        contacts: { create: false, read: false, update: false, delete: false },
-                        deals: { create: false, read: false, update: false, delete: false },
-                        projects: { create: false, read: true, update: false, delete: false },
-                        tasks: { create: false, read: true, update: true, delete: false },
-                        imports: { create: false, read: false, update: false, delete: false, import: false },
-                        exports: { create: false, read: false, update: false, delete: false, export: false },
                         reports: { create: false, read: true, update: false, delete: false }
                     }
                 },
