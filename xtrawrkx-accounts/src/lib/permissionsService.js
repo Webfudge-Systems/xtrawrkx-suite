@@ -139,29 +139,6 @@ class PermissionsService {
     }
 
     /**
-     * Validate that no two roles share the same numeric rank.
-     * Logs error(s) if duplicates exist and returns boolean.
-     */
-    static validateUniqueRanks() {
-        const hierarchy = this.getRoleHierarchy();
-        const seen = new Map();
-        const duplicates = [];
-        for (const [role, rank] of Object.entries(hierarchy)) {
-            if (seen.has(rank)) {
-                duplicates.push({ rank, roles: [seen.get(rank), role] });
-            } else {
-                seen.set(rank, role);
-            }
-        }
-
-        if (duplicates.length > 0) {
-            console.error('Duplicate role ranks detected:', duplicates);
-            return false;
-        }
-        return true;
-    }
-
-    /**
      * Get role badge color for UI consistency
      */
     static getRoleBadgeColor(role) {

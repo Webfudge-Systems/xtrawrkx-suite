@@ -546,46 +546,5 @@ module.exports = createCoreService('api::user-role.user-role', ({ strapi }) => (
         } catch (error) {
             console.error('Error creating default roles:', error);
         }
-    },
-
-    /**
-     * Update all existing roles to have unique ranks based on the hierarchy
-     * Call this method to fix any duplicate ranks in the database
-     */
-    async updateRolesToUniqueRanks() {
-        try {
-            const rankMapping = {
-                'Super Admin': 0,
-                'Admin': 1,
-                'Manager': 2,
-                'Sales Manager': 3,
-                'Project Manager': 4,
-                'Finance Manager': 5,
-                'Account Manager': 6,
-                'Sales Representative': 7,
-                'Developer': 8,
-                'Read-only User': 9
-            };
-
-            // Get all roles
-            const allRoles = await strapi.db.query('api::user-role.user-role').findMany();
-
-            for (const role of allRoles) {
-                const newRank = rankMapping[role.name];
-                if (newRank !== undefined && role.rank !== newRank) {
-                    await strapi.db.query('api::user-role.user-role').update({
-                        where: { id: role.id },
-                        data: { rank: newRank }
-                    });
-                    console.log(`Updated ${role.name} from rank ${role.rank} to ${newRank}`);
-                }
-            }
-
-            console.log('Finished updating all roles to unique ranks');
-            return { success: true, message: 'All roles updated successfully' };
-        } catch (error) {
-            console.error('Error updating roles to unique ranks:', error);
-            return { success: false, error: error.message };
-        }
     }
 }));

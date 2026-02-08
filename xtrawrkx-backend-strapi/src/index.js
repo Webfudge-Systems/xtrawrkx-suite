@@ -17,19 +17,11 @@ module.exports = {
    * run jobs, or perform some special logic.
    */
   async bootstrap({ strapi }) {
-    // Initialize default user roles and fix duplicate ranks
+    // Initialize default user roles
     try {
       console.log('Initializing default user roles...');
       await strapi.service('api::user-role.user-role').createDefaultRoles();
-      
-      console.log('Fixing any duplicate ranks...');
-      const result = await strapi.service('api::user-role.user-role').updateRolesToUniqueRanks();
-      
-      if (result.success) {
-        console.log('✓ User roles initialized successfully with unique ranks');
-      } else {
-        console.warn('⚠ Warning: Issue updating role ranks:', result.error);
-      }
+      console.log('✓ User roles initialized successfully');
     } catch (error) {
       console.error('Error initializing default roles:', error);
     }

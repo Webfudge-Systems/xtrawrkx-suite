@@ -67,30 +67,6 @@ const customRoutes = {
             config: {
                 auth: false
             }
-        },
-        {
-            method: 'POST',
-            path: '/user-roles/initialize-defaults',
-            handler: 'user-role.initializeDefaultRoles',
-            config: {
-                auth: false
-            }
-        },
-        {
-            method: 'POST',
-            path: '/user-roles/fix-duplicate-ranks',
-            handler: 'user-role.fixDuplicateRanks',
-            config: {
-                auth: false
-            }
-        },
-        {
-            method: 'GET',
-            path: '/user-roles/validate-ranks',
-            handler: 'user-role.validateUniqueRanks',
-            config: {
-                auth: false
-            }
         }
     ]
 };
