@@ -149,14 +149,16 @@ function UserManagementPage() {
         return;
       }
 
-      // Check if user has admin permissions using the new role system
-      const hasAdminAccess =
-        user.user.role === "Super Admin" ||
-        user.user.role === "Admin" ||
-        user.user.role === "ADMIN"; // Fallback for old system
+      // Check if user has admin permissions using rank-based system
+      // Ranks 0-5 (Super Admin, Admin, Manager, Sales Manager, Project Manager, Developer) have access
+      // Support custom roles by checking primaryRole object if available
+      const userRank = user.user.primaryRole 
+        ? PermissionsService.getRoleLevel(user.user.primaryRole)
+        : PermissionsService.getRoleLevel(user.user.role);
+      const hasAdminAccess = userRank <= 5;
 
       if (user.type !== "internal" || !hasAdminAccess) {
-        setError("Access denied. Admin privileges required.");
+        setError("Access denied. You need rank 5 or below to access user management.");
         setLoading(false);
         return;
       }
@@ -433,12 +435,14 @@ function UserManagementPage() {
 
   /**
    * Check if current user can edit a specific user based on role hierarchy
+   * Supports both built-in roles (string names) and custom roles (primaryRole objects)
    */
   const canEditUser = (targetUser) => {
     if (!currentUser) return false;
 
-    const currentUserRole = currentUser.role;
-    const targetUserRole = targetUser.role;
+    // Use primaryRole object if available (for custom roles), otherwise use role name
+    const currentUserRole = currentUser.primaryRole || currentUser.role;
+    const targetUserRole = targetUser.primaryRole || targetUser.role;
 
     return PermissionsService.canEditUser(currentUserRole, targetUserRole);
   };
@@ -453,8 +457,9 @@ function UserManagementPage() {
     // Can't delete yourself
     if (currentUser.id === targetUser.id) return false;
 
-    const currentUserRole = currentUser.role;
-    const targetUserRole = targetUser.role;
+    // Use primaryRole object if available (for custom roles), otherwise use role name
+    const currentUserRole = currentUser.primaryRole || currentUser.role;
+    const targetUserRole = targetUser.primaryRole || targetUser.role;
 
     // Can delete if you can edit the user (same permission level)
     return PermissionsService.canEditUser(currentUserRole, targetUserRole);
@@ -1090,8 +1095,8 @@ function UserManagementPage() {
                           {user.role}
                         </span>
                         {currentUser &&
-                          PermissionsService.getRoleLevel(user.role) <=
-                            PermissionsService.getRoleLevel(currentUser.role) && (
+                          PermissionsService.getRoleLevel(user.primaryRole || user.role) <=
+                            PermissionsService.getRoleLevel(currentUser.primaryRole || currentUser.role) && (
                             <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded-full font-medium">
                               Same/Higher Authority
                             </span>

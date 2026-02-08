@@ -66,16 +66,17 @@ function getUserRoleFromStorage() {
  */
 function hasPermission(userRole, requiredLevel) {
     // Rank-based system (lower number = higher authority). Matches PermissionsService.
+    // Ranks 0-5 have admin access to all features
     const roleLevels = {
         'Super Admin': 0,
         'Admin': 1,
         'Manager': 2,
         'Sales Manager': 3,
         'Project Manager': 4,
-        'Finance Manager': 5,
-        'Account Manager': 6,
-        'Sales Representative': 7,
-        'Developer': 8,
+        'Developer': 5,
+        'Finance Manager': 6,
+        'Account Manager': 7,
+        'Sales Representative': 8,
         'Read-only User': 9
     };
 
