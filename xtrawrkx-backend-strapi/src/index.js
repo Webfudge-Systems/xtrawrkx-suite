@@ -17,7 +17,7 @@ module.exports = {
    * run jobs, or perform some special logic.
    */
   async bootstrap({ strapi }) {
-    // Initialize default user roles
+    // Initialize default user roles and fix duplicate ranks
     try {
       console.log('Initializing default user roles...');
       await strapi.service('api::user-role.user-role').createDefaultRoles();
