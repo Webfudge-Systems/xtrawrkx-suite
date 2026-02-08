@@ -152,6 +152,13 @@ export default function LoginPage() {
       // Store user info and token using AuthService
       const AuthService = (await import("@/lib/authService")).default;
 
+      // Import PermissionsService to check role rank
+      const PermissionsService = (await import("@/lib/permissionsService")).default;
+      
+      // Check if user has admin access based on rank (rank < 6 = full permissions)
+      const roleRank = PermissionsService.getRoleLevel(mappedRole);
+      const hasAdminAccess = roleRank < 6;
+
       const userData = {
         email: data.user.email || formData.email,
         firstName: data.user.firstName || "",
@@ -162,10 +169,7 @@ export default function LoginPage() {
           data.user.name ||
           `${data.user.firstName || ""} ${data.user.lastName || ""}`.trim() ||
           data.user.email,
-        permissions:
-          mappedRole === "Admin" || mappedRole === "Super Admin"
-            ? "full"
-            : "limited",
+        permissions: hasAdminAccess ? "full" : "limited",
         loginTime: new Date().toISOString(),
         token: data.token,
       };
