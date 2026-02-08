@@ -39,8 +39,15 @@ module.exports = {
                 // Use Strapi's JWT service to verify token
                 decoded = strapi.plugins['users-permissions'].services.jwt.verify(token);
             } catch (jwtError) {
-                // For now, let's continue without strict authentication to test user creation
-                decoded = { id: 1, type: 'internal', role: 'Super Admin' }; // Mock admin user
+                // Fallback to manual JWT verification with the JWT_SECRET
+                const jwt = require('jsonwebtoken');
+                const jwtSecret = process.env.JWT_SECRET || 'myJwtSecret123456789012345678901234567890';
+                
+                try {
+                    decoded = jwt.verify(token, jwtSecret);
+                } catch (manualError) {
+                    return ctx.unauthorized('Invalid token');
+                }
             }
 
             // Get the current user from the token (or use mock for testing)
@@ -258,7 +265,15 @@ module.exports = {
             try {
                 decoded = strapi.plugins['users-permissions'].services.jwt.verify(token);
             } catch (jwtError) {
-                return ctx.unauthorized('Invalid token');
+                // Fallback to manual JWT verification with the JWT_SECRET
+                const jwt = require('jsonwebtoken');
+                const jwtSecret = process.env.JWT_SECRET || 'myJwtSecret123456789012345678901234567890';
+                
+                try {
+                    decoded = jwt.verify(token, jwtSecret);
+                } catch (manualError) {
+                    return ctx.unauthorized('Invalid token');
+                }
             }
 
             // Get current user with department (excluding custom roles)
@@ -349,7 +364,15 @@ module.exports = {
             try {
                 decoded = strapi.plugins['users-permissions'].services.jwt.verify(token);
             } catch (jwtError) {
-                return ctx.unauthorized('Invalid token');
+                // Fallback to manual JWT verification with the JWT_SECRET
+                const jwt = require('jsonwebtoken');
+                const jwtSecret = process.env.JWT_SECRET || 'myJwtSecret123456789012345678901234567890';
+                
+                try {
+                    decoded = jwt.verify(token, jwtSecret);
+                } catch (manualError) {
+                    return ctx.unauthorized('Invalid token');
+                }
             }
 
             // Get current user (excluding custom roles)
