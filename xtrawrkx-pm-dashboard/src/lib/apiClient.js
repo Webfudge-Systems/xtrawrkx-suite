@@ -183,13 +183,14 @@ class ApiClient {
             });
 
             if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-                // Check if it's a CORS issue
                 const corsError = error.message?.includes('CORS') ||
                     error.message?.includes('Access-Control');
                 if (corsError) {
                     throw new Error(`CORS error: The backend at ${this.baseURL} is blocking requests. Please check CORS configuration in Strapi.`);
                 }
-                throw new Error(`Network error: Cannot connect to the server at ${this.baseURL}. Please ensure the backend API is running and CORS is configured.`);
+                throw new Error(
+                    `Cannot reach the server at ${this.baseURL}. Often DNS or local network (e.g. ERR_NAME_NOT_RESOLVED), not CORS or a global outage. Try another network or DNS.`
+                );
             }
             throw error;
         }

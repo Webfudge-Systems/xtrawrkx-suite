@@ -26,10 +26,12 @@ class AuthService {
                     body: JSON.stringify({ email, password }),
                 });
             } catch (fetchError) {
-                // Network error (CORS, connection failure, etc.)
+                // DNS failure, offline, TLS, etc. — browser often reports TypeError / Failed to fetch (not CORS).
                 console.error('Fetch error:', fetchError);
                 if (fetchError.message?.includes('Failed to fetch') || fetchError.name === 'TypeError') {
-                    throw new Error('Network error: Cannot connect to the server. Please ensure the backend API is running at ' + this.baseURL + ' and CORS is configured correctly.');
+                    throw new Error(
+                        'Cannot reach the API at ' + this.baseURL + '. This is usually a device or network issue (e.g. ERR_NAME_NOT_RESOLVED or Failed to fetch in DevTools), not CORS. Try another Wi-Fi, mobile data, turn off VPN or private DNS, or use public DNS. The server can still be online for other users.'
+                    );
                 }
                 throw fetchError;
             }
