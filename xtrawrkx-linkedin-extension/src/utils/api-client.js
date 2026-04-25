@@ -238,6 +238,27 @@ class ExtensionApiClient {
         });
     }
 
+    /**
+     * Syncs captured LinkedIn HTML to CRM: Strapi calls extract service (LINKEDIN_EXTRACT_API_URL), upserts contact, logs activity.
+     * Body: { url, html, title?, capturedAt?, storeHtml?, assignedTo? }
+     */
+    async syncLinkedInEnrichedProfile(payload) {
+        return this.request('/contacts/sync-linkedin-enriched', {
+            method: 'POST',
+            body: payload,
+        });
+    }
+
+    /**
+     * AI outreach variants (short DM, pitch, sales). Proxied via Strapi to extract service.
+     */
+    async generateLinkedInOutreach(payload) {
+        return this.request('/contacts/generate-linkedin-outreach', {
+            method: 'POST',
+            body: payload,
+        });
+    }
+
     async checkDuplicateCompany(linkedInUrl) {
         try {
             const queryParams = new URLSearchParams({

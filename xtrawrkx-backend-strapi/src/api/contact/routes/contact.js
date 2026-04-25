@@ -42,7 +42,23 @@ const myExtraRoutes = [
         config: {
             auth: false,
         },
-    }
+    },
+    {
+        method: 'POST',
+        path: '/contacts/sync-linkedin-enriched',
+        handler: 'contact.syncLinkedInEnriched',
+        config: {
+            auth: false,
+        },
+    },
+    {
+        method: 'POST',
+        path: '/contacts/generate-linkedin-outreach',
+        handler: 'contact.generateLinkedInOutreach',
+        config: {
+            auth: false,
+        },
+    },
 ];
 
 // Custom router function to combine default and custom routes

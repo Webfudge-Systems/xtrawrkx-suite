@@ -25,6 +25,7 @@
       ],
       "js": [
         "src/utils/logger.js",
+        "src/content/profile-page-capture.js",
         "src/content/linkedin-extractor.js"
       ],
       "css": [

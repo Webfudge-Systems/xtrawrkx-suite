@@ -158,8 +158,8 @@
         >
           <div class="xtrawrkx-loading-card">
             <div class="xtrawrkx-spinner"></div>
-            <h3>Analyzing LinkedIn Page</h3>
-            <p>Extracting contact and company data...</p>
+            <h3>Please wait</h3>
+            <p>Loading…</p>
           </div>
         </div>
 
@@ -707,6 +707,12 @@
 
           <!-- Action Button -->
           <div class="xtrawrkx-existing-actions">
+            <button
+              type="button"
+              class="btn-generate-pitch xtrawrkx-generate-pitch-trigger xtrawrkx-generate-pitch-existing"
+            >
+              <span>Generate Pitch</span>
+            </button>
             <button class="btn-view-crm" id="xtrawrkx-view-crm-btn">
               <span>View in CRM</span>
               <div class="btn-icon">
@@ -744,9 +750,18 @@
                 </div>
               </div>
             </div>
-            <button class="btn-add-xtrawrkx" id="xtrawrkx-import-btn">
-              <span>Add To CRM</span>
-            </button>
+            <div class="xtrawrkx-profile-actions">
+              <button class="btn-add-xtrawrkx" id="xtrawrkx-import-btn">
+                <span>Analyze Profile</span>
+              </button>
+              <button
+                type="button"
+                class="btn-generate-pitch xtrawrkx-generate-pitch-trigger xtrawrkx-generate-pitch-sidebar"
+                style="display: none"
+              >
+                <span>Generate Pitch</span>
+              </button>
+            </div>
           </div>
 
           <div class="xtrawrkx-divider"></div>
@@ -922,6 +937,87 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Outreach variants modal -->
+      <div
+        id="xtrawrkx-outreach-modal"
+        class="xtrawrkx-outreach-modal"
+        style="display: none"
+        aria-hidden="true"
+        role="dialog"
+        aria-labelledby="xtrawrkx-outreach-title"
+      >
+        <div class="xtrawrkx-outreach-backdrop" aria-hidden="true"></div>
+        <div class="xtrawrkx-outreach-dialog">
+          <div class="xtrawrkx-outreach-header">
+            <h2 id="xtrawrkx-outreach-title">Generated outreach</h2>
+            <button
+              type="button"
+              id="xtrawrkx-outreach-close"
+              class="xtrawrkx-outreach-close"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          <div class="xtrawrkx-outreach-body">
+            <section class="xtrawrkx-outreach-block">
+              <div class="xtrawrkx-outreach-block-head">
+                <label for="xtrawrkx-outreach-dm">Short DM</label>
+                <button
+                  type="button"
+                  class="btn-secondary xtrawrkx-copy-btn"
+                  data-copy-target="xtrawrkx-outreach-dm"
+                >
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="xtrawrkx-outreach-dm"
+                readonly
+                rows="4"
+                class="xtrawrkx-outreach-textarea"
+              ></textarea>
+            </section>
+            <section class="xtrawrkx-outreach-block">
+              <div class="xtrawrkx-outreach-block-head">
+                <label for="xtrawrkx-outreach-pitch">Personalized pitch</label>
+                <button
+                  type="button"
+                  class="btn-secondary xtrawrkx-copy-btn"
+                  data-copy-target="xtrawrkx-outreach-pitch"
+                >
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="xtrawrkx-outreach-pitch"
+                readonly
+                rows="6"
+                class="xtrawrkx-outreach-textarea"
+              ></textarea>
+            </section>
+            <section class="xtrawrkx-outreach-block">
+              <div class="xtrawrkx-outreach-block-head">
+                <label for="xtrawrkx-outreach-sales">Sales message</label>
+                <button
+                  type="button"
+                  class="btn-secondary xtrawrkx-copy-btn"
+                  data-copy-target="xtrawrkx-outreach-sales"
+                >
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="xtrawrkx-outreach-sales"
+                readonly
+                rows="6"
+                class="xtrawrkx-outreach-textarea"
+              ></textarea>
+            </section>
           </div>
         </div>
       </div>

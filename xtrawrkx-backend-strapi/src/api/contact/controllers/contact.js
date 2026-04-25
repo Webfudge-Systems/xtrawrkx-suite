@@ -6,6 +6,88 @@
 
 const { createCoreController } = require('@strapi/strapi').factories;
 
+const MAX_LINKEDIN_HTML_SNAPSHOT_CHARS = 600000;
+
+function normalizeLinkedInProfileUrl(input) {
+    if (!input || typeof input !== 'string') return '';
+    const m = input.trim().match(/linkedin\.com\/in\/([^\/\?#]+)/i);
+    if (!m) return input.trim();
+    return `https://www.linkedin.com/in/${m[1].toLowerCase()}`;
+}
+
+function splitDisplayName(name) {
+    const t = (name || '').trim();
+    if (!t) return { firstName: 'Unknown', lastName: 'Unknown' };
+    const parts = t.split(/\s+/);
+    if (parts.length === 1) return { firstName: parts[0], lastName: '-' };
+    return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+function placeholderEmailFromLinkedIn(linkedInUrl) {
+    if (!linkedInUrl) return 'linkedin-noemail@xtrawrkx.placeholder';
+    const match = linkedInUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
+    if (match && match[1]) {
+        const slug = match[1].toLowerCase().replace(/[^a-z0-9-]/g, '-');
+        return `${slug}@xtrawrkx.placeholder`;
+    }
+    const normalized = linkedInUrl.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 50);
+    return `${normalized || 'contact'}@xtrawrkx.placeholder`;
+}
+
+async function fetchGenerateOutreachPayload(payload) {
+    const base = process.env.LINKEDIN_EXTRACT_API_URL;
+    if (!base) {
+        const err = new Error('LINKEDIN_EXTRACT_API_URL is not configured on the server');
+        err.status = 503;
+        throw err;
+    }
+    const endpoint = `${String(base).replace(/\/$/, '')}/generate-outreach`;
+    const headers = { 'Content-Type': 'application/json' };
+    const secret = process.env.LINKEDIN_EXTRACT_API_SECRET;
+    if (secret) {
+        headers.Authorization = `Bearer ${secret}`;
+    }
+    const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        const err = new Error(`Outreach service error: ${res.status} ${text.slice(0, 300)}`);
+        err.status = 502;
+        throw err;
+    }
+    return res.json();
+}
+
+async function fetchExtractServicePayload({ url, html, title, capturedAt }) {
+    const base = process.env.LINKEDIN_EXTRACT_API_URL;
+    if (!base) {
+        const err = new Error('LINKEDIN_EXTRACT_API_URL is not configured on the server');
+        err.status = 503;
+        throw err;
+    }
+    const endpoint = `${String(base).replace(/\/$/, '')}/extract-linkedin`;
+    const headers = { 'Content-Type': 'application/json' };
+    const secret = process.env.LINKEDIN_EXTRACT_API_SECRET;
+    if (secret) {
+        headers.Authorization = `Bearer ${secret}`;
+    }
+    const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ url, html, title, capturedAt }),
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        const err = new Error(`LinkedIn extract service error: ${res.status} ${text.slice(0, 300)}`);
+        err.status = 502;
+        throw err;
+    }
+    return res.json();
+}
+
 module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
     /**
      * Create a new contact
@@ -598,5 +680,206 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                 }
             };
         }
-    }
+    },
+
+    /**
+     * Upsert contact from enriched LinkedIn pipeline.
+     * Body: either { url, html, title?, capturedAt?, storeHtml?, assignedTo? } (server calls extract API)
+     * or { profileUrl, linkedin, enrichment, insights, html?, storeHtml?, assignedTo? } (client-supplied bundle).
+     */
+    async syncLinkedInEnriched(ctx) {
+        try {
+            const body = ctx.request.body || {};
+            const assignedTo = body.assignedTo != null ? body.assignedTo : null;
+            const storeHtml = body.storeHtml !== false;
+
+            let profileUrl = body.profileUrl || body.url || '';
+            let linkedin;
+            let enrichment;
+            let insights;
+            let html = typeof body.html === 'string' ? body.html : '';
+
+            if (body.linkedin && body.enrichment && body.insights) {
+                linkedin = body.linkedin;
+                enrichment = body.enrichment;
+                insights = body.insights;
+                if (!profileUrl) {
+                    profileUrl = body.linkedinProfileUrl || '';
+                }
+            } else if (body.url && body.html) {
+                const extracted = await fetchExtractServicePayload({
+                    url: body.url,
+                    html: body.html,
+                    title: body.title,
+                    capturedAt: body.capturedAt,
+                });
+                linkedin = extracted.linkedin;
+                enrichment = extracted.enrichment;
+                insights = extracted.insights;
+                profileUrl = normalizeLinkedInProfileUrl(body.url);
+            } else {
+                return ctx.badRequest(
+                    'Provide either (url + html) for server-side extract, or linkedin + enrichment + insights with profileUrl',
+                );
+            }
+
+            if (!linkedin || typeof linkedin !== 'object') {
+                return ctx.badRequest('Invalid linkedin profile object');
+            }
+
+            const normalizedUrl = profileUrl
+                ? normalizeLinkedInProfileUrl(profileUrl)
+                : '';
+
+            if (!normalizedUrl) {
+                return ctx.badRequest('profileUrl or url is required');
+            }
+
+            const { firstName, lastName } = splitDisplayName(linkedin.name);
+            const email = placeholderEmailFromLinkedIn(normalizedUrl);
+
+            const snapshot = {
+                linkedin,
+                enrichment: enrichment || {},
+                insights: insights || {},
+                syncedAt: new Date().toISOString(),
+            };
+
+            let htmlSnapshot = null;
+            if (storeHtml && html) {
+                htmlSnapshot =
+                    html.length > MAX_LINKEDIN_HTML_SNAPSHOT_CHARS
+                        ? html.slice(0, MAX_LINKEDIN_HTML_SNAPSHOT_CHARS)
+                        : html;
+            }
+
+            const slugMatch = normalizedUrl.match(/\/in\/([^\/\?#]+)/i);
+            const slug = slugMatch ? slugMatch[1].toLowerCase() : '';
+
+            const candidates = await strapi.entityService.findMany('api::contact.contact', {
+                filters: {
+                    $or: [
+                        { linkedIn: { $eq: normalizedUrl } },
+                        ...(slug ? [{ linkedIn: { $containsi: `/in/${slug}` } }] : []),
+                    ],
+                },
+                limit: 10,
+                populate: ['assignedTo'],
+            });
+
+            const existing =
+                (candidates || []).find(
+                    (c) =>
+                        normalizeLinkedInProfileUrl(c.linkedIn || '') === normalizedUrl ||
+                        (slug &&
+                            String(c.linkedIn || '')
+                                .toLowerCase()
+                                .includes(`/in/${slug}`)),
+                ) || null;
+
+            const payload = {
+                firstName: firstName || 'Unknown',
+                lastName: lastName || 'Unknown',
+                email,
+                title: linkedin.headline || '',
+                location: linkedin.location || '',
+                description: linkedin.about || '',
+                linkedIn: normalizedUrl,
+                twitter: (enrichment && enrichment.twitter) || '',
+                source: 'EXTENSION',
+                status: 'ACTIVE',
+                linkedinProfileData: snapshot,
+                linkedinHtmlSnapshot: htmlSnapshot,
+                linkedinPersona: (insights && insights.persona) || '',
+                linkedinIndustry: (insights && insights.industry) || '',
+                linkedinLeadScore: (insights && insights.lead_score) || '',
+            };
+
+            if (assignedTo) {
+                payload.assignedTo = assignedTo;
+            }
+
+            let entity;
+            let created = false;
+
+            if (existing) {
+                delete payload.email;
+                entity = await strapi.entityService.update('api::contact.contact', existing.id, {
+                    data: payload,
+                    populate: {
+                        leadCompany: true,
+                        clientAccount: true,
+                        assignedTo: true,
+                    },
+                });
+            } else {
+                payload.role = 'PRIMARY_CONTACT';
+                entity = await strapi.entityService.create('api::contact.contact', {
+                    data: payload,
+                    populate: {
+                        leadCompany: true,
+                        clientAccount: true,
+                        assignedTo: true,
+                    },
+                });
+                created = true;
+            }
+
+            const activityData = {
+                type: 'CONTACT',
+                activityType: 'NOTE',
+                title: 'LinkedIn profile analyzed',
+                description: `Profile synced from LinkedIn. Persona: ${(insights && insights.persona) || 'n/a'}. Lead score: ${(insights && insights.lead_score) || 'n/a'}.`,
+                status: 'COMPLETED',
+                completedDate: new Date(),
+                contact: entity.id,
+            };
+            if (assignedTo) {
+                activityData.createdBy = assignedTo;
+                activityData.assignee = assignedTo;
+            }
+
+            await strapi.entityService.create('api::activity.activity', {
+                data: activityData,
+            });
+
+            return {
+                data: entity,
+                meta: {
+                    created,
+                    linkedIn: normalizedUrl,
+                },
+            };
+        } catch (error) {
+            strapi.log.error('syncLinkedInEnriched error:', error);
+            const status = error.status || 500;
+            if (status === 503 || status === 502) {
+                ctx.status = status;
+                ctx.body = { error: { message: error.message } };
+                return;
+            }
+            return ctx.badRequest(error.message || 'Failed to sync LinkedIn profile');
+        }
+    },
+
+    /**
+     * Proxy to LinkedIn extract service: personalized outreach (3 variants).
+     * Body: same as extract API — linkedinProfileData and/or linkedin, enrichment, insights, persona, potential_needs.
+     */
+    async generateLinkedInOutreach(ctx) {
+        try {
+            const body = ctx.request.body || {};
+            const data = await fetchGenerateOutreachPayload(body);
+            return { data };
+        } catch (error) {
+            strapi.log.error('generateLinkedInOutreach error:', error);
+            const status = error.status || 500;
+            if (status === 503 || status === 502) {
+                ctx.status = status;
+                ctx.body = { error: { message: error.message } };
+                return;
+            }
+            return ctx.badRequest(error.message || 'Failed to generate outreach');
+        }
+    },
 }));

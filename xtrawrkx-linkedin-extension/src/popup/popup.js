@@ -136,17 +136,14 @@ class PopupController {
         const url = window.location.href;
         const pathname = window.location.pathname;
 
-        // Profile page
-        if (pathname.includes('/in/')) {
+        // Profile page — metadata only; full HTML capture runs from the sidebar
+        if (pathname.includes('/in/') && !pathname.includes('/feed/')) {
             return {
                 type: 'profile',
                 data: {
-                    fullName: document.querySelector('h1')?.textContent?.trim() || '',
-                    headline: document.querySelector('.text-body-medium.break-words')?.textContent?.trim() || '',
-                    location: document.querySelector('.text-body-small.inline.t-black--light.break-words')?.textContent?.trim() || '',
                     profileUrl: url,
-                    // Try to extract current company
-                    currentCompany: document.querySelector('.pv-text-details__left-panel .text-body-medium')?.textContent?.trim() || ''
+                    linkedInUrl: url,
+                    pageTitle: document.title,
                 }
             };
         }

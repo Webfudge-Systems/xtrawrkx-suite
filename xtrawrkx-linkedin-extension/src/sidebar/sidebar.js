@@ -7,6 +7,8 @@ class SidebarController {
     constructor() {
         this.isAuthenticated = false;
         this.currentPageData = null;
+        /** Last CRM snapshot from a successful Analyze (linkedin + enrichment + insights). */
+        this.lastLinkedInSnapshot = null;
         this.logger = typeof getLogger !== 'undefined' ? getLogger() : null;
         this.errorHandler = typeof getErrorHandler !== 'undefined' ? getErrorHandler() : null;
         this.init();
@@ -46,26 +48,27 @@ class SidebarController {
                 if (oldUrl && newUrl && oldUrl !== newUrl) {
                     this.currentExistingContact = null;
                     this.currentPageData = null;
+                    this.lastLinkedInSnapshot = null;
                 }
                 
                 this.lastKnownUrl = newUrl;
                 
-                // Process the data
-                const formattedData = {
-                    data: message.data,
-                    url: newUrl,
-                    timestamp: message.timestamp
+                const payload = message.data;
+                this.currentPageData = {
+                    type: payload?.type,
+                    url: payload?.url || newUrl,
+                    data: payload?.data,
+                    timestamp: message.timestamp,
                 };
-                
-                this.currentPageData = formattedData;
-                
-                // Check for existing contact if authenticated
-                if (this.isAuthenticated && formattedData.data) {
-                    const linkedInUrl = formattedData.data.linkedInUrl || formattedData.data.profileUrl;
+
+                const profileInner = payload?.data;
+                const linkedInUrl = profileInner?.linkedInUrl || profileInner?.profileUrl;
+
+                if (this.isAuthenticated && profileInner) {
                     if (linkedInUrl) {
-                        this.checkExistingContact(linkedInUrl).then((result) => {
-                            if (result && result.exists) {
-                                this.showExistingLeadDetails(result.contact, formattedData.data);
+                        this.checkExistingContact(linkedInUrl).then((existingResult) => {
+                            if (existingResult && existingResult.exists) {
+                                this.showExistingLeadDetails(existingResult.contact, profileInner);
                             } else {
                                 this.updateUI();
                             }
@@ -432,13 +435,47 @@ class SidebarController {
             });
         }
 
-        // Import button (Add to CRM)
+        // Primary action: profile → analyze HTML capture; company/search → CRM import
         const importBtn = document.getElementById('xtrawrkx-import-btn');
         if (importBtn) {
             importBtn.addEventListener('click', () => {
-                this.handleImport();
+                const pageType = this.currentPageData?.type;
+                if (pageType === 'profile') {
+                    this.handleAnalyzeProfile();
+                } else {
+                    this.handleImport();
+                }
             });
         }
+
+        document.querySelectorAll('.xtrawrkx-generate-pitch-trigger').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                this.handleGeneratePitch();
+            });
+        });
+
+        const outreachClose = document.getElementById('xtrawrkx-outreach-close');
+        const outreachModal = document.getElementById('xtrawrkx-outreach-modal');
+        if (outreachClose && outreachModal) {
+            outreachClose.addEventListener('click', () => this.hideOutreachModal());
+            outreachModal.querySelector('.xtrawrkx-outreach-backdrop')?.addEventListener('click', () => {
+                this.hideOutreachModal();
+            });
+        }
+
+        document.querySelectorAll('.xtrawrkx-copy-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.getAttribute('data-copy-target');
+                if (!targetId) return;
+                const el = document.getElementById(targetId);
+                if (!el || !el.value) return;
+                navigator.clipboard.writeText(el.value).then(() => {
+                    this.showNotification('Copied to clipboard', 'success');
+                }).catch(() => {
+                    this.showNotification('Could not copy', 'error');
+                });
+            });
+        });
 
         // Share button
         const shareBtn = document.getElementById('xtrawrkx-share-btn');
@@ -503,6 +540,12 @@ class SidebarController {
 
         // Store current existing contact for CRM link
         this.currentExistingContact = contact;
+
+        const crmSnapshot =
+            contact?.linkedinProfileData ?? contact?.attributes?.linkedinProfileData;
+        if (crmSnapshot && typeof crmSnapshot === 'object' && Object.keys(crmSnapshot).length > 0) {
+            this.lastLinkedInSnapshot = crmSnapshot;
+        }
         
         // Set up a periodic check to detect URL changes even when showing existing contact
         // Clear any existing interval first
@@ -525,6 +568,7 @@ class SidebarController {
                         // Clear existing contact
                         this.currentExistingContact = null;
                         this.currentPageData = null;
+                        this.lastLinkedInSnapshot = null;
                         this.lastKnownUrl = currentUrl;
                         
                         // Request fresh data
@@ -1804,48 +1848,32 @@ class SidebarController {
         const data = this.currentPageData.data;
 
         const importBtn = document.getElementById('xtrawrkx-import-btn');
+        const pitchSidebarBtns = document.querySelectorAll('.xtrawrkx-generate-pitch-sidebar');
+        pitchSidebarBtns.forEach((b) => {
+            b.style.display = 'none';
+        });
 
         if (this.currentPageData.type === 'profile') {
-            // Update profile name
+            const displayName = data.pageTitle || data.name || data.fullName || 'LinkedIn profile';
+
+            // Update profile name (page title when DOM fields are not scraped)
             const profileName = document.getElementById('xtrawrkx-profile-name');
             if (profileName) {
-                profileName.textContent = data.name || data.fullName || 'Name';
+                profileName.textContent = displayName;
             }
 
-            // Update compatibility score
             const compatibilityScoreEl = document.getElementById('xtrawrkx-compatibility-score');
-            const scoreValueEl = document.getElementById('xtrawrkx-score-value');
-            if (data.compatibilityScore !== null && data.compatibilityScore !== undefined) {
-                if (compatibilityScoreEl) compatibilityScoreEl.style.display = 'flex';
-                if (scoreValueEl) {
-                    scoreValueEl.textContent = data.compatibilityScore;
-                    // Add color class based on score
-                    scoreValueEl.className = 'xtrawrkx-score-value';
-                    if (data.compatibilityScore >= 80) {
-                        scoreValueEl.classList.add('score-excellent');
-                    } else if (data.compatibilityScore >= 60) {
-                        scoreValueEl.classList.add('score-good');
-                    } else if (data.compatibilityScore >= 40) {
-                        scoreValueEl.classList.add('score-fair');
-                    } else {
-                        scoreValueEl.classList.add('score-poor');
-                    }
-                }
-            } else {
-                if (compatibilityScoreEl) compatibilityScoreEl.style.display = 'none';
-            }
+            if (compatibilityScoreEl) compatibilityScoreEl.style.display = 'none';
 
             // Update profile image - use new profilePhoto field
             const profileImage = document.getElementById('xtrawrkx-profile-image');
             if (profileImage) {
                 if (data.profilePhoto) {
-                    profileImage.innerHTML = `<img src="${this.escapeHtml(data.profilePhoto)}" alt="${this.escapeHtml(data.name || data.fullName || 'Profile')}" />`;
+                    profileImage.innerHTML = `<img src="${this.escapeHtml(data.profilePhoto)}" alt="${this.escapeHtml(displayName)}" />`;
                 } else if (data.profileImage) {
-                    // Fallback to old field name
-                    profileImage.innerHTML = `<img src="${this.escapeHtml(data.profileImage)}" alt="${this.escapeHtml(data.name || data.fullName || 'Profile')}" />`;
+                    profileImage.innerHTML = `<img src="${this.escapeHtml(data.profileImage)}" alt="${this.escapeHtml(displayName)}" />`;
                 } else {
-                    // Show default avatar
-                    const nameForAvatar = data.name || data.fullName || 'U';
+                    const nameForAvatar = displayName || 'U';
                     profileImage.innerHTML = `<div class="default-avatar">${nameForAvatar.charAt(0).toUpperCase()}</div>`;
                 }
             }
@@ -1949,10 +1977,12 @@ class SidebarController {
             // Show experience selection if multiple experiences are available
             this.updateExperienceSelection(data.allExperiences);
 
-            // Update import button
             if (importBtn) {
-                importBtn.innerHTML = '<span>Add to CRM</span>';
+                importBtn.innerHTML = '<span>Analyze Profile</span>';
             }
+            pitchSidebarBtns.forEach((b) => {
+                b.style.display = 'flex';
+            });
         } else if (this.currentPageData.type === 'company') {
             // For companies, show company name in profile
             const profileName = document.getElementById('xtrawrkx-profile-name');
@@ -2102,24 +2132,189 @@ class SidebarController {
         return div.innerHTML;
     }
 
+    sendTabMessage(tabId, message) {
+        return new Promise((resolve, reject) => {
+            chrome.tabs.sendMessage(tabId, message, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+                resolve(response);
+            });
+        });
+    }
+
+    async handleAnalyzeProfile() {
+        if (!this.isAuthenticated) {
+            this.showNotification('Please sign in first', 'error');
+            return;
+        }
+
+        const importBtn = document.getElementById('xtrawrkx-import-btn');
+        const loadingEl = document.getElementById('xtrawrkx-sidebar-loading');
+        const bodyEl = document.getElementById('xtrawrkx-sidebar-body');
+
+        if (importBtn) {
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<span>Working…</span>';
+        }
+        if (loadingEl) {
+            loadingEl.style.display = 'flex';
+            const titleEl = loadingEl.querySelector('h3');
+            const msgEl = loadingEl.querySelector('p');
+            if (titleEl) titleEl.textContent = 'Analyzing profile';
+            if (msgEl) {
+                msgEl.textContent = 'Scrolling the page, capturing HTML, and sending to Xtrawrkx…';
+            }
+        }
+        if (bodyEl) bodyEl.style.display = 'none';
+
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id || !tab.url?.includes('linkedin.com')) {
+                throw new Error('Open a LinkedIn profile tab first.');
+            }
+
+            const captureResponse = await this.sendTabMessage(tab.id, { type: 'CAPTURE_PROFILE_HTML' });
+            if (!captureResponse?.success || !captureResponse.payload) {
+                throw new Error(captureResponse?.error || 'Could not capture page HTML');
+            }
+
+            const apiResponse = await chrome.runtime.sendMessage({
+                type: 'SUBMIT_PROFILE_HTML_CAPTURE',
+                payload: captureResponse.payload,
+            });
+
+            if (!apiResponse?.success) {
+                throw new Error(apiResponse?.error || 'Server rejected the capture');
+            }
+
+            const syncMeta = apiResponse.data?.meta;
+            const syncMsg =
+                syncMeta?.created === false
+                    ? 'LinkedIn profile updated in CRM.'
+                    : 'LinkedIn profile saved to CRM.';
+            this.showNotification(syncMsg, 'success');
+
+            const wrapped = apiResponse.data;
+            const entity = wrapped?.data;
+            const snapshot =
+                entity?.linkedinProfileData ?? entity?.attributes?.linkedinProfileData;
+            if (snapshot && typeof snapshot === 'object') {
+                this.lastLinkedInSnapshot = snapshot;
+            }
+        } catch (error) {
+            console.error('handleAnalyzeProfile:', error);
+            this.showNotification(error.message || 'Analysis failed', 'error');
+        } finally {
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (bodyEl) bodyEl.style.display = 'block';
+            if (importBtn) {
+                importBtn.disabled = false;
+                importBtn.innerHTML = '<span>Analyze Profile</span>';
+            }
+        }
+    }
+
+    buildMinimalOutreachPayload() {
+        const d = this.currentPageData?.data || {};
+        return {
+            linkedin: {
+                name: d.pageTitle || d.name || d.fullName || '',
+                headline: d.headline || d.currentJobTitle || d.jobTitle || '',
+                location: d.location || '',
+                about: d.description || d.about || d.summary || '',
+            },
+            insights: {
+                persona: d.persona || '',
+                industry: d.industry || '',
+                potential_needs: Array.isArray(d.potential_needs) ? d.potential_needs : [],
+            },
+            enrichment: {},
+        };
+    }
+
+    showOutreachModal(variants) {
+        const setTa = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.value = text || '';
+        };
+        setTa('xtrawrkx-outreach-dm', variants.shortDm);
+        setTa('xtrawrkx-outreach-pitch', variants.personalizedPitch);
+        setTa('xtrawrkx-outreach-sales', variants.salesMessage);
+        const m = document.getElementById('xtrawrkx-outreach-modal');
+        if (m) {
+            m.style.display = 'flex';
+            m.setAttribute('aria-hidden', 'false');
+        }
+    }
+
+    hideOutreachModal() {
+        const m = document.getElementById('xtrawrkx-outreach-modal');
+        if (m) {
+            m.style.display = 'none';
+            m.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    async handleGeneratePitch() {
+        if (!this.isAuthenticated) {
+            this.showNotification('Please sign in first', 'error');
+            return;
+        }
+        if (this.currentPageData?.type !== 'profile') {
+            this.showNotification('Open a LinkedIn profile to generate pitches.', 'error');
+            return;
+        }
+
+        const payload = this.lastLinkedInSnapshot
+            ? { linkedinProfileData: this.lastLinkedInSnapshot }
+            : this.buildMinimalOutreachPayload();
+
+        const pitchBtns = document.querySelectorAll('.xtrawrkx-generate-pitch-trigger');
+        pitchBtns.forEach((pitchBtn) => {
+            pitchBtn.disabled = true;
+            const sp = pitchBtn.querySelector('span');
+            if (sp) sp.textContent = 'Generating…';
+        });
+
+        try {
+            const apiResponse = await chrome.runtime.sendMessage({
+                type: 'GENERATE_LINKEDIN_OUTREACH',
+                payload,
+            });
+            if (!apiResponse?.success) {
+                throw new Error(apiResponse?.error || 'Generation failed');
+            }
+            const variants = apiResponse.data;
+            if (!variants || (!variants.shortDm && !variants.personalizedPitch && !variants.salesMessage)) {
+                throw new Error('Empty response from server');
+            }
+            this.showOutreachModal(variants);
+        } catch (e) {
+            console.error('handleGeneratePitch:', e);
+            this.showNotification(e.message || 'Could not generate pitches', 'error');
+        } finally {
+            pitchBtns.forEach((pitchBtn) => {
+                pitchBtn.disabled = false;
+                const sp = pitchBtn.querySelector('span');
+                if (sp) sp.textContent = 'Generate Pitch';
+            });
+        }
+    }
+
     async handleImport() {
         if (!this.currentPageData) {
             this.showNotification('No data available to import', 'error');
             return;
         }
 
-        // If user has selected a specific experience, use that instead of the default
-        let dataToImport = { ...this.currentPageData };
-        if (this.selectedExperience && this.currentPageData.type === 'profile') {
-            dataToImport.data = {
-                ...dataToImport.data,
-                currentJobTitle: this.selectedExperience.jobTitle,
-                currentCompany: this.selectedExperience.company,
-                jobTitle: this.selectedExperience.jobTitle, // Alias for compatibility
-                selectedExperience: this.selectedExperience,
-                selectedExperienceIndex: this.selectedExperienceIndex
-            };
+        if (this.currentPageData.type === 'profile') {
+            await this.handleAnalyzeProfile();
+            return;
         }
+
+        const dataToImport = { ...this.currentPageData };
 
         const importBtn = document.getElementById('xtrawrkx-import-btn');
 
@@ -2232,27 +2427,28 @@ class SidebarController {
             this.lastKnownUrl = currentTabUrl;
 
             // Get page data from storage (set by background worker)
-            const result = await chrome.storage.local.get(['lastPageData', 'lastPageUrl', 'pageDataTimestamp']);
+            const storageResult = await chrome.storage.local.get(['lastPageData', 'lastPageUrl', 'pageDataTimestamp']);
 
-            if (result.lastPageData) {
-                const storedUrl = result.lastPageData.url || result.lastPageUrl;
+            if (storageResult.lastPageData) {
+                const storedUrl = storageResult.lastPageData.url || storageResult.lastPageUrl;
                 
                 // Only use stored data if it matches current tab URL
                 if (storedUrl === currentTabUrl) {
 
                     // Check if data is recent (within last 60 seconds)
-                    const dataAge = Date.now() - (result.pageDataTimestamp || 0);
+                    const dataAge = Date.now() - (storageResult.pageDataTimestamp || 0);
 
                     if (dataAge < 60000) {
-                        this.currentPageData = result.lastPageData;
+                        this.currentPageData = storageResult.lastPageData;
                         
                         // Check for existing contact if authenticated
-                        if (this.isAuthenticated && result.lastPageData.data) {
-                            const linkedInUrl = result.lastPageData.data.linkedInUrl || result.lastPageData.data.profileUrl;
+                        if (this.isAuthenticated && storageResult.lastPageData.data) {
+                            const pageDataInner = storageResult.lastPageData.data;
+                            const linkedInUrl = pageDataInner.linkedInUrl || pageDataInner.profileUrl;
                             if (linkedInUrl) {
-                                this.checkExistingContact(linkedInUrl).then((result) => {
-                                    if (result && result.exists) {
-                                        this.showExistingLeadDetails(result.contact, result.lastPageData.data);
+                                this.checkExistingContact(linkedInUrl).then((existingResult) => {
+                                    if (existingResult && existingResult.exists) {
+                                        this.showExistingLeadDetails(existingResult.contact, pageDataInner);
                                     } else {
                                         this.updateUI();
                                     }
@@ -2288,11 +2484,12 @@ class SidebarController {
                     
                     // Check for existing contact if authenticated
                     if (this.isAuthenticated && response.data.data) {
-                        const linkedInUrl = response.data.data.linkedInUrl || response.data.data.profileUrl;
+                        const pageDataInner = response.data.data;
+                        const linkedInUrl = pageDataInner.linkedInUrl || pageDataInner.profileUrl;
                         if (linkedInUrl) {
-                            this.checkExistingContact(linkedInUrl).then((result) => {
-                                if (result && result.exists) {
-                                    this.showExistingLeadDetails(result.contact, response.data.data);
+                            this.checkExistingContact(linkedInUrl).then((existingResult) => {
+                                if (existingResult && existingResult.exists) {
+                                    this.showExistingLeadDetails(existingResult.contact, pageDataInner);
                                 } else {
                                     this.updateUI();
                                 }
@@ -2447,6 +2644,7 @@ class SidebarController {
                 if (oldUrl && newUrl && oldUrl !== newUrl) {
                     this.currentExistingContact = null;
                     this.currentPageData = null;
+                    this.lastLinkedInSnapshot = null;
                 }
                 
                 // Update last known URL

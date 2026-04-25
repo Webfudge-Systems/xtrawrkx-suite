@@ -12,5 +12,15 @@ module.exports = {
                 middlewares: [],
             },
         },
+        {
+            method: 'POST',
+            path: '/extension/linkedin-profile-html',
+            handler: 'test.receiveLinkedInProfileHtml',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
     ],
 };

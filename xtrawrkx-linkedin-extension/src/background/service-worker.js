@@ -303,6 +303,16 @@ class BackgroundService {
                     sendResponse(result);
                     break;
 
+                case 'SUBMIT_PROFILE_HTML_CAPTURE':
+                    const captureResult = await this.handleSubmitProfileHtmlCapture(message.payload);
+                    sendResponse(captureResult);
+                    break;
+
+                case 'GENERATE_LINKEDIN_OUTREACH':
+                    const outreachResult = await this.handleGenerateLinkedInOutreach(message.payload);
+                    sendResponse(outreachResult);
+                    break;
+
                 case 'IMPORT_BULK':
                     const bulkResult = await this.handleBulkImport(message.data);
                     sendResponse(bulkResult);
@@ -494,6 +504,55 @@ class BackgroundService {
             return {
                 success: false,
                 error: error.message
+            };
+        }
+    }
+
+    async handleSubmitProfileHtmlCapture(payload) {
+        try {
+            if (!payload || typeof payload.html !== 'string' || !payload.url) {
+                throw new Error('Invalid capture payload');
+            }
+
+            const isAuthenticated = await this.apiClient.verifyAuth();
+            if (!isAuthenticated) {
+                throw new Error('Not authenticated. Please sign in through the extension options.');
+            }
+
+            const userId = await this.apiClient.getUserId();
+            const data = await this.apiClient.syncLinkedInEnrichedProfile({
+                ...payload,
+                assignedTo: userId || undefined,
+                storeHtml: true,
+            });
+
+            return {
+                success: true,
+                data,
+            };
+        } catch (error) {
+            console.error('Profile HTML capture submit failed:', error);
+            return {
+                success: false,
+                error: error.message,
+            };
+        }
+    }
+
+    async handleGenerateLinkedInOutreach(payload) {
+        try {
+            await this.apiClient.init();
+            const raw = await this.apiClient.generateLinkedInOutreach(payload);
+            const variants = raw && raw.data !== undefined ? raw.data : raw;
+            return {
+                success: true,
+                data: variants,
+            };
+        } catch (error) {
+            console.error('Generate LinkedIn outreach failed:', error);
+            return {
+                success: false,
+                error: error.message,
             };
         }
     }
