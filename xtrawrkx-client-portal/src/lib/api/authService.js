@@ -7,10 +7,6 @@ import backendClient from '../backendClient.js';
 import { strapiClient } from '../strapiClient.js';
 import { resolveClientAccountCompanyName } from '@/utils/clientAccountCompany';
 
-// Use environment variable for API URL, fallback to localhost for development
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337';
-// const API_BASE_URL = 'https://xtrawrkxsuits-production.up.railway.app';
-
 // Use Strapi for data storage, fallback to mock backend for development
 const useStrapi = process.env.NEXT_PUBLIC_USE_STRAPI !== 'false';
 

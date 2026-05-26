@@ -13,6 +13,29 @@ import {
 } from "../../data/Dropdown";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePublicAuth } from "../../contexts/PublicAuthContext";
+import { communityPortalService } from "@/src/services/communityPortalService";
+import { commonToasts } from "@/src/utils/toast";
+
+const profileMenuItems = [
+  {
+    id: "profile",
+    label: "View profile",
+    icon: "solar:user-id-bold",
+    href: "/profile",
+  },
+  {
+    id: "portal",
+    label: "Open company portal",
+    icon: "solar:buildings-2-bold",
+    external: true,
+  },
+  {
+    id: "logout",
+    label: "Log out",
+    icon: "solar:logout-2-bold",
+    danger: true,
+  },
+];
 
 const RegisterButton = ({
   onClick,
@@ -20,19 +43,110 @@ const RegisterButton = ({
   className = "",
   profileInitials = "XP",
   isAuthenticated = false,
+  displayName = "",
+  profileEmail = "",
+  onLogout,
 }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   if (isAuthenticated) {
+    const handleMenuAction = async (itemId) => {
+      setMenuOpen(false);
+      if (itemId === "portal") {
+        communityPortalService.openClientPortalDashboard({
+          email: profileEmail?.trim() || "",
+          newTab: true,
+        });
+        return;
+      }
+      if (itemId === "logout") {
+        await onLogout?.();
+      }
+    };
+
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        className={`flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-white shadow-[0_10px_25px_rgba(15,23,42,0.12)] transition hover:scale-[1.02] hover:shadow-[0_14px_32px_rgba(15,23,42,0.18)] ${className}`}
-        aria-label="Open profile"
+      <div
+        className={`relative ${className}`}
+        onMouseEnter={() => setMenuOpen(true)}
+        onMouseLeave={() => setMenuOpen(false)}
       >
-        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-brand-primary to-brand-secondary text-base font-semibold text-white">
-          {profileInitials}
-        </span>
-      </button>
+        <button
+          type="button"
+          className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-white shadow-[0_10px_25px_rgba(15,23,42,0.12)] transition hover:scale-[1.02] hover:shadow-[0_14px_32px_rgba(15,23,42,0.18)]"
+          aria-label="Account menu"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-brand-primary to-brand-secondary text-base font-semibold text-white">
+            {profileInitials}
+          </span>
+        </button>
+
+        <div
+          className={`absolute right-0 top-full z-[60] pt-2 transition-all duration-200 ${
+            menuOpen
+              ? "pointer-events-auto translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-1 opacity-0"
+          }`}
+          role="menu"
+        >
+          <div className="min-w-[240px] overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_50px_rgba(15,23,42,0.14)]">
+            {displayName ? (
+              <div className="border-b border-slate-100 px-4 py-3">
+                <p className="truncate text-sm font-semibold text-slate-900">
+                  {displayName}
+                </p>
+                {profileEmail ? (
+                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                    {profileEmail}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {profileMenuItems.map((item) =>
+              item.href ? (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  role="menuitem"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-brand-primary"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Icon icon={item.icon} width={20} className="text-slate-400" />
+                  {item.label}
+                </Link>
+              ) : (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="menuitem"
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium transition hover:bg-slate-50 ${
+                    item.danger
+                      ? "text-red-600 hover:text-red-700"
+                      : "text-slate-700 hover:text-brand-primary"
+                  }`}
+                  onClick={() => handleMenuAction(item.id)}
+                >
+                  <Icon
+                    icon={item.icon}
+                    width={20}
+                    className={item.danger ? "text-red-400" : "text-slate-400"}
+                  />
+                  {item.label}
+                  {item.external ? (
+                    <Icon
+                      icon="solar:arrow-right-up-linear"
+                      width={16}
+                      className="ml-auto text-slate-400"
+                    />
+                  ) : null}
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -591,13 +705,23 @@ export default function Navbar() {
   );
 
   const handleRegisterClick = () => {
-    if (isAuthenticated) {
-      window.location.href = "/profile";
-      return;
-    }
-
     window.location.href = "/auth?mode=signup&redirect=%2Fprofile";
   };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      commonToasts.logoutSuccess();
+      window.location.href = "/";
+    } catch {
+      commonToasts.somethingWentWrong();
+    }
+  };
+
+  const profileDisplayName =
+    profile?.displayName ||
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") ||
+    "";
 
   const profileInitials =
     profile?.displayName
@@ -708,6 +832,9 @@ export default function Navbar() {
             onClick={handleRegisterClick}
             isAuthenticated={isAuthenticated}
             profileInitials={profileInitials}
+            displayName={profileDisplayName}
+            profileEmail={profile?.email || ""}
+            onLogout={handleLogout}
           />
         </div>
       </nav>
@@ -1013,68 +1140,97 @@ export default function Navbar() {
                         Account & Access
                       </h3>
                       <div className="space-y-3">
-                        <motion.div
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 17,
-                          }}
-                        >
-                          <RegisterButton
-                            text="Register"
-                            className="w-full justify-center"
-                            onClick={() => {
-                              setIsMobileMenuOpen(false);
-                              handleRegisterClick();
-                            }}
-                            isAuthenticated={false}
-                          />
-                        </motion.div>
                         {!isAuthenticated ? (
-                          <motion.div
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            transition={{
-                              type: "spring",
-                              stiffness: 400,
-                              damping: 17,
-                            }}
-                          >
+                          <>
+                            <motion.div
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 400,
+                                damping: 17,
+                              }}
+                            >
+                              <RegisterButton
+                                text="Register"
+                                className="w-full justify-center"
+                                onClick={() => {
+                                  setIsMobileMenuOpen(false);
+                                  handleRegisterClick();
+                                }}
+                                isAuthenticated={false}
+                              />
+                            </motion.div>
+                            <motion.div
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 400,
+                                damping: 17,
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="block w-full rounded-lg border border-gray-300 px-4 py-3 text-center font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                                onClick={() => {
+                                  setIsMobileMenuOpen(false);
+                                  window.location.href =
+                                    "/auth?mode=login&redirect=%2Fprofile";
+                                }}
+                              >
+                                Login
+                              </button>
+                            </motion.div>
+                          </>
+                        ) : (
+                          <>
+                            <Link
+                              href="/profile"
+                              className="flex w-full items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
+                              onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                              <Icon
+                                icon="solar:user-id-bold"
+                                width={20}
+                                className="text-gray-500"
+                              />
+                              View profile
+                            </Link>
                             <button
                               type="button"
-                              className="block w-full rounded-lg border border-gray-300 px-4 py-3 text-center font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                              className="flex w-full items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
                               onClick={() => {
                                 setIsMobileMenuOpen(false);
-                                window.location.href =
-                                  "/auth?mode=login&redirect=%2Fprofile";
+                                communityPortalService.openClientPortalDashboard({
+                                  email: profile?.email?.trim() || "",
+                                  newTab: true,
+                                });
                               }}
                             >
-                              Login
+                              <Icon
+                                icon="solar:buildings-2-bold"
+                                width={20}
+                                className="text-gray-500"
+                              />
+                              Open company portal
                             </button>
-                          </motion.div>
-                        ) : (
-                          <motion.div
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            transition={{
-                              type: "spring",
-                              stiffness: 400,
-                              damping: 17,
-                            }}
-                          >
                             <button
                               type="button"
-                              className="block w-full rounded-lg border border-gray-300 px-4 py-3 text-center font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                              className="flex w-full items-center gap-3 rounded-lg border border-red-200 px-4 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50"
                               onClick={async () => {
-                                await signOut();
                                 setIsMobileMenuOpen(false);
+                                await handleLogout();
                               }}
                             >
-                              Logout
+                              <Icon
+                                icon="solar:logout-2-bold"
+                                width={20}
+                                className="text-red-400"
+                              />
+                              Log out
                             </button>
-                          </motion.div>
+                          </>
                         )}
                       </div>
                     </div>

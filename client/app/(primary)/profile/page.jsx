@@ -7,6 +7,7 @@ import PublicProtectedRoute from "@/src/components/auth/PublicProtectedRoute";
 import ProfileCommunityCard from "@/src/components/profile/ProfileCommunityCard";
 import Button from "@/src/components/common/Button";
 import { usePublicAuth } from "@/src/contexts/PublicAuthContext";
+import { communityPortalService } from "@/src/services/communityPortalService";
 import { commonToasts } from "@/src/utils/toast";
 
 const profileSections = [
@@ -67,8 +68,7 @@ const profileSections = [
 ];
 
 export default function ProfilePage() {
-  const { profile, signOut, refreshUserData, profileBusy, updateUserProfile } =
-    usePublicAuth();
+  const { profile, signOut, profileBusy, updateUserProfile } = usePublicAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     firstName: "",
@@ -175,6 +175,13 @@ export default function ProfilePage() {
     }
   };
 
+  const handleOpenCompanyPortal = () => {
+    communityPortalService.openClientPortalDashboard({
+      email: profile?.email?.trim() || "",
+      newTab: true,
+    });
+  };
+
   return (
     <PublicProtectedRoute>
       <main className="bg-[linear-gradient(180deg,_#f8fafc_0%,_#ffffff_42%)] pb-20 pt-28">
@@ -231,17 +238,9 @@ export default function ProfilePage() {
                   className="min-w-[160px] justify-center"
                 />
                 <Button
-                  text="Refresh Profile"
+                  text="Open your company portal"
                   type="secondary"
-                  hideArrow
-                  onClick={async () => {
-                    const refreshed = await refreshUserData();
-                    if (refreshed) {
-                      commonToasts.saveSuccess();
-                    } else {
-                      commonToasts.saveError();
-                    }
-                  }}
+                  onClick={handleOpenCompanyPortal}
                   disabled={profileBusy}
                   className="min-w-[160px] justify-center"
                 />

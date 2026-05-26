@@ -1,9 +1,12 @@
 const CRM_PORTAL_URL =
   process.env.NEXT_PUBLIC_CRM_PORTAL_URL || "http://localhost:3001";
 
-/** Local client portal (sign-in / join community). Override in production with NEXT_PUBLIC_CLIENT_PORTAL_URL. */
+/** Client portal (sign-in / join community). Override with NEXT_PUBLIC_CLIENT_PORTAL_URL. */
 const CLIENT_PORTAL_URL =
-  process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "http://localhost:3002";
+  process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL ||
+  (process.env.NODE_ENV === "development"
+    ? "http://localhost:3002"
+    : "https://clients.xtrawrkx.com");
 
 /** Path on the client portal host for sign-in (Next.js app route). */
 const CLIENT_PORTAL_AUTH_PATH =

@@ -132,6 +132,17 @@ export default function ProfileCommunityCard() {
     }
   };
 
+  const handleOpenCompanyPortal = () => {
+    if (!isAuthenticated) {
+      window.location.href = "/auth?mode=login&redirect=%2Fprofile";
+      return;
+    }
+    communityPortalService.openClientPortalDashboard({
+      email: portalEmail,
+      newTab: true,
+    });
+  };
+
   const openMembershipInPortal = (membership) => {
     if (!isAuthenticated) {
       window.location.href = "/auth?mode=login&redirect=%2Fprofile";
@@ -248,6 +259,13 @@ export default function ProfileCommunityCard() {
           type="primary"
           className="w-full"
           onClick={handleCommunityClick}
+          disabled={profileBusy}
+        />
+        <Button
+          text="Open your company portal"
+          type="secondary"
+          className="w-full justify-center"
+          onClick={handleOpenCompanyPortal}
           disabled={profileBusy}
         />
       </div>
