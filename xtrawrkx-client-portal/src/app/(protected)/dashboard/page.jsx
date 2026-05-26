@@ -38,6 +38,8 @@ import strapiClient from "@/lib/strapiClient";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import TaskDetailModal from "@/components/tasks/TaskDetailModal";
+import CreateTaskModal from "@/components/tasks/CreateTaskModal";
+import { listCompanyMembers } from "@/lib/api/companyMembersService";
 import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
 import { COMMUNITIES_LIST } from "@/data/communitiesCatalog";
 
@@ -282,6 +284,11 @@ export default function DashboardPage() {
   const [expandedSubtasks, setExpandedSubtasks] = useState({});
   const [subtaskDropdownPositions, setSubtaskDropdownPositions] = useState({});
   const subtaskButtonRefs = useRef({});
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [clientProjects, setClientProjects] = useState([]);
+  const [clientMembers, setClientMembers] = useState([]);
+  const [currentAccountId, setCurrentAccountId] = useState(null);
+  const [tasksReloadKey, setTasksReloadKey] = useState(0);
 
   // Community states
   const [communities, setCommunities] = useState([]);
@@ -685,6 +692,18 @@ export default function DashboardPage() {
           return;
         }
 
+        setCurrentAccountId(accountId);
+        try {
+          const membersResponse = await listCompanyMembers();
+          setClientMembers(membersResponse?.data || []);
+        } catch (membersError) {
+          console.warn(
+            "Unable to load company members for task assignment",
+            membersError
+          );
+          setClientMembers([]);
+        }
+
         // Fetch projects for this client
         const projectsQueryParams = strapiClient.buildQueryString({
           populate: ["clientAccount"],
@@ -737,6 +756,17 @@ export default function DashboardPage() {
           );
         });
 
+        setClientProjects(
+          clientProjects
+            .map((project) => {
+              const projectData = project.attributes || project;
+              return {
+                id: project.id || project.documentId || projectData.id,
+                name: projectData.name || "Untitled Project",
+              };
+            })
+            .filter((project) => project.id)
+        );
 
         // Extract project IDs - handle all possible ID locations
         const projectIds = clientProjects
@@ -1058,7 +1088,69 @@ export default function DashboardPage() {
     if (session) {
       loadTasks();
     }
-  }, [session]);
+  }, [session, tasksReloadKey]);
+
+  const handleCreateTask = async (taskInput) => {
+    const taskBaseURL = strapiClient.buildURL("/tasks", {});
+    const creatorId = Number(session?.user?.id);
+    const numericAccountId =
+      currentAccountId !== null && currentAccountId !== undefined
+        ? Number(currentAccountId)
+        : null;
+
+    const priorityMap = {
+      low: "LOW",
+      medium: "MEDIUM",
+      high: "HIGH",
+      urgent: "HIGH",
+    };
+
+    const resolvedStatus =
+      taskInput.autoAccept && taskInput.assigneeMemberId
+        ? "ACCEPTED"
+        : taskInput.status || "ASSIGNED";
+
+    const payload = {
+      title: taskInput.title,
+      description: taskInput.description || "",
+      projects: [Number(taskInput.projectId)],
+      scheduledDate: taskInput.dueDate
+        ? new Date(`${taskInput.dueDate}T00:00:00`).toISOString()
+        : null,
+      status: resolvedStatus,
+      timeAllotted: taskInput.timeAllotted ?? null,
+      autoAccept: !!taskInput.autoAccept,
+      sharePreferenceSetAtCreation: true,
+      priority: priorityMap[taskInput.priority] || "MEDIUM",
+      progress: 0,
+      isSharedWithClient: true,
+      createdBySource: "client",
+      clientId:
+        currentAccountId !== null && currentAccountId !== undefined
+          ? String(currentAccountId)
+          : null,
+      ...(numericAccountId && !isNaN(numericAccountId)
+        ? { clientAccount: numericAccountId }
+        : {}),
+      ...(creatorId && !isNaN(creatorId) ? { creator: creatorId } : {}),
+      ...(taskInput.assignmentScope === "client" && taskInput.assigneeMemberId
+        ? { contact: Number(taskInput.assigneeMemberId) }
+        : {}),
+    };
+
+    const response = await fetch(taskBaseURL, {
+      method: "POST",
+      headers: strapiClient.getHeaders(),
+      body: JSON.stringify({ data: payload }),
+    });
+
+    if (!response.ok) {
+      const errPayload = await response.json().catch(() => ({}));
+      throw new Error(errPayload?.error?.message || "Failed to create task");
+    }
+
+    setTasksReloadKey((prev) => prev + 1);
+  };
 
   // Calculate KPIs from real data
   useEffect(() => {
@@ -1538,7 +1630,11 @@ export default function DashboardPage() {
               title="Tasks"
               subtitle="Track your current tasks and progress"
               actions={
-                <button className="px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 hover:border-white/40 transition-all duration-300 text-sm font-medium text-gray-900 flex items-center gap-2 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateTaskModalOpen(true)}
+                  className="px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 hover:border-white/40 transition-all duration-300 text-sm font-medium text-gray-900 flex items-center gap-2 shadow-lg"
+                >
                   <Plus className="w-4 h-4" />
                   New Task
                 </button>
@@ -2490,6 +2586,22 @@ export default function DashboardPage() {
           }}
         />
       )}
+
+      <CreateTaskModal
+        isOpen={isCreateTaskModalOpen}
+        onClose={() => setIsCreateTaskModalOpen(false)}
+        projects={clientProjects}
+        clientMembers={clientMembers}
+        onTaskCreate={async (taskData) => {
+          try {
+            await handleCreateTask(taskData);
+            setIsCreateTaskModalOpen(false);
+          } catch (error) {
+            console.error("Error creating task:", error);
+            alert(error.message || "Failed to create task");
+          }
+        }}
+      />
     </div>
   );
 }

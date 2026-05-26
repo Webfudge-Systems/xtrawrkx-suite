@@ -16,6 +16,7 @@ import {
   List,
   MoreVertical,
   CheckCircle,
+  Clock,
   XCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -25,12 +26,16 @@ import {
   getCommunityById,
   avatarClassFor,
 } from "@/data/communitiesCatalog";
-import { listActiveMembershipsForClient } from "@/lib/api/communityProgramService";
+import {
+  isPendingSubmissionStatus,
+  listActiveMembershipsForClient,
+  listSubmissionsForClient,
+} from "@/lib/api/communityProgramService";
 import { strapiClient } from "@/lib/strapiClient";
 import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
 
 const filterOptions = {
-  status: ["All", "Member", "Non-Member"],
+  status: ["All", "Member", "Pending", "Non-Member"],
   tier: ["All", "Standard", "Premium", "Elite"],
   category: [
     "All",
@@ -46,6 +51,7 @@ export default function CommunitiesPage() {
   const joinPromptConsumed = useRef(false);
 
   const [joinedEnums, setJoinedEnums] = useState([]);
+  const [pendingEnums, setPendingEnums] = useState([]);
   const [membershipsLoaded, setMembershipsLoaded] = useState(false);
   const [clientAccountId, setClientAccountId] = useState(null);
   const [accountDefaults, setAccountDefaults] = useState({});
@@ -125,9 +131,19 @@ export default function CommunitiesPage() {
         return;
       }
 
-      const rows = await listActiveMembershipsForClient(id);
+      const [membershipRows, submissionRows] = await Promise.all([
+        listActiveMembershipsForClient(id),
+        listSubmissionsForClient(id),
+      ]);
       if (cancelled) return;
-      setJoinedEnums(rows.map((r) => r.community).filter(Boolean));
+      const activeEnums = membershipRows.map((r) => r.community).filter(Boolean);
+      setJoinedEnums(activeEnums);
+      setPendingEnums(
+        submissionRows
+          .filter((s) => isPendingSubmissionStatus(s.status))
+          .map((s) => s.community)
+          .filter((c) => c && !activeEnums.includes(c))
+      );
       setMembershipsLoaded(true);
     })();
 
@@ -142,19 +158,27 @@ export default function CommunitiesPage() {
     if (!raw) return;
     const c = getCommunityById(raw);
     if (!c || !clientAccountId) return;
-    if (joinedEnums.includes(c.strapiEnum)) return;
+    if (
+      joinedEnums.includes(c.strapiEnum) ||
+      pendingEnums.includes(c.strapiEnum)
+    ) {
+      return;
+    }
     joinPromptConsumed.current = true;
     setJoinTarget(c);
     setJoinModalOpen(true);
-  }, [membershipsLoaded, joinedEnums, clientAccountId, searchParams]);
+  }, [membershipsLoaded, joinedEnums, pendingEnums, clientAccountId, searchParams]);
 
   const communitiesData = useMemo(
     () =>
       COMMUNITIES_LIST.map((c) => ({
         ...c,
         isMember: joinedEnums.includes(c.strapiEnum),
+        isPending:
+          !joinedEnums.includes(c.strapiEnum) &&
+          pendingEnums.includes(c.strapiEnum),
       })),
-    [joinedEnums]
+    [joinedEnums, pendingEnums]
   );
 
   const openJoinModal = (community) => {
@@ -164,8 +188,10 @@ export default function CommunitiesPage() {
 
   const handleJoinSuccess = (community) => {
     if (!community?.strapiEnum) return;
-    setJoinedEnums((prev) =>
-      prev.includes(community.strapiEnum) ? prev : [...prev, community.strapiEnum]
+    setPendingEnums((prev) =>
+      prev.includes(community.strapiEnum)
+        ? prev
+        : [...prev, community.strapiEnum]
     );
   };
 
@@ -187,7 +213,10 @@ export default function CommunitiesPage() {
     const matchesStatus =
       selectedFilters.status === "All" ||
       (selectedFilters.status === "Member" && community.isMember) ||
-      (selectedFilters.status === "Non-Member" && !community.isMember);
+      (selectedFilters.status === "Pending" && community.isPending) ||
+      (selectedFilters.status === "Non-Member" &&
+        !community.isMember &&
+        !community.isPending);
 
     const matchesTier =
       selectedFilters.tier === "All" || community.tier === selectedFilters.tier;
@@ -199,6 +228,7 @@ export default function CommunitiesPage() {
   });
 
   const memberCommunities = communitiesData.filter((c) => c.isMember);
+  const pendingCommunities = communitiesData.filter((c) => c.isPending);
   const totalMembers = communitiesData.reduce((sum, c) => sum + c.members, 0);
   const eventsThisMonth = communitiesData.reduce(
     (sum, c) => sum + c.monthlyEvents,
@@ -217,9 +247,18 @@ export default function CommunitiesPage() {
       badge: memberCommunities.length.toString(),
     },
     {
+      key: "Pending",
+      label: "Pending approval",
+      badge: pendingCommunities.length.toString(),
+    },
+    {
       key: "Non-Member",
       label: "Discover",
-      badge: (communitiesData.length - memberCommunities.length).toString(),
+      badge: (
+        communitiesData.length -
+        memberCommunities.length -
+        pendingCommunities.length
+      ).toString(),
     },
   ];
 
@@ -556,6 +595,11 @@ export default function CommunitiesPage() {
                               <CheckCircle className="w-3 h-3 mr-1" />
                               Member
                             </span>
+                          ) : community.isPending ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Approval pending
+                            </span>
                           ) : null}
                           <button
                             type="button"
@@ -620,6 +664,10 @@ export default function CommunitiesPage() {
                               </button>
                             ) : null}
                           </>
+                        ) : community.isPending ? (
+                          <span className="inline-flex flex-1 min-w-[140px] items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold border border-amber-200 bg-amber-50 text-amber-900">
+                            Awaiting approval
+                          </span>
                         ) : (
                           <button
                             type="button"
@@ -650,6 +698,11 @@ export default function CommunitiesPage() {
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
                                 <CheckCircle className="w-3 h-3 mr-1" />
                                 Member
+                              </span>
+                            ) : community.isPending ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                                <Clock className="w-3 h-3 mr-1" />
+                                Approval pending
                               </span>
                             ) : null}
                           </div>
@@ -709,6 +762,10 @@ export default function CommunitiesPage() {
                                 </button>
                               ) : null}
                             </>
+                          ) : community.isPending ? (
+                            <span className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold border border-amber-200 bg-amber-50 text-amber-900">
+                              Awaiting approval
+                            </span>
                           ) : (
                             <button
                               type="button"

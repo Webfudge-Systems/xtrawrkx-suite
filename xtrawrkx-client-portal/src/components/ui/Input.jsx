@@ -1,6 +1,8 @@
-import { forwardRef } from "react";
+"use client";
+
+import { forwardRef, useState } from "react";
 import { clsx } from "clsx";
-import { Search, AlertCircle } from "lucide-react";
+import { Search, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export const Input = forwardRef(function Input(
   {
@@ -11,10 +13,17 @@ export const Input = forwardRef(function Input(
     required = false,
     className,
     containerClassName,
+    showPasswordToggle,
     ...props
   },
   ref
 ) {
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const isPasswordField = type === "password";
+  const enablePasswordToggle = showPasswordToggle ?? isPasswordField;
+  const inputType =
+    enablePasswordToggle && passwordVisible ? "text" : type;
+
   return (
     <div className={clsx("w-full", containerClassName)}>
       {label && (
@@ -31,19 +40,34 @@ export const Input = forwardRef(function Input(
         )}
         <input
           ref={ref}
-          type={type}
+          type={inputType}
           className={clsx(
             "block w-full rounded-lg border shadow-sm",
             "px-3 py-2.5 text-gray-900 placeholder-gray-400",
             "focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500 focus:border-transparent",
             "transition-colors duration-200",
             Icon && "pl-10",
+            enablePasswordToggle && "pr-10",
             error ? "border-red-300 text-red-900" : "border-gray-300",
             className
           )}
           {...props}
         />
-        {error && (
+        {enablePasswordToggle && (
+          <button
+            type="button"
+            onClick={() => setPasswordVisible((visible) => !visible)}
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+            aria-label={passwordVisible ? "Hide password" : "Show password"}
+          >
+            {passwordVisible ? (
+              <EyeOff className="h-5 w-5" />
+            ) : (
+              <Eye className="h-5 w-5" />
+            )}
+          </button>
+        )}
+        {error && !enablePasswordToggle && (
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
             <AlertCircle className="h-5 w-5 text-red-500" />
           </div>

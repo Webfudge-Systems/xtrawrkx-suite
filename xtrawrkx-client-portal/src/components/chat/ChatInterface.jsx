@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   Plus,
   MessageCircle,
-  Phone,
-  Video,
   MoreVertical,
   Star,
   Archive,
@@ -18,11 +16,13 @@ import { Avatar } from "@/components/ui/Avatar";
 import { ChatWindow } from "./ChatWindow";
 import { useChat } from "@/components/providers/ChatProvider";
 import ModernButton from "@/components/ui/ModernButton";
+import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export function ChatInterface() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showNewMessageModal, setShowNewMessageModal] = useState(false);
+  const [, setShowNewMessageModal] = useState(false);
 
   // Use chat context instead of local state
   const { conversations, sendMessage, markAsRead, updateConversation } =
@@ -93,11 +93,13 @@ export function ChatInterface() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
       {/* Conversations List */}
       <div className="min-h-0 lg:col-span-1">
-        <div className="flex h-full min-h-0 flex-col rounded-2xl border border-gray-200 bg-white shadow-md ring-1 ring-gray-900/[0.06]">
+        <Card glass={true} padding={false} className="flex h-full min-h-0 flex-col">
           {/* Header */}
           <div className="border-b border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Messages</h2>
+              <h2 className="text-xl font-bold text-gray-900">
+                Conversations
+              </h2>
               <ModernButton
                 type="primary"
                 size="sm"
@@ -126,10 +128,12 @@ export function ChatInterface() {
           {/* Conversations — scroll inside panel; rows are uniform cards */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
             {sortedConversations.length === 0 ? (
-              <div className="p-6 text-center">
-                <MessageCircle className="mx-auto mb-4 h-12 w-12 text-gray-300" />
-                <p className="text-sm text-gray-500">No conversations found</p>
-              </div>
+              <EmptyState
+                icon={MessageCircle}
+                title="No conversations found"
+                description="Start a chat with our team."
+                className="h-full py-0"
+              />
             ) : (
               <div className="flex flex-col gap-2 p-3 pb-4">
                 {sortedConversations.map((conversation) => (
@@ -146,7 +150,7 @@ export function ChatInterface() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Chat Area */}

@@ -8,12 +8,50 @@ const { createCoreController } = require('@strapi/strapi').factories;
 
 module.exports = createCoreController('api::project.project', ({ strapi }) => {
     /**
+     * Resolve a Strapi entity identifier to its numeric database id.
+     * Accepts numeric ids or Strapi v5 documentId strings.
+     */
+    const resolveNumericId = async (rawId, contentType) => {
+        if (rawId === undefined || rawId === null || rawId === '') {
+            return null;
+        }
+
+        const idStr = String(rawId).trim();
+        if (!idStr) {
+            return null;
+        }
+
+        if (/^\d+$/.test(idStr)) {
+            return Number(idStr);
+        }
+
+        const row = await strapi.db.query(contentType).findOne({
+            where: { documentId: idStr },
+            select: ['id'],
+        });
+
+        return row?.id ?? null;
+    };
+
+    /**
      * Helper function to find or create account from client account
      */
     const findOrCreateAccountFromClientAccount = async (clientAccountId) => {
         try {
+            const resolvedClientAccountId = await resolveNumericId(
+                clientAccountId,
+                'api::client-account.client-account'
+            );
+
+            if (!resolvedClientAccountId) {
+                return null;
+            }
+
             // First, get the client account
-            const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', clientAccountId);
+            const clientAccount = await strapi.entityService.findOne(
+                'api::client-account.client-account',
+                resolvedClientAccountId
+            );
 
             if (!clientAccount) {
                 return null;
@@ -216,7 +254,11 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
          */
         async findOne(ctx) {
             try {
-                const { id } = ctx.params;
+                const projectId = await resolveNumericId(ctx.params.id, 'api::project.project');
+
+                if (!projectId) {
+                    return ctx.notFound('Project not found');
+                }
 
                 const { query } = ctx;
 
@@ -281,7 +323,7 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                     };
                 }
 
-                const project = await strapi.entityService.findOne('api::project.project', id, {
+                const project = await strapi.entityService.findOne('api::project.project', projectId, {
                     populate
                 });
 
@@ -309,34 +351,61 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                 // Handle clientAccount field - set it directly if provided
                 if (data.clientAccount) {
-                    // clientAccount is already the correct ID, just ensure it's valid
-                    try {
-                        const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', data.clientAccount);
-                        if (!clientAccount) {
+                    const resolvedClientAccountId = await resolveNumericId(
+                        data.clientAccount,
+                        'api::client-account.client-account'
+                    );
+
+                    if (resolvedClientAccountId) {
+                        try {
+                            const clientAccount = await strapi.entityService.findOne(
+                                'api::client-account.client-account',
+                                resolvedClientAccountId
+                            );
+                            data.clientAccount = clientAccount ? resolvedClientAccountId : undefined;
+                            if (!clientAccount) {
+                                delete data.clientAccount;
+                            }
+                        } catch (error) {
                             delete data.clientAccount;
                         }
-                    } catch (error) {
+                    } else {
                         delete data.clientAccount;
                     }
                 }
 
                 // Handle account field - check if it's a client account ID
                 if (data.account) {
-                    // Check if this ID belongs to a client account
-                    try {
-                        const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', data.account);
-                        if (clientAccount) {
-                            // It's a client account, find or create the corresponding account
-                            const accountId = await findOrCreateAccountFromClientAccount(data.account);
-                            if (accountId) {
-                                data.account = accountId;
-                            } else {
-                                // If we can't create/find account, remove the account field
-                                delete data.account;
+                    const resolvedClientAccountId = await resolveNumericId(
+                        data.account,
+                        'api::client-account.client-account'
+                    );
+
+                    if (resolvedClientAccountId) {
+                        try {
+                            const clientAccount = await strapi.entityService.findOne(
+                                'api::client-account.client-account',
+                                resolvedClientAccountId
+                            );
+                            if (clientAccount) {
+                                const accountId = await findOrCreateAccountFromClientAccount(resolvedClientAccountId);
+                                if (accountId) {
+                                    data.account = accountId;
+                                } else {
+                                    delete data.account;
+                                }
                             }
+                        } catch (error) {
+                            // If it's not a client account, it might be a regular account - proceed as normal
                         }
-                    } catch (error) {
-                        // If it's not a client account, it might be a regular account - proceed as normal
+                    } else {
+                        const resolvedAccountId = await resolveNumericId(
+                            data.account,
+                            'api::account.account'
+                        );
+                        if (resolvedAccountId) {
+                            data.account = resolvedAccountId;
+                        }
                     }
                 }
 
@@ -364,77 +433,87 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
          */
         async update(ctx) {
             try {
-                const { id } = ctx.params;
+                const projectId = await resolveNumericId(ctx.params.id, 'api::project.project');
+
+                if (!projectId) {
+                    return ctx.notFound('Project not found');
+                }
+
                 const { data } = ctx.request.body;
 
 
                 // Ensure teamMembers IDs are integers if present
                 if (data.teamMembers !== undefined && Array.isArray(data.teamMembers)) {
-                    data.teamMembers = data.teamMembers
-                        .map(memberId => {
-                            if (typeof memberId === 'string') {
-                                return parseInt(memberId, 10);
-                            }
-                            return memberId;
-                        })
-                        .filter(memberId => !isNaN(memberId));
+                    data.teamMembers = (
+                        await Promise.all(
+                            data.teamMembers.map((memberId) =>
+                                resolveNumericId(memberId, 'plugin::users-permissions.user')
+                            )
+                        )
+                    ).filter((memberId) => memberId !== null);
                 }
 
                 // Handle account field - check if it's a client account ID
                 if (data.account !== undefined && data.account !== null) {
+                    const clientAccountId = await resolveNumericId(
+                        data.account,
+                        'api::client-account.client-account'
+                    );
 
-                    // Convert to number if it's a string
-                    const accountIdToCheck = typeof data.account === 'string' ? parseInt(data.account, 10) : data.account;
-
-                    if (isNaN(accountIdToCheck)) {
-                        data.account = null;
-                    } else {
-                        // First, try to find it as a client account
-                        let isClientAccount = false;
+                    if (clientAccountId) {
                         try {
-                            const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', accountIdToCheck);
+                            const clientAccount = await strapi.entityService.findOne(
+                                'api::client-account.client-account',
+                                clientAccountId
+                            );
                             if (clientAccount) {
-                                isClientAccount = true;
-                                const accountId = await findOrCreateAccountFromClientAccount(accountIdToCheck);
-                                if (accountId) {
-                                    data.account = accountId;
-                                } else {
-                                    data.account = null;
-                                }
+                                const accountId = await findOrCreateAccountFromClientAccount(clientAccountId);
+                                data.account = accountId || null;
+                            } else {
+                                data.account = null;
                             }
                         } catch (clientAccountError) {
-                            // Not a client account or error finding it
+                            data.account = null;
                         }
-
-                        // If it's not a client account, verify it's a valid regular account
-                        if (!isClientAccount) {
+                    } else {
+                        const accountId = await resolveNumericId(data.account, 'api::account.account');
+                        if (accountId) {
                             try {
-                                const regularAccount = await strapi.entityService.findOne('api::account.account', accountIdToCheck);
-                                if (regularAccount) {
-                                    data.account = accountIdToCheck;
-                                } else {
-                                    data.account = null;
-                                }
+                                const regularAccount = await strapi.entityService.findOne(
+                                    'api::account.account',
+                                    accountId
+                                );
+                                data.account = regularAccount ? accountId : null;
                             } catch (accountError) {
-                                // If we can't verify, try to use the ID as-is (might work)
-                                data.account = accountIdToCheck;
+                                data.account = accountId;
                             }
+                        } else {
+                            data.account = null;
                         }
                     }
-                } else {
+                } else if (data.account !== undefined) {
                     data.account = null;
                 }
 
                 // Handle clientAccount field - set it directly if provided
                 if (data.clientAccount !== undefined) {
                     if (data.clientAccount) {
-                        // Validate client account exists
-                        try {
-                            const clientAccount = await strapi.entityService.findOne('api::client-account.client-account', data.clientAccount);
-                            if (!clientAccount) {
+                        const clientAccountId = await resolveNumericId(
+                            data.clientAccount,
+                            'api::client-account.client-account'
+                        );
+
+                        if (clientAccountId) {
+                            try {
+                                const clientAccount = await strapi.entityService.findOne(
+                                    'api::client-account.client-account',
+                                    clientAccountId
+                                );
+                                data.clientAccount = clientAccount ? clientAccountId : null;
+                            } catch (error) {
                                 data.clientAccount = null;
                             }
-                        } catch (error) {
+                        } else {
                             data.clientAccount = null;
                         }
                     } else {
@@ -444,7 +523,7 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
 
                 // Update the project using entityService
-                const entity = await strapi.entityService.update('api::project.project', id, {
+                const entity = await strapi.entityService.update('api::project.project', projectId, {
                     data,
                     populate: {
                         projectManager: true,
@@ -471,10 +550,14 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
          */
         async delete(ctx) {
             try {
-                const { id } = ctx.params;
+                const projectId = await resolveNumericId(ctx.params.id, 'api::project.project');
+
+                if (!projectId) {
+                    return ctx.notFound('Project not found');
+                }
 
                 // First, get the project with all relations
-                const project = await strapi.entityService.findOne('api::project.project', id, {
+                const project = await strapi.entityService.findOne('api::project.project', projectId, {
                     populate: {
                         tasks: true,
                         activities: true,
@@ -502,12 +585,12 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
 
                             // Check if task belongs to other projects
                             const belongsToOtherProjects = fullTask && fullTask.projects &&
-                                fullTask.projects.some(p => p.id !== parseInt(id));
+                                fullTask.projects.some(p => p.id !== projectId);
 
                             if (belongsToOtherProjects) {
                                 // Just unlink the task from this project, don't delete it
                                 const currentProjects = fullTask.projects
-                                    .filter(p => p.id !== parseInt(id))
+                                    .filter(p => p.id !== projectId)
                                     .map(p => p.id);
 
                                 await strapi.entityService.update('api::task.task', task.id, {
@@ -642,7 +725,7 @@ module.exports = createCoreController('api::project.project', ({ strapi }) => {
                 }
 
                 // Delete the project itself
-                const deletedProject = await strapi.entityService.delete('api::project.project', id);
+                const deletedProject = await strapi.entityService.delete('api::project.project', projectId);
 
 
                 return { data: deletedProject };

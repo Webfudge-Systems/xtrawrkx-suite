@@ -18,11 +18,14 @@ import {
   AlertCircle,
   Loader2,
   Activity,
+  Plus,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
+import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import { useSession } from "@/lib/auth";
 import strapiClient from "@/lib/strapiClient";
+import { buildProjectSlug } from "@/lib/projectUtils";
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -34,6 +37,47 @@ export default function ProjectsPage() {
   const [activeView, setActiveView] = useState("list");
   const [activeFilters, setActiveFilters] = useState([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
+
+  const resolveAccountId = async () => {
+    let accountId =
+      session?.account?.id ||
+      session?.account?.documentId ||
+      session?.user?.id ||
+      session?.user?.profile?.id ||
+      session?.id ||
+      session?.documentId;
+
+    if (!accountId && typeof window !== "undefined") {
+      const accountData = localStorage.getItem("client_account");
+      if (accountData) {
+        try {
+          const account = JSON.parse(accountData);
+          accountId = account.id || account.documentId;
+        } catch (error) {
+          console.error("Error parsing client account data:", error);
+        }
+      }
+    }
+
+    if (!accountId) {
+      accountId = strapiClient.getCurrentAccountId();
+    }
+
+    if (!accountId) {
+      try {
+        const currentUser = await strapiClient.getCurrentUser();
+        if (currentUser?.account) {
+          accountId =
+            currentUser.account.id || currentUser.account.documentId;
+        }
+      } catch (error) {
+        console.warn("Could not get current user:", error);
+      }
+    }
+
+    return accountId;
+  };
 
   // Fetch projects from API
   useEffect(() => {
@@ -46,46 +90,7 @@ export default function ProjectsPage() {
     try {
       setLoading(true);
 
-      // Get client account ID from session or localStorage
-      // Try multiple sources for account ID
-      let accountId =
-        session?.account?.id ||
-        session?.account?.documentId ||
-        session?.user?.id ||
-        session?.user?.profile?.id ||
-        session?.id ||
-        session?.documentId;
-
-      // If not in session, try to get from localStorage
-      if (!accountId && typeof window !== "undefined") {
-        const accountData = localStorage.getItem("client_account");
-        if (accountData) {
-          try {
-            const account = JSON.parse(accountData);
-            accountId = account.id || account.documentId;
-          } catch (error) {
-            console.error("Error parsing client account data:", error);
-          }
-        }
-      }
-
-      // Also try using strapiClient helper
-      if (!accountId) {
-        accountId = strapiClient.getCurrentAccountId();
-      }
-
-      // Try to get from getCurrentUser if available
-      if (!accountId) {
-        try {
-          const currentUser = await strapiClient.getCurrentUser();
-          if (currentUser?.account) {
-            accountId =
-              currentUser.account.id || currentUser.account.documentId;
-          }
-        } catch (error) {
-          console.warn("Could not get current user:", error);
-        }
-      }
+      const accountId = await resolveAccountId();
 
       if (!accountId) {
         console.warn("No account ID found in session or localStorage");
@@ -286,6 +291,54 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreateProject = async (projectInput) => {
+    const accountId = await resolveAccountId();
+    if (!accountId) {
+      throw new Error("Could not determine your account. Please sign in again.");
+    }
+
+    const numericAccountId = Number(accountId);
+    const slug = buildProjectSlug(projectInput.name);
+    const icon = projectInput.name.charAt(0).toUpperCase() || "P";
+
+    const payload = {
+      name: projectInput.name,
+      slug,
+      description: projectInput.description || "",
+      status: projectInput.status || "PLANNING",
+      icon,
+      color: "from-blue-400 to-blue-600",
+      clientAccount: !isNaN(numericAccountId) ? numericAccountId : accountId,
+    };
+
+    if (projectInput.startDate) {
+      payload.startDate = new Date(
+        `${projectInput.startDate}T00:00:00`
+      ).toISOString();
+    }
+    if (projectInput.endDate) {
+      payload.endDate = new Date(
+        `${projectInput.endDate}T00:00:00`
+      ).toISOString();
+    }
+
+    const projectsUrl = strapiClient.buildURL("/projects", {});
+    const response = await fetch(projectsUrl, {
+      method: "POST",
+      headers: strapiClient.getHeaders(),
+      body: JSON.stringify({ data: payload }),
+    });
+
+    if (!response.ok) {
+      const errPayload = await response.json().catch(() => ({}));
+      throw new Error(
+        errPayload?.error?.message || "Failed to create project"
+      );
+    }
+
+    await fetchProjects();
   };
 
   // Calculate project statistics
@@ -490,6 +543,7 @@ export default function ProjectsPage() {
           title="Projects"
           subtitle="Manage and track all your projects"
           showActions={true}
+          onAddClick={() => setIsCreateProjectModalOpen(true)}
           onFilterClick={() => setShowFilterModal(true)}
           hasActiveFilters={activeFilters.length > 0 || searchQuery.length > 0}
         />
@@ -589,8 +643,15 @@ export default function ProjectsPage() {
               </div>
             </div>
 
-            {/* Right: View Toggle */}
+            {/* Right: Create + View Toggle */}
             <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setIsCreateProjectModalOpen(true)}
+                className="w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center bg-xtrawrkx-500 text-white border-xtrawrkx-500/50 hover:bg-xtrawrkx-600"
+                title="Create Project"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
               <button
                 onClick={() => setActiveView("list")}
                 className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
@@ -656,6 +717,16 @@ export default function ProjectsPage() {
                               ? "Try adjusting your filters"
                               : "Get started by creating your first project"}
                           </p>
+                          {!searchQuery && activeTab === "all" && (
+                            <button
+                              type="button"
+                              onClick={() => setIsCreateProjectModalOpen(true)}
+                              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-xtrawrkx-500 text-white text-sm font-semibold rounded-xl hover:bg-xtrawrkx-600 transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Create Project
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -786,6 +857,16 @@ export default function ProjectsPage() {
                       ? "Try adjusting your filters"
                       : "Get started by creating your first project"}
                   </p>
+                  {!searchQuery && activeTab === "all" && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateProjectModalOpen(true)}
+                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-xtrawrkx-500 text-white text-sm font-semibold rounded-xl hover:bg-xtrawrkx-600 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Create Project
+                    </button>
+                  )}
                 </div>
               ) : (
                 filteredProjects.map((project) => (
@@ -865,6 +946,12 @@ export default function ProjectsPage() {
           )}
         </div>
       </div>
+
+      <CreateProjectModal
+        isOpen={isCreateProjectModalOpen}
+        onClose={() => setIsCreateProjectModalOpen(false)}
+        onProjectCreate={handleCreateProject}
+      />
     </div>
   );
 }

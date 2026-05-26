@@ -97,7 +97,7 @@ export default function ViewCompanyMemberPage() {
                 </button>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => router.push(`/company/${memberId}/edit`)}
+                    onClick={() => router.push(`/company?edit=${memberId}`)}
                     className="w-10 h-10 rounded-xl border border-gray-200 bg-white/80 text-gray-700 hover:bg-gray-50 flex items-center justify-center"
                     title="Edit"
                   >

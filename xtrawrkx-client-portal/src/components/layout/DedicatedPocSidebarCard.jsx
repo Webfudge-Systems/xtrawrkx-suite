@@ -10,12 +10,12 @@ function ContactLink({ href, icon: Icon, label }) {
   return (
     <a
       href={href}
-      className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/80 px-2.5 py-2 transition-colors hover:border-xtrawrkx-200 hover:bg-xtrawrkx-50/50"
+      className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white/70 px-3 py-2 transition-colors hover:border-xtrawrkx-200 hover:bg-xtrawrkx-50/50"
     >
-      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white border border-gray-100 text-gray-500">
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-50 border border-gray-100 text-gray-600">
         <Icon className="h-3.5 w-3.5" />
       </span>
-      <span className="min-w-0 truncate text-[11px] font-medium text-gray-700">
+      <span className="min-w-0 truncate text-[11px] font-semibold text-gray-700">
         {label}
       </span>
     </a>
@@ -47,7 +47,7 @@ export default function DedicatedPocSidebarCard({ poc, collapsed = false }) {
         )}
         {isActive ? (
           <span
-            className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+            className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
             title="Active POC"
           />
         ) : null}
@@ -56,68 +56,74 @@ export default function DedicatedPocSidebarCard({ poc, collapsed = false }) {
   }
 
   return (
-    <div className="p-3">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-          Your dedicated POC
-        </p>
-        {isActive ? (
-          <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-100">
-            Active
-          </span>
-        ) : (
-          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold text-gray-600">
-            Away
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-col items-center text-center">
-        {poc.avatarUrl ? (
-          <img
-            src={poc.avatarUrl}
-            alt={poc.fullName}
-            className="mb-3 h-14 w-14 rounded-full border-2 border-white object-cover shadow-md ring-2 ring-gray-100"
-          />
-        ) : (
-          <div
-            className={cn(
-              "mb-3 flex h-14 w-14 items-center justify-center rounded-full",
-              "bg-xtrawrkx-500 text-base font-bold text-white shadow-md",
-              "ring-2 ring-white ring-offset-2 ring-offset-gray-50"
+    <div className="p-4">
+      <div className="rounded-xl bg-gradient-to-b from-white to-gray-50/70 shadow-sm">
+        <div className="px-4 py-3">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+              Your dedicated POC
+            </p>
+            {isActive ? (
+              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-100">
+                ACTIVE
+              </span>
+            ) : (
+              <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-600">
+                AWAY
+              </span>
             )}
-          >
-            {initials}
           </div>
-        )}
 
-        <p className="text-sm font-semibold text-gray-900 leading-tight">
-          {poc.fullName}
-        </p>
-        {poc.designation ? (
-          <p className="mt-0.5 text-xs text-gray-600">{poc.designation}</p>
-        ) : null}
-        {(poc.teamName || poc.department) ? (
-          <p className="mt-0.5 text-[11px] text-gray-500">
-            {poc.teamName || poc.department}
-          </p>
-        ) : null}
-      </div>
+          <div className="flex flex-col items-center text-center">
+            {poc.avatarUrl ? (
+              <img
+                src={poc.avatarUrl}
+                alt={poc.fullName}
+                className="mb-3 h-16 w-16 rounded-full border-2 border-white object-cover shadow-lg ring-2 ring-gray-100"
+              />
+            ) : (
+              <div
+                className={cn(
+                  "mb-3 flex h-16 w-16 items-center justify-center rounded-full",
+                  "bg-gradient-to-br from-pink-500 to-rose-500 text-base font-bold text-white shadow-md",
+                  "ring-2 ring-white ring-offset-2 ring-offset-gray-50"
+                )}
+              >
+                {initials}
+              </div>
+            )}
 
-      {(poc.email || poc.phone) && (
-        <div className="mt-3 space-y-1.5 border-t border-gray-100 pt-3">
-          <ContactLink
-            href={poc.email ? `mailto:${poc.email}` : undefined}
-            icon={Mail}
-            label={poc.email}
-          />
-          <ContactLink
-            href={poc.phone ? `tel:${poc.phone}` : undefined}
-            icon={Phone}
-            label={poc.phone}
-          />
+            <p className="text-[14px] font-semibold text-gray-900 leading-tight">
+              {poc.fullName}
+            </p>
+            {poc.designation ? (
+              <p className="mt-0.5 text-[12px] font-medium text-gray-600">
+                {poc.designation}
+              </p>
+            ) : null}
+            {poc.teamName || poc.department ? (
+              <p className="mt-0.5 text-[11px] text-gray-500">
+                {poc.teamName || poc.department}
+              </p>
+            ) : null}
+          </div>
+
+          {(poc.email || poc.phone) && (
+            <div className="mt-3 space-y-1.5 border-t border-gray-100 pt-3">
+              <ContactLink
+                href={poc.email ? `mailto:${poc.email}` : undefined}
+                icon={Mail}
+                label={poc.email}
+              />
+              <ContactLink
+                href={poc.phone ? `tel:${poc.phone}` : undefined}
+                icon={Phone}
+                label={poc.phone}
+              />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

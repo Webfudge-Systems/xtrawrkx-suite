@@ -30,21 +30,18 @@ export const legalRelatedPages = [
     id: "about",
     href: "/about",
     label: "About",
-    description: "Portal overview and mission",
     icon: HelpCircle,
   },
   {
     id: "privacy",
     href: "/privacy",
     label: "Privacy Policy",
-    description: "How we handle your data",
     icon: Shield,
   },
   {
     id: "terms",
     href: "/terms",
     label: "Terms of Service",
-    description: "Rules for using the portal",
     icon: FileText,
   },
 ];

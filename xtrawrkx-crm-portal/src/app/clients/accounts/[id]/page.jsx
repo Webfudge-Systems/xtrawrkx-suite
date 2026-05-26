@@ -82,6 +82,17 @@ const ClientAccountDetailPage = ({ params }) => {
   const [communitiesLoading, setCommunitiesLoading] = useState(false);
   const [communityMemberships, setCommunityMemberships] = useState([]);
   const [communitySubmissions, setCommunitySubmissions] = useState([]);
+  const [submissionActionId, setSubmissionActionId] = useState(null);
+
+  const PENDING_SUBMISSION_STATUSES = [
+    "SUBMITTED",
+    "UNDER_REVIEW",
+    "PENDING_INFO",
+  ];
+  const isPendingCommunitySubmission = (status) =>
+    PENDING_SUBMISSION_STATUSES.includes(
+      String(status || "SUBMITTED").trim().toUpperCase()
+    );
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showAssignDrawer, setShowAssignDrawer] = useState(false);
@@ -741,6 +752,65 @@ const ClientAccountDetailPage = ({ params }) => {
       }
     } finally {
       setCommunitiesLoading(false);
+    }
+  };
+
+  const handleApproveCommunitySubmission = async (submission) => {
+    const submissionData = submission.attributes || submission;
+    const actionKey = submission.id ?? submission.documentId;
+    setSubmissionActionId(actionKey);
+    try {
+      await strapiClient.request("/community-submissions/approve", {
+        method: "POST",
+        body: {
+          id: submission.id,
+          documentId: submission.documentId,
+          submissionId: submissionData.submissionId,
+          reviewedById: user?.id || user?.documentId || null,
+        },
+      });
+      await fetchCommunities(account?.documentId || account?.id || id);
+    } catch (error) {
+      console.error("Error approving community submission:", error);
+      alert(
+        error?.message ||
+          "Failed to approve application. Please try again."
+      );
+    } finally {
+      setSubmissionActionId(null);
+    }
+  };
+
+  const handleRejectCommunitySubmission = async (submission) => {
+    const submissionData = submission.attributes || submission;
+    const reason = window.prompt(
+      "Optional reason for rejection (shown internally):",
+      ""
+    );
+    if (reason === null) return;
+
+    const actionKey = submission.id ?? submission.documentId;
+    setSubmissionActionId(actionKey);
+    try {
+      await strapiClient.request("/community-submissions/reject", {
+        method: "POST",
+        body: {
+          id: submission.id,
+          documentId: submission.documentId,
+          submissionId: submissionData.submissionId,
+          rejectionReason: reason.trim() || "Application not approved",
+          reviewedById: user?.id || user?.documentId || null,
+        },
+      });
+      await fetchCommunities(account?.documentId || account?.id || id);
+    } catch (error) {
+      console.error("Error rejecting community submission:", error);
+      alert(
+        error?.message ||
+          "Failed to reject application. Please try again."
+      );
+    } finally {
+      setSubmissionActionId(null);
     }
   };
 
@@ -2373,10 +2443,18 @@ const ClientAccountDetailPage = ({ params }) => {
                   const membershipData = membership.attributes || membership;
                   return membershipData.status === "ACTIVE";
                 }).length;
-                const pendingSubmissions = communitySubmissions.filter((submission) => {
-                  const submissionData = submission.attributes || submission;
-                  return (submissionData.status || "SUBMITTED") === "PENDING";
-                }).length;
+                const pendingSubmissions = communitySubmissions.filter(
+                  (submission) => {
+                    const submissionData = submission.attributes || submission;
+                    return isPendingCommunitySubmission(submissionData.status);
+                  }
+                ).length;
+                const activeMembershipRows = communityMemberships.filter(
+                  (membership) => {
+                    const membershipData = membership.attributes || membership;
+                    return membershipData.status === "ACTIVE";
+                  }
+                );
 
                 return (
                   <>
@@ -2548,9 +2626,9 @@ const ClientAccountDetailPage = ({ params }) => {
                               Loading memberships...
                             </span>
                           </div>
-                        ) : communityMemberships.length > 0 ? (
+                        ) : activeMembershipRows.length > 0 ? (
                           <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                            {communityMemberships.map((membership) => {
+                            {activeMembershipRows.map((membership) => {
                               const membershipData = membership.attributes || membership;
                               const isActive = membershipData.status === "ACTIVE";
                               return (
@@ -2650,24 +2728,29 @@ const ClientAccountDetailPage = ({ params }) => {
                             const status = submissionData.status || "SUBMITTED";
                             const statusColors = {
                               SUBMITTED: "bg-blue-100 text-blue-800",
+                              UNDER_REVIEW: "bg-indigo-100 text-indigo-800",
+                              PENDING_INFO: "bg-yellow-100 text-yellow-800",
                               APPROVED: "bg-green-100 text-green-800",
                               REJECTED: "bg-red-100 text-red-800",
-                              PENDING: "bg-yellow-100 text-yellow-800",
                             };
+                            const canReview = isPendingCommunitySubmission(status);
+                            const actionKey = submission.id ?? submission.documentId;
+                            const isActing = submissionActionId === actionKey;
                             return (
                               <div
                                 key={submission.id}
                                 className="rounded-xl border border-gray-200 bg-white/70 px-4 py-3 hover:shadow-md transition-shadow"
                               >
                                 <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
+                                  <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                       <p className="font-semibold text-gray-900 truncate">
                                         {submissionData.community}
                                       </p>
                                       <span
                                         className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                          statusColors[status] || statusColors.PENDING
+                                          statusColors[status] ||
+                                          "bg-gray-100 text-gray-800"
                                         }`}
                                       >
                                         {status}
@@ -2682,14 +2765,47 @@ const ClientAccountDetailPage = ({ params }) => {
                                       {submissionData.createdAt && (
                                         <span className="flex items-center gap-1">
                                           <Calendar className="w-3 h-3" />
-                                          {new Date(submissionData.createdAt).toLocaleDateString()}
+                                          {new Date(
+                                            submissionData.createdAt
+                                          ).toLocaleDateString()}
                                         </span>
                                       )}
                                     </div>
                                   </div>
-                                  <Button variant="ghost" size="sm">
-                                    <Eye className="w-4 h-4" />
-                                  </Button>
+                                  {canReview ? (
+                                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        disabled={isActing}
+                                        onClick={() =>
+                                          handleApproveCommunitySubmission(
+                                            submission
+                                          )
+                                        }
+                                      >
+                                        {isActing ? "…" : "Approve"}
+                                      </Button>
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        disabled={isActing}
+                                        onClick={() =>
+                                          handleRejectCommunitySubmission(
+                                            submission
+                                          )
+                                        }
+                                      >
+                                        Reject
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {status === "APPROVED"
+                                        ? "Approved"
+                                        : "Closed"}
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
                             );

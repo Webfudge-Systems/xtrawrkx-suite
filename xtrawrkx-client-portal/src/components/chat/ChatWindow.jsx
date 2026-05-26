@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Minimize2, Maximize2 } from "lucide-react";
+import { MessageCircle, X, Minimize2, Maximize2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { TypingIndicator } from "./TypingIndicator";
 import { useChat } from "@/components/providers/ChatProvider";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export function ChatWindow({
   conversation,
@@ -50,22 +51,13 @@ export function ChatWindow({
 
   if (!conversation) {
     return (
-      <div className="flex h-96 flex-col rounded-2xl border border-gray-200 bg-white shadow-md ring-1 ring-gray-900/[0.06]">
-        <div className="border-b border-gray-200 p-6">
-          <h3 className="font-bold text-gray-900 text-lg">
-            Select a conversation
-          </h3>
-        </div>
-        <div className="flex-1 p-6 flex items-center justify-center">
-          <div className="text-center">
-            <div className="h-16 w-16 bg-gradient-to-br from-pink-500 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <span className="text-white text-2xl">💬</span>
-            </div>
-            <p className="text-gray-600 font-medium text-lg">
-              Choose a conversation to start messaging
-            </p>
-          </div>
-        </div>
+      <div className="flex h-[600px] flex-col rounded-2xl bg-white/95 backdrop-blur-xl border border-white/30 shadow-lg">
+        <EmptyState
+          icon={MessageCircle}
+          title="Select a conversation"
+          description="Choose a conversation to start messaging."
+          className="h-full py-0"
+        />
       </div>
     );
   }
@@ -76,7 +68,7 @@ export function ChatWindow({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className={`flex flex-col rounded-2xl border border-gray-200 bg-white shadow-md ring-1 ring-gray-900/[0.06] ${
+      className={`flex flex-col rounded-2xl bg-white/95 backdrop-blur-xl border border-white/30 shadow-lg ${
         isMinimized ? "h-16" : "h-[600px]"
       } transition-all duration-300`}
     >

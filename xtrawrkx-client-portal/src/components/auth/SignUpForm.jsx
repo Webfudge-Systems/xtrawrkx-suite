@@ -198,7 +198,6 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
     // Step 3: Community Selection
     selectedCommunities: [],
   });
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [errors, setErrors] = useState({});
@@ -433,28 +432,16 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
       />
 
       <div className="md:col-span-2">
-        <div className="relative">
-          <AuthInput
-            type={showPassword ? "text" : "password"}
-            name="password"
-            label="Password"
-            placeholder="At least 8 characters"
-            value={formData.password}
-            onChange={handleInputChange}
-            error={errors.password}
-            required
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-4 top-[2.5rem] translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none flex items-center justify-center"
-          >
-            <Icon
-              icon={showPassword ? "mdi:eye-off" : "mdi:eye"}
-              className="w-5 h-5"
-            />
-          </button>
-        </div>
+        <AuthInput
+          type="password"
+          name="password"
+          label="Password"
+          placeholder="At least 8 characters"
+          value={formData.password}
+          onChange={handleInputChange}
+          error={errors.password}
+          required
+        />
       </div>
     </div>
   );

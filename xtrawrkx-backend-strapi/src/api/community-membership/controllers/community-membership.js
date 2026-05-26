@@ -1,60 +1,13 @@
 'use strict';
 
 const { createCoreController } = require('@strapi/strapi').factories;
-
-const VALID_COMMUNITY_ENUMS = new Set(['XEN', 'XEVFIN', 'XEVTG', 'XDD']);
-
-/**
- * Append a community code to client-account.selectedCommunities (JSON).
- * CRM "Selected Communities" and onboarding flows read this array.
- */
-function mergeSelectedCommunities(existing, communityEnum) {
-  const code = String(communityEnum || '').trim().toUpperCase();
-  if (!VALID_COMMUNITY_ENUMS.has(code)) {
-    return Array.isArray(existing) ? existing : [];
-  }
-
-  const base = Array.isArray(existing)
-    ? existing.map((x) => String(x).trim()).filter(Boolean)
-    : [];
-
-  const upper = new Set(base.map((x) => x.toUpperCase()));
-  if (upper.has(code)) {
-    return base;
-  }
-
-  return [...base, code];
-}
-
-async function registerCommunityOnClientAccount(strapi, accountId, communityEnum) {
-  if (!accountId || !communityEnum) return;
-
-  const account = await strapi.db
-    .query('api::client-account.client-account')
-    .findOne({
-      where: { id: accountId },
-      select: ['id', 'selectedCommunities'],
-    });
-
-  if (!account) return;
-
-  const nextSelected = mergeSelectedCommunities(
-    account.selectedCommunities,
-    communityEnum
-  );
-
-  await strapi.db.query('api::client-account.client-account').update({
-    where: { id: accountId },
-    data: { selectedCommunities: nextSelected },
-  });
-}
+const { ensureActiveMembership } = require('../utils/membership-helpers');
 
 module.exports = createCoreController(
   'api::community-membership.community-membership',
   ({ strapi }) => ({
     /**
      * GET /api/community-memberships/list-for-client?clientAccountId=…&status=ACTIVE
-     * Uses db layer so CRM / website avoid Strapi 5 REST relation filters (400).
      */
     async listForClient(ctx) {
       const raw =
@@ -118,8 +71,7 @@ module.exports = createCoreController(
 
     /**
      * POST /api/community-memberships/ensure
-     * Creates an ACTIVE membership if one doesn't already exist for this
-     * client+community pair. Accepts clientAccountId as numeric id or documentId.
+     * Creates an ACTIVE membership (CRM approval / internal use only).
      */
     async ensure(ctx) {
       const {
@@ -132,7 +84,6 @@ module.exports = createCoreController(
         return ctx.badRequest('communityEnum is required');
       }
 
-      // Resolve clientAccount to a numeric db id
       let accountId = null;
       if (clientAccountId) {
         const idStr = String(clientAccountId).trim();
@@ -146,38 +97,13 @@ module.exports = createCoreController(
         if (account) accountId = account.id;
       }
 
-      // Check for existing ACTIVE membership
-      const existing = await strapi.db
-        .query('api::community-membership.community-membership')
-        .findOne({
-          where: {
-            community: communityEnum,
-            status: 'ACTIVE',
-            ...(accountId ? { clientAccount: accountId } : {}),
-          },
-        });
+      const { entry, alreadyMember } = await ensureActiveMembership(strapi, {
+        accountId,
+        communityEnum,
+        membershipData,
+      });
 
-      if (existing) {
-        await registerCommunityOnClientAccount(strapi, accountId, communityEnum);
-        return ctx.send({ data: existing, alreadyMember: true });
-      }
-
-      const entry = await strapi.db
-        .query('api::community-membership.community-membership')
-        .create({
-          data: {
-            community: communityEnum,
-            membershipType: 'FREE',
-            status: 'ACTIVE',
-            joinedAt: new Date(),
-            membershipData: membershipData || null,
-            ...(accountId ? { clientAccount: accountId } : {}),
-          },
-        });
-
-      await registerCommunityOnClientAccount(strapi, accountId, communityEnum);
-
-      return ctx.send({ data: entry, alreadyMember: false });
+      return ctx.send({ data: entry, alreadyMember });
     },
   })
 );

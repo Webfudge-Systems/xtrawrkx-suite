@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
@@ -22,7 +21,7 @@ function SectionContent({ section }) {
           {section.list.map((item, i) => (
             <li
               key={i}
-              className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100"
+              className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100"
             >
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white border border-gray-200 text-xs font-semibold text-gray-500">
                 {i + 1}
@@ -48,7 +47,6 @@ export default function LegalDocumentPage({
   sections = [],
   currentPageId,
 }) {
-  const pathname = usePathname();
   const [activeSectionId, setActiveSectionId] = useState(
     sections[0]?.id ?? ""
   );
@@ -82,20 +80,29 @@ export default function LegalDocumentPage({
                     type="button"
                     onClick={() => setActiveSectionId(section.id)}
                     className={cn(
-                      "w-full flex items-center space-x-3 p-3 text-left rounded-lg transition-colors group",
+                      "w-full flex items-center space-x-3 p-3 text-left rounded-xl border transition-colors group",
                       isActive
-                        ? "bg-xtrawrkx-50 ring-1 ring-xtrawrkx-100"
-                        : "hover:bg-gray-50"
+                        ? "bg-xtrawrkx-50 border-xtrawrkx-200"
+                        : "border-transparent hover:bg-gray-50 hover:border-gray-200"
                     )}
                   >
-                    <Icon
+                    <span
                       className={cn(
-                        "h-5 w-5 flex-shrink-0",
+                        "w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border bg-gray-50",
                         isActive
-                          ? "text-xtrawrkx-600"
-                          : "text-gray-400 group-hover:text-gray-600"
+                          ? "border-xtrawrkx-200 bg-white"
+                          : "border-gray-200 group-hover:border-gray-300"
                       )}
-                    />
+                    >
+                      <Icon
+                        className={cn(
+                          "h-5 w-5",
+                          isActive
+                            ? "text-xtrawrkx-600"
+                            : "text-gray-400 group-hover:text-gray-600"
+                        )}
+                      />
+                    </span>
                     <div className="min-w-0">
                       <p
                         className={cn(
@@ -120,33 +127,38 @@ export default function LegalDocumentPage({
             <nav className="space-y-2">
               {legalRelatedPages.map((page) => {
                 const Icon = page.icon;
-                const isCurrent =
-                  currentPageId === page.id || pathname === page.href;
+                const isCurrent = currentPageId === page.id;
                 return (
                   <Link
                     key={page.id}
                     href={page.href}
                     className={cn(
-                      "w-full flex items-center space-x-3 p-3 rounded-lg transition-colors group",
+                      "w-full flex items-center space-x-3 p-3 rounded-xl border transition-colors group",
                       isCurrent
-                        ? "bg-gray-100"
-                        : "hover:bg-gray-50"
+                        ? "bg-gray-100 border-gray-200"
+                        : "border-transparent hover:bg-gray-50 hover:border-gray-200"
                     )}
                   >
-                    <Icon
+                    <span
                       className={cn(
-                        "h-5 w-5 flex-shrink-0",
+                        "w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border bg-gray-50",
                         isCurrent
-                          ? "text-gray-700"
-                          : "text-gray-400 group-hover:text-gray-600"
+                          ? "border-gray-200 bg-white"
+                          : "border-gray-200 group-hover:border-gray-300"
                       )}
-                    />
+                    >
+                      <Icon
+                        className={cn(
+                          "h-5 w-5",
+                          isCurrent
+                            ? "text-gray-700"
+                            : "text-gray-400 group-hover:text-gray-600"
+                        )}
+                      />
+                    </span>
                     <div className="min-w-0">
                       <p className="font-medium text-gray-900 truncate">
                         {page.label}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {page.description}
                       </p>
                     </div>
                   </Link>
@@ -197,15 +209,19 @@ export default function LegalDocumentPage({
                 const preview =
                   section.paragraphs?.[0] ??
                   (section.list?.[0] ? section.list[0] : "");
+                const isContact = section.id === "contact";
                 return (
                   <button
                     key={section.id}
                     type="button"
                     onClick={() => setActiveSectionId(section.id)}
-                    className="bg-white rounded-xl border border-gray-200 p-4 text-left hover:shadow-md hover:border-gray-300 transition-all duration-200"
+                    className={cn(
+                      "bg-white rounded-xl border border-gray-200 p-4 text-left transition-colors hover:bg-gray-50",
+                      isContact && "md:col-span-2"
+                    )}
                   >
                     <div className="flex items-start space-x-3">
-                      <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100">
+                      <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">
                         <Icon className="h-5 w-5 text-gray-600" />
                       </div>
                       <div className="flex-1 min-w-0">

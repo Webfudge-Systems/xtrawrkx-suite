@@ -140,7 +140,9 @@ export default function CommunityJoinRequirementsModal({
     >
       <p className="text-sm text-gray-600 mb-4">
         Your registration details are prefilled from onboarding. Review them
-        before joining; only the two community-specific answers are required.
+        before applying; only the two community-specific answers are required.
+        Your account manager will review the application before membership is
+        activated.
       </p>
 
       {error ? (
@@ -242,7 +244,7 @@ export default function CommunityJoinRequirementsModal({
             disabled={submitting}
             className="px-4 py-2 rounded-lg text-sm font-semibold bg-xtrawrkx-500 text-white hover:bg-xtrawrkx-600 disabled:opacity-60"
           >
-            {submitting ? "Submitting…" : "Submit & join"}
+            {submitting ? "Submitting…" : "Submit application"}
           </button>
         </div>
       </form>

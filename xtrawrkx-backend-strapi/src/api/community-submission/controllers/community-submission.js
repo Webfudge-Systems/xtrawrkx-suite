@@ -1,6 +1,10 @@
 'use strict';
 
 const { createCoreController } = require('@strapi/strapi').factories;
+const {
+  PENDING_SUBMISSION_STATUSES,
+  ensureActiveMembership,
+} = require('../../community-membership/utils/membership-helpers');
 
 module.exports = createCoreController(
   'api::community-submission.community-submission',
@@ -54,6 +58,10 @@ module.exports = createCoreController(
           submissionId: row.submissionId,
           reviewNotes: row.reviewNotes,
           reviewedAt: row.reviewedAt,
+          approvedAt: row.approvedAt,
+          rejectedAt: row.rejectedAt,
+          rejectionReason: row.rejectionReason,
+          createdAt: row.createdAt,
         },
       }));
 
@@ -65,9 +73,7 @@ module.exports = createCoreController(
 
     /**
      * POST /api/community-submissions/join
-     * Accepts clientAccountId (numeric id OR documentId string) and creates the
-     * submission using strapi.db.query — bypasses Strapi 5 REST relation-format
-     * validation which rejects plain ids / { connect } shapes for manyToOne.
+     * Creates a submission only — membership is created when POC approves.
      */
     async join(ctx) {
       const {
@@ -84,7 +90,6 @@ module.exports = createCoreController(
         return ctx.badRequest('requirements must be an object');
       }
 
-      // Resolve clientAccount to a numeric db id
       let accountId = null;
       if (clientAccountId) {
         const idStr = String(clientAccountId).trim();
@@ -96,6 +101,38 @@ module.exports = createCoreController(
             select: ['id'],
           });
         if (account) accountId = account.id;
+      }
+
+      if (accountId) {
+        const activeMembership = await strapi.db
+          .query('api::community-membership.community-membership')
+          .findOne({
+            where: {
+              clientAccount: accountId,
+              community: communityEnum,
+              status: 'ACTIVE',
+            },
+          });
+
+        if (activeMembership) {
+          return ctx.badRequest('You are already a member of this community');
+        }
+
+        const pendingSubmission = await strapi.db
+          .query('api::community-submission.community-submission')
+          .findOne({
+            where: {
+              clientAccount: accountId,
+              community: communityEnum,
+              status: { $in: PENDING_SUBMISSION_STATUSES },
+            },
+          });
+
+        if (pendingSubmission) {
+          return ctx.badRequest(
+            'An application for this community is already pending approval'
+          );
+        }
       }
 
       const sid =
@@ -116,5 +153,141 @@ module.exports = createCoreController(
 
       return ctx.send({ data: entry });
     },
+
+    /**
+     * POST /api/community-submissions/approve
+     * POC approves a submission and activates community membership.
+     */
+    async approve(ctx) {
+      const {
+        submissionId: bodySubmissionId,
+        id: bodyId,
+        documentId: bodyDocumentId,
+        reviewNotes,
+        reviewedById,
+      } = ctx.request.body;
+
+      const submission = await findSubmission(strapi, {
+        submissionId: bodySubmissionId,
+        id: bodyId,
+        documentId: bodyDocumentId,
+      });
+
+      if (!submission) {
+        return ctx.notFound('Submission not found');
+      }
+
+      if (submission.status === 'APPROVED') {
+        return ctx.send({ data: submission, alreadyApproved: true });
+      }
+
+      if (submission.status === 'REJECTED') {
+        return ctx.badRequest('This submission was rejected and cannot be approved');
+      }
+
+      const accountId = submission.clientAccount?.id ?? submission.clientAccount;
+      const now = new Date();
+
+      const updated = await strapi.db
+        .query('api::community-submission.community-submission')
+        .update({
+          where: { id: submission.id },
+          data: {
+            status: 'APPROVED',
+            approvedAt: now,
+            reviewedAt: now,
+            reviewNotes: reviewNotes || submission.reviewNotes || null,
+            ...(reviewedById ? { reviewedBy: reviewedById } : {}),
+          },
+        });
+
+      const { entry: membership } = await ensureActiveMembership(strapi, {
+        accountId,
+        communityEnum: submission.community,
+        membershipData: submission.submissionData,
+      });
+
+      return ctx.send({
+        data: updated,
+        membership,
+      });
+    },
+
+    /**
+     * POST /api/community-submissions/reject
+     */
+    async reject(ctx) {
+      const {
+        submissionId: bodySubmissionId,
+        id: bodyId,
+        documentId: bodyDocumentId,
+        rejectionReason,
+        reviewNotes,
+        reviewedById,
+      } = ctx.request.body;
+
+      const submission = await findSubmission(strapi, {
+        submissionId: bodySubmissionId,
+        id: bodyId,
+        documentId: bodyDocumentId,
+      });
+
+      if (!submission) {
+        return ctx.notFound('Submission not found');
+      }
+
+      if (submission.status === 'APPROVED') {
+        return ctx.badRequest('Approved submissions cannot be rejected');
+      }
+
+      const now = new Date();
+
+      const updated = await strapi.db
+        .query('api::community-submission.community-submission')
+        .update({
+          where: { id: submission.id },
+          data: {
+            status: 'REJECTED',
+            rejectedAt: now,
+            reviewedAt: now,
+            rejectionReason: rejectionReason || 'Application not approved',
+            reviewNotes: reviewNotes || submission.reviewNotes || null,
+            ...(reviewedById ? { reviewedBy: reviewedById } : {}),
+          },
+        });
+
+      return ctx.send({ data: updated });
+    },
   })
 );
+
+async function findSubmission(strapi, { submissionId, id, documentId }) {
+  if (submissionId) {
+    return strapi.db
+      .query('api::community-submission.community-submission')
+      .findOne({
+        where: { submissionId: String(submissionId).trim() },
+        populate: ['clientAccount'],
+      });
+  }
+
+  if (id != null && /^\d+$/.test(String(id))) {
+    return strapi.db
+      .query('api::community-submission.community-submission')
+      .findOne({
+        where: { id: Number(id) },
+        populate: ['clientAccount'],
+      });
+  }
+
+  if (documentId) {
+    return strapi.db
+      .query('api::community-submission.community-submission')
+      .findOne({
+        where: { documentId: String(documentId).trim() },
+        populate: ['clientAccount'],
+      });
+  }
+
+  return null;
+}

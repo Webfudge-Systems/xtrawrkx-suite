@@ -2272,7 +2272,7 @@ module.exports = {
     async updateCompanyMember(ctx) {
         try {
             const { memberId } = ctx.params;
-            const { role, status, name } = ctx.request.body || {};
+            const { role, status, name, password } = ctx.request.body || {};
             const contact = await strapi.db.query('api::contact.contact').findOne({
                 where: { id: memberId },
                 populate: { portalAccess: true, clientAccount: true },
@@ -2313,6 +2313,15 @@ module.exports = {
                     if (status === 'PENDING') {
                         portalUpdateData.forcePasswordReset = true;
                     }
+                }
+                if (password !== undefined && password !== null && String(password).trim()) {
+                    const passwordValue = String(password).trim();
+                    if (passwordValue.length < 6) {
+                        return ctx.badRequest('password must be at least 6 characters');
+                    }
+                    const bcrypt = require('bcryptjs');
+                    portalUpdateData.password = await bcrypt.hash(passwordValue, 12);
+                    portalUpdateData.forcePasswordReset = false;
                 }
 
                 if (Object.keys(portalUpdateData).length > 0) {

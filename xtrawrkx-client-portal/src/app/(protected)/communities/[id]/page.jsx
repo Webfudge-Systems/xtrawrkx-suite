@@ -23,7 +23,11 @@ import { ModernButton } from "../../../../components/ui";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
 import CommunityJoinRequirementsModal from "@/components/communities/CommunityJoinRequirementsModal";
 import { getCommunityById, avatarClassFor } from "@/data/communitiesCatalog";
-import { listActiveMembershipsForClient } from "@/lib/api/communityProgramService";
+import {
+  isPendingSubmissionStatus,
+  listActiveMembershipsForClient,
+  listSubmissionsForClient,
+} from "@/lib/api/communityProgramService";
 import { strapiClient } from "@/lib/strapiClient";
 import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
 import { CommunityChannelChat } from "@/components/chat/CommunityChannelChat";
@@ -228,6 +232,7 @@ export default function CommunityDetailPage() {
 
   const [activeTab, setActiveTab] = useState("overview");
   const [isMember, setIsMember] = useState(false);
+  const [isPending, setIsPending] = useState(false);
   const [clientAccountId, setClientAccountId] = useState(null);
   const [accountDefaults, setAccountDefaults] = useState({});
   const [joinModalOpen, setJoinModalOpen] = useState(false);
@@ -262,9 +267,19 @@ export default function CommunityDetailPage() {
 
       if (!accId || !base) return;
 
-      const list = await listActiveMembershipsForClient(accId);
+      const [memberships, submissions] = await Promise.all([
+        listActiveMembershipsForClient(accId),
+        listSubmissionsForClient(accId),
+      ]);
       if (cancelled) return;
-      setIsMember(list.some((m) => m.community === base.strapiEnum));
+      setIsMember(memberships.some((m) => m.community === base.strapiEnum));
+      setIsPending(
+        submissions.some(
+          (s) =>
+            s.community === base.strapiEnum &&
+            isPendingSubmissionStatus(s.status)
+        )
+      );
     })();
 
     return () => {
@@ -285,9 +300,9 @@ export default function CommunityDetailPage() {
         ? base.userTierName || "Member"
         : "Guest",
       canUpgrade: isMember && Boolean(base.canUpgrade),
-      memberSince: isMember ? "Active" : "—",
+      memberSince: isMember ? "Active" : isPending ? "Pending approval" : "—",
     };
-  }, [base, isMember]);
+  }, [base, isMember, isPending]);
 
   if (!base || !communityData) {
     notFound();
@@ -336,7 +351,7 @@ export default function CommunityDetailPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {!communityData.isMember ? (
+              {!communityData.isMember && !isPending ? (
                 <ModernButton
                   type="gradient"
                   size="sm"
@@ -344,6 +359,11 @@ export default function CommunityDetailPage() {
                   icon={Plus}
                   onClick={() => setJoinModalOpen(true)}
                 />
+              ) : null}
+              {isPending && !communityData.isMember ? (
+                <span className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900">
+                  Approval pending
+                </span>
               ) : null}
               <ModernButton
                 type="secondary"
@@ -746,7 +766,7 @@ export default function CommunityDetailPage() {
         clientAccountId={clientAccountId}
         accountDefaults={accountDefaults}
         onSuccess={() => {
-          setIsMember(true);
+          setIsPending(true);
           setJoinModalOpen(false);
         }}
       />

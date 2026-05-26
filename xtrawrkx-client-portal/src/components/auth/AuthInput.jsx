@@ -1,5 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Lock, User, Phone } from "lucide-react";
+import { Mail, Lock, User, Phone, Eye, EyeOff } from "lucide-react";
 
 const iconMap = {
   email: Mail,
@@ -15,9 +18,15 @@ export default function AuthInput({
   required = false,
   error,
   className = "",
+  showPasswordToggle,
   ...props
 }) {
-  const Icon = iconMap[type] || User;
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const isPasswordField = type === "password";
+  const enablePasswordToggle = showPasswordToggle ?? isPasswordField;
+  const inputType =
+    enablePasswordToggle && passwordVisible ? "text" : type;
+  const Icon = isPasswordField ? Lock : iconMap[type] || User;
 
   return (
     <motion.div
@@ -39,19 +48,33 @@ export default function AuthInput({
           </div>
         )}
         <input
-          type={type}
+          type={inputType}
           placeholder={placeholder}
           required={required}
           className={`block w-full rounded-lg border shadow-sm px-3 sm:px-4 py-3 sm:py-3.5 text-sm sm:text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors duration-200 ${
             Icon ? "pl-10 sm:pl-12" : ""
-          } ${
+          } ${enablePasswordToggle ? "pr-10 sm:pr-12" : ""} ${
             error
               ? "border-red-300 text-red-900 focus:ring-red-500"
               : "border-gray-300 focus:ring-orange-500"
           } ${className}`}
           {...props}
         />
-        {error && (
+        {enablePasswordToggle && (
+          <button
+            type="button"
+            onClick={() => setPasswordVisible((visible) => !visible)}
+            className="absolute inset-y-0 right-0 pr-3 sm:pr-4 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none z-10"
+            aria-label={passwordVisible ? "Hide password" : "Show password"}
+          >
+            {passwordVisible ? (
+              <EyeOff className="h-5 w-5 sm:h-6 sm:w-6" />
+            ) : (
+              <Eye className="h-5 w-5 sm:h-6 sm:w-6" />
+            )}
+          </button>
+        )}
+        {error && !enablePasswordToggle && (
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
             <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

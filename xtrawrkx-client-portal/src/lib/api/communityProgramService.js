@@ -1,12 +1,22 @@
 /**
- * Creates a community join application + active membership in Strapi.
+ * Community applications and memberships in Strapi.
  *
- * Uses custom endpoints (/join, /ensure) that accept clientAccountId in any
- * form (numeric id or documentId) and resolve the relation internally via
- * strapi.db.query — bypassing Strapi 5's strict REST relation-format validation.
+ * Apply flow: submission only (SUBMITTED) — POC approves in CRM to activate membership.
  */
 
 import { strapiClient } from "../strapiClient";
+
+export const PENDING_SUBMISSION_STATUSES = [
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "PENDING_INFO",
+];
+
+export function isPendingSubmissionStatus(status) {
+  return PENDING_SUBMISSION_STATUSES.includes(
+    String(status || "").trim().toUpperCase()
+  );
+}
 
 function apiBase() {
   return `${strapiClient.baseURL}${strapiClient.apiPath}`;
@@ -48,7 +58,6 @@ async function parseError(res) {
 
 /**
  * POST /api/community-submissions/join
- * Uses the custom Strapi controller that accepts clientAccountId directly.
  */
 export async function submitCommunityJoinApplication({
   clientAccountId,
@@ -76,7 +85,7 @@ export async function submitCommunityJoinApplication({
 
 /**
  * POST /api/community-memberships/ensure
- * Creates an ACTIVE membership if one doesn't already exist.
+ * Internal / CRM use — not called on client apply.
  */
 export async function ensureCommunityMembership({
   clientAccountId,
@@ -102,19 +111,53 @@ export async function ensureCommunityMembership({
 }
 
 /**
- * Full join: application record + membership for CRM / profile visibility.
+ * Submit application only — membership activates after POC approval in CRM.
  */
 export async function joinCommunityWithRequirements(payload) {
   const { clientAccountId, communityEnum, requirements } = payload;
-  await submitCommunityJoinApplication({
+  return submitCommunityJoinApplication({
     clientAccountId,
     communityEnum,
     requirements,
   });
-  return ensureCommunityMembership({
-    clientAccountId,
-    communityEnum,
-    membershipData: requirements,
+}
+
+/**
+ * GET /api/community-submissions/list-for-client
+ */
+export async function listSubmissionsForClient(clientAccountId) {
+  const resolvedId = resolveClientAccountId(clientAccountId);
+  if (!resolvedId) {
+    return [];
+  }
+
+  const params = new URLSearchParams({
+    clientAccountId: resolvedId,
+    pageSize: "50",
+  });
+  const url = `${apiBase()}/community-submissions/list-for-client?${params.toString()}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: strapiClient.getHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return [];
+  }
+
+  const json = await res.json().catch(() => ({}));
+  const rows = Array.isArray(json?.data) ? json.data : [];
+
+  return rows.map((row) => {
+    const a = row.attributes || row || {};
+    return {
+      id: row.id || row.documentId,
+      community: a.community,
+      status: a.status,
+      submissionId: a.submissionId,
+      createdAt: a.createdAt,
+    };
   });
 }
 

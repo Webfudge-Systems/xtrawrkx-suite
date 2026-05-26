@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDistanceToNow } from "date-fns";
+import { MessageCircle } from "lucide-react";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const URL_SPLIT = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 
@@ -41,15 +43,12 @@ function MessageBody({ text, isClient }) {
 export function MessageList({ messages }) {
   if (!messages || messages.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-gray-400 text-2xl">💬</span>
-          </div>
-          <p className="text-gray-500">No messages yet</p>
-          <p className="text-sm text-gray-400">Start the conversation!</p>
-        </div>
-      </div>
+      <EmptyState
+        icon={MessageCircle}
+        title="No messages yet"
+        description="Start the conversation!"
+        className="h-full py-0"
+      />
     );
   }
 

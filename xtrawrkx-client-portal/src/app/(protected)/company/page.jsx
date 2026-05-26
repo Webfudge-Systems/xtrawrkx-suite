@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import CompanyMemberModal from "@/components/company/CompanyMemberModal";
 import {
   UserCircle,
   Search,
@@ -36,13 +37,25 @@ const roleTabs = [
 
 export default function CompanyMembersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [viewMode, setViewMode] = useState("list");
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [memberModal, setMemberModal] = useState(null);
   const [actionState, setActionState] = useState({ kind: "", message: "" });
+
+  const openAddModal = () => setMemberModal({ mode: "add" });
+  const openEditModal = (member) =>
+    setMemberModal({ mode: "edit", memberId: member.id, member });
+  const closeMemberModal = () => {
+    setMemberModal(null);
+    if (searchParams?.get("add") || searchParams?.get("edit")) {
+      router.replace("/company");
+    }
+  };
 
   const loadMembers = async () => {
     try {
@@ -81,6 +94,18 @@ export default function CompanyMembersPage() {
   useEffect(() => {
     loadMembers();
   }, []);
+
+  useEffect(() => {
+    const add = searchParams?.get("add");
+    const editId = searchParams?.get("edit");
+    if (add === "1" || add === "true") {
+      setMemberModal({ mode: "add" });
+      return;
+    }
+    if (editId) {
+      setMemberModal({ mode: "edit", memberId: editId, member: null });
+    }
+  }, [searchParams]);
 
   const filteredMembers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -256,7 +281,7 @@ export default function CompanyMembersPage() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => router.push("/company/add")}
+              onClick={openAddModal}
               className="w-10 h-10 rounded-full bg-xtrawrkx-500 text-white border border-xtrawrkx-500/50 flex items-center justify-center hover:bg-xtrawrkx-600 transition-colors"
               title="Add member"
             >
@@ -368,9 +393,7 @@ export default function CompanyMembersPage() {
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() =>
-                              router.push(`/company/${member.id}/edit`)
-                            }
+                            onClick={() => openEditModal(member)}
                             className="p-1.5 text-green-600 hover:bg-green-50 rounded"
                             title="Edit"
                           >
@@ -434,7 +457,7 @@ export default function CompanyMembersPage() {
                       <Eye className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => router.push(`/company/${member.id}/edit`)}
+                      onClick={() => openEditModal(member)}
                       className="p-1.5 text-green-600 hover:bg-green-50 rounded"
                       title="Edit"
                     >
@@ -476,6 +499,24 @@ export default function CompanyMembersPage() {
           </div>
         </div>
       )}
+
+      <CompanyMemberModal
+        isOpen={Boolean(memberModal)}
+        onClose={closeMemberModal}
+        mode={memberModal?.mode || "add"}
+        memberId={memberModal?.memberId}
+        initialMember={memberModal?.member}
+        onSuccess={async () => {
+          await loadMembers();
+          setActionState({
+            kind: "success",
+            message:
+              memberModal?.mode === "edit"
+                ? "Member updated successfully."
+                : "Member added successfully.",
+          });
+        }}
+      />
 
       {deleteTarget && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
