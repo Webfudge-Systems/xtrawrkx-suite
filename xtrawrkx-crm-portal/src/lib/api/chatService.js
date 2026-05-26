@@ -4,9 +4,13 @@ class ChatService {
     /**
      * Get chat messages by entity
      */
-    async getMessages(entityType, entityId) {
+    async getMessages(entityType, entityId, options = {}) {
         try {
-            const response = await strapiClient.get(`/chat-messages/${entityType}/${entityId}`);
+            const params = {};
+            if (entityType === 'clientAccount' && options.allChannels) {
+                params.allChannels = 'true';
+            }
+            const response = await strapiClient.get(`/chat-messages/${entityType}/${entityId}`, params);
             return response;
         } catch (error) {
             console.error('Error fetching chat messages:', error);
@@ -24,7 +28,9 @@ class ChatService {
                     message,
                     entityType,
                     entityId,
-                    createdBy: userId
+                    createdBy: userId,
+                    channelKey: '',
+                    isThreadStarter: false,
                 }
             });
             return response;

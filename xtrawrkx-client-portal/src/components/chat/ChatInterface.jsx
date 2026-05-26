@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
+import { Avatar } from "@/components/ui/Avatar";
 import { ChatWindow } from "./ChatWindow";
 import { useChat } from "@/components/providers/ChatProvider";
 import ModernButton from "@/components/ui/ModernButton";
@@ -25,13 +25,8 @@ export function ChatInterface() {
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
 
   // Use chat context instead of local state
-  const {
-    conversations,
-    sendMessage,
-    markAsRead,
-    updateConversation,
-    getMessages,
-  } = useChat();
+  const { conversations, sendMessage, markAsRead, updateConversation } =
+    useChat();
 
   // Filter conversations based on search
   const filteredConversations = conversations.filter(
@@ -46,7 +41,9 @@ export function ChatInterface() {
     if (!a.isPinned && b.isPinned) return 1;
     if (a.unread > 0 && b.unread === 0) return -1;
     if (a.unread === 0 && b.unread > 0) return 1;
-    return new Date(b.time) - new Date(a.time);
+    const tb = b.sortKey ?? b.lastMessageAt ?? 0;
+    const ta = a.sortKey ?? a.lastMessageAt ?? 0;
+    return tb - ta;
   });
 
   // Handle conversation selection
@@ -92,10 +89,10 @@ export function ChatInterface() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
       {/* Conversations List */}
-      <div className="lg:col-span-1">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg h-full flex flex-col">
+      <div className="min-h-0 lg:col-span-1">
+        <div className="flex h-full min-h-0 flex-col rounded-2xl border border-gray-200 bg-white shadow-md ring-1 ring-gray-900/[0.06]">
           {/* Header */}
-          <div className="p-6 border-b border-gray-200/50">
+          <div className="border-b border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Messages</h2>
               <ModernButton
@@ -109,26 +106,29 @@ export function ChatInterface() {
 
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search
+                className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8E9AAF]"
+                aria-hidden
+              />
               <input
                 type="text"
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 pr-4 py-3 w-full border border-gray-200/50 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white/50 backdrop-blur-sm transition-all duration-200"
+                className="w-full rounded-full border border-gray-200 bg-white py-3 pl-12 pr-5 text-sm text-gray-800 shadow-sm transition-colors duration-200 placeholder:text-[#8E9AAF] focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-500/25 focus:ring-offset-0"
               />
             </div>
           </div>
 
-          {/* Conversations */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Conversations — scroll inside panel; rows are uniform cards */}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
             {sortedConversations.length === 0 ? (
               <div className="p-6 text-center">
-                <MessageCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-sm">No conversations found</p>
+                <MessageCircle className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+                <p className="text-sm text-gray-500">No conversations found</p>
               </div>
             ) : (
-              <div className="p-3">
+              <div className="flex flex-col gap-2 p-3 pb-4">
                 {sortedConversations.map((conversation) => (
                   <ConversationItem
                     key={conversation.id}
@@ -163,26 +163,23 @@ function ConversationItem({ conversation, isSelected, onSelect, onAction }) {
 
   return (
     <motion.div
-      whileHover={{ scale: 1.02 }}
-      className={`relative group cursor-pointer rounded-xl p-4 transition-all duration-300 ${
+      className={`group relative cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition-all duration-200 ${
         isSelected
-          ? "bg-gradient-to-r from-pink-50/80 to-red-50/80 border border-pink-200/50 shadow-md backdrop-blur-sm"
-          : "hover:bg-white/50 hover:shadow-md backdrop-blur-sm"
+          ? "border-pink-200 bg-gradient-to-r from-pink-50/90 to-red-50/70 shadow-md ring-1 ring-pink-500/20"
+          : "border-gray-200 hover:border-gray-300 hover:shadow-md"
       }`}
       onClick={onSelect}
     >
       <div className="flex items-center space-x-4">
         {/* Avatar */}
         <div className="relative">
-          <Avatar className="h-14 w-14 shadow-lg">
-            <AvatarImage src={conversation.avatar} />
-            <AvatarFallback className="bg-gradient-to-br from-pink-500 to-red-500 text-white font-semibold">
-              {conversation.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </AvatarFallback>
-          </Avatar>
+          <Avatar
+            src={conversation.avatar || undefined}
+            name={conversation.name}
+            color="bg-gradient-to-br from-pink-500 to-red-500"
+            size="lg"
+            className="h-14 w-14 shadow-lg text-sm"
+          />
           {conversation.isOnline && (
             <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-3 border-white shadow-sm" />
           )}

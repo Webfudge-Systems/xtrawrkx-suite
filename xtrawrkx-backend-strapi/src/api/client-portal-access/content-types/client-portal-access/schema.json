@@ -38,6 +38,24 @@
         "lastLogin": {
             "type": "datetime"
         },
+        "roleName": {
+            "type": "string",
+            "default": "DEVELOPER"
+        },
+        "loginId": {
+            "type": "string"
+        },
+        "permissions": {
+            "type": "json"
+        },
+        "isCustomRole": {
+            "type": "boolean",
+            "default": false
+        },
+        "forcePasswordReset": {
+            "type": "boolean",
+            "default": false
+        },
         "account": {
             "type": "relation",
             "relation": "manyToOne",

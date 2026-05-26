@@ -304,6 +304,18 @@ const ClientAccountDetailPage = ({ params }) => {
         return "bg-red-100 text-red-800";
       case "ON_HOLD":
         return "bg-yellow-100 text-yellow-800";
+      case "REGISTERED":
+        return "bg-blue-100 text-blue-800";
+      case "COMMUNITY_MEMBER":
+        return "bg-indigo-100 text-indigo-800";
+      case "COMMUNITY_PAID":
+        return "bg-emerald-100 text-emerald-800";
+      case "COMMUNITY_NON_PAID":
+        return "bg-cyan-100 text-cyan-800";
+      case "LOST":
+        return "bg-rose-100 text-rose-800";
+      case "STOPPED":
+        return "bg-orange-100 text-orange-800";
       default:
         return "bg-gray-100 text-gray-800";
     }

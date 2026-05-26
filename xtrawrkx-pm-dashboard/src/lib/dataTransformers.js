@@ -1,48 +1,28 @@
 // Data transformation layer for mapping Strapi responses to frontend format
 // Handles status enum differences, date formatting, and data structure mapping
 
+import { getStatusLabel, getStrapiStatus } from './taskStatusConstants';
+
 /**
- * Transform Strapi status to frontend status
+ * Transform Strapi status to frontend status label
  * @param {string} strapiStatus - Strapi status enum
- * @returns {string} - Frontend status
+ * @returns {string} - Frontend status label
  */
 export const transformStatus = (strapiStatus) => {
-    if (!strapiStatus) return 'To Do';
+    if (!strapiStatus) return 'Assigned';
 
-    const statusMap = {
-        'SCHEDULED': 'To Do',
-        'IN_PROGRESS': 'In Progress',
-        'IN_REVIEW': 'Internal Review',
-        'CLIENT_REVIEW': 'Client Review',
-        'APPROVED': 'Approved',
-        'COMPLETED': 'Done',
-        'CANCELLED': 'Cancelled',
-        'TODO': 'To Do',
-        'DONE': 'Done',
-        // Project statuses
+    const projectStatusMap = {
         'PLANNING': 'Planning',
         'ACTIVE': 'Active',
-        'ON_HOLD': 'On Hold'
+        'ON_HOLD': 'On Hold',
     };
 
-    // Try exact match first
-    if (statusMap[strapiStatus]) {
-        return statusMap[strapiStatus];
+    const upperStatus = String(strapiStatus).toUpperCase().replace(/\s+/g, '_');
+    if (projectStatusMap[upperStatus]) {
+        return projectStatusMap[upperStatus];
     }
 
-    // Try case-insensitive match
-    const upperStatus = strapiStatus.toUpperCase();
-    if (statusMap[upperStatus]) {
-        return statusMap[upperStatus];
-    }
-
-    // If already in frontend format, return as is
-    const frontendFormats = ['To Do', 'In Progress', 'Internal Review', 'Client Review', 'Approved', 'Done', 'Cancelled'];
-    if (frontendFormats.includes(strapiStatus)) {
-        return strapiStatus;
-    }
-
-    return strapiStatus;
+    return getStatusLabel(strapiStatus);
 };
 
 /**
@@ -69,55 +49,19 @@ export const transformProjectStatus = (strapiStatus) => {
  * @returns {string} - Strapi status enum
  */
 export const transformStatusToStrapi = (frontendStatus) => {
-    if (!frontendStatus) return 'SCHEDULED';
+    if (!frontendStatus) return 'ASSIGNED';
 
-    const statusMap = {
-        // Task statuses
-        'To Do': 'SCHEDULED',
-        'In Progress': 'IN_PROGRESS',
-        'Internal Review': 'IN_REVIEW',
-        'Client Review': 'CLIENT_REVIEW',
-        'Approved': 'APPROVED',
-        'Done': 'COMPLETED',
-        'Cancelled': 'CANCELLED',
-        'Canceled': 'CANCELLED', // Handle US spelling
-        // Project statuses
+    const projectStatusMap = {
         'Planning': 'PLANNING',
         'Active': 'ACTIVE',
-        'Completed': 'COMPLETED',
-        'On Hold': 'ON_HOLD'
+        'On Hold': 'ON_HOLD',
     };
 
-    // Try exact match first
-    if (statusMap[frontendStatus]) {
-        return statusMap[frontendStatus];
+    if (projectStatusMap[frontendStatus]) {
+        return projectStatusMap[frontendStatus];
     }
 
-    // Try case-insensitive match
-    const lowerStatus = frontendStatus.toLowerCase();
-    const lowerMap = {
-        // Task statuses
-        'to do': 'SCHEDULED',
-        'in progress': 'IN_PROGRESS',
-        'internal review': 'IN_REVIEW',
-        'client review': 'CLIENT_REVIEW',
-        'approved': 'APPROVED',
-        'done': 'COMPLETED',
-        'completed': 'COMPLETED',
-        'cancelled': 'CANCELLED',
-        'canceled': 'CANCELLED',
-        // Project statuses
-        'planning': 'PLANNING',
-        'active': 'ACTIVE',
-        'on hold': 'ON_HOLD'
-    };
-
-    if (lowerMap[lowerStatus]) {
-        return lowerMap[lowerStatus];
-    }
-
-    // Fallback: normalize to uppercase with underscores
-    return frontendStatus.toUpperCase().replace(/\s+/g, '_');
+    return getStrapiStatus(frontendStatus);
 };
 
 /**
@@ -435,6 +379,12 @@ export const transformTask = (strapiTask) => {
         completedDate: taskData.completedDate || strapiTask.completedDate,
         progress: taskData.progress || strapiTask.progress || 0,
         tags: taskData.tags || strapiTask.tags || [],
+        isSharedWithClient: !!(taskData.isSharedWithClient ?? strapiTask.isSharedWithClient),
+        sharePreferenceSetAtCreation: !!(taskData.sharePreferenceSetAtCreation ?? strapiTask.sharePreferenceSetAtCreation),
+        timeAllotted: taskData.timeAllotted ?? strapiTask.timeAllotted ?? null,
+        autoAccept: taskData.autoAccept ?? strapiTask.autoAccept ?? false,
+        clientId: taskData.clientId || strapiTask.clientId || null,
+        createdBySource: taskData.createdBySource || strapiTask.createdBySource || 'internal',
         createdAt: createdAt,
         updatedAt: updatedAt,
         // Relations

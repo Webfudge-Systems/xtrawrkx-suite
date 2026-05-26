@@ -43,6 +43,11 @@ import {
   transformPriorityToStrapi,
   transformComment,
 } from "../../lib/dataTransformers";
+import {
+  assertStatusChangeAllowed,
+  getEditableStatusOptionsByLabel,
+  STATUS_REVERT_TO_ASSIGNED_MESSAGE,
+} from "../../lib/taskStatusConstants";
 import { useAuth } from "../../contexts/AuthContext";
 import apiClient from "../../lib/apiClient";
 
@@ -285,8 +290,8 @@ export default function MyTasks() {
             ? parseInt(currentUserId)
             : currentUserId;
 
-        // Filter tasks where user is assignee OR collaborator
-        // Use allPMTasks to include tasks where user might be collaborator but not assignee
+        // Filter tasks where user is assignee/collaborator OR client-created
+        // Client-created tasks should also be visible in PM My Tasks even if unassigned
         const userAssignedTasks = allPMTasks.filter((task) => {
           // Check if task is assigned to current user
           const taskAssigneeId =
@@ -307,7 +312,9 @@ export default function MyTasks() {
             return normalizedCollabId === normalizedCurrentUserId;
           });
 
-          return isAssignee || isCollaborator;
+          const isClientCreated = task.createdBySource === "client";
+
+          return isAssignee || isCollaborator || isClientCreated;
         });
 
         const transformedProjects =
@@ -756,6 +763,59 @@ export default function MyTasks() {
     }
   };
 
+  const handleTimeAllottedUpdate = async (taskId, hours) => {
+    if (!taskId) return;
+
+    const originalTask =
+      tasks.find((t) => t.id === taskId) ||
+      allTasks.find((t) => t.id === taskId);
+    const originalValue = originalTask?.timeAllotted;
+
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, timeAllotted: hours } : task,
+      ),
+    );
+    setAllTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, timeAllotted: hours } : task,
+      ),
+    );
+
+    if (taskDetailModal.isOpen && taskDetailModal.task?.id === taskId) {
+      setTaskDetailModal((prev) => ({
+        ...prev,
+        task: { ...prev.task, timeAllotted: hours },
+      }));
+    }
+
+    try {
+      await taskService.updateTask(taskId, { timeAllotted: hours });
+    } catch (error) {
+      console.error("Error updating time allotted:", error);
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId
+            ? { ...task, timeAllotted: originalValue }
+            : task,
+        ),
+      );
+      setAllTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId
+            ? { ...task, timeAllotted: originalValue }
+            : task,
+        ),
+      );
+      if (taskDetailModal.isOpen && taskDetailModal.task?.id === taskId) {
+        setTaskDetailModal((prev) => ({
+          ...prev,
+          task: { ...prev.task, timeAllotted: originalValue },
+        }));
+      }
+    }
+  };
+
   // Table columns configuration
   const taskColumnsTable = [
     {
@@ -832,11 +892,10 @@ export default function MyTasks() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                // Toggle between Done and To Do
                 if (isDone) {
-                  handleStatusUpdate(task.id, "To Do");
+                  handleStatusUpdate(task.id, "In Progress");
                 } else {
-                  handleStatusUpdate(task.id, "Done");
+                  handleStatusUpdate(task.id, "Completed");
                 }
               }}
               className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all duration-200 ${
@@ -1025,6 +1084,40 @@ export default function MyTasks() {
       },
     },
     {
+      key: "visibility",
+      label: "VISIBILITY",
+      render: (_, task) => (
+        <div className="min-w-[150px]">
+          <span
+            className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+              task.isSharedWithClient
+                ? "bg-green-100 text-green-700 border-green-200"
+                : "bg-gray-100 text-gray-700 border-gray-200"
+            }`}
+          >
+            {task.isSharedWithClient ? "Shared with Client" : "Internal Only"}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "source",
+      label: "SOURCE",
+      render: (_, task) => (
+        <div className="min-w-[120px]">
+          <span
+            className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+              task.createdBySource === "client"
+                ? "bg-blue-100 text-blue-700 border-blue-200"
+                : "bg-orange-100 text-orange-700 border-orange-200"
+            }`}
+          >
+            {task.createdBySource === "client" ? "Client Created" : "Internal"}
+          </span>
+        </div>
+      ),
+    },
+    {
       key: "dueDate",
       label: "DUE DATE",
       render: (_, task) => {
@@ -1066,20 +1159,43 @@ export default function MyTasks() {
       },
     },
     {
+      key: "timeAllotted",
+      label: "TIME ALLOTTED",
+      render: (_, task) => (
+        <div
+          className="flex items-center gap-2 min-w-[130px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Clock className="w-4 h-4 flex-shrink-0 text-gray-500" />
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            value={
+              task.timeAllotted != null && task.timeAllotted !== ""
+                ? task.timeAllotted
+                : ""
+            }
+            onChange={(e) => {
+              const raw = e.target.value;
+              handleTimeAllottedUpdate(
+                task.id,
+                raw === "" ? null : parseFloat(raw),
+              );
+            }}
+            className="w-16 text-sm text-gray-700 px-2 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+            placeholder="—"
+          />
+          <span className="text-xs text-gray-500 whitespace-nowrap">hrs</span>
+        </div>
+      ),
+    },
+    {
       key: "status",
       label: "STATUS",
       render: (_, task) => {
-        const statusOptions = [
-          { value: "To Do", label: "To Do" },
-          { value: "In Progress", label: "In Progress" },
-          { value: "Internal Review", label: "Internal Review" },
-          { value: "Client Review", label: "Client Review" },
-          { value: "Approved", label: "Approved" },
-          { value: "Done", label: "Done" },
-          { value: "Cancelled", label: "Cancelled" },
-        ];
-
-        const currentStatus = task.status || "To Do";
+        const currentStatus = task.status || "Assigned";
+        const statusOptions = getEditableStatusOptionsByLabel(currentStatus);
         const status = currentStatus?.toLowerCase().replace(/\s+/g, "-") || "";
 
         const statusColors = {
@@ -1511,14 +1627,21 @@ export default function MyTasks() {
   const handleStatusUpdate = async (taskId, newStatus) => {
     if (!taskId) return;
 
+    const task =
+      tasks.find((t) => t.id === taskId) ||
+      allTasks.find((t) => t.id === taskId);
+
+    const guard = assertStatusChangeAllowed(task?.status, newStatus);
+    if (!guard.ok) {
+      alert(guard.message || STATUS_REVERT_TO_ASSIGNED_MESSAGE);
+      return;
+    }
+
     // Transform frontend status to Strapi format
     const strapiStatus = transformStatusToStrapi(newStatus);
 
     // Check if marking as done/completed - check in both task lists
     const isCompleting = strapiStatus === "COMPLETED";
-    const task =
-      tasks.find((t) => t.id === taskId) ||
-      allTasks.find((t) => t.id === taskId);
     const wasAlreadyDone =
       task?.status?.toLowerCase() === "done" ||
       task?.status?.toLowerCase() === "completed";
@@ -1894,8 +2017,8 @@ export default function MyTasks() {
           ? parseInt(currentUserId)
           : currentUserId;
 
-      // Filter tasks where user is assignee OR collaborator
-      // Use allPMTasks to include tasks where user might be collaborator but not assignee
+      // Filter tasks where user is assignee/collaborator OR client-created
+      // Client-created tasks should also be visible in PM My Tasks even if unassigned
       const userAssignedTasks = allPMTasks.filter((task) => {
         // Check if task is assigned to current user
         const taskAssigneeId =
@@ -1915,7 +2038,9 @@ export default function MyTasks() {
           return normalizedCollabId === normalizedCurrentUserId;
         });
 
-        return isAssignee || isCollaborator;
+        const isClientCreated = task.createdBySource === "client";
+
+        return isAssignee || isCollaborator || isClientCreated;
       });
 
       setTasks(userAssignedTasks);

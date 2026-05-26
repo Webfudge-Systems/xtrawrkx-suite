@@ -70,6 +70,26 @@ module.exports = {
             },
         },
         {
+            method: 'GET',
+            path: '/auth/client/dedicated-poc',
+            handler: 'auth.getClientDedicatedPoc',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
+        {
+            method: 'GET',
+            path: '/auth/client/documents',
+            handler: 'auth.getClientPortalDocuments',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
+        {
             method: 'POST',
             path: '/auth/request-reset',
             handler: 'auth.requestPasswordReset',
@@ -123,6 +143,56 @@ module.exports = {
             method: 'POST',
             path: '/auth/change-password',
             handler: 'auth.changePassword',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
+        {
+            method: 'GET',
+            path: '/auth/company-members',
+            handler: 'auth.listCompanyMembers',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
+        {
+            method: 'POST',
+            path: '/auth/company-members',
+            handler: 'auth.addCompanyMember',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
+        {
+            method: 'PUT',
+            path: '/auth/company-members/:memberId',
+            handler: 'auth.updateCompanyMember',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
+        {
+            method: 'DELETE',
+            path: '/auth/company-members/:memberId',
+            handler: 'auth.deleteCompanyMember',
+            config: {
+                auth: false,
+                policies: [],
+                middlewares: [],
+            },
+        },
+        {
+            method: 'POST',
+            path: '/auth/company-roles',
+            handler: 'auth.createCompanyRole',
             config: {
                 auth: false,
                 policies: [],

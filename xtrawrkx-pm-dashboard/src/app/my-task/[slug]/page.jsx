@@ -50,6 +50,11 @@ import {
   transformStatusToStrapi,
   transformPriorityToStrapi,
 } from "../../../lib/dataTransformers";
+import {
+  assertStatusChangeAllowed,
+  getEditableStatusOptionsByLabel,
+  STATUS_REVERT_TO_ASSIGNED_MESSAGE,
+} from "../../../lib/taskStatusConstants";
 import SubtaskDetailModal from "../../../components/shared/SubtaskDetailModal";
 
 export default function TaskDetailPage({ params: paramsProp }) {
@@ -75,7 +80,6 @@ export default function TaskDetailPage({ params: paramsProp }) {
   const [editingValue, setEditingValue] = useState("");
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [linkCopied, setLinkCopied] = useState(false);
-
   // Subtask table state
   const [subtaskSearchQuery, setSubtaskSearchQuery] = useState("");
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
@@ -505,6 +509,13 @@ export default function TaskDetailPage({ params: paramsProp }) {
 
   const handleStatusUpdate = async (newStatus) => {
     if (!task) return;
+
+    const guard = assertStatusChangeAllowed(task.status, newStatus);
+    if (!guard.ok) {
+      alert(guard.message || STATUS_REVERT_TO_ASSIGNED_MESSAGE);
+      return;
+    }
+
     try {
       const strapiStatus = transformStatusToStrapi(newStatus);
       await taskService.updateTask(task.id, {
@@ -574,6 +585,24 @@ export default function TaskDetailPage({ params: paramsProp }) {
 
   const handleShareTask = () => {
     setCollaboratorModal({ isOpen: true });
+  };
+
+  const handleTaskShareToggle = async (nextValue) => {
+    if (!task?.id) return;
+
+    const previous = !!task.isSharedWithClient;
+    setTask((prev) => ({ ...prev, isSharedWithClient: nextValue }));
+
+    try {
+      await taskService.updateTask(task.id, {
+        isSharedWithClient: nextValue,
+      });
+      return true;
+    } catch (error) {
+      console.error("Error updating client sharing:", error);
+      setTask((prev) => ({ ...prev, isSharedWithClient: previous }));
+      return false;
+    }
   };
 
   const handleCopyTaskLink = async () => {
@@ -1592,10 +1621,59 @@ export default function TaskDetailPage({ params: paramsProp }) {
                   </span>
                 </div>
 
+                <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        Share this task with client?
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {task.isSharedWithClient
+                          ? "Shared with Client"
+                          : "Internal Only"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        handleTaskShareToggle(!Boolean(task.isSharedWithClient))
+                      }
+                      className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors ${
+                        task.isSharedWithClient ? "bg-green-500" : "bg-gray-300"
+                      }`}
+                      aria-label="Toggle task sharing with client"
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                          task.isSharedWithClient
+                            ? "translate-x-6"
+                            : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Task Details
                 </h3>
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                    <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
+                      Source
+                    </label>
+                    <span
+                      className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${
+                        task.createdBySource === "client"
+                          ? "bg-blue-100 text-blue-700 border-blue-200"
+                          : "bg-orange-100 text-orange-700 border-orange-200"
+                      }`}
+                    >
+                      {task.createdBySource === "client"
+                        ? "Client Created"
+                        : "Internal"}
+                    </span>
+                  </div>
+
                   {/* Assignee */}
                   <div className="flex items-center justify-between py-2 border-b border-gray-100">
                     <label className="text-sm font-medium text-gray-700 w-28 flex-shrink-0">
@@ -1739,15 +1817,13 @@ export default function TaskDetailPage({ params: paramsProp }) {
                             editingValue,
                           )}`}
                         >
-                          <option value="To Do">To Do</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Internal Review">
-                            Internal Review
-                          </option>
-                          <option value="Client Review">Client Review</option>
-                          <option value="Approved">Approved</option>
-                          <option value="Done">Done</option>
-                          <option value="Cancelled">Cancelled</option>
+                          {getEditableStatusOptionsByLabel(
+                            task?.status || "Assigned",
+                          ).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                       ) : (
                         <span

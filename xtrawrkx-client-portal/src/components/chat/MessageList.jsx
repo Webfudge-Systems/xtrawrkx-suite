@@ -1,8 +1,42 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
+import { Avatar } from "@/components/ui/Avatar";
 import { formatDistanceToNow } from "date-fns";
+
+const URL_SPLIT = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+
+function MessageBody({ text, isClient }) {
+  if (text == null || text === "") {
+    return null;
+  }
+  const parts = text.split(URL_SPLIT);
+  return (
+    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+      {parts.map((part, i) => {
+        if (/^https?:\/\//i.test(part) || /^www\./i.test(part)) {
+          const href = part.startsWith("www.") ? `https://${part}` : part;
+          return (
+            <a
+              key={`${i}-${part.slice(0, 24)}`}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={
+                isClient
+                  ? "font-medium text-white underline decoration-white/70 underline-offset-2 hover:decoration-white"
+                  : "font-medium text-pink-600 underline decoration-pink-300 underline-offset-2 hover:text-pink-700"
+              }
+            >
+              {part}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </p>
+  );
+}
 
 export function MessageList({ messages }) {
   if (!messages || messages.length === 0) {
@@ -48,10 +82,13 @@ function MessageItem({ message, isLast }) {
       >
         {/* Avatar for team messages */}
         {isTeam && (
-          <Avatar className="h-8 w-8 flex-shrink-0">
-            <AvatarImage src="/images/team-avatar.png" />
-            <AvatarFallback>XT</AvatarFallback>
-          </Avatar>
+          <Avatar
+            src={message.avatarUrl || undefined}
+            name={message.senderName || "Xtrawrkx"}
+            color="bg-gray-400"
+            size="sm"
+            className="h-8 w-8 flex-shrink-0"
+          />
         )}
 
         {/* Message bubble */}
@@ -62,16 +99,32 @@ function MessageItem({ message, isLast }) {
               : "bg-gray-100 text-gray-900"
           }`}
         >
-          {/* Message text */}
-          <p className="text-sm leading-relaxed">{message.text}</p>
+          <MessageBody text={message.text} isClient={isClient} />
 
           {/* Message timestamp */}
           <div
-            className={`text-xs mt-1 ${
+            className={`mt-1 flex flex-wrap items-center gap-x-1.5 text-xs ${
               isClient ? "text-pink-100" : "text-gray-500"
             }`}
           >
-            {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+            <span>
+              {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+            </span>
+            {message.channelTag && (
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  message.channelTag === "Program"
+                    ? isClient
+                      ? "bg-white/20 text-white"
+                      : "bg-violet-100 text-violet-800"
+                    : isClient
+                      ? "bg-white/20 text-white"
+                      : "bg-amber-100 text-amber-900"
+                }`}
+              >
+                {message.channelTag}
+              </span>
+            )}
           </div>
 
           {/* Message status indicator for client messages */}
@@ -99,10 +152,14 @@ function MessageItem({ message, isLast }) {
 
         {/* Avatar for client messages */}
         {isClient && (
-          <Avatar className="h-8 w-8 flex-shrink-0">
-            <AvatarImage src="/images/client-avatar.png" />
-            <AvatarFallback>ME</AvatarFallback>
-          </Avatar>
+          <Avatar
+            src={message.clientAvatarUrl || undefined}
+            name={message.senderName || "You"}
+            initials="ME"
+            color="bg-gradient-to-br from-pink-500 to-red-500"
+            size="sm"
+            className="h-8 w-8 flex-shrink-0"
+          />
         )}
       </div>
     </motion.div>

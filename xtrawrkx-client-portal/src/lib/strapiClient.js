@@ -2,13 +2,11 @@
  * Strapi Client wrapper with client authentication integration
  */
 
-// Use environment variable for API URL, fallback to localhost for development
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337';
-// const API_BASE_URL = 'https://xtrawrkxsuits-production.up.railway.app';
+import { STRAPI_BASE_URL } from '@/config/api';
 
 class StrapiClient {
     constructor() {
-        this.baseURL = API_BASE_URL;
+        this.baseURL = STRAPI_BASE_URL;
         this.apiPath = '/api';
         this.useMocks = process.env.NEXT_PUBLIC_USE_MOCKS === 'true' && process.env.NODE_ENV === 'development';
     }
@@ -666,7 +664,12 @@ class StrapiClient {
         if (accountData) {
             try {
                 const account = JSON.parse(accountData);
-                return account.id;
+                if (account.id != null && account.id !== '') {
+                    return account.id;
+                }
+                if (account.documentId != null && account.documentId !== '') {
+                    return account.documentId;
+                }
             } catch (error) {
                 console.error('Error parsing client account data:', error);
             }

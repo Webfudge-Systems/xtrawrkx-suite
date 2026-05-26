@@ -6,6 +6,94 @@
 
 const { createCoreController } = require('@strapi/strapi').factories;
 
+async function resolveClientAccountDbId(strapi, rawId) {
+    const s = String(rawId ?? '').trim();
+    if (!s) return null;
+    let row = await strapi.db.query('api::client-account.client-account').findOne({
+        where: { documentId: s },
+    });
+    if (row) return row.id;
+    const n = Number.parseInt(s, 10);
+    if (!Number.isNaN(n)) {
+        row = await strapi.db.query('api::client-account.client-account').findOne({
+            where: { id: n },
+        });
+        if (row) return row.id;
+    }
+    return null;
+}
+
+async function resolveEntityDbId(strapi, entityType, rawId) {
+    const entityModelMap = {
+        leadCompany: 'api::lead-company.lead-company',
+        clientAccount: 'api::client-account.client-account',
+        contact: 'api::contact.contact',
+        deal: 'api::deal.deal',
+    };
+    const model = entityModelMap[entityType];
+    if (!model) return null;
+    if (entityType === 'clientAccount') {
+        return resolveClientAccountDbId(strapi, rawId);
+    }
+    const n = Number.parseInt(String(rawId), 10);
+    if (Number.isNaN(n)) return null;
+    const row = await strapi.db.query(model).findOne({ where: { id: n } });
+    return row?.id ?? null;
+}
+
+/**
+ * `global::authenticate` is often disabled in dev; core routes use auth:false.
+ * Resolve internal user or client account from Bearer JWT so portal + CRM chat still work.
+ */
+async function resolveChatCaller(strapi, ctx) {
+    if (ctx.state?.user?.type) {
+        return ctx.state.user;
+    }
+    const authHeader = ctx.request.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+        return null;
+    }
+
+    let decoded;
+    try {
+        const upJwt = strapi.plugins['users-permissions']?.services?.jwt;
+        if (upJwt) {
+            decoded = upJwt.verify(token);
+        } else {
+            throw new Error('fallback-jwt');
+        }
+    } catch (e) {
+        const jwt = require('jsonwebtoken');
+        const jwtSecret = process.env.JWT_SECRET || 'myJwtSecret123456789012345678901234567890';
+        try {
+            decoded = jwt.verify(token, jwtSecret);
+        } catch {
+            return null;
+        }
+    }
+
+    if (decoded.type === 'internal') {
+        const user = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
+            where: { id: decoded.id, isActive: true },
+        });
+        if (!user) {
+            return null;
+        }
+        return { ...user, type: 'internal' };
+    }
+    if (decoded.type === 'client') {
+        const account = await strapi.db.query('api::client-account.client-account').findOne({
+            where: { id: decoded.id, isActive: true },
+        });
+        if (!account) {
+            return null;
+        }
+        return { ...account, type: 'client' };
+    }
+    return null;
+}
+
 module.exports = createCoreController('api::chat-message.chat-message', ({ strapi }) => ({
     /**
      * Get messages by entity
@@ -30,19 +118,58 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
                 return ctx.badRequest('Invalid entity type');
             }
 
+            const resolvedEntityId = await resolveEntityDbId(strapi, entityType, entityId);
+            if (resolvedEntityId == null) {
+                return ctx.badRequest('Invalid entity ID');
+            }
+
+            const channelKey =
+                ctx.query.channelKey !== undefined && ctx.query.channelKey !== null
+                    ? String(ctx.query.channelKey)
+                    : '';
+
+            const allChannels =
+                ctx.query.allChannels === 'true' || ctx.query.allChannels === '1';
+
+            const channelFilter =
+                channelKey === ''
+                    ? {
+                          $or: [
+                              { channelKey: { $eq: '' } },
+                              { channelKey: { $null: true } },
+                          ],
+                      }
+                    : { channelKey: { $eq: channelKey } };
+
+            const andFilters = [
+                { [entityField]: { id: { $eq: resolvedEntityId } } },
+                { isDeleted: { $eq: false } },
+            ];
+
+            if (!allChannels) {
+                andFilters.push(channelFilter);
+                if (channelKey.startsWith('community:')) {
+                    andFilters.push({ parentMessage: { $null: true } });
+                }
+            }
+
             const messages = await strapi.entityService.findMany('api::chat-message.chat-message', {
                 filters: {
-                    [entityField]: {
-                        id: { $eq: entityId }
-                    },
-                    isDeleted: { $eq: false }
+                    $and: andFilters,
                 },
                 populate: {
-                    createdBy: true
+                    authorUser: {
+                        populate: {
+                            avatar: true,
+                        },
+                    },
+                    authorClientAccount: {
+                        fields: ['id', 'documentId', 'companyName'],
+                    },
                 },
                 sort: {
-                    createdAt: 'asc'
-                }
+                    createdAt: 'asc',
+                },
             });
 
             return { data: messages };
@@ -90,7 +217,7 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
             const threads = await strapi.entityService.findMany('api::chat-message.chat-message', {
                 filters,
                 populate: {
-                    createdBy: true,
+                    authorUser: true,
                     leadCompany: {
                         fields: ['id', 'companyName']
                     },
@@ -99,7 +226,7 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
                     },
                     replies: {
                         populate: {
-                            createdBy: true
+                            authorUser: true
                         },
                         sort: {
                             createdAt: 'asc'
@@ -127,7 +254,7 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
 
             const thread = await strapi.entityService.findOne('api::chat-message.chat-message', id, {
                 populate: {
-                    createdBy: true,
+                    authorUser: true,
                     leadCompany: {
                         fields: ['id', 'companyName']
                     },
@@ -136,7 +263,7 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
                     },
                     replies: {
                         populate: {
-                            createdBy: true
+                            authorUser: true
                         },
                         sort: {
                             createdAt: 'asc'
@@ -144,7 +271,7 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
                     },
                     parentMessage: {
                         populate: {
-                            createdBy: true
+                            authorUser: true
                         }
                     }
                 }
@@ -188,106 +315,105 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
                 return ctx.badRequest('Entity ID is required');
             }
 
-            let userId = data.createdBy || ctx.state?.user?.id;
-            if (!userId) {
-                return ctx.badRequest('User ID is required to create a message');
+            const channelKey =
+                data.channelKey !== undefined && data.channelKey !== null ? String(data.channelKey) : '';
+
+            const resolvedEntityId = await resolveEntityDbId(strapi, data.entityType, data.entityId);
+            if (resolvedEntityId == null) {
+                return ctx.badRequest(`Entity ${entityField} not found or invalid ID`);
             }
-
-            // Verify user exists
-            let userRecord = null;
-            try {
-                userRecord = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
-                    where: { documentId: userId, isActive: true },
-                });
-
-                if (!userRecord) {
-                    userRecord = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
-                        where: { id: userId, isActive: true },
-                    });
-                }
-
-                if (!userRecord) {
-                    return ctx.badRequest('User not found or inactive');
-                }
-            } catch (userError) {
-                console.error('Error finding user:', userError);
-                return ctx.badRequest('Failed to verify user');
-            }
-
-            // Verify entity exists and get numeric ID
-            const entityModelMap = {
-                leadCompany: 'api::lead-company.lead-company',
-                clientAccount: 'api::client-account.client-account',
-                contact: 'api::contact.contact',
-                deal: 'api::deal.deal'
-            };
-
-            const entityModel = entityModelMap[data.entityType];
-            const entityIdNum = parseInt(data.entityId);
-            
-            try {
-                const entity = await strapi.db.query(entityModel).findOne({
-                    where: { id: entityIdNum },
-                });
-
-                if (!entity) {
-                    return ctx.badRequest(`Entity ${entityField} with ID ${entityIdNum} not found`);
-                }
-            } catch (entityError) {
-                console.error('Error verifying entity:', entityError);
-                return ctx.badRequest('Failed to verify entity');
-            }
-
-            // Prepare message data with numeric IDs for relations
-            const userRelationIdNum = userRecord.id || parseInt(userRecord.documentId) || parseInt(userId);
-            const entityRelationIdNum = entityIdNum;
 
             const isReply = !!data.parentMessageId;
-            const messageData = {
-                message: data.message,
-                createdBy: userRelationIdNum,
-                [entityField]: entityRelationIdNum,
-                isDeleted: false,
-                isEdited: false,
-                isThreadStarter: !isReply && (data.isThreadStarter !== undefined ? data.isThreadStarter : true)
-            };
+            const caller = await resolveChatCaller(strapi, ctx);
+            const isClientCaller = caller?.type === 'client';
+            const clientAccountId = isClientCaller ? Number.parseInt(String(caller.id), 10) : null;
 
-            // If this is a reply to a thread, set parent message
+            let messageData;
+
+            if (isClientCaller) {
+                if (data.entityType !== 'clientAccount') {
+                    return ctx.forbidden('Clients may only post to client account conversations');
+                }
+                if (resolvedEntityId !== clientAccountId) {
+                    return ctx.forbidden('Cannot post to another account');
+                }
+
+                messageData = {
+                    message: data.message,
+                    [entityField]: resolvedEntityId,
+                    channelKey,
+                    fromClient: true,
+                    authorClientAccount: clientAccountId,
+                    isDeleted: false,
+                    isEdited: false,
+                    isThreadStarter: data.isThreadStarter === true,
+                };
+            } else {
+                let userId = data.authorUser || data.createdBy || (caller?.type === 'internal' ? caller.id : null);
+                if (!userId) {
+                    return ctx.badRequest('User ID is required to create a message');
+                }
+
+                let userRecord = null;
+                try {
+                    userRecord = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
+                        where: { documentId: userId, isActive: true },
+                    });
+
+                    if (!userRecord) {
+                        userRecord = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
+                            where: { id: userId, isActive: true },
+                        });
+                    }
+
+                    if (!userRecord) {
+                        return ctx.badRequest('User not found or inactive');
+                    }
+                } catch (userError) {
+                    console.error('Error finding user:', userError);
+                    return ctx.badRequest('Failed to verify user');
+                }
+
+                const userRelationIdNum = userRecord.id || parseInt(userRecord.documentId, 10) || parseInt(userId, 10);
+
+                messageData = {
+                    message: data.message,
+                    authorUser: userRelationIdNum,
+                    [entityField]: resolvedEntityId,
+                    channelKey,
+                    fromClient: false,
+                    isDeleted: false,
+                    isEdited: false,
+                    isThreadStarter: !isReply && (data.isThreadStarter !== undefined ? data.isThreadStarter : true),
+                };
+            }
+
             if (isReply) {
-                messageData.parentMessage = parseInt(data.parentMessageId);
+                messageData.parentMessage = parseInt(data.parentMessageId, 10);
                 messageData.isThreadStarter = false;
             }
 
-            // Verify schema is loaded correctly
-            const contentType = strapi.contentTypes['api::chat-message.chat-message'];
-            if (!contentType) {
-                return ctx.badRequest('Chat message content type is not registered. Please restart Strapi.');
-            }
-
-            const createdByAttribute = contentType.attributes.createdBy;
-            if (!createdByAttribute || createdByAttribute.target !== 'api::xtrawrkx-user.xtrawrkx-user') {
-                return ctx.badRequest(
-                    `Schema relation target mismatch. Expected 'api::xtrawrkx-user.xtrawrkx-user' but found '${createdByAttribute?.target || 'unknown'}'. ` +
-                    'Please stop Strapi, delete the .cache folder, and restart Strapi.'
-                );
-            }
-
-            // Create message
             const message = await strapi.entityService.create('api::chat-message.chat-message', {
-                data: messageData
+                data: messageData,
             });
 
-            // Fetch with populated relations
             const populatedMessage = await strapi.entityService.findOne('api::chat-message.chat-message', message.id, {
                 populate: {
-                    createdBy: true
-                }
+                    authorUser: {
+                        populate: {
+                            avatar: true,
+                        },
+                    },
+                    authorClientAccount: {
+                        fields: ['id', 'documentId', 'companyName'],
+                    },
+                },
             });
 
             return { data: populatedMessage };
         } catch (error) {
             console.error('Error creating chat message:', error);
-            
+
             if (error.message?.includes('relation') || error.message?.includes('admin::user')) {
                 return ctx.badRequest(
                     `Failed to create chat message. Please ensure Strapi has been restarted after creating the chat-message schema. Error: ${error.message}`
@@ -311,19 +437,36 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
             }
 
             const existingMessage = await strapi.entityService.findOne('api::chat-message.chat-message', id, {
-                populate: ['createdBy']
+                populate: ['authorUser', 'authorClientAccount'],
             });
 
             if (!existingMessage) {
                 return ctx.notFound('Message not found');
             }
 
-            // Check ownership
-            const userId = ctx.state?.user?.id;
-            const createdBy = existingMessage['createdBy'] || {};
-            const createdById = createdBy.id || createdBy.documentId;
-            
-            if (createdById !== userId) {
+            const caller = await resolveChatCaller(strapi, ctx);
+            const userId = caller?.id;
+            const userType = caller?.type;
+            const authorUserRow = existingMessage['authorUser'] || {};
+            const authorUserId = authorUserRow.id || authorUserRow.documentId;
+            const authorAcc = existingMessage['authorClientAccount'];
+            const authorAccId =
+                authorAcc && typeof authorAcc === 'object' ? authorAcc.id : authorAcc;
+
+            let canModify = false;
+            if (!caller) {
+                return ctx.unauthorized('Authentication required');
+            }
+            if (userType === 'client') {
+                canModify =
+                    existingMessage.fromClient === true &&
+                    authorAccId != null &&
+                    Number(authorAccId) === Number(userId);
+            } else {
+                canModify = authorUserId != null && Number(authorUserId) === Number(userId);
+            }
+
+            if (!canModify) {
                 return ctx.forbidden('You can only edit your own messages');
             }
 
@@ -334,7 +477,7 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
                     editedAt: new Date().toISOString()
                 },
                 populate: {
-                    createdBy: true
+                    authorUser: true
                 }
             });
 
@@ -353,19 +496,36 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
             const { id } = ctx.params;
 
             const existingMessage = await strapi.entityService.findOne('api::chat-message.chat-message', id, {
-                populate: ['createdBy']
+                populate: ['authorUser', 'authorClientAccount'],
             });
 
             if (!existingMessage) {
                 return ctx.notFound('Message not found');
             }
 
-            // Check ownership
-            const userId = ctx.state?.user?.id;
-            const createdBy = existingMessage['createdBy'] || {};
-            const createdById = createdBy.id || createdBy.documentId;
-            
-            if (createdById !== userId) {
+            const caller = await resolveChatCaller(strapi, ctx);
+            const userId = caller?.id;
+            const userType = caller?.type;
+            const authorUserRow = existingMessage['authorUser'] || {};
+            const authorUserRowId = authorUserRow.id || authorUserRow.documentId;
+            const authorAcc = existingMessage['authorClientAccount'];
+            const authorAccId =
+                authorAcc && typeof authorAcc === 'object' ? authorAcc.id : authorAcc;
+
+            let canModify = false;
+            if (!caller) {
+                return ctx.unauthorized('Authentication required');
+            }
+            if (userType === 'client') {
+                canModify =
+                    existingMessage.fromClient === true &&
+                    authorAccId != null &&
+                    Number(authorAccId) === Number(userId);
+            } else {
+                canModify = authorUserRowId != null && Number(authorUserRowId) === Number(userId);
+            }
+
+            if (!canModify) {
                 return ctx.forbidden('You can only delete your own messages');
             }
 

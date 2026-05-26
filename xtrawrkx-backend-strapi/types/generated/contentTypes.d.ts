@@ -623,6 +623,15 @@ export interface ApiChatMessageChatMessage extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    authorClientAccount: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::client-account.client-account'
+    >;
+    authorUser: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::xtrawrkx-user.xtrawrkx-user'
+    >;
+    channelKey: Schema.Attribute.String & Schema.Attribute.DefaultTo<''>;
     clientAccount: Schema.Attribute.Relation<
       'manyToOne',
       'api::client-account.client-account'
@@ -633,6 +642,7 @@ export interface ApiChatMessageChatMessage extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     deal: Schema.Attribute.Relation<'manyToOne', 'api::deal.deal'>;
     editedAt: Schema.Attribute.DateTime;
+    fromClient: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     isDeleted: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     isEdited: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     isThreadStarter: Schema.Attribute.Boolean &
@@ -701,6 +711,7 @@ export interface ApiClientAccountClientAccount
     companyName: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
+    companyRoles: Schema.Attribute.JSON;
     companyType: Schema.Attribute.Enumeration<
       ['startup-corporate', 'investor', 'enablers-academia']
     >;
@@ -752,6 +763,23 @@ export interface ApiClientAccountClientAccount
     onboardingData: Schema.Attribute.JSON;
     password: Schema.Attribute.Password;
     phone: Schema.Attribute.String;
+    pocAssignedAt: Schema.Attribute.DateTime;
+    pocAssignedBy: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::xtrawrkx-user.xtrawrkx-user'
+    >;
+    pocAssignmentStatus: Schema.Attribute.Enumeration<
+      ['UNASSIGNED', 'ASSIGNED', 'PENDING']
+    > &
+      Schema.Attribute.DefaultTo<'UNASSIGNED'>;
+    portalAuthoredChatMessages: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::chat-message.chat-message'
+    >;
+    portalDocuments: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::client-portal-document.client-portal-document'
+    >;
     projects: Schema.Attribute.Relation<'oneToMany', 'api::project.project'>;
     proposals: Schema.Attribute.Relation<'oneToMany', 'api::proposal.proposal'>;
     publishedAt: Schema.Attribute.DateTime;
@@ -763,7 +791,18 @@ export interface ApiClientAccountClientAccount
       Schema.Attribute.DefaultTo<'MANUAL'>;
     state: Schema.Attribute.String;
     status: Schema.Attribute.Enumeration<
-      ['ACTIVE', 'INACTIVE', 'CHURNED', 'ON_HOLD']
+      [
+        'ACTIVE',
+        'INACTIVE',
+        'CHURNED',
+        'ON_HOLD',
+        'REGISTERED',
+        'COMMUNITY_MEMBER',
+        'COMMUNITY_PAID',
+        'COMMUNITY_NON_PAID',
+        'LOST',
+        'STOPPED',
+      ]
     > &
       Schema.Attribute.DefaultTo<'ACTIVE'>;
     subType: Schema.Attribute.String;
@@ -799,7 +838,10 @@ export interface ApiClientPortalAccessClientPortalAccess
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    forcePasswordReset: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     isActive: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    isCustomRole: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     lastLogin: Schema.Attribute.DateTime;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -807,8 +849,53 @@ export interface ApiClientPortalAccessClientPortalAccess
       'api::client-portal-access.client-portal-access'
     > &
       Schema.Attribute.Private;
+    loginId: Schema.Attribute.String;
     password: Schema.Attribute.Password & Schema.Attribute.Required;
+    permissions: Schema.Attribute.JSON;
     publishedAt: Schema.Attribute.DateTime;
+    roleName: Schema.Attribute.String & Schema.Attribute.DefaultTo<'DEVELOPER'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiClientPortalDocumentClientPortalDocument
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'client_portal_documents';
+  info: {
+    description: 'Documents shared with client portal accounts';
+    displayName: 'Client Portal Document';
+    pluralName: 'client-portal-documents';
+    singularName: 'client-portal-document';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    clientAccount: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::client-account.client-account'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    documents: Schema.Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
+    issueDate: Schema.Attribute.DateTime & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::client-portal-document.client-portal-document'
+    > &
+      Schema.Attribute.Private;
+    name: Schema.Attribute.String & Schema.Attribute.Required;
+    notes: Schema.Attribute.Text;
+    publishedAt: Schema.Attribute.DateTime;
+    status: Schema.Attribute.Enumeration<['DRAFT', 'ACTIVE', 'ARCHIVED']> &
+      Schema.Attribute.DefaultTo<'DRAFT'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -2109,11 +2196,13 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
       'manyToOne',
       'api::xtrawrkx-user.xtrawrkx-user'
     >;
+    autoAccept: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     clientAccount: Schema.Attribute.Relation<
       'manyToOne',
       'api::client-account.client-account'
     >;
     clientApproval: Schema.Attribute.Enumeration<['approved', 'rejected']>;
+    clientId: Schema.Attribute.String;
     collaborators: Schema.Attribute.Relation<
       'manyToMany',
       'api::xtrawrkx-user.xtrawrkx-user'
@@ -2123,12 +2212,16 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    createdBySource: Schema.Attribute.Enumeration<['internal', 'client']> &
+      Schema.Attribute.DefaultTo<'internal'>;
     creator: Schema.Attribute.Relation<
       'manyToOne',
       'api::xtrawrkx-user.xtrawrkx-user'
     >;
     deal: Schema.Attribute.Relation<'manyToOne', 'api::deal.deal'>;
     description: Schema.Attribute.Text;
+    isSharedWithClient: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     leadCompany: Schema.Attribute.Relation<
       'manyToOne',
       'api::lead-company.lead-company'
@@ -2152,20 +2245,35 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
     requiresApproval: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     scheduledDate: Schema.Attribute.DateTime;
+    sharePreferenceSetAtCreation: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     status: Schema.Attribute.Enumeration<
       [
-        'SCHEDULED',
+        'ASSIGNED',
+        'ACCEPTED',
         'IN_PROGRESS',
+        'ON_HOLD',
+        'PENDING_REVIEW',
+        'REVISION_REQUIRED',
+        'COMPLETED',
+        'CANCELLED',
+        'WAITING_FOR_CLIENT',
+        'SCHEDULED',
         'IN_REVIEW',
         'CLIENT_REVIEW',
         'APPROVED',
-        'COMPLETED',
-        'CANCELLED',
       ]
     > &
-      Schema.Attribute.DefaultTo<'SCHEDULED'>;
+      Schema.Attribute.DefaultTo<'ASSIGNED'>;
     subtasks: Schema.Attribute.Relation<'oneToMany', 'api::subtask.subtask'>;
     tags: Schema.Attribute.JSON;
+    timeAllotted: Schema.Attribute.Decimal &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
     title: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -2835,6 +2943,7 @@ declare module '@strapi/strapi' {
       'api::chat-message.chat-message': ApiChatMessageChatMessage;
       'api::client-account.client-account': ApiClientAccountClientAccount;
       'api::client-portal-access.client-portal-access': ApiClientPortalAccessClientPortalAccess;
+      'api::client-portal-document.client-portal-document': ApiClientPortalDocumentClientPortalDocument;
       'api::community-membership.community-membership': ApiCommunityMembershipCommunityMembership;
       'api::community-submission.community-submission': ApiCommunitySubmissionCommunitySubmission;
       'api::community.community': ApiCommunityCommunity;

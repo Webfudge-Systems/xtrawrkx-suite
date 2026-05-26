@@ -8,6 +8,10 @@ import taskService from "../../lib/taskService";
 import projectService from "../../lib/projectService";
 import apiClient from "../../lib/apiClient";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+  PM_STATUS_SELECT_OPTIONS,
+  getEditableStatusOptions,
+} from "../../lib/taskStatusConstants";
 
 const AddTaskModal = ({
   isOpen,
@@ -23,12 +27,15 @@ const AddTaskModal = ({
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    projects: [], // Changed to array for multiple projects
-    assignees: [], // Changed to array for multiple assignees
+    projects: [],
+    assignees: [],
     scheduledDate: "",
     priority: "MEDIUM",
-    status: "SCHEDULED",
+    status: "ACCEPTED",
     progress: 0,
+    timeAllotted: "",
+    autoAccept: true,
+    isSharedWithClient: false,
   });
 
   // Debug: Log form data changes
@@ -56,12 +63,15 @@ const AddTaskModal = ({
       setFormData({
         title: "",
         description: "",
-        projects: [], // Changed to array
-        assignees: [], // Changed to array
+        projects: [],
+        assignees: [],
         scheduledDate: "",
         priority: "MEDIUM",
-        status: "SCHEDULED",
+        status: "ACCEPTED",
         progress: 0,
+        timeAllotted: "",
+        autoAccept: true,
+        isSharedWithClient: false,
       });
       setTags([]);
       setNewTag("");
@@ -253,17 +263,18 @@ const AddTaskModal = ({
         .map((id) => parseInt(id))
         .filter((id) => !isNaN(id));
 
+      const resolvedStatus =
+        formData.autoAccept && assigneeIds.length > 0
+          ? "ACCEPTED"
+          : formData.status;
+
       const taskData = {
         title: formData.title,
         description: formData.description || "",
-        // Projects is optional - only include if provided and not empty
-        // Backend expects projects as an array
         ...(projectIds.length > 0 && {
           projects: projectIds,
         }),
-        // Primary assignee (first selected)
         assignee: primaryAssignee,
-        // All selected users (including first assignee) as collaborators
         ...(collaborators.length > 0 && {
           collaborators: collaborators,
         }),
@@ -271,19 +282,27 @@ const AddTaskModal = ({
           ? new Date(formData.scheduledDate + "T00:00:00").toISOString()
           : null,
         priority: formData.priority,
-        status: formData.status,
+        status: resolvedStatus,
         progress: formData.progress,
+        timeAllotted: formData.timeAllotted
+          ? parseFloat(formData.timeAllotted)
+          : null,
+        autoAccept: !!formData.autoAccept,
         tags: tags.length > 0 ? tags : null,
-        // Add createdBy - use user ID from auth context
         createdBy: user?.id || user?._id || user?.xtrawrkxUserId || 1,
+        createdBySource: "internal",
+        isSharedWithClient: !!formData.isSharedWithClient,
+        sharePreferenceSetAtCreation: true,
       };
 
 
       const response = await taskService.createTask(taskData);
 
-      // Fetch the created task with populated relations to ensure assignee and project are included
       if (response?.id || response?.data?.id) {
         const taskId = response.id || response.data?.id;
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(`task-share-confirmed-${taskId}`, "1");
+        }
         try {
           const populatedTask = await taskService.getTaskById(taskId, [
             "project",
@@ -327,12 +346,10 @@ const AddTaskModal = ({
     { value: "HIGH", label: "High" },
   ];
 
-  const statusOptions = [
-    { value: "SCHEDULED", label: "To Do" },
-    { value: "IN_PROGRESS", label: "In Progress" },
-    { value: "COMPLETED", label: "Done" },
-    { value: "CANCELLED", label: "Cancelled" },
-  ];
+  const statusOptions = getEditableStatusOptions(
+    formData.autoAccept ? "Accepted" : formData.status,
+    PM_STATUS_SELECT_OPTIONS,
+  );
 
   const projectOptions = projects.map((project) => ({
     value: project.id,
@@ -634,14 +651,69 @@ const AddTaskModal = ({
                   </h3>
                 </div>
                 <div className="space-y-4">
-                  <Input
-                    label="Due Date"
-                    type="date"
-                    value={formData.scheduledDate}
-                    onChange={(e) =>
-                      handleInputChange("scheduledDate", e.target.value)
-                    }
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Share with Client
+                    </label>
+                    <div className="flex items-center justify-between rounded-xl border border-gray-300 px-4 py-3 bg-white">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          Do you want to share this task with the client?
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {formData.isSharedWithClient
+                            ? "Shared with client portal"
+                            : "Internal only"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleInputChange(
+                            "isSharedWithClient",
+                            !formData.isSharedWithClient,
+                          )
+                        }
+                        className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors ${
+                          formData.isSharedWithClient
+                            ? "bg-green-500"
+                            : "bg-gray-300"
+                        }`}
+                        aria-label="Toggle share with client"
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                            formData.isSharedWithClient
+                              ? "translate-x-6"
+                              : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="Time Allotted (hrs)"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      placeholder="e.g. 8"
+                      value={formData.timeAllotted}
+                      onChange={(e) =>
+                        handleInputChange("timeAllotted", e.target.value)
+                      }
+                    />
+
+                    <Input
+                      label="Due Date"
+                      type="date"
+                      value={formData.scheduledDate}
+                      onChange={(e) =>
+                        handleInputChange("scheduledDate", e.target.value)
+                      }
+                    />
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
@@ -656,7 +728,50 @@ const AddTaskModal = ({
                       value={formData.status}
                       onChange={(value) => handleInputChange("status", value)}
                       options={statusOptions}
+                      disabled={formData.autoAccept}
                     />
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 px-4 py-3 bg-white">
+                    <p className="text-sm font-medium text-gray-800 mb-2">
+                      Auto-accept for assignee
+                    </p>
+                    <p className="text-xs text-gray-500 mb-3">
+                      When enabled, the assignee does not need to manually accept
+                      the task — it starts as Accepted.
+                    </p>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="autoAccept"
+                          checked={formData.autoAccept === true}
+                          onChange={() => {
+                            handleInputChange("autoAccept", true);
+                            handleInputChange("status", "ACCEPTED");
+                          }}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                          Auto-accept (default)
+                        </span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="autoAccept"
+                          checked={formData.autoAccept === false}
+                          onChange={() => {
+                            handleInputChange("autoAccept", false);
+                            handleInputChange("status", "ASSIGNED");
+                          }}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                          Require manual accept
+                        </span>
+                      </label>
+                    </div>
                   </div>
 
                   <div>

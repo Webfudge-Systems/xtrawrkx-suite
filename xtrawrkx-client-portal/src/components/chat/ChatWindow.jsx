@@ -2,19 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Send,
-  Paperclip,
-  Smile,
-  MoreVertical,
-  Phone,
-  Video,
-  Info,
-  X,
-  Minimize2,
-  Maximize2,
-} from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
+import { X, Minimize2, Maximize2 } from "lucide-react";
+import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
@@ -59,20 +48,10 @@ export function ChatWindow({
     }
   };
 
-  // Handle file attachments
-  const handleFileUpload = (files) => {
-    // Implementation for file upload
-  };
-
-  // Handle emoji selection
-  const handleEmojiSelect = (emoji) => {
-    // Implementation for emoji insertion
-  };
-
   if (!conversation) {
     return (
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg h-96 flex flex-col">
-        <div className="p-6 border-b border-gray-200/50">
+      <div className="flex h-96 flex-col rounded-2xl border border-gray-200 bg-white shadow-md ring-1 ring-gray-900/[0.06]">
+        <div className="border-b border-gray-200 p-6">
           <h3 className="font-bold text-gray-900 text-lg">
             Select a conversation
           </h3>
@@ -97,23 +76,21 @@ export function ChatWindow({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className={`bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg flex flex-col ${
+      className={`flex flex-col rounded-2xl border border-gray-200 bg-white shadow-md ring-1 ring-gray-900/[0.06] ${
         isMinimized ? "h-16" : "h-[600px]"
       } transition-all duration-300`}
     >
       {/* Chat Header */}
-      <div className="p-6 border-b border-gray-200/50 flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-gray-200 p-6">
         <div className="flex items-center space-x-4">
           <div className="relative">
-            <Avatar className="h-12 w-12 shadow-lg">
-              <AvatarImage src={conversation.avatar} />
-              <AvatarFallback className="bg-gradient-to-br from-pink-500 to-red-500 text-white font-semibold">
-                {conversation.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </AvatarFallback>
-            </Avatar>
+            <Avatar
+              src={conversation.avatar || undefined}
+              name={conversation.name}
+              color="bg-gradient-to-br from-pink-500 to-red-500"
+              size="lg"
+              className="h-12 w-12 shadow-lg text-sm"
+            />
             <div
               className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-3 border-white shadow-sm ${
                 isOnline ? "bg-green-500" : "bg-gray-400"
@@ -131,34 +108,6 @@ export function ChatWindow({
         </div>
 
         <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hover:bg-blue-100 transition-colors"
-          >
-            <Phone className="h-5 w-5 text-blue-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hover:bg-green-100 transition-colors"
-          >
-            <Video className="h-5 w-5 text-green-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hover:bg-gray-100 transition-colors"
-          >
-            <Info className="h-5 w-5 text-gray-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hover:bg-gray-100 transition-colors"
-          >
-            <MoreVertical className="h-5 w-5 text-gray-600" />
-          </Button>
           {onMinimize && (
             <Button
               variant="ghost"
@@ -189,19 +138,17 @@ export function ChatWindow({
       {/* Messages Area */}
       {!isMinimized && (
         <>
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-4">
             <MessageList messages={messages} />
             <AnimatePresence>{isTyping && <TypingIndicator />}</AnimatePresence>
             <div ref={messagesEndRef} />
           </div>
 
           {/* Message Input */}
-          <div className="p-6 border-t border-gray-200/50">
+          <div className="border-t border-gray-200 p-4 sm:p-6">
             <MessageInput
               onSendMessage={handleSendMessage}
-              onFileUpload={handleFileUpload}
-              onEmojiSelect={handleEmojiSelect}
-              placeholder={`Message ${conversation.name}...`}
+              placeholder={`Message ${conversation.name}…`}
             />
           </div>
         </>

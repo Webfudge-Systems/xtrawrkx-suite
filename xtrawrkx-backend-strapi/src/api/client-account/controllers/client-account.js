@@ -5,8 +5,52 @@
  */
 
 const { createCoreController } = require('@strapi/strapi').factories;
+const { applyPocAssignmentOnUpdate } = require('../../../utils/dedicatedPoc');
 
-module.exports = createCoreController('api::client-account.client-account', ({ strapi }) => ({
+const ACCOUNT_MANAGER_POPULATE = {
+    accountManager: {
+        populate: {
+            primaryRole: true,
+            department: true,
+            avatar: true,
+        },
+    },
+    pocAssignedBy: {
+        populate: {
+            primaryRole: true,
+        },
+    },
+};
+
+module.exports = createCoreController('api::client-account.client-account', ({ strapi }) => {
+    const ensureDefaultProjectForClientAccount = async (clientAccount) => {
+        try {
+            if (!clientAccount?.id) return;
+
+            const existingProject = await strapi.db.query('api::project.project').findOne({
+                where: { clientAccount: clientAccount.id }
+            });
+
+            if (existingProject?.id) {
+                return;
+            }
+
+            const companyName = String(clientAccount.companyName || '').trim() || 'Client';
+            await strapi.db.query('api::project.project').create({
+                data: {
+                    name: `${companyName} - Onboarding Project`,
+                    description: `Auto-created project for ${companyName} during account registration.`,
+                    status: 'PLANNING',
+                    progress: 0,
+                    clientAccount: clientAccount.id
+                }
+            });
+        } catch (error) {
+            console.warn('client-account.ensureDefaultProjectForClientAccount: skipped', error);
+        }
+    };
+
+    return ({
     /**
      * Create a new client account
      */
@@ -14,15 +58,16 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
         try {
             const { data } = ctx.request.body;
 
-            // Add current user as account manager if not specified
-            if (!data.accountManager && ctx.state.user) {
-                data.accountManager = ctx.state.user.id;
+            let createData = { ...data };
+            if (!createData.accountManager && ctx.state.user) {
+                createData.accountManager = ctx.state.user.id;
             }
+            createData = applyPocAssignmentOnUpdate(createData, ctx);
 
             const entity = await strapi.entityService.create('api::client-account.client-account', {
-                data,
+                data: createData,
                 populate: {
-                    accountManager: true,
+                    ...ACCOUNT_MANAGER_POPULATE,
                     contacts: true,
                     activities: true,
                     deals: true,
@@ -30,18 +75,25 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
                 }
             });
 
-            // Log activity
-            await strapi.entityService.create('api::activity.activity', {
-                data: {
-                    type: 'ACCOUNT',
-                    activityType: 'NOTE',
-                    title: 'Client Account Created',
-                    description: `Client account "${data.companyName}" was created`,
-                    status: 'COMPLETED',
-                    createdBy: ctx.state.user?.id,
-                    clientAccount: entity.id
-                }
-            });
+            // Ensure each new website-registered account has one project visible in CRM/PM/Client Portal.
+            await ensureDefaultProjectForClientAccount(entity);
+
+            // Log activity (non-blocking — public website signup must not fail if note fails)
+            try {
+                await strapi.entityService.create('api::activity.activity', {
+                    data: {
+                        type: 'ACCOUNT',
+                        activityType: 'NOTE',
+                        title: 'Client Account Created',
+                        description: `Client account "${data.companyName}" was created`,
+                        status: 'COMPLETED',
+                        createdBy: ctx.state.user?.id,
+                        clientAccount: entity.id
+                    }
+                });
+            } catch (activityError) {
+                console.warn('client-account.create: activity log skipped', activityError);
+            }
 
             return { data: entity };
         } catch (error) {
@@ -57,35 +109,46 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
         try {
             const { query } = ctx;
 
-            // Build filters
-            const filters = {};
+            // Honor Strapi REST filter syntax (e.g. filters[email][$eq]=...) so website / CRM lookups work.
+            let filters =
+                query.filters && typeof query.filters === 'object' && !Array.isArray(query.filters)
+                    ? JSON.parse(JSON.stringify(query.filters))
+                    : {};
 
-            if (query.status) {
+            if (query.status != null && query.status !== '' && filters.status === undefined) {
                 filters.status = query.status;
             }
 
-            if (query.type) {
+            if (query.type != null && query.type !== '' && filters.type === undefined) {
                 filters.type = query.type;
             }
 
-            if (query.accountManager) {
+            if (query.accountManager != null && query.accountManager !== '' && filters.accountManager === undefined) {
                 filters.accountManager = query.accountManager;
             }
 
             if (query.search) {
-                filters.$or = [
+                const searchOr = [
                     { companyName: { $containsi: query.search } },
                     { industry: { $containsi: query.search } },
                     { email: { $containsi: query.search } }
                 ];
+                if (Object.keys(filters).length > 0) {
+                    filters.$and = [...(Array.isArray(filters.$and) ? filters.$and : []), { $or: searchOr }];
+                } else {
+                    filters.$or = searchOr;
+                }
             }
+
+            const page = query.pagination?.page || query.page || 1;
+            const pageSize = query.pagination?.pageSize || query.pageSize || 25;
 
             const entities = await strapi.entityService.findMany('api::client-account.client-account', {
                 filters,
                 sort: query.sort || 'createdAt:desc',
                 pagination: {
-                    page: query.page || 1,
-                    pageSize: query.pageSize || 25
+                    page,
+                    pageSize
                 },
                 populate: {
                     accountManager: true,
@@ -111,11 +174,7 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
             // First try with basic population
             const entity = await strapi.entityService.findOne('api::client-account.client-account', id, {
                 populate: {
-                    accountManager: {
-                        populate: {
-                            primaryRole: true
-                        }
-                    },
+                    ...ACCOUNT_MANAGER_POPULATE,
                     contacts: true,
                     activities: true,
                     deals: true,
@@ -155,17 +214,26 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
         try {
             const { id } = ctx.params;
             const { data } = ctx.request.body;
+            const updateData = applyPocAssignmentOnUpdate({ ...data }, ctx);
+
+            if (updateData.accountManager != null && updateData.accountManager !== '') {
+                const managerId = Number(updateData.accountManager);
+                updateData.accountManager = Number.isFinite(managerId) ? managerId : updateData.accountManager;
+            }
 
             const entity = await strapi.entityService.update('api::client-account.client-account', id, {
-                data,
+                data: updateData,
                 populate: {
-                    accountManager: true,
+                    ...ACCOUNT_MANAGER_POPULATE,
                     contacts: true,
                     activities: true,
                     deals: true,
                     projects: true
                 }
             });
+
+            // Backfill project for existing accounts that were created before auto-project logic.
+            await ensureDefaultProjectForClientAccount(entity);
 
             // Log activity
             await strapi.entityService.create('api::activity.activity', {
@@ -203,7 +271,13 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
                     ACTIVE: 0,
                     INACTIVE: 0,
                     CHURNED: 0,
-                    ON_HOLD: 0
+                    ON_HOLD: 0,
+                    REGISTERED: 0,
+                    COMMUNITY_MEMBER: 0,
+                    COMMUNITY_PAID: 0,
+                    COMMUNITY_NON_PAID: 0,
+                    LOST: 0,
+                    STOPPED: 0
                 },
                 totalRevenue: 0,
                 averageHealthScore: 0,
@@ -248,7 +322,13 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
                         ACTIVE: 0,
                         INACTIVE: 0,
                         CHURNED: 0,
-                        ON_HOLD: 0
+                        ON_HOLD: 0,
+                        REGISTERED: 0,
+                        COMMUNITY_MEMBER: 0,
+                        COMMUNITY_PAID: 0,
+                        COMMUNITY_NON_PAID: 0,
+                        LOST: 0,
+                        STOPPED: 0
                     },
                     totalRevenue: 0,
                     averageHealthScore: 0,
@@ -446,4 +526,5 @@ module.exports = createCoreController('api::client-account.client-account', ({ s
             return ctx.badRequest(`Failed to delete client account: ${error.message}`);
         }
     }
-}));
+});
+});

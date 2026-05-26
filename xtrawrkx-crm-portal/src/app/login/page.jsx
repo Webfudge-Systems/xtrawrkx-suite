@@ -19,6 +19,16 @@ export default function LoginPage() {
   const { login, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const rawEmail = params.get("email");
+    if (rawEmail && rawEmail.includes("@")) {
+      const decoded = decodeURIComponent(rawEmail.trim());
+      setFormData((prev) => ({ ...prev, email: decoded }));
+    }
+  }, []);
+
   // Redirect if already authenticated
   useEffect(() => {
     if (!loading && isAuthenticated) {

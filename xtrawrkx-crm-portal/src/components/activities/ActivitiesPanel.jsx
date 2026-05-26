@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CheckSquare, MessageCircle } from "lucide-react";
+import { CheckSquare, MessageCircle, MessagesSquare } from "lucide-react";
 import TaskTab from "./TaskTab";
 import CommentsTab from "./CommentsTab";
+import ChatTab from "./ChatTab";
 
 const ActivitiesPanel = ({
   entityType,
@@ -16,6 +17,7 @@ const ActivitiesPanel = ({
   const tabItems = [
     { key: "comments", label: "Comments", icon: MessageCircle },
     { key: "tasks", label: "Tasks", icon: CheckSquare },
+    { key: "clientChat", label: "Client chat", icon: MessagesSquare },
   ];
 
   return (
@@ -23,7 +25,11 @@ const ActivitiesPanel = ({
       <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">
-            {activeTab === "comments" ? "Comments" : "Task Management"}
+            {activeTab === "comments"
+              ? "Comments"
+              : activeTab === "tasks"
+                ? "Task Management"
+                : "Client chat"}
           </h3>
         </div>
 
@@ -33,10 +39,10 @@ const ActivitiesPanel = ({
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all duration-300 ${
+              className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all duration-300 border ${
                 activeTab === tab.key
-                  ? "bg-orange-500 text-white shadow-lg"
-                  : "text-gray-600 hover:bg-orange-50 hover:text-orange-700"
+                  ? "bg-orange-500 text-white shadow-lg border-orange-500"
+                  : "text-gray-600 border-gray-200 hover:bg-orange-50 hover:text-orange-700"
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -57,6 +63,10 @@ const ActivitiesPanel = ({
             entityId={entityId}
             onActivityCreated={onActivityCreated}
           />
+        )}
+
+        {activeTab === "clientChat" && (
+          <ChatTab entityType={entityType} entityId={entityId} />
         )}
       </div>
     </>

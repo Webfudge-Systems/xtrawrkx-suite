@@ -6,8 +6,20 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
-import { useRealTimeChat } from "@/hooks/useRealTimeChat";
+import { strapiClient } from "@/lib/strapiClient";
+import {
+  fetchChatMessages,
+  fetchAllChannelsChatMessages,
+  sendPortalChatMessage,
+  mapStrapiChatToBubble,
+  readLastReadTs,
+  readLastReadTsSupportInbox,
+  writeLastReadNow,
+  writeLastReadNowSupportInbox,
+  previewTime,
+} from "@/lib/api/portalChatService";
 
 const ChatContext = createContext();
 
@@ -24,271 +36,251 @@ export function ChatProvider({ children }) {
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isTyping, setIsTyping] = useState({});
-  const [onlineUsers, setOnlineUsers] = useState(new Set());
+  const [isTyping] = useState({});
+  const [onlineUsers] = useState(new Set());
+  const [accountId, setAccountId] = useState(null);
+  const pollRef = useRef(null);
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
 
-  // Real-time chat functionality
-  const {
-    initializeConnection,
-    sendMessage: wsSendMessage,
-    joinConversation,
-    leaveConversation,
-    setTypingStatus,
-    addEventListener,
-    removeEventListener,
-  } = useRealTimeChat();
+  const bootstrapConversations = useCallback(async () => {
+    const rawId = strapiClient.getCurrentAccountId();
+    if (rawId == null || rawId === "") {
+      setAccountId(null);
+      setConversations([]);
+      return;
+    }
+    setAccountId(rawId);
 
-  // Initialize with mock data
-  useEffect(() => {
-    const mockConversations = [
+    const list = [
       {
-        id: 1,
-        name: "Gabriel Matuła",
-        role: "Project Manager",
-        lastMessage: "Thanks for the feedback on the designs!",
-        time: "2 min ago",
-        unread: 3,
-        avatar:
-          "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face",
-        isOnline: true,
-        isPinned: true,
-      },
-      {
-        id: 2,
-        name: "Layla Amora",
-        role: "Design Lead",
-        lastMessage: "The wireframes look great, let's proceed",
-        time: "1 hour ago",
-        unread: 0,
-        avatar:
-          "https://images.unsplash.com/photo-1494790108755-2616b612b47e?w=40&h=40&fit=crop&crop=face",
-        isOnline: false,
-        isPinned: false,
-      },
-      {
-        id: 3,
-        name: "Ansel Finn",
-        role: "Developer",
-        lastMessage: "SEO optimization is complete",
-        time: "3 hours ago",
-        unread: 1,
-        avatar:
-          "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face",
-        isOnline: true,
-        isPinned: false,
-      },
-      {
-        id: 4,
-        name: "Support Team",
+        id: "support",
+        channelKey: "",
+        name: "Xtrawrkx Support",
         role: "Customer Support",
-        lastMessage: "Your issue has been resolved",
-        time: "1 day ago",
+        lastMessage: "",
+        lastMessageAt: 0,
+        time: "",
         unread: 0,
-        avatar:
-          "https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?w=40&h=40&fit=crop&crop=face",
-        isOnline: true,
+        avatar: undefined,
+        isOnline: false,
         isPinned: true,
+        sortKey: Date.now(),
       },
     ];
 
-    setConversations(mockConversations);
-
-    // Initialize messages for each conversation
-    const initialMessages = {};
-    mockConversations.forEach((conv) => {
-      initialMessages[conv.id] = [
-        {
-          id: Date.now() + Math.random(),
-          text: conv.lastMessage,
-          sender: "team",
-          timestamp: new Date(),
-          status: "received",
-        },
-      ];
-    });
-    setMessages(initialMessages);
-
-    // Calculate initial unread count
-    const totalUnread = mockConversations.reduce(
-      (sum, conv) => sum + conv.unread,
-      0
-    );
-    setUnreadCount(totalUnread);
-
-    // Initialize WebSocket connection
-    initializeConnection("client-user-123");
-  }, [initializeConnection]);
-
-  // Set up real-time event listeners
-  useEffect(() => {
-    const handleNewMessage = (data) => {
-      const { conversationId, message } = data;
-
-      setMessages((prev) => ({
-        ...prev,
-        [conversationId]: [...(prev[conversationId] || []), message],
-      }));
-
-      // Update conversation last message
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === conversationId
-            ? {
-                ...conv,
-                lastMessage: message.text,
-                time: "now",
-                unread:
-                  conv.sender === "client" ? conv.unread : conv.unread + 1,
-              }
-            : conv
-        )
-      );
-    };
-
-    const handleTypingStatus = (data) => {
-      const { conversationId, isTyping: typing } = data;
-      setIsTyping((prev) => ({ ...prev, [conversationId]: typing }));
-    };
-
-    const handleUserOnline = (data) => {
-      setOnlineUsers((prev) => new Set([...prev, data.userId]));
-    };
-
-    const handleUserOffline = (data) => {
-      setOnlineUsers((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(data.userId);
-        return newSet;
+    setConversations(list);
+    setMessages((prev) => {
+      const next = { ...prev };
+      list.forEach((c) => {
+        if (!(c.id in next)) next[c.id] = [];
       });
-    };
-
-    // Add event listeners
-    addEventListener("newMessage", handleNewMessage);
-    addEventListener("typingStatus", handleTypingStatus);
-    addEventListener("userOnline", handleUserOnline);
-    addEventListener("userOffline", handleUserOffline);
-
-    // Cleanup event listeners
-    return () => {
-      removeEventListener("newMessage", handleNewMessage);
-      removeEventListener("typingStatus", handleTypingStatus);
-      removeEventListener("userOnline", handleUserOnline);
-      removeEventListener("userOffline", handleUserOffline);
-    };
-  }, [addEventListener, removeEventListener]);
-
-  // Send message
-  const sendMessage = useCallback(
-    async (conversationId, messageText, attachments = []) => {
-      if (!messageText.trim() && attachments.length === 0) return;
-
-      const newMessage = {
-        id: Date.now(),
-        text: messageText,
-        sender: "client",
-        timestamp: new Date(),
-        attachments,
-        status: "sending",
-      };
-
-      // Add message to conversation
-      setMessages((prev) => ({
-        ...prev,
-        [conversationId]: [...(prev[conversationId] || []), newMessage],
-      }));
-
-      // Update conversation last message
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === conversationId
-            ? {
-                ...conv,
-                lastMessage: messageText,
-                time: "now",
-                unread:
-                  conv.sender === "client" ? conv.unread : conv.unread + 1,
-              }
-            : conv
-        )
-      );
-
-      // Send via WebSocket
-      wsSendMessage(conversationId, newMessage);
-
-      // Update message status to sent
-      setTimeout(() => {
-        setMessages((prev) => ({
-          ...prev,
-          [conversationId]: prev[conversationId].map((msg) =>
-            msg.id === newMessage.id ? { ...msg, status: "sent" } : msg
-          ),
-        }));
-      }, 1000);
-    },
-    [wsSendMessage]
-  );
-
-  // Generate contextual team responses
-  const generateTeamResponse = (message) => {
-    const responses = [
-      "Thank you for your message! We'll get back to you shortly.",
-      "I understand your concern. Let me check on that for you.",
-      "That's a great question! Let me provide you with more details.",
-      "I'll look into this and update you as soon as possible.",
-      "Thanks for bringing this to our attention. We're on it!",
-      "I can help you with that. Let me gather the information you need.",
-      "Perfect! I'll make sure this gets handled right away.",
-      "I appreciate your patience. We're working on this for you.",
-    ];
-    return responses[Math.floor(Math.random() * responses.length)];
-  };
-
-  // Mark conversation as read
-  const markAsRead = useCallback((conversationId) => {
-    setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === conversationId ? { ...conv, unread: 0 } : conv
-      )
-    );
+      return next;
+    });
   }, []);
 
-  // Get messages for a conversation
-  const getMessages = useCallback(
-    (conversationId) => {
-      return messages[conversationId] || [];
+  const refreshChannel = useCallback(
+    async (conv, silent) => {
+      if (!accountId || !conv) return;
+      try {
+        const rows =
+          conv.id === "support"
+            ? await fetchAllChannelsChatMessages(accountId)
+            : await fetchChatMessages(accountId, conv.channelKey ?? "");
+        const bubbles = rows
+          .map((r) => mapStrapiChatToBubble(r, accountId))
+          .filter(Boolean);
+        setMessages((prev) => {
+          const prevList = prev[conv.id] || [];
+          if (silent && bubbles.length === 0 && prevList.length > 0) {
+            return prev;
+          }
+          return { ...prev, [conv.id]: bubbles };
+        });
+
+        const last = rows.length ? rows[rows.length - 1] : null;
+        const lastRaw = last?.attributes
+          ? { ...last.attributes, id: last.id }
+          : last;
+        const lastText = lastRaw?.message || "";
+        const lastAt = lastRaw?.createdAt
+          ? new Date(lastRaw.createdAt).getTime()
+          : 0;
+        const preview = previewTime(lastRaw?.createdAt);
+
+        const lastRead =
+          conv.id === "support"
+            ? readLastReadTsSupportInbox(accountId)
+            : readLastReadTs(accountId, conv.channelKey ?? "");
+        const unreadFromTeam = rows.reduce((acc, row) => {
+          const raw = row?.attributes ? { ...row.attributes, id: row.id } : row;
+          if (!raw?.createdAt) return acc;
+          const fromClient = raw.fromClient === true;
+          if (fromClient) return acc;
+          const t = new Date(raw.createdAt).getTime();
+          if (t > lastRead) return acc + 1;
+          return acc;
+        }, 0);
+
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === conv.id
+              ? {
+                  ...c,
+                  lastMessage: lastText,
+                  lastMessageAt: lastAt,
+                  time: preview || c.time,
+                  unread: unreadFromTeam,
+                  sortKey: lastAt || c.sortKey,
+                }
+              : c
+          )
+        );
+      } catch (e) {
+        if (!silent) console.error("Chat refresh failed", e);
+      }
     },
+    [accountId]
+  );
+
+  useEffect(() => {
+    bootstrapConversations();
+  }, [bootstrapConversations]);
+
+  useEffect(() => {
+    if (!accountId) return undefined;
+
+    const tick = async () => {
+      const list = conversationsRef.current;
+      if (!list.length) return;
+      await Promise.all(list.map((c) => refreshChannel(c, true)));
+    };
+
+    tick();
+    pollRef.current = setInterval(tick, 4000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [accountId, refreshChannel]);
+
+  const sendMessage = useCallback(
+    async (conversationId, messageText) => {
+      if (!messageText?.trim() || !accountId) return;
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (!conv) return;
+
+      const text = messageText.trim();
+      let clientLabel = "You";
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("client_account");
+          if (raw) {
+            const a = JSON.parse(raw);
+            const name =
+              a.companyName || a.attributes?.companyName || a.company?.name;
+            if (name && String(name).trim()) clientLabel = String(name).trim();
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      const ck = conv.channelKey != null ? String(conv.channelKey) : "";
+      const optimistic = {
+        id: `tmp-${Date.now()}`,
+        text,
+        sender: "client",
+        senderName: clientLabel,
+        timestamp: new Date(),
+        status: "sending",
+        avatarUrl: null,
+        clientAvatarUrl: null,
+        channelTag: ck.startsWith("community:") ? "Program" : "Support",
+      };
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), optimistic],
+      }));
+
+      try {
+        const res = await sendPortalChatMessage(
+          accountId,
+          text,
+          conv.channelKey ?? ""
+        );
+        const created = res?.data;
+        setMessages((prev) => {
+          const withoutTmp = (prev[conversationId] || []).filter(
+            (m) => m.id !== optimistic.id
+          );
+          if (created) {
+            const bubble = mapStrapiChatToBubble(created, accountId);
+            if (bubble) {
+              return {
+                ...prev,
+                [conversationId]: [...withoutTmp, bubble],
+              };
+            }
+          }
+          return {
+            ...prev,
+            [conversationId]: [
+              ...withoutTmp,
+              { ...optimistic, id: optimistic.id, status: "sent" },
+            ],
+          };
+        });
+        await refreshChannel(conv, true);
+      } catch (e) {
+        console.error(e);
+        setMessages((prev) => ({
+          ...prev,
+          [conversationId]: (prev[conversationId] || []).filter(
+            (m) => m.id !== optimistic.id
+          ),
+        }));
+      }
+    },
+    [accountId, conversations, refreshChannel]
+  );
+
+  const markAsRead = useCallback(
+    (conversationId) => {
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (!conv || !accountId) return;
+      writeLastReadNow(accountId, conv.channelKey ?? "");
+      if (conv.id === "support") writeLastReadNowSupportInbox(accountId);
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, unread: 0 } : c))
+      );
+      refreshChannel(conv, true);
+    },
+    [accountId, conversations, refreshChannel]
+  );
+
+  const getMessages = useCallback(
+    (conversationId) => messages[conversationId] || [],
     [messages]
   );
 
-  // Get unread count for a conversation
   const getUnreadCount = useCallback(
     (conversationId) => {
-      const conversation = conversations.find(
-        (conv) => conv.id === conversationId
-      );
-      return conversation?.unread || 0;
+      const c = conversations.find((x) => x.id === conversationId);
+      return c?.unread || 0;
     },
     [conversations]
   );
 
-  // Check if user is typing
   const isUserTyping = useCallback(
-    (conversationId) => {
-      return isTyping[conversationId] || false;
-    },
+    (conversationId) => isTyping[conversationId] || false,
     [isTyping]
   );
 
-  // Update conversation
   const updateConversation = useCallback((conversationId, updates) => {
     setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === conversationId ? { ...conv, ...updates } : conv
-      )
+      prev.map((c) => (c.id === conversationId ? { ...c, ...updates } : c))
     );
   }, []);
 
-  // Add new conversation
   const addConversation = useCallback((conversation) => {
     setConversations((prev) => [...prev, conversation]);
     setMessages((prev) => ({
@@ -297,25 +289,18 @@ export function ChatProvider({ children }) {
     }));
   }, []);
 
-  // Remove conversation
   const removeConversation = useCallback((conversationId) => {
-    setConversations((prev) =>
-      prev.filter((conv) => conv.id !== conversationId)
-    );
+    setConversations((prev) => prev.filter((c) => c.id !== conversationId));
     setMessages((prev) => {
-      const newMessages = { ...prev };
-      delete newMessages[conversationId];
-      return newMessages;
+      const next = { ...prev };
+      delete next[conversationId];
+      return next;
     });
   }, []);
 
-  // Calculate total unread count
   useEffect(() => {
-    const totalUnread = conversations.reduce(
-      (sum, conv) => sum + conv.unread,
-      0
-    );
-    setUnreadCount(totalUnread);
+    const total = conversations.reduce((s, c) => s + (c.unread || 0), 0);
+    setUnreadCount(total);
   }, [conversations]);
 
   const value = {
@@ -325,6 +310,7 @@ export function ChatProvider({ children }) {
     unreadCount,
     isTyping,
     onlineUsers,
+    accountId,
     setActiveConversation,
     sendMessage,
     markAsRead,
@@ -334,6 +320,7 @@ export function ChatProvider({ children }) {
     updateConversation,
     addConversation,
     removeConversation,
+    refreshChannel,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

@@ -15,12 +15,42 @@ export default function ProtectedLayout({ children }) {
       return;
     }
 
-    // Redirect unauthenticated users to login
+    // Redirect unauthenticated users to login — keep website handoff query params
+    // (email, from, intent) so /communities?email=…&from=xtrawrkx-website prefills sign-in.
     if (status === "unauthenticated") {
-      router.push("/auth");
+      if (typeof window === "undefined") {
+        router.push("/auth");
+        return;
+      }
+      const handoffKeys = ["email", "from", "intent"];
+      const next = new URLSearchParams();
+      const src = new URL(window.location.href).searchParams;
+      for (const key of handoffKeys) {
+        const v = src.get(key);
+        if (v) {
+          next.set(key, v);
+        }
+      }
+      const qs = next.toString();
+      router.push(qs ? `/auth?${qs}` : "/auth");
       return;
     }
-  }, [status, router]);
+
+    if (status === "authenticated" && typeof window !== "undefined") {
+      const role = String(
+        session?.user?.role || session?.account?.role || session?.role || ""
+      ).toUpperCase();
+      const pathname = window.location.pathname || "";
+      const isRestrictedForMember =
+        role !== "ADMIN" &&
+        role !== "MANAGER" &&
+        role !== "CLIENT" &&
+        (pathname.startsWith("/company") || pathname.startsWith("/billing"));
+      if (isRestrictedForMember) {
+        router.push("/dashboard");
+      }
+    }
+  }, [status, router, session]);
 
   // Show loading state while checking authentication
   if (status === "loading") {

@@ -70,6 +70,22 @@ export default function ContactsPage() {
   const router = useRouter();
   const { user } = useAuth();
 
+  const getContactDisplayName = (contact) => {
+    const first = String(contact?.firstName || "").trim();
+    const last = String(contact?.lastName || "").trim();
+    const title = String(contact?.title || "").trim().toLowerCase();
+
+    // Website sync historically created placeholder lastName="User".
+    // Hide that placeholder for cleaner CRM display.
+    const isPlaceholderLast =
+      last.toLowerCase() === "user" && (title === "website signup" || !first.includes(" "));
+
+    if (first && (!last || isPlaceholderLast)) {
+      return first;
+    }
+    return `${first} ${last}`.trim() || contact?.email || "Contact";
+  };
+
   // State management
   const [contacts, setContacts] = useState([]);
   const [allContacts, setAllContacts] = useState([]); // Unfiltered contacts for stats
@@ -749,25 +765,33 @@ export default function ContactsPage() {
     {
       key: "contact",
       label: "CONTACT",
-      render: (_, contact) => (
-        <div className="flex items-center gap-3 min-w-[200px]">
-          <Avatar
-            src={contact.avatar}
-            alt={`${contact.firstName} ${contact.lastName}`}
-            fallback={`${contact.firstName?.[0] || ""}${
-              contact.lastName?.[0] || ""
-            }`}
-            size="sm"
-            className="flex-shrink-0"
-          />
-          <div>
-            <div className="font-medium text-gray-900">
-              {contact.firstName} {contact.lastName}
+      render: (_, contact) => {
+        const displayName = getContactDisplayName(contact);
+        const initialsSource = displayName || contact?.email || "";
+        const parts = String(initialsSource).trim().split(/\s+/).filter(Boolean);
+        const initials =
+          parts.length >= 2
+            ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+            : (parts[0]?.[0] || "?").toUpperCase();
+
+        return (
+          <div className="flex items-center gap-3 min-w-[200px]">
+            <Avatar
+              src={contact.avatar}
+              alt={displayName}
+              fallback={initials}
+              size="sm"
+              className="flex-shrink-0"
+            />
+            <div>
+              <div className="font-medium text-gray-900">{displayName}</div>
+              <div className="text-sm text-gray-500">
+                {contact.email || ""}
+              </div>
             </div>
-            <div className="text-sm text-gray-500">{contact.title}</div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "company",
@@ -775,7 +799,9 @@ export default function ContactsPage() {
       render: (_, contact) => (
         <div className="min-w-[150px]">
           <div className="font-medium text-gray-900">
-            {contact.clientAccount?.companyName ||
+            {contact.clientAccount?.onboardingData?.signupCompany ||
+              contact.clientAccount?.onboardingData?.company ||
+              contact.clientAccount?.companyName ||
               contact.leadCompany?.companyName ||
               "No Company"}
           </div>
@@ -1245,15 +1271,15 @@ export default function ContactsPage() {
               <div className="flex items-center gap-3">
                 <Avatar
                   src={contactToDelete.avatar}
-                  alt={`${contactToDelete.firstName} ${contactToDelete.lastName}`}
-                  fallback={`${contactToDelete.firstName?.[0] || ""}${
-                    contactToDelete.lastName?.[0] || ""
-                  }`}
+                  alt={getContactDisplayName(contactToDelete)}
+                  fallback={getContactDisplayName(contactToDelete)
+                    .charAt(0)
+                    .toUpperCase()}
                   className="w-12 h-12"
                 />
                 <div>
                   <div className="font-medium text-gray-900">
-                    {contactToDelete.firstName} {contactToDelete.lastName}
+                    {getContactDisplayName(contactToDelete)}
                   </div>
                   <div className="text-sm text-gray-500">
                     {contactToDelete.title}
@@ -1268,7 +1294,7 @@ export default function ContactsPage() {
             <div className="mb-6">
               <p className="text-gray-700 mb-3">
                 Are you sure you want to delete{" "}
-                <strong>{contactToDelete.firstName} {contactToDelete.lastName}</strong>?
+                <strong>{getContactDisplayName(contactToDelete)}</strong>?
               </p>
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-700 font-medium mb-2">
@@ -1335,7 +1361,7 @@ export default function ContactsPage() {
             <div className="mb-6">
               <p className="text-gray-700 mb-4">
                 Select a user to assign{" "}
-                <strong>{contactToAssign.firstName} {contactToAssign.lastName}</strong> to:
+                <strong>{getContactDisplayName(contactToAssign)}</strong> to:
               </p>
               <Select
                 label="Assign To"

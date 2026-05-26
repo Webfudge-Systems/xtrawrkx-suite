@@ -1,48 +1,29 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { useState, Suspense, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   CheckCircle,
   Clock,
   Star,
-  Users,
   Zap,
   Shield,
   Globe,
   Code,
   Palette,
   BarChart3,
-  Mail,
-  Phone,
-  Video,
-  FileText,
-  Database,
   Cloud,
   Smartphone,
-  Monitor,
-  Server,
-  Lock,
-  Award,
   TrendingUp,
   Target,
-  Rocket,
-  Heart,
   DollarSign,
-  Calendar,
   ArrowRight,
   Plus,
-  Filter,
-  Search,
   Crown,
   ArrowUpRight,
-  CheckSquare,
 } from "lucide-react";
-import ModernButton from "@/components/ui/ModernButton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import Link from "next/link";
 
 // Mock services data with community segregation
@@ -407,807 +388,637 @@ const servicesData = [
   },
 ];
 
-// Service categories
-const serviceCategories = [
-  { name: "All", count: servicesData.length },
-  { name: "Included", count: servicesData.filter((s) => s.isIncluded).length },
-  {
-    name: "Available",
-    count: servicesData.filter((s) => !s.isIncluded).length,
-  },
-  {
-    name: "Development",
-    count: servicesData.filter((s) => s.category === "Development").length,
-  },
-  {
-    name: "Design",
-    count: servicesData.filter((s) => s.category === "Design").length,
-  },
-  {
-    name: "Marketing",
-    count: servicesData.filter((s) => s.category === "Marketing").length,
-  },
-  {
-    name: "Infrastructure",
-    count: servicesData.filter((s) => s.category === "Infrastructure").length,
-  },
-  {
-    name: "Analytics",
-    count: servicesData.filter((s) => s.category === "Analytics").length,
-  },
-  {
-    name: "E-commerce",
-    count: servicesData.filter((s) => s.category === "E-commerce").length,
-  },
-  {
-    name: "Security",
-    count: servicesData.filter((s) => s.category === "Security").length,
-  },
+const SERVICE_CATEGORY_OPTIONS = [
+  "All categories",
+  ...Array.from(new Set(servicesData.map((s) => s.category))).sort((a, b) =>
+    a.localeCompare(b)
+  ),
 ];
 
 function ServicesContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const filter = searchParams.get("filter");
 
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const scopeFilter =
+    filter === "included"
+      ? "included"
+      : filter === "available"
+        ? "available"
+        : "all";
+
+  const [categoryFilter, setCategoryFilter] = useState("All categories");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("name");
+  const [headerKey, setHeaderKey] = useState(0);
 
-  // Set initial category based on URL parameter
-  useEffect(() => {
-    if (filter === "included") {
-      setSelectedCategory("Included");
-    } else if (filter === "available") {
-      setSelectedCategory("Available");
-    } else {
-      setSelectedCategory("All");
-    }
-  }, [filter]);
+  const setScope = (next) => {
+    if (next === "all") router.replace("/services");
+    else router.replace(`/services?filter=${next}`);
+  };
 
-  // Filter and sort services
-  const filteredServices = servicesData
-    .filter((service) => {
-      const matchesCategory =
-        selectedCategory === "All" ||
-        (selectedCategory === "Included" && service.isIncluded) ||
-        (selectedCategory === "Available" && !service.isIncluded) ||
-        service.category === selectedCategory;
-      const matchesSearch =
-        service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        service.description.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case "name":
-          return a.title.localeCompare(b.title);
-        case "price":
-          return (
-            parseFloat(a.price.replace(/[^0-9.]/g, "")) -
-            parseFloat(b.price.replace(/[^0-9.]/g, ""))
-          );
-        case "rating":
-          return b.rating - a.rating;
-        case "status":
-          return a.status.localeCompare(b.status);
-        default:
-          return 0;
-      }
-    });
+  const filteredServices = useMemo(() => {
+    return servicesData
+      .filter((service) => {
+        const matchesScope =
+          scopeFilter === "all" ||
+          (scopeFilter === "included" && service.isIncluded) ||
+          (scopeFilter === "available" && !service.isIncluded);
+        const matchesCategory =
+          categoryFilter === "All categories" ||
+          service.category === categoryFilter;
+        const q = searchQuery.trim().toLowerCase();
+        const matchesSearch =
+          !q ||
+          service.title.toLowerCase().includes(q) ||
+          service.description.toLowerCase().includes(q);
+        return matchesScope && matchesCategory && matchesSearch;
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case "name":
+            return a.title.localeCompare(b.title);
+          case "price":
+            return (
+              parseFloat(a.price.replace(/[^0-9.]/g, "")) -
+              parseFloat(b.price.replace(/[^0-9.]/g, ""))
+            );
+          case "rating":
+            return b.rating - a.rating;
+          case "status":
+            return a.status.localeCompare(b.status);
+          default:
+            return 0;
+        }
+      });
+  }, [scopeFilter, categoryFilter, searchQuery, sortBy]);
 
   const includedServices = servicesData.filter((s) => s.isIncluded);
   const availableServices = servicesData.filter((s) => !s.isIncluded);
   const totalAllocatedHours = includedServices.reduce(
-    (sum, s) => sum + s.allocatedHours,
+    (sum, s) => sum + (s.allocatedHours || 0),
     0
   );
   const totalUsedHours = includedServices.reduce(
-    (sum, s) => sum + s.usedHours,
+    (sum, s) => sum + (s.usedHours || 0),
     0
   );
-  const totalRemainingHours = totalAllocatedHours - totalUsedHours;
+  const totalRemainingHours = Math.max(
+    0,
+    totalAllocatedHours - totalUsedHours
+  );
+  const usagePct =
+    totalAllocatedHours > 0
+      ? Math.round((totalUsedHours / totalAllocatedHours) * 100)
+      : 0;
+
+  const pageTitle =
+    filter === "included"
+      ? "Included services"
+      : filter === "available"
+        ? "Available services"
+        : "My services";
+
+  const pageSubtitle =
+    filter === "included"
+      ? "Work covered on your X3 plan and how hours are tracking."
+      : filter === "available"
+        ? "Optional services you can add when you move to X4."
+        : "Plan summary, hours, and every service in one place.";
+
+  const kpiRows = useMemo(() => {
+    if (scopeFilter === "available") {
+      return [
+        {
+          title: "Add-on services",
+          value: String(availableServices.length),
+          hint: "Unlocked with X4",
+          icon: ArrowUpRight,
+          color: "bg-purple-50",
+          borderColor: "border-purple-200",
+          iconColor: "text-purple-600",
+          dotColor: "bg-purple-500",
+        },
+        {
+          title: "Est. combined value",
+          value: "$9.5k",
+          hint: "Per month (sample)",
+          icon: DollarSign,
+          color: "bg-xtrawrkx-50",
+          borderColor: "border-xtrawrkx-200",
+          iconColor: "text-xtrawrkx-600",
+          dotColor: "bg-xtrawrkx-500",
+        },
+        {
+          title: "Avg. satisfaction",
+          value: "4.8",
+          hint: "Across add-ons",
+          icon: Star,
+          color: "bg-green-50",
+          borderColor: "border-green-200",
+          iconColor: "text-green-600",
+          dotColor: "bg-green-500",
+        },
+        {
+          title: "Tier to unlock",
+          value: "X4",
+          hint: "Scale Member",
+          icon: Crown,
+          color: "bg-orange-50",
+          borderColor: "border-orange-200",
+          iconColor: "text-orange-600",
+          dotColor: "bg-orange-500",
+        },
+      ];
+    }
+    if (scopeFilter === "included") {
+      return [
+        {
+          title: "On your plan",
+          value: String(includedServices.length),
+          hint: "Included services",
+          icon: CheckCircle,
+          color: "bg-green-50",
+          borderColor: "border-green-200",
+          iconColor: "text-green-600",
+          dotColor: "bg-green-500",
+        },
+        {
+          title: "Hours used",
+          value: `${totalUsedHours}h`,
+          hint: `of ${totalAllocatedHours}h allocated`,
+          icon: Clock,
+          color: "bg-xtrawrkx-50",
+          borderColor: "border-xtrawrkx-200",
+          iconColor: "text-xtrawrkx-600",
+          dotColor: "bg-xtrawrkx-500",
+        },
+        {
+          title: "Usage rate",
+          value: `${usagePct}%`,
+          hint: "Across included work",
+          icon: Target,
+          color: "bg-orange-50",
+          borderColor: "border-orange-200",
+          iconColor: "text-orange-600",
+          dotColor: "bg-orange-500",
+        },
+        {
+          title: "Avg. rating",
+          value: "4.8",
+          hint: "From client reviews",
+          icon: Star,
+          color: "bg-purple-50",
+          borderColor: "border-purple-200",
+          iconColor: "text-purple-600",
+          dotColor: "bg-purple-500",
+        },
+      ];
+    }
+    return [
+      {
+        title: "Included services",
+        value: String(includedServices.length),
+        hint: "Active on X3",
+        icon: CheckCircle,
+        color: "bg-green-50",
+        borderColor: "border-green-200",
+        iconColor: "text-green-600",
+        dotColor: "bg-green-500",
+      },
+      {
+        title: "Hours used",
+        value: `${totalUsedHours}h`,
+        hint: `of ${totalAllocatedHours}h`,
+        icon: Clock,
+        color: "bg-xtrawrkx-50",
+        borderColor: "border-xtrawrkx-200",
+        iconColor: "text-xtrawrkx-600",
+        dotColor: "bg-xtrawrkx-500",
+      },
+      {
+        title: "Add-ons available",
+        value: String(availableServices.length),
+        hint: "Requires X4",
+        icon: Star,
+        color: "bg-purple-50",
+        borderColor: "border-purple-200",
+        iconColor: "text-purple-600",
+        dotColor: "bg-purple-500",
+      },
+      {
+        title: "Usage rate",
+        value: `${usagePct}%`,
+        hint: "Plan efficiency",
+        icon: Target,
+        color: "bg-orange-50",
+        borderColor: "border-orange-200",
+        iconColor: "text-orange-600",
+        dotColor: "bg-orange-500",
+      },
+    ];
+  }, [
+    scopeFilter,
+    availableServices.length,
+    includedServices.length,
+    totalUsedHours,
+    totalAllocatedHours,
+    usagePct,
+  ]);
+
+  const resetFilters = () => {
+    setCategoryFilter("All categories");
+    setSearchQuery("");
+    router.replace("/services");
+    setHeaderKey((k) => k + 1);
+  };
 
   return (
-    <div className="p-6 w-full">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-2">
-              {filter === "included"
-                ? "Included Services"
-                : filter === "available"
-                  ? "Available Services"
-                  : "My Services"}
-            </h1>
-            <p className="text-gray-600 text-lg">
-              {filter === "included"
-                ? "Your XEN X3 included services with allocated hours"
-                : filter === "available"
-                  ? "Additional services available with X4 upgrade"
-                  : "Manage your XEN X3 services and explore additional solutions"}
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            {filter === "available" && (
-              <ModernButton
-                type="primary"
-                text="Upgrade to X4"
-                icon={ArrowUpRight}
-                onClick={() => console.log("Upgrade to X4")}
-              />
-            )}
-            {filter !== "available" && (
-              <ModernButton
-                type="secondary"
-                text="View All Services"
-                icon={ArrowRight}
-                onClick={() => (window.location.href = "/services")}
-              />
-            )}
-          </div>
-        </div>
+    <div className="bg-white min-h-screen">
+      <div className="px-4 pt-4">
+        <PageHeader
+          key={headerKey}
+          title={pageTitle}
+          subtitle={pageSubtitle}
+          showSearch
+          searchPlaceholder="Search services..."
+          onSearchChange={setSearchQuery}
+          hasActiveFilters={
+            Boolean(searchQuery.trim()) || categoryFilter !== "All categories"
+          }
+        />
+      </div>
 
-        {/* Community Tier Info */}
-        {filter !== "available" && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-8 mb-8"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-red-500 rounded-2xl flex items-center justify-center shadow-xl">
-                  <Crown className="h-8 w-8 text-white" />
+      <div className="px-3 mt-6 pb-10">
+        <div className="space-y-4 max-w-[1600px] mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {kpiRows.map((stat) => {
+              const IconComponent = stat.icon;
+              return (
+                <div
+                  key={stat.title}
+                  className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="text-sm text-gray-600 mb-1 font-medium truncate">
+                        {stat.title}
+                      </p>
+                      <p className="text-3xl font-black text-gray-800">
+                        {stat.value}
+                      </p>
+                      <div className="mt-2 flex items-center text-xs text-gray-500">
+                        <span
+                          className={`w-2 h-2 rounded-full mr-2 shrink-0 ${stat.dotColor}`}
+                        />
+                        <span className="text-gray-600 font-medium leading-snug">
+                          {stat.hint}
+                        </span>
+                      </div>
+                    </div>
+                    <div
+                      className={`w-16 h-16 shrink-0 ${stat.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${stat.borderColor}`}
+                    >
+                      <IconComponent
+                        className={`w-8 h-8 ${stat.iconColor}`}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    XEN Growth Member (X3)
-                  </h3>
-                  <p className="text-gray-600 text-lg">
-                    {filter === "included"
-                      ? "Your included services with allocated hours"
-                      : "Your current community tier includes 5 core services"}
+              );
+            })}
+          </div>
+
+          {scopeFilter !== "available" ? (
+            <Card
+              variant="outlined"
+              title="Your membership"
+              subtitle="XEN · Growth Member (X3)"
+              actions={
+                <div className="text-right">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Plan hours
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 leading-tight">
+                    {totalAllocatedHours}h
+                  </p>
+                  <p className="text-sm text-green-600 font-semibold mt-0.5">
+                    {totalRemainingHours}h remaining
                   </p>
                 </div>
+              }
+            >
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-red-500 flex items-center justify-center shadow-md shrink-0">
+                  <Crown className="h-6 w-6 text-white" />
+                </div>
+                <p className="text-sm text-gray-600 max-w-3xl flex-1 min-w-[200px]">
+                  {scopeFilter === "included"
+                    ? "Each row below is part of your subscription. Hours show how much of this service’s allocation you have already used."
+                    : "You have five core services on X3. Use the tabs to focus on included work or browse add-ons. Open any card for the full breakdown."}
+                </p>
               </div>
-              <div className="text-right">
-                <div className="text-sm text-gray-600 mb-2 font-medium">
-                  Total Allocated Hours
-                </div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                  {totalAllocatedHours}h
-                </div>
-                <div className="text-sm text-green-600 font-semibold bg-green-50 px-3 py-1 rounded-full">
-                  {totalRemainingHours}h remaining
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* X4 Upgrade Info for Available Services */}
-        {filter === "available" && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-gradient-to-r from-white via-purple-50/30 to-indigo-50/50 backdrop-blur-sm border border-purple-200/50 shadow-xl rounded-3xl p-8 mb-8"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-xl">
-                  <ArrowUpRight className="h-8 w-8 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    Upgrade to XEN Scale Member (X4)
-                  </h3>
-                  <p className="text-gray-600 text-lg">
-                    Unlock additional services and enhanced features
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-gray-600 mb-2 font-medium">
-                  Available Services
-                </div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                  {availableServices.length}
-                </div>
-                <div className="text-sm text-purple-600 font-semibold bg-purple-50 px-3 py-1 rounded-full">
-                  With X4 upgrade
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          {filter === "included" ? (
-            <>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.3 }}
-                className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <CheckCircle className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Included Services
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {includedServices.length}
-                    </p>
-                    <p className="text-sm text-green-600 font-semibold bg-green-50 px-2 py-1 rounded-full">
-                      Active
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.4 }}
-                className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <Clock className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Hours Used
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {totalUsedHours}h
-                    </p>
-                    <p className="text-sm text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-full">
-                      of {totalAllocatedHours}h
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.5 }}
-                className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <Target className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Usage Rate
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {Math.round((totalUsedHours / totalAllocatedHours) * 100)}
-                      %
-                    </p>
-                    <p className="text-sm text-orange-600 font-semibold bg-orange-50 px-2 py-1 rounded-full">
-                      Efficient usage
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.6 }}
-                className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <Star className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Average Rating
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      4.8
-                    </p>
-                    <p className="text-sm text-purple-600 font-semibold bg-purple-50 px-2 py-1 rounded-full">
-                      Excellent
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            </>
-          ) : filter === "available" ? (
-            <>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.3 }}
-                className="bg-gradient-to-r from-white via-purple-50/30 to-indigo-50/50 backdrop-blur-sm border border-purple-200/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <ArrowUpRight className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Available Services
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {availableServices.length}
-                    </p>
-                    <p className="text-sm text-purple-600 font-semibold bg-purple-50 px-2 py-1 rounded-full">
-                      With X4
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.4 }}
-                className="bg-gradient-to-r from-white via-purple-50/30 to-indigo-50/50 backdrop-blur-sm border border-purple-200/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <DollarSign className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Total Value
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      $9,500
-                    </p>
-                    <p className="text-sm text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-full">
-                      Monthly
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.5 }}
-                className="bg-gradient-to-r from-white via-purple-50/30 to-indigo-50/50 backdrop-blur-sm border border-purple-200/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <Star className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Average Rating
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      4.8
-                    </p>
-                    <p className="text-sm text-green-600 font-semibold bg-green-50 px-2 py-1 rounded-full">
-                      Excellent
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.6 }}
-                className="bg-gradient-to-r from-white via-purple-50/30 to-indigo-50/50 backdrop-blur-sm border border-purple-200/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <Crown className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Upgrade Required
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      X4
-                    </p>
-                    <p className="text-sm text-orange-600 font-semibold bg-orange-50 px-2 py-1 rounded-full">
-                      Scale Member
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            </>
+            </Card>
           ) : (
-            // Default stats for "All Services"
-            <>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.3 }}
-                className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <CheckCircle className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Included Services
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {includedServices.length}
-                    </p>
-                    <p className="text-sm text-green-600 font-semibold bg-green-50 px-2 py-1 rounded-full">
-                      Active
-                    </p>
-                  </div>
+            <Card
+              variant="outlined"
+              title="Unlock with X4"
+              subtitle="Scale Member · broader catalog"
+              actions={
+                <div className="text-right">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Add-ons
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 leading-tight">
+                    {availableServices.length}
+                  </p>
+                  <p className="text-sm text-purple-600 font-semibold mt-0.5">
+                    With upgrade
+                  </p>
                 </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.4 }}
-                className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <Clock className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Hours Used
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {totalUsedHours}h
-                    </p>
-                    <p className="text-sm text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-full">
-                      of {totalAllocatedHours}h
-                    </p>
-                  </div>
+              }
+            >
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-md shrink-0">
+                  <ArrowUpRight className="h-6 w-6 text-white" />
                 </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.5 }}
-                className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <Star className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Available Services
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {availableServices.length}
-                    </p>
-                    <p className="text-sm text-purple-600 font-semibold bg-purple-50 px-2 py-1 rounded-full">
-                      Upgrade to X4
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.6 }}
-                className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <Target className="h-7 w-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      Usage Rate
-                    </h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                      {Math.round((totalUsedHours / totalAllocatedHours) * 100)}
-                      %
-                    </p>
-                    <p className="text-sm text-orange-600 font-semibold bg-orange-50 px-2 py-1 rounded-full">
-                      Efficient usage
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            </>
+                <p className="text-sm text-gray-600 max-w-3xl flex-1 min-w-[200px]">
+                  These services are not on X3. Request details or upgrade to
+                  allocate hours and start delivery.
+                </p>
+              </div>
+            </Card>
           )}
-        </div>
 
-        {/* Service Filters & Search */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-6 mb-8"
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            {/* Service Filter Buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {serviceCategories.map((category) => (
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-xl p-3">
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5 flex-1 min-w-0">
+              {[
+                { key: "all", label: "All", count: servicesData.length },
+                {
+                  key: "included",
+                  label: "Included",
+                  count: includedServices.length,
+                },
+                {
+                  key: "available",
+                  label: "Add-ons",
+                  count: availableServices.length,
+                },
+              ].map((tab) => (
                 <button
-                  key={category.name}
-                  onClick={() => setSelectedCategory(category.name)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                    selectedCategory === category.name
-                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
-                      : "bg-white/80 text-gray-700 hover:bg-white border border-gray-200/50 backdrop-blur-sm"
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setScope(tab.key)}
+                  className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap shrink-0 ${
+                    scopeFilter === tab.key
+                      ? "bg-xtrawrkx-500 text-white shadow-lg"
+                      : "bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white/90 border border-white/40"
                   }`}
                 >
-                  {category.name}
-                  <span className="bg-white/20 text-xs px-2 py-1 rounded-lg">
-                    {category.count}
+                  <span>{tab.label}</span>
+                  <span
+                    className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
+                      scopeFilter === tab.key
+                        ? "bg-white/30 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {tab.count}
                   </span>
                 </button>
               ))}
             </div>
 
-            {/* Search and Sort */}
-            <div className="flex items-center gap-4">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search services..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 w-48"
-                />
-              </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="rounded-xl border border-white/40 bg-white/90 px-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 min-w-[160px]"
+                aria-label="Filter by category"
+              >
+                {SERVICE_CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
 
-              {/* Sort */}
-              <div className="flex items-center bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl p-1">
-                <span className="text-sm text-gray-600 px-3">Sort by:</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-transparent border-none text-sm text-gray-700 focus:ring-0 focus:outline-none px-2 py-1"
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="rounded-xl border border-white/40 bg-white/90 px-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30"
+                aria-label="Sort services"
+              >
+                <option value="name">Sort: Name</option>
+                <option value="price">Sort: Price</option>
+                <option value="rating">Sort: Rating</option>
+                <option value="status">Sort: Status</option>
+              </select>
+
+              {scopeFilter === "available" ? (
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-semibold hover:bg-xtrawrkx-600 transition-colors shadow-md whitespace-nowrap"
+                  onClick={() => {}}
                 >
-                  <option value="name">Name</option>
-                  <option value="price">Price</option>
-                  <option value="rating">Rating</option>
-                  <option value="status">Status</option>
-                </select>
-              </div>
+                  Upgrade to X4
+                </button>
+              ) : (
+                <Link
+                  href="/services?filter=available"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 text-sm font-medium text-gray-900 transition-all shadow-md whitespace-nowrap"
+                >
+                  Browse add-ons
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
             </div>
           </div>
-        </motion.div>
 
-        {/* Services Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredServices.map((service, index) => {
-            const Icon = service.icon;
-            return (
-              <motion.div
-                key={service.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                className="group"
-              >
-                <Card className="h-full bg-gradient-to-br from-white/90 to-pink-50/30 backdrop-blur-sm border border-pink-200/50 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:border-pink-300/50">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div
-                          className={`w-12 h-12 bg-gradient-to-br ${service.color} rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow`}
-                        >
-                          <Icon className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg font-bold text-gray-900">
-                            {service.title}
-                          </CardTitle>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge
-                              variant={
-                                service.isIncluded ? "default" : "secondary"
-                              }
-                              className="text-xs"
-                            >
-                              {service.isIncluded ? "Included" : "Available"}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {service.category}
-                            </Badge>
-                            {service.isIncluded && (
-                              <Badge
-                                variant="outline"
-                                className="text-xs bg-green-50 text-green-700 border-green-200"
-                              >
-                                {service.tier}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-gray-900">
-                          {service.price}
-                        </p>
-                        <p className="text-sm text-gray-500">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredServices.map((service) => {
+              const Icon = service.icon;
+              const hoursPct =
+                service.isIncluded && service.allocatedHours
+                  ? Math.min(
+                      100,
+                      Math.round(
+                        (service.usedHours / service.allocatedHours) * 100
+                      )
+                    )
+                  : 0;
+              const planLabel = service.isIncluded
+                ? "Included in X3"
+                : "Add-on (X4)";
+              const planTone = service.isIncluded
+                ? "bg-green-100 text-green-800 border-green-200"
+                : "bg-gray-100 text-gray-800 border-gray-200";
+
+              return (
+                <div
+                  key={service.id}
+                  className="group rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.01] flex flex-col h-full min-h-[320px]"
+                >
+                  <div className="flex gap-3">
+                    <div
+                      className={`w-12 h-12 shrink-0 bg-gradient-to-br ${service.color} rounded-xl flex items-center justify-center shadow-md`}
+                    >
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-lg font-bold text-gray-900 leading-snug">
+                        {service.title}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {service.category}
+                        <span className="text-gray-300 mx-1.5">·</span>
+                        <span className="text-gray-600">
                           {service.duration}
-                        </p>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="space-y-4">
-                    <p className="text-gray-600 text-sm leading-relaxed">
-                      {service.description}
-                    </p>
-
-                    {/* Hours Usage for Included Services */}
-                    {service.isIncluded && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">
-                            Hours Usage
-                          </span>
-                          <span className="text-sm text-gray-500">
-                            {service.usedHours}/{service.allocatedHours}h
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`bg-gradient-to-r ${service.color} h-2 rounded-full transition-all duration-300`}
-                            style={{
-                              width: `${(service.usedHours / service.allocatedHours) * 100}%`,
-                            }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {service.remainingHours}h remaining
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Features */}
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-2 text-sm">
-                        Key Features:
-                      </h4>
-                      <div className="flex flex-wrap gap-1">
-                        {service.features.slice(0, 3).map((feature, index) => (
-                          <Badge
-                            key={index}
-                            variant="outline"
-                            className="text-xs"
-                          >
-                            {feature}
-                          </Badge>
-                        ))}
-                        {service.features.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{service.features.length - 3} more
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Rating and Reviews */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                          <span className="text-sm font-medium text-gray-900">
-                            {service.rating}
-                          </span>
-                        </div>
-                        <span className="text-sm text-gray-500">
-                          ({service.reviews} reviews)
                         </span>
-                      </div>
-                      {service.isIncluded && (
-                        <div className="text-sm text-gray-500">
-                          Next billing: {service.nextBilling}
-                        </div>
-                      )}
+                      </p>
                     </div>
-
-                    {/* Technologies */}
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-2 text-sm">
-                        Technologies:
-                      </h4>
-                      <div className="flex flex-wrap gap-1">
-                        {service.technologies.slice(0, 3).map((tech, index) => (
-                          <Badge
-                            key={index}
-                            variant="secondary"
-                            className="text-xs"
-                          >
-                            {tech}
-                          </Badge>
-                        ))}
-                        {service.technologies.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{service.technologies.length - 3}
-                          </Badge>
-                        )}
-                      </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-gray-500">
+                        {service.isIncluded ? "Plan" : "From"}
+                      </p>
+                      <p className="text-base font-bold text-gray-900 whitespace-nowrap">
+                        {service.price}
+                      </p>
                     </div>
+                  </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200/50">
-                      <div className="flex items-center space-x-2">
-                        <Link href={`/services/${service.id}`}>
-                          <ModernButton
-                            type="secondary"
-                            text="View Details"
-                            size="sm"
-                            icon={ArrowRight}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-semibold border ${planTone}`}
+                    >
+                      {planLabel}
+                    </span>
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                      {service.rating}{" "}
+                      <span className="text-gray-400">
+                        ({service.reviews} reviews)
+                      </span>
+                    </span>
+                    {service.isIncluded && service.nextBilling && (
+                      <span className="text-xs text-gray-500">
+                        Next billing{" "}
+                        <span className="font-medium text-gray-700">
+                          {service.nextBilling}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-3 text-sm text-gray-600 leading-relaxed line-clamp-3">
+                    {service.description}
+                  </p>
+
+                  <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50/90 p-3 min-h-[5.5rem] flex flex-col justify-center">
+                    <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
+                      <span>
+                        {service.isIncluded
+                          ? "Hours on this service"
+                          : "Hours"}
+                      </span>
+                      <span className="tabular-nums text-gray-600">
+                        {service.isIncluded
+                          ? `${service.usedHours} / ${service.allocatedHours} h`
+                          : "Not allocated"}
+                      </span>
+                    </div>
+                    {service.isIncluded ? (
+                      <>
+                        <div className="mt-2 h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${service.color}`}
+                            style={{ width: `${hoursPct}%` }}
                           />
-                        </Link>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {service.isIncluded ? (
-                          <ModernButton
-                            type="ghost"
-                            text="Manage"
-                            size="sm"
-                            onClick={() =>
-          })}
-        </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1.5">
+                          {service.remainingHours}h left for this line item
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-2 leading-snug">
+                        Hours are assigned after you add the service to your
+                        plan. Open details to request scope and pricing.
+                      </p>
+                    )}
+                  </div>
 
-        {/* Empty State */}
-        {filteredServices.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-            className="text-center py-12"
-          >
-            <div className="w-16 h-16 bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <Zap className="h-8 w-8 text-white" />
+                  <div className="mt-4">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Highlights
+                    </p>
+                    <p className="text-sm text-gray-700 leading-snug">
+                      {service.features.slice(0, 3).join(" · ")}
+                      {service.features.length > 3 &&
+                        ` · +${service.features.length - 3} more in details`}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2 leading-snug">
+                      <span className="font-medium text-gray-600">
+                        Typical stack:{" "}
+                      </span>
+                      {service.technologies.join(", ")}
+                    </p>
+                  </div>
+
+                  <div className="mt-auto pt-4 flex flex-col sm:flex-row gap-2 border-t border-gray-200/80">
+                    <Link
+                      href={`/services/${service.id}`}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white/80 border border-gray-200 text-gray-900 hover:bg-white transition-colors"
+                    >
+                      View details
+                      <ArrowRight className="w-4 h-4 opacity-70" />
+                    </Link>
+                    <Link
+                      href={`/services/${service.id}`}
+                      className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-xtrawrkx-500 text-white hover:bg-xtrawrkx-600 transition-colors shadow-sm"
+                    >
+                      {service.isIncluded
+                        ? "Manage service"
+                        : "Explore add-on"}
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredServices.length === 0 && (
+            <div className="text-center py-14 rounded-2xl border border-gray-200 bg-gray-50/50">
+              <div className="w-14 h-14 bg-gray-200 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Zap className="h-7 w-7 text-gray-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                No services match
+              </h3>
+              <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
+                Try another tab, set category to all types, or clear search.
+              </p>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-semibold hover:bg-xtrawrkx-600 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Reset filters
+              </button>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No services found
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Try adjusting your search or filter criteria
-            </p>
-            <ModernButton
-              type="primary"
-              text="Browse All Services"
-              icon={Plus}
-              onClick={() => {
-                setSelectedCategory("All");
-                setSearchQuery("");
-              }}
-            />
-          </motion.div>
-        )}
-      </motion.div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-        <p className="text-gray-600">Loading services...</p>
+    <div className="bg-white min-h-screen flex items-center justify-center">
+      <div className="flex items-center gap-3 text-gray-600">
+        <div className="w-8 h-8 border-2 border-xtrawrkx-500 border-t-transparent rounded-full animate-spin" />
+        <span>Loading services…</span>
       </div>
     </div>
   );

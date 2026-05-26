@@ -5,10 +5,7 @@
 
 import backendClient from '../backendClient.js';
 import { strapiClient } from '../strapiClient.js';
-
-// Use environment variable for API URL, fallback to localhost for development
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337';
-// const API_BASE_URL = 'https://xtrawrkxsuits-production.up.railway.app';
+import { resolveClientAccountCompanyName } from '@/utils/clientAccountCompany';
 
 // Use Strapi for data storage, fallback to mock backend for development
 const useStrapi = process.env.NEXT_PUBLIC_USE_STRAPI !== 'false';
@@ -25,7 +22,7 @@ function storeClientAccount(account) {
     // Method 2 FIRST: Infer from data (most reliable)
     // Method 1 backup: Check boolean flag
     const hasRequiredData = !!(
-        account.companyName &&
+        (resolveClientAccountCompanyName(account) || account.companyName) &&
         account.industry &&
         account.email &&
         account.phone
@@ -253,59 +250,70 @@ export async function login(email, password) {
 export async function getCurrentUser() {
     if (useStrapi) {
         try {
-            // Check localStorage first for client account
+            const token =
+                typeof window !== 'undefined'
+                    ? localStorage.getItem('client_token') ||
+                      localStorage.getItem('auth_token')
+                    : null;
+
+            const buildClientUserPayload = (account) => ({
+                account,
+                id: account.id,
+                email: account.email,
+                name:
+                    resolveClientAccountCompanyName(account) ||
+                    account.companyName ||
+                    account.email,
+            });
+
+            if (token) {
+                const response = await fetch(
+                    `${strapiClient.baseURL}/api/auth/me?_=${Date.now()}`,
+                    {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                    cache: 'no-store',
+                }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.type === 'client' && data.account) {
+                        if (typeof window !== 'undefined') {
+                            storeClientAccount(data.account);
+                            if (data.contacts?.length) {
+                                localStorage.setItem(
+                                    'client_contacts',
+                                    JSON.stringify(data.contacts)
+                                );
+                            }
+                        }
+                        return buildClientUserPayload(data.account);
+                    }
+                    return data;
+                }
+            }
+
             if (typeof window !== 'undefined') {
                 const accountData = localStorage.getItem('client_account');
                 if (accountData) {
                     try {
                         const account = JSON.parse(accountData);
-                        return {
-                            account: account,
-                            id: account.id,
-                            email: account.email,
-                            name: account.companyName,
-                        };
+                        return buildClientUserPayload(account);
                     } catch (error) {
                         console.error('Error parsing client account:', error);
                     }
                 }
             }
 
-            // Try to fetch from Strapi
-            const token = typeof window !== 'undefined' ? (localStorage.getItem('client_token') || localStorage.getItem('auth_token')) : null;
-
             if (!token) {
                 throw new Error('No authentication token');
             }
 
-            const response = await fetch(`${strapiClient.baseURL}/api/auth/me`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to get current user');
-            }
-
-            const data = await response.json();
-
-            // Handle client account response
-            if (data.type === 'client' && data.account) {
-                if (typeof window !== 'undefined') {
-                    storeClientAccount(data.account);
-                }
-                return {
-                    account: data.account,
-                    id: data.account.id,
-                    email: data.account.email,
-                    name: data.account.companyName
-                };
-            }
-
-            return data;
+            throw new Error('Failed to get current user');
         } catch (error) {
             console.error('Error getting current user from Strapi:', error);
             // Fallback to demo user check
@@ -342,13 +350,69 @@ export async function getCurrentUser() {
 }
 
 /**
+ * Fetch dedicated POC for the logged-in client (always hits Strapi, merges into storage).
+ * @returns {Promise<{ pocAssigned: boolean, dedicatedPoc: object|null, pocAssignmentStatus?: string }|null>}
+ */
+export async function fetchDedicatedPoc() {
+    if (!useStrapi || typeof window === 'undefined') {
+        return null;
+    }
+
+    const token =
+        localStorage.getItem('client_token') || localStorage.getItem('auth_token');
+    if (!token) return null;
+
+    try {
+        const response = await fetch(
+            `${strapiClient.baseURL}/api/auth/client/dedicated-poc?_=${Date.now()}`,
+            {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                cache: 'no-store',
+            }
+        );
+
+        if (!response.ok) {
+            console.warn('fetchDedicatedPoc failed:', response.status);
+            return null;
+        }
+
+        const data = await response.json();
+        const pocPayload = {
+            pocAssigned: Boolean(data.pocAssigned),
+            dedicatedPoc: data.dedicatedPoc || null,
+            pocAssignmentStatus: data.pocAssignmentStatus || 'UNASSIGNED',
+            pocAssignedAt: data.pocAssignedAt || null,
+        };
+
+        const existingRaw = localStorage.getItem('client_account');
+        const existing = existingRaw ? JSON.parse(existingRaw) : {};
+        localStorage.setItem(
+            'client_account',
+            JSON.stringify({ ...existing, ...pocPayload })
+        );
+
+        return pocPayload;
+    } catch (error) {
+        console.error('fetchDedicatedPoc error:', error);
+        return null;
+    }
+}
+
+/**
  * Logout user
  * @returns {Promise<void>}
  */
 export async function logout() {
     if (typeof window !== 'undefined') {
         localStorage.removeItem('auth_token');
-        localStorage.removeItem('demo_user'); // Also remove demo user data
+        localStorage.removeItem('client_token');
+        localStorage.removeItem('client_account');
+        localStorage.removeItem('client_contacts');
+        localStorage.removeItem('demo_user');
     }
     return Promise.resolve();
 }

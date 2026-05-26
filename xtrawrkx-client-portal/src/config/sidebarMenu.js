@@ -30,6 +30,7 @@ import {
  */
 export const USER_ROLES = {
     ADMIN: "admin",
+    MANAGER: "manager",
     CLIENT: "client",
     MEMBER: "member",
 };
@@ -69,7 +70,7 @@ export const sidebarMenuConfig = [
                 label: "Dashboard",
                 href: "/dashboard",
                 icon: LayoutDashboard,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
             {
                 id: "projects",
@@ -77,7 +78,7 @@ export const sidebarMenuConfig = [
                 label: "Projects",
                 href: "/projects",
                 icon: FolderKanban,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
             {
                 id: "tasks",
@@ -85,7 +86,7 @@ export const sidebarMenuConfig = [
                 label: "Tasks",
                 href: "/tasks",
                 icon: CheckSquare,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
             {
                 id: "messages",
@@ -93,7 +94,7 @@ export const sidebarMenuConfig = [
                 label: "Messages",
                 href: "/messages",
                 icon: MessageSquare,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
         ],
     },
@@ -112,7 +113,7 @@ export const sidebarMenuConfig = [
                 label: "Events",
                 href: "/events",
                 icon: Calendar,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
             {
                 id: "communities",
@@ -120,7 +121,7 @@ export const sidebarMenuConfig = [
                 label: "Communities",
                 href: "/communities",
                 icon: Users,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
             {
                 id: "services",
@@ -128,7 +129,7 @@ export const sidebarMenuConfig = [
                 label: "Services",
                 href: "/services",
                 icon: Settings,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
         ],
     },
@@ -145,9 +146,9 @@ export const sidebarMenuConfig = [
                 id: "company-members",
                 type: MENU_ITEM_TYPES.LINK,
                 label: "Company Members",
-                href: "/company/members",
+                href: "/company",
                 icon: UserCircle,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
             {
                 id: "files",
@@ -155,7 +156,7 @@ export const sidebarMenuConfig = [
                 label: "Files / Documents",
                 href: "/files",
                 icon: File,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
             {
                 id: "billing",
@@ -209,15 +210,7 @@ export const sidebarMenuConfig = [
                 label: "Settings",
                 href: "/settings",
                 icon: Settings,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
-            },
-            {
-                id: "help",
-                type: MENU_ITEM_TYPES.LINK,
-                label: "Help / Support",
-                href: "/help",
-                icon: HelpCircle,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
             {
                 id: "about",
@@ -287,6 +280,7 @@ export const getUserRole = (session) => {
 
     // Map common role names
     if (role === "admin" || role === "administrator") return USER_ROLES.ADMIN;
+    if (role === "manager") return USER_ROLES.MANAGER;
     if (role === "client" || role === "owner" || role === "primary_contact") return USER_ROLES.CLIENT;
 
     return USER_ROLES.MEMBER;

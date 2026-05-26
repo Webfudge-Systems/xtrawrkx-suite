@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
-import { FloatingChatWidget } from "../chat/FloatingChatWidget";
 import { ChatProvider } from "../providers/ChatProvider";
 
 export function MainLayout({ children }) {
@@ -40,9 +39,6 @@ export function MainLayout({ children }) {
           {/* Page content */}
           <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
         </div>
-
-        {/* Floating Chat Widget */}
-        <FloatingChatWidget />
       </div>
     </ChatProvider>
   );

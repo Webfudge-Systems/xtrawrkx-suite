@@ -78,7 +78,7 @@ module.exports = (config, { strapi }) => {
                     type: 'internal'
                 };
             } else if (decoded.type === 'client') {
-                const account = await strapi.db.query('api::account.account').findOne({
+                const account = await strapi.db.query('api::client-account.client-account').findOne({
                     where: { id: decoded.id, isActive: true },
                     populate: {
                         contacts: {

@@ -13,36 +13,36 @@ import { checkEmailExists } from "@/lib/api/authService";
 
 const COMMUNITIES = [
   {
-    id: "xdd",
-    name: "XtraDesignDevelopment",
-    code: "XDD",
-    description: "Design & Development Community",
-    icon: "mdi:code-braces",
-    color: "from-blue-500 to-cyan-500",
-  },
-  {
-    id: "xen",
-    name: "XtraEntrepreneur",
-    code: "XEN",
-    description: "Entrepreneur Network",
-    icon: "mdi:lightbulb-on",
-    color: "from-orange-500 to-pink-500",
-  },
-  {
     id: "xevfin",
-    name: "XtraEventFinance",
-    code: "XEVFIN",
-    description: "Events & Finance",
+    name: "xtrawrkx EV Finance Network",
+    code: "XEV.FiN",
+    description: "Group for strictly investments in EVs",
     icon: "mdi:chart-line",
     color: "from-green-500 to-emerald-500",
   },
   {
+    id: "xen",
+    name: "xtrawrkx Entrepreneurship Network",
+    code: "XEN",
+    description: "Group for founders to network / sell / buy etc",
+    icon: "mdi:lightbulb-on",
+    color: "from-orange-500 to-pink-500",
+  },
+  {
     id: "xevtg",
-    name: "XtraEventTravel",
+    name: "xtrawrkx EV Talent Group",
     code: "XEVTG",
-    description: "Events & Travel",
-    icon: "mdi:airplane",
-    color: "from-orange-500 to-red-500",
+    description: "Meant for HRs and TPOs of colleges for hiring/training etc",
+    icon: "mdi:account-group",
+    color: "from-blue-500 to-cyan-500",
+  },
+  {
+    id: "xdd",
+    name: "xtrawrkx Drones & Defense Group",
+    code: "xD&D",
+    description: "For Drone and Defense companies for funding and finance",
+    icon: "mdi:shield-airplane",
+    color: "from-indigo-500 to-violet-500",
   },
 ];
 
@@ -202,6 +202,24 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
   const [loading, setLoading] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [errors, setErrors] = useState({});
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+
+  const loadingMessages = [
+    "Creating your account...",
+    "Setting up your communities...",
+    "Configuring your workspace...",
+    "Almost there...",
+  ];
+
+  useEffect(() => {
+    if (!loading) return;
+
+    const interval = setInterval(() => {
+      setLoadingMessageIndex((prev) => (prev + 1) % loadingMessages.length);
+    }, 1800);
+
+    return () => clearInterval(interval);
+  }, [loading, loadingMessages.length]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -759,8 +777,22 @@ export default function SignUpForm({ onSignIn, onSubmit, className = "" }) {
     }
   };
 
+  const renderLoadingBuffer = () => (
+    <div className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm flex items-center justify-center px-6">
+      <div className="w-full max-w-md text-center">
+        <div className="mx-auto mb-6 w-16 h-16 rounded-full border-4 border-orange-200 border-t-[#FF4A74] animate-spin" />
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">Please wait</h3>
+        <p className="text-gray-600 mb-6">{loadingMessages[loadingMessageIndex]}</p>
+        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full w-1/2 bg-gradient-to-r from-[#FF4A74] to-orange-400 rounded-full animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className={`w-full max-w-full overflow-hidden ${className}`}>
+      {loading && currentStep === 3 && renderLoadingBuffer()}
       <AuthCard title={getStepTitle()} subtitle={getStepSubtitle()}>
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 w-full">
           {errors.general && (

@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import {
   Calendar,
   MapPin,
@@ -14,12 +13,12 @@ import {
   ArrowRight,
   Camera,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import ModernButton from "@/components/ui/ModernButton";
 
 export default function EventCard({
   event,
+  selected = false,
   onClick,
   onViewWebsite,
   onOpenGallery,
@@ -82,13 +81,13 @@ export default function EventCard({
   const RegistrationIcon = getRegistrationIcon(event.registrationStatus);
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.2 }}
-    >
+    <div>
       <div
-        className="cursor-pointer bg-white/80 backdrop-blur-sm border border-white/50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
+        className={`cursor-pointer rounded-2xl bg-gradient-to-br from-white/80 to-white/50 backdrop-blur-xl border shadow-md transition-all duration-300 overflow-hidden hover:shadow-lg ${
+          selected
+            ? "border-xtrawrkx-400 ring-2 ring-xtrawrkx-500/25"
+            : "border-white/40 hover:border-xtrawrkx-200/60"
+        }`}
         onClick={onClick}
       >
         <div className="p-6">
@@ -190,7 +189,9 @@ export default function EventCard({
                   text="Register Now"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Handle registration
+                    if (event.websiteUrl) {
+                      window.open(event.websiteUrl, "_blank", "noopener,noreferrer");
+                    }
                   }}
                   className="text-xs"
                 />
@@ -203,6 +204,6 @@ export default function EventCard({
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

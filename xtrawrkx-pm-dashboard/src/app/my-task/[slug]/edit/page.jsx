@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "../../../../components/shared/PageHeader";
 import {
@@ -28,15 +28,12 @@ import {
   Calendar,
 } from "lucide-react";
 
-const statusOptions = [
-  { value: "To Do", label: "To Do" },
-  { value: "In Progress", label: "In Progress" },
-  { value: "Internal Review", label: "Internal Review" },
-  { value: "Client Review", label: "Client Review" },
-  { value: "Approved", label: "Approved" },
-  { value: "Done", label: "Done" },
-  { value: "Cancelled", label: "Cancelled" },
-];
+import {
+  PM_STATUS_SELECT_OPTIONS,
+  assertStatusChangeAllowed,
+  getEditableStatusOptions,
+  STATUS_REVERT_TO_ASSIGNED_MESSAGE,
+} from "../../../../lib/taskStatusConstants";
 
 const priorityOptions = [
   { value: "Low", label: "Low" },
@@ -58,14 +55,27 @@ export default function TaskEditPage({ params: paramsProp }) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    status: "To Do",
+    status: "Assigned",
     priority: "Medium",
     scheduledDate: "",
+    timeAllotted: "",
     assignee: "",
     project: "",
     progress: 0,
   });
   const [formErrors, setFormErrors] = useState({});
+
+  const statusOptions = useMemo(
+    () =>
+      getEditableStatusOptions(
+        formData.status,
+        PM_STATUS_SELECT_OPTIONS.map((opt) => ({
+          value: opt.label,
+          label: opt.label,
+        })),
+      ),
+    [formData.status],
+  );
 
   useEffect(() => {
     const resolveParams = async () => {
@@ -107,9 +117,13 @@ export default function TaskEditPage({ params: paramsProp }) {
         setFormData({
           title: transformed.name || transformed.title || "",
           description: transformed.description || "",
-          status: transformed.status || "To Do",
+          status: transformed.status || "Assigned",
           priority: transformed.priority || "Medium",
           scheduledDate,
+          timeAllotted:
+            transformed.timeAllotted != null
+              ? String(transformed.timeAllotted)
+              : "",
           assignee: transformed.assignee?.id
             ? String(transformed.assignee.id)
             : "",
@@ -188,6 +202,12 @@ export default function TaskEditPage({ params: paramsProp }) {
     e.preventDefault();
     if (!validate() || isNaN(parsedTaskId)) return;
 
+    const guard = assertStatusChangeAllowed(task?.status, formData.status);
+    if (!guard.ok) {
+      alert(guard.message || STATUS_REVERT_TO_ASSIGNED_MESSAGE);
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setFormErrors({});
@@ -199,6 +219,9 @@ export default function TaskEditPage({ params: paramsProp }) {
         priority: transformPriorityToStrapi(formData.priority),
         scheduledDate: formData.scheduledDate
           ? new Date(formData.scheduledDate + "T00:00:00").toISOString()
+          : null,
+        timeAllotted: formData.timeAllotted
+          ? parseFloat(formData.timeAllotted)
           : null,
         progress: Math.min(100, Math.max(0, Number(formData.progress) || 0)),
       };
@@ -433,6 +456,22 @@ export default function TaskEditPage({ params: paramsProp }) {
                     value={formData.scheduledDate}
                     onChange={(e) =>
                       handleChange("scheduledDate", e.target.value)
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Time Allotted (hrs)
+                  </label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.5"
+                    placeholder="e.g. 8"
+                    value={formData.timeAllotted}
+                    onChange={(e) =>
+                      handleChange("timeAllotted", e.target.value)
                     }
                   />
                 </div>

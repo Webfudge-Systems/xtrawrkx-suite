@@ -192,7 +192,8 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
             const populate = {
                 leadCompany: true,
                 clientAccount: true,
-                assignedTo: true
+                assignedTo: true,
+                portalAccess: true,
             };
 
             const entities = await strapi.entityService.findMany('api::contact.contact', {
@@ -561,7 +562,8 @@ module.exports = createCoreController('api::contact.contact', ({ strapi }) => ({
                     leadCompany: true,
                     assignedTo: true,
                     activities: true,
-                    deals: true
+                    deals: true,
+                    portalAccess: true,
                 }
             });
 

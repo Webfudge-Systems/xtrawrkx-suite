@@ -1,0 +1,372 @@
+@import "tailwindcss";
+
+/* Custom CSS Variables */
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #151515;
+  --color-primary: #ff4a74;
+  --color-secondary: #ff8b66;
+  --color-dark: #0a0a0a;
+  --color-gray: #94a3b8;
+  --color-gray-light: #e3e3e3;
+  --color-light: #f4d3da;
+  --color-accent: #ffd166;
+  --color-success: #26ed6f;
+  --color-warning: #facc15;
+  --color-error: #f41f42;
+
+  /* Font Families */
+  --font-primary: "Poppins", sans-serif;
+  --font-heading: "Newsreader", serif;
+
+  /* Extend Tailwind's color palette */
+  --color-brand-primary: var(--color-primary);
+  --color-brand-secondary: var(--color-secondary);
+  --color-brand-background: var(--color-background);
+  --color-brand-foreground: var(--color-foreground);
+  --color-brand-dark: var(--color-dark);
+  --color-brand-gray: var(--color-gray);
+  --color-brand-gray-light: var(--color-gray-light);
+  --color-brand-light: var(--color-light);
+  --color-brand-accent: var(--color-accent);
+}
+
+/* Base Styles */
+@layer base {
+  * {
+    @apply border-brand-gray-light;
+  }
+
+  body {
+    @apply bg-brand-background text-brand-foreground font-primary antialiased;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+}
+
+/* React Toastify Custom Styles */
+.toast-container {
+  font-family: var(--font-primary);
+}
+
+.toast-message {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.toast-body {
+  padding: 12px 16px;
+  line-height: 1.5;
+}
+
+.toast-progress {
+  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+}
+
+/* Toast type specific styles */
+.Toastify__toast--success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.Toastify__toast--error {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.Toastify__toast--warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.Toastify__toast--info {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+.Toastify__toast--default {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  color: white;
+}
+
+/* Loading toast styles */
+.Toastify__toast--loading {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  color: white;
+}
+
+/* Close button styles */
+.Toastify__close-button {
+  color: white;
+  opacity: 0.8;
+}
+
+.Toastify__close-button:hover {
+  opacity: 1;
+}
+
+/* Progress bar container */
+.Toastify__progress-bar--success {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.Toastify__progress-bar--error {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.Toastify__progress-bar--warning {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.Toastify__progress-bar--info {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* Component Styles */
+@layer components {
+
+  /* Line clamp utilities */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  /* Button Components */
+  .btn-primary {
+    @apply flex items-center justify-between px-4 py-1 pr-1 text-base font-normal text-white bg-brand-primary rounded-full shadow-sm transition-all duration-300 hover:bg-brand-primary/90 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer;
+    gap: 0.5rem;
+  }
+
+  .btn-primary .btn-icon {
+    @apply flex items-center justify-center px-2 py-2 bg-white rounded-full text-brand-dark ml-2;
+    font-size: 1.1rem;
+    transition: background 0.2s;
+  }
+
+  .btn-secondary {
+    @apply flex items-center justify-between px-4 py-1 pr-1 text-base font-normal text-brand-dark bg-white rounded-full shadow-sm transition-all duration-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-brand-gray-light;
+    gap: 0.5rem;
+  }
+
+  .btn-secondary .btn-icon {
+    @apply flex items-center justify-center px-2 py-2 bg-brand-dark rounded-full text-white ml-2;
+    font-size: 1.1rem;
+    transition: background 0.2s;
+  }
+
+  .btn-tertiary {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-medium text-white bg-brand-secondary rounded-xl shadow-sm transition-all duration-300 hover:bg-brand-secondary/90 hover:shadow-lg hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0 disabled:cursor-not-allowed cursor-pointer;
+  }
+
+  /* Button Size Modifiers */
+  .btn-sm {
+    @apply px-3 py-1 text-sm;
+  }
+
+  .btn-sm .btn-icon {
+    @apply px-1.5 py-1.5;
+  }
+
+  .btn-lg {
+    @apply px-6 py-2 text-lg;
+  }
+
+  .btn-lg .btn-icon {
+    @apply px-3 py-3;
+  }
+
+  /* Input Components */
+  .input {
+    @apply block w-full px-4 py-3.5 text-sm text-brand-foreground bg-white/50 border-2 border-brand-gray-light/50 rounded-xl transition-all duration-200 placeholder:text-brand-gray focus:outline-none focus:border-brand-primary/30 focus:bg-white hover:border-brand-gray disabled:bg-gray-50 disabled:cursor-not-allowed;
+  }
+
+  /* Typography Components */
+  .text-hero {
+    @apply text-4xl md:text-5xl lg:text-6xl font-bold text-brand-dark font-heading leading-tight tracking-tight;
+  }
+
+  .text-heading {
+    @apply text-3xl md:text-4xl lg:text-5xl font-bold text-brand-dark font-heading leading-tight tracking-tight;
+  }
+
+  .text-sub {
+    @apply text-xl md:text-2xl font-medium text-brand-dark font-primary leading-relaxed;
+  }
+
+  .text-body {
+    @apply text-base text-brand-foreground font-primary leading-relaxed;
+  }
+
+  /* Card Components */
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border-2 border-brand-gray-light/30 p-6 transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  }
+
+  /* Badge Components */
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-lg text-3xl font-medium tracking-wide;
+  }
+
+  /* Navigation Components */
+  .nav-link {
+    @apply px-4 py-2 text-sm font-medium text-brand-dark rounded-xl transition-all duration-200 hover:text-brand-primary hover:bg-brand-light/50;
+  }
+}
+
+/* Utility Classes */
+@layer utilities {
+  .font-primary {
+    font-family: var(--font-primary);
+  }
+
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Team slider animation */
+  @keyframes team-slide {
+    0% {
+      transform: translateX(0);
+    }
+
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-team-slide {
+    animation: team-slide 60s linear infinite;
+  }
+
+  .group:hover .animate-team-slide {
+    animation-play-state: paused;
+  }
+
+  /* Float animation */
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+}
+
+/* Images Slider Infinite loop */
+.tag-list {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 5px 0;
+  position: relative;
+  padding: 8px 0;
+  overflow: hidden;
+}
+
+.loop-slider .inner {
+  display: flex;
+  width: fit-content;
+  animation-name: loop;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-direction: var(--direction);
+  animation-duration: 30s;
+}
+
+@keyframes loop {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Custom scrollbar for horizontal table scrolling */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 6px;
+}
+
+.scrollbar-track-gray-100::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+}
+
+/* Table improvements for better readability */
+.table-fixed {
+  table-layout: fixed;
+}
+
+.table-fixed th,
+.table-fixed td {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}

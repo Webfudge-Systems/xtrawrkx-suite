@@ -49,11 +49,17 @@ import clientAccountService from "../../../../lib/api/clientAccountService";
 import contactService from "../../../../lib/api/contactService";
 import activityService from "../../../../lib/api/activityService";
 import dealService from "../../../../lib/api/dealService";
-import invoiceService from "../../../../lib/api/invoiceService";
+import clientPortalDocumentService, {
+  getDocumentAttachments,
+  resolveMediaUrl,
+} from "../../../../lib/api/clientPortalDocumentService";
+import AddClientPortalDocumentModal from "../../portal-documents/components/AddClientPortalDocumentModal";
 import projectService from "../../../../lib/api/projectService";
 import strapiClient from "../../../../lib/strapiClient";
 import { useAuth } from "../../../../contexts/AuthContext";
 import authService from "../../../../lib/authService";
+import DedicatedPocCard from "../../../../components/clients/DedicatedPocCard";
+import AssignPocDrawer from "../../../../components/clients/AssignPocDrawer";
 
 const ClientAccountDetailPage = ({ params }) => {
   const router = useRouter();
@@ -65,32 +71,30 @@ const ClientAccountDetailPage = ({ params }) => {
   const [activities, setActivities] = useState([]);
   const [deals, setDeals] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  const [portalDocuments, setPortalDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [contactsLoading, setContactsLoading] = useState(false);
   const [dealsLoading, setDealsLoading] = useState(false);
-  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [communitiesLoading, setCommunitiesLoading] = useState(false);
   const [communityMemberships, setCommunityMemberships] = useState([]);
   const [communitySubmissions, setCommunitySubmissions] = useState([]);
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
-  const [invoiceFormData, setInvoiceFormData] = useState({
-    invoiceNumber: "",
-    issueDate: "",
-    dueDate: "",
-    amount: "",
-    taxAmount: "",
-    totalAmount: "",
-    status: "DRAFT",
+  const [showAssignDrawer, setShowAssignDrawer] = useState(false);
+  const [assigningPoc, setAssigningPoc] = useState(false);
+  const [showAddDocumentModal, setShowAddDocumentModal] = useState(false);
+  const [isSubmittingDocument, setIsSubmittingDocument] = useState(false);
+  const [documentFormData, setDocumentFormData] = useState({
+    name: "",
+    clientAccount: "",
+    issueDate: new Date().toISOString().slice(0, 10),
+    status: "ACTIVE",
     notes: "",
-    file: null,
+    files: [],
   });
 
   const isAdmin = () => {
@@ -122,10 +126,10 @@ const ClientAccountDetailPage = ({ params }) => {
     }
   }, [activeTab, account]);
 
-  // Fetch invoices when invoices tab is active
+  // Fetch documents when documents tab is active
   useEffect(() => {
-    if (activeTab === "invoices" && account?.id) {
-      fetchInvoices(account.id);
+    if (activeTab === "documents" && account?.id) {
+      fetchPortalDocuments(account.id);
     }
   }, [activeTab, account?.id]);
 
@@ -138,10 +142,11 @@ const ClientAccountDetailPage = ({ params }) => {
 
   // Fetch communities when communities tab is active
   useEffect(() => {
-    if (activeTab === "communities" && account?.id) {
-      fetchCommunities(account.id);
+    const accountKey = account?.id || account?.documentId;
+    if (activeTab === "communities" && accountKey) {
+      fetchCommunities(accountKey);
     }
-  }, [activeTab, account?.id]);
+  }, [activeTab, account?.id, account?.documentId]);
 
   // Fetch users for assignment
   useEffect(() => {
@@ -156,7 +161,7 @@ const ClientAccountDetailPage = ({ params }) => {
           const queryParams = {
             "pagination[page]": page,
             "pagination[pageSize]": pageSize,
-            populate: "primaryRole,userRoles",
+            populate: "primaryRole,userRoles,department,avatar",
           };
           const response = await strapiClient.getXtrawrkxUsers(queryParams);
           const usersData = response?.data || [];
@@ -262,8 +267,8 @@ const ClientAccountDetailPage = ({ params }) => {
       // Projects will be fetched when projects tab is active via useEffect
       setProjects([]);
 
-      // Invoices will be fetched when invoices tab is active via useEffect
-      setInvoices([]);
+      // Documents loaded when documents tab is active
+      setPortalDocuments([]);
     } catch (err) {
       console.error("Error fetching account details:", err);
       setError("Failed to load account details");
@@ -459,17 +464,18 @@ const ClientAccountDetailPage = ({ params }) => {
     },
   ];
 
-  const fetchInvoices = async (accountId) => {
+  const fetchPortalDocuments = async (accountId) => {
     try {
-      setInvoicesLoading(true);
-      const response = await invoiceService.getByClientAccount(accountId);
-      const invoicesData = response.data || [];
-      setInvoices(invoicesData);
+      setDocumentsLoading(true);
+      const response = await clientPortalDocumentService.getByClientAccount(
+        accountId
+      );
+      setPortalDocuments(response.data || []);
     } catch (error) {
-      console.error("Error fetching invoices:", error);
-      setInvoices([]);
+      console.error("Error fetching documents:", error);
+      setPortalDocuments([]);
     } finally {
-      setInvoicesLoading(false);
+      setDocumentsLoading(false);
     }
   };
 
@@ -678,45 +684,22 @@ const ClientAccountDetailPage = ({ params }) => {
     try {
       setCommunitiesLoading(true);
 
-      // Build query params for Strapi
-      const membershipParams = strapiClient.buildQueryString({
-        filters: {
-          clientAccount: {
-            id: {
-              $eq: accountId,
-            },
-          },
-        },
-        populate: "*",
-        pagination: {
-          pageSize: 100,
-        },
-      });
+      const idParam = encodeURIComponent(String(accountId));
 
-      const submissionParams = strapiClient.buildQueryString({
-        filters: {
-          clientAccount: {
-            id: {
-              $eq: accountId,
-            },
-          },
-        },
-        populate: "*",
-        pagination: {
-          pageSize: 100,
-        },
-      });
+      // Strapi 5 REST relation filters return 400; use custom list-for-client routes.
+      const membershipUrl = `/community-memberships/list-for-client?clientAccountId=${idParam}&pageSize=100`;
+      const submissionUrl = `/community-submissions/list-for-client?clientAccountId=${idParam}&pageSize=100`;
 
       // Fetch community memberships and submissions
       const [membershipsResponse, submissionsResponse] =
         await Promise.allSettled([
           strapiClient
-            .request(`/community-memberships?${membershipParams}`, {
+            .request(membershipUrl, {
               method: "GET",
             })
             .catch(() => ({ data: [] })),
           strapiClient
-            .request(`/community-submissions?${submissionParams}`, {
+            .request(submissionUrl, {
               method: "GET",
             })
             .catch(() => ({ data: [] })),
@@ -733,11 +716,11 @@ const ClientAccountDetailPage = ({ params }) => {
 
       // Handle Strapi response structure (attributes pattern)
       const processedMemberships = memberships.map((m) => ({
-        id: m.id,
+        id: m.id ?? m.documentId,
         ...(m.attributes || m),
       }));
       const processedSubmissions = submissions.map((s) => ({
-        id: s.id,
+        id: s.id ?? s.documentId,
         ...(s.attributes || s),
       }));
 
@@ -780,133 +763,66 @@ const ClientAccountDetailPage = ({ params }) => {
     );
   };
 
-  const handleAddInvoice = () => {
-    setShowAddInvoiceModal(true);
+  const handleAddDocument = () => {
+    setDocumentFormData((prev) => ({
+      ...prev,
+      clientAccount: String(account?.id || ""),
+    }));
+    setShowAddDocumentModal(true);
   };
 
-  const handleInvoiceSubmit = async (e) => {
+  const handleDocumentSubmit = async (e) => {
     e.preventDefault();
-
-    // Validate required fields
-    if (!invoiceFormData.invoiceNumber.trim()) {
-      alert("Invoice number is required");
+    if (!documentFormData.name.trim()) {
+      alert("Document name is required");
       return;
     }
-    if (!invoiceFormData.issueDate) {
+    if (!documentFormData.issueDate) {
       alert("Issue date is required");
-      return;
-    }
-    if (!invoiceFormData.dueDate) {
-      alert("Due date is required");
-      return;
-    }
-    if (!invoiceFormData.amount) {
-      alert("Amount is required");
       return;
     }
 
     try {
-      const amount = parseFloat(invoiceFormData.amount) || 0;
-      const taxAmount = parseFloat(invoiceFormData.taxAmount) || 0;
-      const totalAmount = amount + taxAmount;
-
-      const invoiceData = {
-        invoiceNumber: invoiceFormData.invoiceNumber.trim(),
-        issueDate: new Date(invoiceFormData.issueDate).toISOString(),
-        dueDate: new Date(invoiceFormData.dueDate).toISOString(),
-        amount: amount,
-        taxAmount: taxAmount,
-        totalAmount: totalAmount,
-        status: invoiceFormData.status,
-        notes: invoiceFormData.notes?.trim() || "",
+      setIsSubmittingDocument(true);
+      const created = await clientPortalDocumentService.create({
+        name: documentFormData.name.trim(),
         clientAccount: account.id,
-      };
-
-      const createdInvoice = await invoiceService.create(invoiceData);
-
-      // Upload file if provided
-      if (invoiceFormData.file && createdInvoice?.id) {
-        try {
-          await invoiceService.uploadDocument(
-            createdInvoice.id,
-            invoiceFormData.file
-          );
-        } catch (fileError) {
-          console.error("Error uploading file:", fileError);
-          // Don't fail the entire operation if file upload fails
-        }
-      }
-
-      // Refresh invoices
-      await fetchInvoices(account.id);
-      await fetchAccountDetails();
-
-      setShowAddInvoiceModal(false);
-      setInvoiceFormData({
-        invoiceNumber: "",
-        issueDate: "",
-        dueDate: "",
-        amount: "",
-        taxAmount: "",
-        totalAmount: "",
-        status: "DRAFT",
-        notes: "",
-        file: null,
+        issueDate: new Date(documentFormData.issueDate).toISOString(),
+        status: documentFormData.status,
+        notes: documentFormData.notes?.trim() || "",
       });
-      alert("Invoice created successfully!");
-    } catch (error) {
-      console.error("Error creating invoice:", error);
 
-      let errorMessage = "Failed to create invoice";
-      if (error.message.includes("validation")) {
-        errorMessage = "Please check your input and try again";
-      } else if (error.message) {
-        errorMessage = `Failed to create invoice: ${error.message}`;
+      if (documentFormData.files?.length && created?.id) {
+        await clientPortalDocumentService.uploadFiles(
+          created.id,
+          documentFormData.files
+        );
       }
 
-      alert(errorMessage);
+      await fetchPortalDocuments(account.id);
+      setShowAddDocumentModal(false);
+      setDocumentFormData({
+        name: "",
+        clientAccount: String(account?.id || ""),
+        issueDate: new Date().toISOString().slice(0, 10),
+        status: "ACTIVE",
+        notes: "",
+        files: [],
+      });
+    } catch (error) {
+      console.error("Error creating document:", error);
+      alert(error.message || "Failed to create document");
+    } finally {
+      setIsSubmittingDocument(false);
     }
   };
 
-  const invoiceColumns = [
+  const documentColumns = [
     {
-      key: "invoiceNumber",
-      label: "Invoice Number",
-      render: (value, row) => (
-        <div
-          className="cursor-pointer hover:text-orange-500"
-          onClick={() => router.push(`/clients/invoices/${row.id}`)}
-        >
-          <div className="font-medium text-gray-900">{value}</div>
-          <div className="text-sm text-gray-500">
-            {row.clientAccount?.companyName || row.clientAccount?.name || "N/A"}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: "amount",
-      label: "Amount",
-      render: (value, row) => (
-        <div>
-          <span className="font-semibold text-gray-900">
-            ₹{(value || 0).toLocaleString()}
-          </span>
-          {row.taxAmount > 0 && (
-            <div className="text-xs text-gray-500">
-              Tax: ₹{(row.taxAmount || 0).toLocaleString()}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: "totalAmount",
-      label: "Total",
+      key: "name",
+      label: "Name",
       render: (value) => (
-        <span className="font-bold text-gray-900">
-          ₹{(value || 0).toLocaleString()}
-        </span>
+        <span className="font-medium text-gray-900">{value}</span>
       ),
     },
     {
@@ -914,21 +830,17 @@ const ClientAccountDetailPage = ({ params }) => {
       label: "Status",
       render: (value) => {
         const variants = {
-          DRAFT: "default",
-          SENT: "warning",
-          PAID: "success",
-          OVERDUE: "destructive",
-          CANCELLED: "destructive",
+          DRAFT: "gray",
+          ACTIVE: "success",
+          ARCHIVED: "warning",
         };
         const labels = {
           DRAFT: "Draft",
-          SENT: "Sent",
-          PAID: "Paid",
-          OVERDUE: "Overdue",
-          CANCELLED: "Cancelled",
+          ACTIVE: "Active",
+          ARCHIVED: "Archived",
         };
         return (
-          <Badge variant={variants[value] || "default"}>
+          <Badge variant={variants[value] || "gray"}>
             {labels[value] || value}
           </Badge>
         );
@@ -939,82 +851,52 @@ const ClientAccountDetailPage = ({ params }) => {
       label: "Issue Date",
       render: (value) => (
         <span className="text-sm text-gray-600">
-          {new Date(value).toLocaleDateString()}
+          {value ? new Date(value).toLocaleDateString() : "—"}
         </span>
       ),
     },
     {
-      key: "dueDate",
-      label: "Due Date",
-      render: (value) => {
-        const dueDate = new Date(value);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        dueDate.setHours(0, 0, 0, 0);
-        const isOverdue = dueDate < today;
-
-        return (
-          <span
-            className={`text-sm ${
-              isOverdue ? "text-red-600 font-medium" : "text-gray-600"
-            }`}
-          >
-            {new Date(value).toLocaleDateString()}
-          </span>
-        );
-      },
+      key: "notes",
+      label: "Notes",
+      render: (value) => (
+        <span className="text-sm text-gray-600 line-clamp-2 max-w-xs">
+          {value || "—"}
+        </span>
+      ),
     },
     {
       key: "actions",
-      label: "ACTIONS",
-      render: (_, row) => (
-        <div
-          className="flex items-center gap-1 min-w-[120px]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/clients/invoices/${row.id}`);
-            }}
-            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2 rounded-lg transition-all duration-200"
-            title="View Invoice"
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
-          {row.files && row.files.length > 0 && (
+      label: "Actions",
+      render: (_, row) => {
+        const files = getDocumentAttachments(row);
+        const firstUrl = files[0] ? resolveMediaUrl(files[0].url) : null;
+        return (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            {firstUrl && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.open(firstUrl, "_blank")}
+                title="Download"
+              >
+                <Download className="w-4 h-4 text-pink-600" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Download first file
-                if (row.files[0]?.url) {
-                  window.open(row.files[0].url, "_blank");
-                }
+              onClick={async () => {
+                if (!window.confirm(`Delete "${row.name}"?`)) return;
+                await clientPortalDocumentService.delete(row.id);
+                await fetchPortalDocuments(account.id);
               }}
-              className="text-pink-600 hover:text-pink-700 hover:bg-pink-50 p-2 rounded-lg transition-all duration-200"
-              title="Download Document"
+              title="Delete"
             >
-              <Download className="w-4 h-4" />
+              <Trash2 className="w-4 h-4 text-red-600" />
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/clients/invoices/${row.id}/edit`);
-            }}
-            className="text-green-600 hover:text-green-700 hover:bg-green-50 p-2 rounded-lg transition-all duration-200"
-            title="Edit Invoice"
-          >
-            <Edit className="w-4 h-4" />
-          </Button>
-        </div>
-      ),
+          </div>
+        );
+      },
     },
   ];
 
@@ -1127,6 +1009,18 @@ const ClientAccountDetailPage = ({ params }) => {
         return "bg-red-100 text-red-800";
       case "ON_HOLD":
         return "bg-yellow-100 text-yellow-800";
+      case "REGISTERED":
+        return "bg-blue-100 text-blue-800";
+      case "COMMUNITY_MEMBER":
+        return "bg-indigo-100 text-indigo-800";
+      case "COMMUNITY_PAID":
+        return "bg-emerald-100 text-emerald-800";
+      case "COMMUNITY_NON_PAID":
+        return "bg-cyan-100 text-cyan-800";
+      case "LOST":
+        return "bg-rose-100 text-rose-800";
+      case "STOPPED":
+        return "bg-orange-100 text-orange-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -1538,6 +1432,23 @@ const ClientAccountDetailPage = ({ params }) => {
       ),
     },
     {
+      key: "portal_role",
+      label: "PORTAL ROLE",
+      render: (_, contact) => {
+        const portalRoleRaw =
+          contact?.portalAccess?.roleName ||
+          (contact?.role === "PRIMARY_CONTACT" ? "ADMIN" : "MEMBER");
+        const portalRole = String(portalRoleRaw).replaceAll("_", " ");
+        return (
+          <div className="min-w-[150px]">
+            <Badge variant="secondary" className="text-xs">
+              {portalRole}
+            </Badge>
+          </div>
+        );
+      },
+    },
+    {
       key: "status",
       label: "STATUS",
       render: (_, contact) => (
@@ -1562,6 +1473,33 @@ const ClientAccountDetailPage = ({ params }) => {
           )}
         </div>
       ),
+    },
+    {
+      key: "last_activity",
+      label: "LAST ACTIVITY",
+      render: (_, contact) => {
+        const lastActivity =
+          contact?.portalAccess?.lastLogin ||
+          contact?.lastContactDate ||
+          contact?.updatedAt;
+        const recentlyUpdated = contact?.updatedAt
+          ? Date.now() - new Date(contact.updatedAt).getTime() < 1000 * 60 * 60 * 24 * 3
+          : false;
+        return (
+          <div className="min-w-[180px]">
+            <div className="text-sm text-gray-900">
+              {lastActivity ? new Date(lastActivity).toLocaleString() : "No activity"}
+            </div>
+            {recentlyUpdated && (
+              <div className="mt-1">
+                <Badge variant="warning" className="text-xs">
+                  Recently Updated
+                </Badge>
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "actions",
@@ -1616,7 +1554,7 @@ const ClientAccountDetailPage = ({ params }) => {
     { key: "activities", label: "Activities" },
     { key: "deals", label: "Deals" },
     { key: "projects", label: "Projects" },
-    { key: "invoices", label: "Invoices" },
+    { key: "documents", label: "Documents" },
     { key: "communities", label: "Communities" },
     { key: "meetings", label: "Meetings" },
   ];
@@ -1625,7 +1563,11 @@ const ClientAccountDetailPage = ({ params }) => {
     <div className="bg-white min-h-screen">
       <div className="p-4 space-y-4">
         <PageHeader
-          title={account.companyName}
+          title={
+            account?.onboardingData?.signupCompany ||
+            account?.onboardingData?.company ||
+            account.companyName
+          }
           subtitle={`Client Account • ${
             account.industry || "Industry not specified"
           } • ${account.type || "Customer"}`}
@@ -1633,7 +1575,13 @@ const ClientAccountDetailPage = ({ params }) => {
             { label: "Dashboard", href: "/" },
             { label: "Clients", href: "/clients" },
             { label: "Client Accounts", href: "/clients/accounts" },
-            { label: account.companyName, href: `/clients/accounts/${id}` },
+            {
+              label:
+                account?.onboardingData?.signupCompany ||
+                account?.onboardingData?.company ||
+                account.companyName,
+              href: `/clients/accounts/${id}`,
+            },
           ]}
           showSearch={false}
           showActions={true}
@@ -2154,93 +2102,29 @@ const ClientAccountDetailPage = ({ params }) => {
 
               {/* Sidebar */}
               <div className="space-y-6">
-                {/* Account Manager */}
-                <div className="bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Account Manager
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Avatar
-                      alt={
-                        account.accountManager
-                          ? `${account.accountManager.firstName || ""} ${
-                              account.accountManager.lastName || ""
-                            }`.trim() ||
-                            account.accountManager.username ||
-                            "Unknown"
-                          : "Unassigned"
-                      }
-                      fallback={
-                        account.accountManager
-                          ? (
-                              `${account.accountManager.firstName || ""} ${
-                                account.accountManager.lastName || ""
-                              }`.trim() ||
-                              account.accountManager.username ||
-                              "?"
-                            )
-                              .charAt(0)
-                              .toUpperCase()
-                          : "?"
-                      }
-                      size="lg"
-                    />
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">
-                        {account.accountManager
-                          ? `${account.accountManager.firstName || ""} ${
-                              account.accountManager.lastName || ""
-                            }`.trim() ||
-                            account.accountManager.username ||
-                            "Unknown"
-                          : "Unassigned"}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {(() => {
-                          const accountManager = account.accountManager;
-                          if (!accountManager) return "Account Manager";
-
-                          // Handle different Strapi response structures
-                          const roleName =
-                            accountManager.primaryRole?.name ||
-                            accountManager.primaryRole?.data?.attributes
-                              ?.name ||
-                            accountManager.primaryRole?.attributes?.name ||
-                            accountManager.role ||
-                            null;
-
-                          return roleName || "Account Manager";
-                        })()}
-                      </p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                        <span className="text-sm text-gray-600">
-                          4.9 rating
-                        </span>
-                      </div>
-                    </div>
-                    {isAdmin() && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedUserId(
-                            account.accountManager?.id?.toString() ||
-                              account.accountManager?.documentId?.toString() ||
-                              ""
-                          );
-                          setShowAssignModal(true);
-                        }}
-                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
-                      >
-                        <User className="w-4 h-4 mr-2" />
-                        Change Assignee
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                <DedicatedPocCard
+                  account={account}
+                  isAdmin={isAdmin()}
+                  assigning={assigningPoc}
+                  onAssign={() => setShowAssignDrawer(true)}
+                  onChange={() => setShowAssignDrawer(true)}
+                  onRemove={async () => {
+                    if (!window.confirm("Remove the dedicated POC from this client?")) return;
+                    try {
+                      setAssigningPoc(true);
+                      await clientAccountService.update(id, { accountManager: null });
+                      await fetchAccountDetails();
+                      window.dispatchEvent(
+                        new CustomEvent("accountUpdated", { detail: { accountId: id } })
+                      );
+                    } catch (error) {
+                      console.error("Error removing POC:", error);
+                      alert("Failed to remove POC assignment.");
+                    } finally {
+                      setAssigningPoc(false);
+                    }
+                  }}
+                />
 
                 {/* Recent Activity */}
                 <div className="bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-6">
@@ -2364,7 +2248,7 @@ const ClientAccountDetailPage = ({ params }) => {
             <ActivitiesPanel
               entityType="clientAccount"
               entityId={account.id}
-              entityName={account.name}
+              entityName={account.companyName || account.name}
               onActivityCreated={fetchAccountDetails}
             />
           )}
@@ -2441,38 +2325,38 @@ const ClientAccountDetailPage = ({ params }) => {
             </div>
           )}
 
-          {activeTab === "invoices" && (
+          {activeTab === "documents" && (
             <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Invoices
+                  Documents
                 </h3>
                 <Button
                   size="sm"
-                  onClick={handleAddInvoice}
+                  onClick={handleAddDocument}
                   className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-lg"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Invoice
+                  Add Document
                 </Button>
               </div>
-              {invoicesLoading ? (
+              {documentsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
                   <span className="ml-2 text-gray-600">
-                    Loading invoices...
+                    Loading documents...
                   </span>
                 </div>
-              ) : invoices.length > 0 ? (
-                <Table columns={invoiceColumns} data={invoices} />
+              ) : portalDocuments.length > 0 ? (
+                <Table columns={documentColumns} data={portalDocuments} />
               ) : (
                 <div className="text-center py-8">
                   <div className="text-gray-400 text-4xl mb-2">📄</div>
                   <p className="text-gray-600">
-                    No invoices found for this account
+                    No documents for this account
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
-                    Create invoices to track billing
+                    Add documents to share with the client portal
                   </p>
                 </div>
               )}
@@ -2481,266 +2365,351 @@ const ClientAccountDetailPage = ({ params }) => {
 
           {activeTab === "communities" && (
             <div className="space-y-6">
-              {/* Selected Communities */}
-              <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
-                      <UserCircle className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Selected Communities
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Communities this account has joined
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                {account?.selectedCommunities &&
-                Array.isArray(account.selectedCommunities) &&
-                account.selectedCommunities.length > 0 ? (
-                  <div className="flex flex-wrap gap-3">
-                    {account.selectedCommunities.map((community, idx) => (
-                      <Badge
-                        key={idx}
-                        variant="info"
-                        className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border border-purple-200"
-                      >
-                        {community}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <UserCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-600">No communities selected</p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      This account hasn't joined any communities yet
-                    </p>
-                  </div>
-                )}
-              </div>
+              {(() => {
+                const selectedCommunities = Array.isArray(account?.selectedCommunities)
+                  ? account.selectedCommunities
+                  : [];
+                const activeMemberships = communityMemberships.filter((membership) => {
+                  const membershipData = membership.attributes || membership;
+                  return membershipData.status === "ACTIVE";
+                }).length;
+                const pendingSubmissions = communitySubmissions.filter((submission) => {
+                  const submissionData = submission.attributes || submission;
+                  return (submissionData.status || "SUBMITTED") === "PENDING";
+                }).length;
 
-              {/* Community Memberships */}
-              <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                      <Award className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Community Memberships
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Active and inactive community memberships
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                {communitiesLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
-                    <span className="ml-2 text-gray-600">
-                      Loading memberships...
-                    </span>
-                  </div>
-                ) : communityMemberships.length > 0 ? (
-                  <div className="space-y-4">
-                    {communityMemberships.map((membership) => {
-                      const membershipData =
-                        membership.attributes || membership;
-                      const isActive = membershipData.status === "ACTIVE";
-                      return (
-                        <div
-                          key={membership.id}
-                          className="flex items-center justify-between p-4 bg-white/50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div
-                              className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                isActive
-                                  ? "bg-gradient-to-br from-green-100 to-emerald-100"
-                                  : "bg-gradient-to-br from-gray-100 to-gray-200"
-                              }`}
-                            >
-                              <Award
-                                className={`w-6 h-6 ${
-                                  isActive ? "text-green-600" : "text-gray-400"
-                                }`}
-                              />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-semibold text-gray-900">
-                                  {membershipData.community}
-                                </h4>
-                                <Badge
-                                  variant={isActive ? "success" : "secondary"}
-                                  className="text-xs"
-                                >
-                                  {isActive ? "Active" : "Inactive"}
-                                </Badge>
-                                {membershipData.membershipType && (
-                                  <Badge
-                                    variant={
-                                      membershipData.membershipType ===
-                                      "PREMIUM"
-                                        ? "warning"
-                                        : "info"
-                                    }
-                                    className="text-xs"
-                                  >
-                                    {membershipData.membershipType}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                                {membershipData.joinedAt && (
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    Joined{" "}
-                                    {new Date(
-                                      membershipData.joinedAt
-                                    ).toLocaleDateString()}
-                                  </span>
-                                )}
-                                {membershipData.membershipData
-                                  ?.joinedViaOnboarding && (
-                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                    Via Onboarding
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="rounded-2xl bg-gradient-to-br from-white/80 to-white/50 backdrop-blur-xl border border-white/40 shadow-lg p-5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                              Selected
+                            </p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">
+                              {selectedCommunities.length}
+                            </p>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {isActive ? (
-                              <CheckCircle2 className="w-5 h-5 text-green-500" />
-                            ) : (
-                              <XCircle className="w-5 h-5 text-gray-400" />
-                            )}
+                          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                            <UserCircle className="w-5 h-5 text-white" />
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-600">
-                      No community memberships found
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      This account hasn't joined any communities yet
-                    </p>
-                  </div>
-                )}
-              </div>
+                      </div>
 
-              {/* Community Submissions */}
-              <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
-                      <FileText className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Community Submissions
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Applications and submissions to communities
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                {communitiesLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
-                    <span className="ml-2 text-gray-600">
-                      Loading submissions...
-                    </span>
-                  </div>
-                ) : communitySubmissions.length > 0 ? (
-                  <div className="space-y-4">
-                    {communitySubmissions.map((submission) => {
-                      const submissionData =
-                        submission.attributes || submission;
-                      const status = submissionData.status || "SUBMITTED";
-                      const statusColors = {
-                        SUBMITTED: "bg-blue-100 text-blue-800",
-                        APPROVED: "bg-green-100 text-green-800",
-                        REJECTED: "bg-red-100 text-red-800",
-                        PENDING: "bg-yellow-100 text-yellow-800",
-                      };
-                      return (
-                        <div
-                          key={submission.id}
-                          className="flex items-center justify-between p-4 bg-white/50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center">
-                              <FileText className="w-6 h-6 text-orange-600" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-semibold text-gray-900">
-                                  {submissionData.community}
-                                </h4>
-                                <span
-                                  className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                    statusColors[status] || statusColors.PENDING
-                                  }`}
-                                >
-                                  {status}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                                {submissionData.submissionId && (
-                                  <span className="font-mono text-xs">
-                                    ID: {submissionData.submissionId}
-                                  </span>
-                                )}
-                                {submissionData.createdAt && (
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    {new Date(
-                                      submissionData.createdAt
-                                    ).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                      <div className="rounded-2xl bg-gradient-to-br from-white/80 to-white/50 backdrop-blur-xl border border-white/40 shadow-lg p-5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                              Active Memberships
+                            </p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">
+                              {activeMemberships}
+                            </p>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              // View submission details
-                            }}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5 text-white" />
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-600">
-                      No community submissions found
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      This account hasn't submitted any community applications
-                      yet
-                    </p>
-                  </div>
-                )}
-              </div>
+                      </div>
+
+                      <div className="rounded-2xl bg-gradient-to-br from-white/80 to-white/50 backdrop-blur-xl border border-white/40 shadow-lg p-5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                              Pending Submissions
+                            </p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">
+                              {pendingSubmissions}
+                            </p>
+                          </div>
+                          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+                            <Clock className="w-5 h-5 text-white" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                      <div className="rounded-2xl bg-gradient-to-br from-white/75 to-white/45 backdrop-blur-xl border border-white/35 shadow-xl p-6">
+                        <div className="flex items-center gap-3 mb-5">
+                          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                            <Users className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Selected Communities
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              Chosen during onboarding
+                            </p>
+                          </div>
+                        </div>
+
+                        {selectedCommunities.length > 0 ? (
+                          <div className="space-y-3">
+                            {selectedCommunities.map((community, idx) => {
+                              const code = String(community || "").toUpperCase();
+                              const communityMeta = {
+                                XEN: {
+                                  name: "XEN",
+                                  category: "Hardware & Automotive Startups",
+                                  theme: "from-blue-50 to-cyan-50 border-blue-200",
+                                  badge: "bg-blue-100 text-blue-700",
+                                  iconBg: "from-blue-100 to-cyan-100 text-blue-700",
+                                },
+                                XEVFIN: {
+                                  name: "XEV.FIN",
+                                  category: "Finance & Investment",
+                                  theme: "from-emerald-50 to-green-50 border-emerald-200",
+                                  badge: "bg-emerald-100 text-emerald-700",
+                                  iconBg: "from-emerald-100 to-green-100 text-emerald-700",
+                                },
+                                XEVTG: {
+                                  name: "XEVTG",
+                                  category: "Talent & Training",
+                                  theme: "from-sky-50 to-cyan-50 border-sky-200",
+                                  badge: "bg-sky-100 text-sky-700",
+                                  iconBg: "from-sky-100 to-cyan-100 text-sky-700",
+                                },
+                                XDD: {
+                                  name: "xD&D",
+                                  category: "Drones and Designs",
+                                  theme: "from-amber-50 to-yellow-50 border-amber-200",
+                                  badge: "bg-amber-100 text-amber-700",
+                                  iconBg: "from-amber-100 to-yellow-100 text-amber-700",
+                                },
+                              }[code] || {
+                                name: code || "Community",
+                                category: "Community",
+                                theme: "from-purple-50 to-pink-50 border-purple-200",
+                                badge: "bg-purple-100 text-purple-700",
+                                iconBg: "from-purple-100 to-pink-100 text-purple-700",
+                              };
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`rounded-xl border bg-gradient-to-r px-4 py-4 ${communityMeta.theme}`}
+                                >
+                                  <div className="flex items-start gap-4">
+                                    <div
+                                      className={`w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center text-xs font-bold ${communityMeta.iconBg}`}
+                                    >
+                                      {code || "C"}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 mb-0.5">
+                                        <p className="text-[28px] leading-8 font-semibold text-gray-900 tracking-tight">
+                                          {communityMeta.name}
+                                        </p>
+                                      </div>
+                                      <p className="text-sm text-gray-600 mb-0.5">
+                                        {communityMeta.category}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-10">
+                            <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-700 font-medium">
+                              No communities selected
+                            </p>
+                            <p className="text-sm text-gray-500 mt-1">
+                              This account has not selected communities yet.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl bg-gradient-to-br from-white/75 to-white/45 backdrop-blur-xl border border-white/35 shadow-xl p-6">
+                        <div className="flex items-center gap-3 mb-5">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                            <Award className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Community Memberships
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              Membership status by community
+                            </p>
+                          </div>
+                        </div>
+
+                        {communitiesLoading ? (
+                          <div className="flex items-center justify-center py-10">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                            <span className="ml-2 text-gray-600">
+                              Loading memberships...
+                            </span>
+                          </div>
+                        ) : communityMemberships.length > 0 ? (
+                          <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                            {communityMemberships.map((membership) => {
+                              const membershipData = membership.attributes || membership;
+                              const isActive = membershipData.status === "ACTIVE";
+                              return (
+                                <div
+                                  key={membership.id}
+                                  className="rounded-xl border border-gray-200 bg-white/70 px-4 py-3 hover:shadow-md transition-shadow"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div
+                                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                                          isActive
+                                            ? "bg-emerald-100 text-emerald-700"
+                                            : "bg-gray-100 text-gray-500"
+                                        }`}
+                                      >
+                                        <Award className="w-4 h-4" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="font-semibold text-gray-900 truncate">
+                                          {membershipData.community}
+                                        </p>
+                                        {membershipData.joinedAt && (
+                                          <p className="text-xs text-gray-500 flex items-center gap-1">
+                                            <Calendar className="w-3 h-3" />
+                                            Joined{" "}
+                                            {new Date(membershipData.joinedAt).toLocaleDateString()}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge
+                                        variant={isActive ? "success" : "secondary"}
+                                        className="text-xs"
+                                      >
+                                        {membershipData.status || "UNKNOWN"}
+                                      </Badge>
+                                      {membershipData.membershipType && (
+                                        <Badge
+                                          variant={
+                                            membershipData.membershipType === "PREMIUM"
+                                              ? "warning"
+                                              : "info"
+                                          }
+                                          className="text-xs"
+                                        >
+                                          {membershipData.membershipType}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-10">
+                            <Award className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-700 font-medium">
+                              No memberships found
+                            </p>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Membership entries will appear here once created.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-gradient-to-br from-white/75 to-white/45 backdrop-blur-xl border border-white/35 shadow-xl p-6">
+                      <div className="flex items-center gap-3 mb-5">
+                        <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Community Submissions
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            Application history and approval status
+                          </p>
+                        </div>
+                      </div>
+
+                      {communitiesLoading ? (
+                        <div className="flex items-center justify-center py-10">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                          <span className="ml-2 text-gray-600">
+                            Loading submissions...
+                          </span>
+                        </div>
+                      ) : communitySubmissions.length > 0 ? (
+                        <div className="space-y-3">
+                          {communitySubmissions.map((submission) => {
+                            const submissionData = submission.attributes || submission;
+                            const status = submissionData.status || "SUBMITTED";
+                            const statusColors = {
+                              SUBMITTED: "bg-blue-100 text-blue-800",
+                              APPROVED: "bg-green-100 text-green-800",
+                              REJECTED: "bg-red-100 text-red-800",
+                              PENDING: "bg-yellow-100 text-yellow-800",
+                            };
+                            return (
+                              <div
+                                key={submission.id}
+                                className="rounded-xl border border-gray-200 bg-white/70 px-4 py-3 hover:shadow-md transition-shadow"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className="font-semibold text-gray-900 truncate">
+                                        {submissionData.community}
+                                      </p>
+                                      <span
+                                        className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                          statusColors[status] || statusColors.PENDING
+                                        }`}
+                                      >
+                                        {status}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                                      {submissionData.submissionId && (
+                                        <span className="font-mono">
+                                          #{submissionData.submissionId}
+                                        </span>
+                                      )}
+                                      {submissionData.createdAt && (
+                                        <span className="flex items-center gap-1">
+                                          <Calendar className="w-3 h-3" />
+                                          {new Date(submissionData.createdAt).toLocaleDateString()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Button variant="ghost" size="sm">
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-10">
+                          <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-700 font-medium">
+                            No submissions found
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Community applications will appear here once submitted.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
@@ -2764,319 +2733,52 @@ const ClientAccountDetailPage = ({ params }) => {
         </div>
       </div>
 
-      {/* Add Invoice Modal */}
-      {showAddInvoiceModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-xl rounded-2xl border border-white/40 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Add Invoice
-                </h2>
-                <Button
-                  onClick={() => setShowAddInvoiceModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                  variant="ghost"
-                  size="sm"
-                >
-                  ✕
-                </Button>
-              </div>
+      <AddClientPortalDocumentModal
+        isOpen={showAddDocumentModal}
+        onClose={() => setShowAddDocumentModal(false)}
+        onSubmit={handleDocumentSubmit}
+        formData={documentFormData}
+        setFormData={setDocumentFormData}
+        lockClientAccount
+        lockedAccountLabel={
+          account?.companyName ||
+          account?.onboardingData?.signupCompany ||
+          "This account"
+        }
+        isSubmitting={isSubmittingDocument}
+      />
 
-              <form onSubmit={handleInvoiceSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Invoice Number *
-                  </label>
-                  <input
-                    type="text"
-                    value={invoiceFormData.invoiceNumber}
-                    onChange={(e) =>
-                      setInvoiceFormData({
-                        ...invoiceFormData,
-                        invoiceNumber: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Issue Date *
-                    </label>
-                    <input
-                      type="date"
-                      value={invoiceFormData.issueDate}
-                      onChange={(e) =>
-                        setInvoiceFormData({
-                          ...invoiceFormData,
-                          issueDate: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Due Date *
-                    </label>
-                    <input
-                      type="date"
-                      value={invoiceFormData.dueDate}
-                      onChange={(e) =>
-                        setInvoiceFormData({
-                          ...invoiceFormData,
-                          dueDate: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Amount *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={invoiceFormData.amount}
-                      onChange={(e) => {
-                        const amount = e.target.value;
-                        const taxAmount =
-                          parseFloat(invoiceFormData.taxAmount) || 0;
-                        const totalAmount =
-                          (parseFloat(amount) || 0) + taxAmount;
-                        setInvoiceFormData({
-                          ...invoiceFormData,
-                          amount: amount,
-                          totalAmount: totalAmount.toFixed(2),
-                        });
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tax Amount
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={invoiceFormData.taxAmount}
-                      onChange={(e) => {
-                        const taxAmount = e.target.value;
-                        const amount = parseFloat(invoiceFormData.amount) || 0;
-                        const totalAmount =
-                          amount + (parseFloat(taxAmount) || 0);
-                        setInvoiceFormData({
-                          ...invoiceFormData,
-                          taxAmount: taxAmount,
-                          totalAmount: totalAmount.toFixed(2),
-                        });
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Total Amount
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={invoiceFormData.totalAmount}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={invoiceFormData.status}
-                    onChange={(e) =>
-                      setInvoiceFormData({
-                        ...invoiceFormData,
-                        status: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  >
-                    <option value="DRAFT">Draft</option>
-                    <option value="SENT">Sent</option>
-                    <option value="PAID">Paid</option>
-                    <option value="OVERDUE">Overdue</option>
-                    <option value="CANCELLED">Cancelled</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notes
-                  </label>
-                  <textarea
-                    value={invoiceFormData.notes}
-                    onChange={(e) =>
-                      setInvoiceFormData({
-                        ...invoiceFormData,
-                        notes: e.target.value,
-                      })
-                    }
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Invoice Document
-                  </label>
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    onChange={(e) =>
-                      setInvoiceFormData({
-                        ...invoiceFormData,
-                        file: e.target.files[0],
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Upload PDF, Word, or image files
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 pt-4">
-                  <Button
-                    type="button"
-                    onClick={() => setShowAddInvoiceModal(false)}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-lg"
-                  >
-                    Create Invoice
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Assign Account Manager Modal */}
-      {showAssignModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-xl rounded-2xl border border-white/40 shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                    <Users className="w-6 h-6 text-orange-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Change Assignee
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      Assign account to a team member
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => {
-                    setShowAssignModal(false);
-                    setSelectedUserId("");
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                  variant="ghost"
-                  size="sm"
-                >
-                  ✕
-                </Button>
-              </div>
-
-              <div className="mb-6">
-                <p className="text-gray-700 mb-4">
-                  Select a user to assign{" "}
-                  <strong>{account?.companyName}</strong> to:
-                </p>
-                <Select
-                  label="Assign To"
-                  value={selectedUserId}
-                  onChange={setSelectedUserId}
-                  options={[
-                    { value: "", label: "Unassigned" },
-                    ...users.map((u) => ({
-                      value: (u.id || u.documentId).toString(),
-                      label:
-                        `${u.firstName || ""} ${u.lastName || ""}`.trim() ||
-                        u.username ||
-                        "Unknown User",
-                    })),
-                  ]}
-                  disabled={loadingUsers}
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => {
-                    setShowAssignModal(false);
-                    setSelectedUserId("");
-                  }}
-                  variant="outline"
-                  className="flex-1 border-gray-200 hover:bg-gray-50"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={async () => {
-                    try {
-                      await clientAccountService.update(id, {
-                        accountManager: selectedUserId || null,
-                      });
-                      // Refresh account details with proper population
-                      await fetchAccountDetails();
-                      // Dispatch custom event to notify list page
-                      window.dispatchEvent(
-                        new CustomEvent("accountUpdated", {
-                          detail: { accountId: id },
-                        })
-                      );
-                      setShowAssignModal(false);
-                      setSelectedUserId("");
-                    } catch (error) {
-                      console.error("Error updating assignee:", error);
-                      alert("Failed to update assignee. Please try again.");
-                    }
-                  }}
-                  className="flex-1 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-lg"
-                >
-                  Update Assignee
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AssignPocDrawer
+        open={showAssignDrawer}
+        onClose={() => setShowAssignDrawer(false)}
+        companyName={account?.companyName}
+        users={users}
+        loadingUsers={loadingUsers}
+        currentPocId={
+          account?.accountManager?.id?.toString() ||
+          account?.accountManager?.documentId?.toString() ||
+          ""
+        }
+        assigning={assigningPoc}
+        onAssign={async (selectedUserId) => {
+          try {
+            setAssigningPoc(true);
+            await clientAccountService.update(id, {
+              accountManager: selectedUserId || null,
+            });
+            await fetchAccountDetails();
+            window.dispatchEvent(
+              new CustomEvent("accountUpdated", { detail: { accountId: id } })
+            );
+            setShowAssignDrawer(false);
+          } catch (error) {
+            console.error("Error assigning POC:", error);
+            alert("Failed to assign POC. Please try again.");
+          } finally {
+            setAssigningPoc(false);
+          }
+        }}
+      />
     </div>
   );
 };
