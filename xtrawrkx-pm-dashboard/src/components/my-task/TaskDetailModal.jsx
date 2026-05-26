@@ -21,6 +21,12 @@ import taskService from "../../lib/taskService";
 import projectService from "../../lib/projectService";
 import apiClient from "../../lib/apiClient";
 import { transformProject, formatDate } from "../../lib/dataTransformers";
+import {
+  PM_STATUS_SELECT_OPTIONS,
+  assertStatusChangeAllowed,
+  getEditableStatusOptions,
+  STATUS_REVERT_TO_ASSIGNED_MESSAGE,
+} from "../../lib/taskStatusConstants";
 
 const TaskDetailModal = ({
   isOpen,
@@ -141,8 +147,20 @@ const TaskDetailModal = ({
 
   // Helper functions
   const getStatusColor = (status) => {
-    const statusLower = (status || "To Do")?.toLowerCase().replace(/\s+/g, "-");
+    const statusLower = (status || "Assigned")
+      ?.toLowerCase()
+      .replace(/\s+/g, "-");
     const statusColors = {
+      assigned: {
+        bg: "bg-blue-100",
+        text: "text-blue-800",
+        border: "border-blue-400",
+      },
+      accepted: {
+        bg: "bg-teal-100",
+        text: "text-teal-800",
+        border: "border-teal-400",
+      },
       "to-do": {
         bg: "bg-blue-100",
         text: "text-blue-800",
@@ -153,10 +171,30 @@ const TaskDetailModal = ({
         text: "text-yellow-800",
         border: "border-yellow-400",
       },
+      "on-hold": {
+        bg: "bg-orange-100",
+        text: "text-orange-800",
+        border: "border-orange-400",
+      },
+      "pending-review": {
+        bg: "bg-purple-100",
+        text: "text-purple-800",
+        border: "border-purple-400",
+      },
+      "revision-required": {
+        bg: "bg-amber-100",
+        text: "text-amber-800",
+        border: "border-amber-400",
+      },
       "in-review": {
         bg: "bg-purple-100",
         text: "text-purple-800",
         border: "border-purple-400",
+      },
+      "waiting-for-client": {
+        bg: "bg-indigo-100",
+        text: "text-indigo-800",
+        border: "border-indigo-400",
       },
       done: {
         bg: "bg-green-100",
@@ -225,6 +263,12 @@ const TaskDetailModal = ({
     if (!localTask?.id) return;
     const taskId = localTask.id;
     const oldStatus = localTask.status;
+
+    const guard = assertStatusChangeAllowed(oldStatus, newStatus);
+    if (!guard.ok) {
+      alert(guard.message || STATUS_REVERT_TO_ASSIGNED_MESSAGE);
+      return;
+    }
 
     // Update local state immediately for instant feedback (optimistic update)
     setLocalTask((prev) => ({ ...prev, status: newStatus }));
@@ -384,10 +428,12 @@ const TaskDetailModal = ({
   const handleToggleComplete = async () => {
     if (!localTask?.id) return;
     const isCurrentlyComplete =
+      localTask.status === "Completed" ||
       localTask.status === "Done" ||
       localTask.status === "COMPLETED" ||
-      localTask.status?.toLowerCase() === "done";
-    const newStatus = isCurrentlyComplete ? "To Do" : "Done";
+      localTask.status?.toLowerCase() === "done" ||
+      localTask.status?.toLowerCase() === "completed";
+    const newStatus = isCurrentlyComplete ? "In Progress" : "Completed";
 
     // Trigger confetti animation only when completing (not uncompleting)
     if (!isCurrentlyComplete) {
@@ -395,6 +441,28 @@ const TaskDetailModal = ({
     }
 
     await handleStatusUpdate(newStatus);
+  };
+
+  const handleShareToggle = async (nextValue) => {
+    if (!safeTask?.id) return;
+
+    const previousValue = !!safeTask.isSharedWithClient;
+    setLocalTask((prev) => ({ ...prev, isSharedWithClient: nextValue }));
+
+    try {
+      await taskService.updateTask(safeTask.id, {
+        isSharedWithClient: nextValue,
+      });
+
+      if (onTaskRefresh) {
+        await onTaskRefresh();
+      }
+      return true;
+    } catch (error) {
+      console.error("Error updating task share status:", error);
+      setLocalTask((prev) => ({ ...prev, isSharedWithClient: previousValue }));
+      return false;
+    }
   };
 
   const triggerConfetti = () => {
@@ -439,9 +507,11 @@ const TaskDetailModal = ({
   };
 
   const isComplete =
+    safeTask.status === "Completed" ||
     safeTask.status === "Done" ||
     safeTask.status === "COMPLETED" ||
-    safeTask.status?.toLowerCase() === "done";
+    safeTask.status?.toLowerCase() === "done" ||
+    safeTask.status?.toLowerCase() === "completed";
 
   // const getStatusColor = (status) => {
   //   switch (status) {
@@ -471,13 +541,39 @@ const TaskDetailModal = ({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 bg-white">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <h1
-              className={`text-xl font-semibold truncate pr-4 ${
-                isComplete ? "text-gray-500 line-through" : "text-gray-900"
-              }`}
-            >
-              {safeTask.name}
-            </h1>
+            <div className="min-w-0 flex-1">
+              <h1
+                className={`text-xl font-semibold truncate pr-4 ${
+                  isComplete ? "text-gray-500 line-through" : "text-gray-900"
+                }`}
+              >
+                {safeTask.name}
+              </h1>
+              <div className="mt-1 flex items-center gap-2">
+                <span
+                  className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    safeTask.isSharedWithClient
+                      ? "bg-green-100 text-green-700 border-green-200"
+                      : "bg-gray-100 text-gray-700 border-gray-200"
+                  }`}
+                >
+                  {safeTask.isSharedWithClient
+                    ? "Shared with Client"
+                    : "Internal Only"}
+                </span>
+                <span
+                  className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    safeTask.createdBySource === "client"
+                      ? "bg-blue-100 text-blue-700 border-blue-200"
+                      : "bg-orange-100 text-orange-700 border-orange-200"
+                  }`}
+                >
+                  {safeTask.createdBySource === "client"
+                    ? "Client Created"
+                    : "Internal"}
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -540,6 +636,40 @@ const TaskDetailModal = ({
                 <span className="text-sm text-gray-700 font-medium">
                   {isComplete ? "Task completed" : "Mark as complete"}
                 </span>
+              </div>
+
+              <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Share this task with client?
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {safeTask.isSharedWithClient
+                        ? "Shared with Client"
+                        : "Internal Only"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() =>
+                      handleShareToggle(!Boolean(safeTask.isSharedWithClient))
+                    }
+                    className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors ${
+                      safeTask.isSharedWithClient
+                        ? "bg-green-500"
+                        : "bg-gray-300"
+                    }`}
+                    aria-label="Toggle task sharing with client"
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                        safeTask.isSharedWithClient
+                          ? "translate-x-6"
+                          : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-between mb-4">
@@ -638,6 +768,19 @@ const TaskDetailModal = ({
                       </div>
                     </div>
 
+                    {/* Time Allotted */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">
+                        Time allotted (hrs)
+                      </label>
+                      <p className="mt-1 text-gray-900">
+                        {safeTask.timeAllotted != null &&
+                        safeTask.timeAllotted !== ""
+                          ? `${safeTask.timeAllotted} hrs`
+                          : "Not set"}
+                      </p>
+                    </div>
+
                     {/* Due Date */}
                     <div>
                       <label className="text-sm font-medium text-gray-500">
@@ -715,25 +858,26 @@ const TaskDetailModal = ({
                               editingValue,
                             )}`}
                           >
-                            <option value="To Do">To Do</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Internal Review">
-                              Internal Review
-                            </option>
-                            <option value="Done">Done</option>
-                            <option value="Cancelled">Cancelled</option>
+                            {getEditableStatusOptions(
+                              safeTask.status,
+                              PM_STATUS_SELECT_OPTIONS,
+                            ).map((opt) => (
+                              <option key={opt.value} value={opt.label}>
+                                {opt.label}
+                              </option>
+                            ))}
                           </select>
                         ) : (
                           <span
                             onClick={() => {
-                              setEditingValue(safeTask.status || "To Do");
+                              setEditingValue(safeTask.status || "Assigned");
                               setEditingField("status");
                             }}
                             className={`inline-block px-3 py-1.5 rounded-lg border-2 font-bold text-xs cursor-pointer hover:shadow-md transition-all ${getStatusColor(
                               safeTask.status,
                             )}`}
                           >
-                            {safeTask.status || "To Do"}
+                            {safeTask.status || "Assigned"}
                           </span>
                         )}
                       </div>

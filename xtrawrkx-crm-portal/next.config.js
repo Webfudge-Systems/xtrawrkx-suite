@@ -16,6 +16,20 @@ const nextConfig = {
 
     experimental: {
         externalDir: true,
+        // Fewer modules on first compile — avoids dev ChunkLoadError when the server is still building
+        optimizePackageImports: [
+            'lucide-react',
+            'recharts',
+            'react-icons',
+            'date-fns',
+        ],
+    },
+
+    webpack: (config, { dev }) => {
+        if (dev && config.output) {
+            config.output.chunkLoadTimeout = 300000
+        }
+        return config
     },
 
     // Security headers

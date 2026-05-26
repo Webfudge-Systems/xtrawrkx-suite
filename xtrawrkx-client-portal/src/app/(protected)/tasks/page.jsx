@@ -30,6 +30,9 @@ import { useSession } from "@/lib/auth";
 import strapiClient from "@/lib/strapiClient";
 import { createPortal } from "react-dom";
 import TaskDetailModal from "@/components/tasks/TaskDetailModal";
+import CreateTaskModal from "@/components/tasks/CreateTaskModal";
+import { listCompanyMembers } from "@/lib/api/companyMembersService";
+import { getStatusLabel } from "@/lib/taskStatusConstants";
 
 export default function TasksPage() {
   const router = useRouter();
@@ -45,6 +48,11 @@ export default function TasksPage() {
   const [isTaskModalFullView, setIsTaskModalFullView] = useState(false);
   const [expandedSubtasks, setExpandedSubtasks] = useState({});
   const [subtaskDropdownPositions, setSubtaskDropdownPositions] = useState({});
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [clientProjects, setClientProjects] = useState([]);
+  const [clientMembers, setClientMembers] = useState([]);
+  const [currentAccountId, setCurrentAccountId] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const subtaskButtonRefs = useRef({});
 
   // Load tasks from API
@@ -78,6 +86,15 @@ export default function TasksPage() {
 
         if (!accountId) {
           accountId = strapiClient.getCurrentAccountId();
+        }
+
+        setCurrentAccountId(accountId);
+        try {
+          const membersResponse = await listCompanyMembers();
+          setClientMembers(membersResponse?.data || []);
+        } catch (membersError) {
+          console.warn("Unable to load company members for task assignment", membersError);
+          setClientMembers([]);
         }
 
         // Try to get from getCurrentUser if available
@@ -157,6 +174,18 @@ export default function TasksPage() {
           );
         });
 
+        setClientProjects(
+          clientProjects
+            .map((project) => {
+              const projectData = project.attributes || project;
+              return {
+                id: project.id || project.documentId || projectData.id,
+                name: projectData.name || "Untitled Project",
+              };
+            })
+            .filter((project) => project.id),
+        );
+
 
         // Extract project IDs - handle all possible ID locations
         const projectIds = clientProjects
@@ -234,6 +263,10 @@ export default function TasksPage() {
         const filteredTasks = allTasks.filter((task) => {
           const taskData = task.attributes || task;
 
+          if (!taskData.isSharedWithClient) {
+            return false;
+          }
+
           // Handle both single project and projects array (many-to-many)
           let projects = [];
 
@@ -303,32 +336,6 @@ export default function TasksPage() {
           return hasMatchingProject;
         });
 
-            // Check for projects array first, then single project
-            const projectsArray = tData.projects?.data || tData.projects || [];
-            const singleProject =
-              tData.project?.data?.attributes ||
-              tData.project?.attributes ||
-              tData.project;
-
-            let projectId = null;
-            if (Array.isArray(projectsArray) && projectsArray.length > 0) {
-              projectId =
-                (projectsArray[0].attributes || projectsArray[0]).id ||
-                (projectsArray[0].attributes || projectsArray[0]).documentId;
-            } else if (singleProject) {
-              projectId = singleProject.id || singleProject.documentId;
-            }
-
-            return {
-              id: t.id || t.documentId,
-              name: tData.name || tData.title,
-              projectId: projectId,
-              hasProjects: !!tData.projects,
-              hasProject: !!tData.project,
-            };
-          })
-        );
-
         // Transform tasks to match UI format
         const transformedTasks = filteredTasks.map((task) => {
           const taskData = task.attributes || task;
@@ -364,46 +371,7 @@ export default function TasksPage() {
           const attachments = taskData.attachments || taskData.files || [];
 
           // Normalize status
-          const normalizeStatus = (status) => {
-            if (!status) return "To Do";
-            const statusUpper = status.toUpperCase().trim();
-            if (
-              statusUpper === "TO DO" ||
-              statusUpper === "TODO" ||
-              statusUpper === "PLANNING" ||
-              statusUpper === "PLANNED" ||
-              statusUpper === "SCHEDULED"
-            ) {
-              return "To Do";
-            }
-            if (
-              statusUpper === "IN PROGRESS" ||
-              statusUpper === "IN_PROGRESS" ||
-              statusUpper === "ACTIVE"
-            ) {
-              return "In Progress";
-            }
-            if (statusUpper === "IN REVIEW" || statusUpper === "IN_REVIEW") {
-              return "Internal Review";
-            }
-            if (
-              statusUpper === "CLIENT REVIEW" ||
-              statusUpper === "CLIENT_REVIEW"
-            ) {
-              return "Client Review";
-            }
-            if (statusUpper === "APPROVED") {
-              return "Approved";
-            }
-            if (statusUpper === "DONE" || statusUpper === "COMPLETED") {
-              return "Done";
-            }
-            if (statusUpper === "CANCELLED" || statusUpper === "CANCELED") {
-              return "Cancelled";
-            }
-            // Return original if no match
-            return status;
-          };
+          const normalizeStatus = (status) => getStatusLabel(status);
 
           // Normalize priority
           const normalizePriority = (priority) => {
@@ -439,6 +407,9 @@ export default function TasksPage() {
                 }
               : null,
             scheduledDate: taskData.scheduledDate || taskData.dueDate,
+            timeAllotted: taskData.timeAllotted ?? null,
+            autoAccept: !!taskData.autoAccept,
+            sharePreferenceSetAtCreation: !!taskData.sharePreferenceSetAtCreation,
             progress: taskData.progress || 0,
             subtasks: taskData.subtasks?.data || taskData.subtasks || [],
             comments: comments.map((comment) => {
@@ -481,6 +452,8 @@ export default function TasksPage() {
               (taskData.status || "").toUpperCase() === "CLIENT_REVIEW",
             clientApproval: taskData.clientApproval || null,
             approvedAt: taskData.approvedAt || null,
+            isSharedWithClient: !!taskData.isSharedWithClient,
+            createdBySource: taskData.createdBySource || "internal",
             createdAt: taskData.createdAt || new Date().toISOString(),
             updatedAt: taskData.updatedAt || new Date().toISOString(),
           };
@@ -498,7 +471,69 @@ export default function TasksPage() {
     if (session) {
       loadTasks();
     }
-  }, [session]);
+  }, [session, reloadKey]);
+
+  const handleCreateTask = async (taskInput) => {
+    const taskBaseURL = strapiClient.buildURL("/tasks", {});
+    const creatorId = Number(session?.user?.id);
+    const numericAccountId =
+      currentAccountId !== null && currentAccountId !== undefined
+        ? Number(currentAccountId)
+        : null;
+
+    const priorityMap = {
+      low: "LOW",
+      medium: "MEDIUM",
+      high: "HIGH",
+      urgent: "HIGH",
+    };
+
+    const resolvedStatus =
+      taskInput.autoAccept && taskInput.assigneeMemberId
+        ? "ACCEPTED"
+        : taskInput.status || "ASSIGNED";
+
+    const payload = {
+      title: taskInput.title,
+      description: taskInput.description || "",
+      projects: [Number(taskInput.projectId)],
+      scheduledDate: taskInput.dueDate
+        ? new Date(`${taskInput.dueDate}T00:00:00`).toISOString()
+        : null,
+      status: resolvedStatus,
+      timeAllotted: taskInput.timeAllotted ?? null,
+      autoAccept: !!taskInput.autoAccept,
+      sharePreferenceSetAtCreation: true,
+      priority: priorityMap[taskInput.priority] || "MEDIUM",
+      progress: 0,
+      isSharedWithClient: true,
+      createdBySource: "client",
+      clientId:
+        currentAccountId !== null && currentAccountId !== undefined
+          ? String(currentAccountId)
+          : null,
+      ...(numericAccountId && !isNaN(numericAccountId)
+        ? { clientAccount: numericAccountId }
+        : {}),
+      ...(creatorId && !isNaN(creatorId) ? { creator: creatorId } : {}),
+      ...(taskInput.assignmentScope === "client" && taskInput.assigneeMemberId
+        ? { contact: Number(taskInput.assigneeMemberId) }
+        : {}),
+    };
+
+    const response = await fetch(taskBaseURL, {
+      method: "POST",
+      headers: strapiClient.getHeaders(),
+      body: JSON.stringify({ data: payload }),
+    });
+
+    if (!response.ok) {
+      const errPayload = await response.json().catch(() => ({}));
+      throw new Error(errPayload?.error?.message || "Failed to create task");
+    }
+
+    setReloadKey((prev) => prev + 1);
+  };
 
   // Calculate task statistics with flexible status matching
   const taskStats = {
@@ -991,6 +1026,20 @@ export default function TasksPage() {
       },
     },
     {
+      key: "timeAllotted",
+      label: "TIME ALLOTTED",
+      render: (_, task) => (
+        <div className="flex items-center gap-2 min-w-[120px]">
+          <Clock className="w-4 h-4 flex-shrink-0 text-gray-500" />
+          <span className="text-sm text-gray-700 font-medium">
+            {task.timeAllotted != null && task.timeAllotted !== ""
+              ? `${task.timeAllotted} hrs`
+              : "—"}
+          </span>
+        </div>
+      ),
+    },
+    {
       key: "status",
       label: "STATUS",
       render: (_, task) => {
@@ -1362,6 +1411,13 @@ export default function TasksPage() {
             {/* Right: View Toggle */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
+                onClick={() => setIsCreateTaskModalOpen(true)}
+                className="w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center bg-xtrawrkx-500 text-white border-xtrawrkx-500/50 hover:bg-xtrawrkx-600"
+                title="Add Task"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+              <button
                 onClick={() => setActiveView("list")}
                 className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
                   activeView === "list"
@@ -1548,6 +1604,22 @@ export default function TasksPage() {
         onApprove={handleApprove}
         onReject={handleReject}
         onComment={handleComment}
+      />
+
+      <CreateTaskModal
+        isOpen={isCreateTaskModalOpen}
+        onClose={() => setIsCreateTaskModalOpen(false)}
+        projects={clientProjects}
+        clientMembers={clientMembers}
+        onTaskCreate={async (taskData) => {
+          try {
+            await handleCreateTask(taskData);
+            setIsCreateTaskModalOpen(false);
+          } catch (error) {
+            console.error("Error creating task:", error);
+            alert(error.message || "Failed to create task");
+          }
+        }}
       />
     </div>
   );

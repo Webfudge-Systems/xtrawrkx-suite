@@ -88,6 +88,12 @@ export default function EditClientAccountPage() {
     { value: "INACTIVE", label: "Inactive" },
     { value: "ON_HOLD", label: "On Hold" },
     { value: "CHURNED", label: "Churned" },
+    { value: "REGISTERED", label: "Registered" },
+    { value: "COMMUNITY_MEMBER", label: "Community Member" },
+    { value: "COMMUNITY_PAID", label: "Community Paid" },
+    { value: "COMMUNITY_NON_PAID", label: "Community Non-Paid" },
+    { value: "LOST", label: "Lost" },
+    { value: "STOPPED", label: "Stopped" },
   ];
 
   const accountTypeOptions = [

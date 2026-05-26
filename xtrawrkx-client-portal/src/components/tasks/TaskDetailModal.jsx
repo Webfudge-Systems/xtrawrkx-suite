@@ -74,36 +74,44 @@ const TaskDetailModal = ({
     progress: task.progress || 0,
     comments: task.comments || [],
     attachments: task.attachments || task.files || [],
+    timeAllotted: task.timeAllotted ?? null,
+    autoAccept: !!task.autoAccept,
     requiresApproval:
       task.requiresApproval ||
+      task.status === "Waiting for Client" ||
       task.status === "Client Review" ||
-      task.status?.toUpperCase() === "CLIENT_REVIEW",
+      task.status?.toUpperCase() === "CLIENT_REVIEW" ||
+      task.status?.toUpperCase() === "WAITING_FOR_CLIENT",
     clientApproval: task.clientApproval || null, // 'approved', 'rejected', null
     createdAt: task.createdAt || new Date().toISOString(),
     updatedAt: task.updatedAt || new Date().toISOString(),
   };
 
   const getStatusColor = (status) => {
-    const statusUpper = (status || "").toUpperCase();
+    const statusUpper = (status || "").toUpperCase().replace(/\s+/g, "_");
     switch (statusUpper) {
-      case "DONE":
       case "COMPLETED":
+      case "DONE":
         return "bg-green-100 text-green-800 border-green-400";
-      case "IN PROGRESS":
       case "IN_PROGRESS":
         return "bg-yellow-100 text-yellow-800 border-yellow-400";
-      case "INTERNAL REVIEW":
+      case "PENDING_REVIEW":
       case "IN_REVIEW":
+      case "INTERNAL_REVIEW":
         return "bg-purple-100 text-purple-800 border-purple-400";
-      case "CLIENT REVIEW":
+      case "WAITING_FOR_CLIENT":
       case "CLIENT_REVIEW":
-        return "bg-purple-100 text-purple-800 border-purple-400";
-      case "APPROVED":
-        return "bg-blue-100 text-blue-800 border-blue-400";
-      case "TO DO":
-      case "TODO":
+        return "bg-indigo-100 text-indigo-800 border-indigo-400";
+      case "ACCEPTED":
+        return "bg-teal-100 text-teal-800 border-teal-400";
+      case "ASSIGNED":
       case "SCHEDULED":
+      case "TO_DO":
         return "bg-blue-100 text-blue-800 border-blue-400";
+      case "ON_HOLD":
+        return "bg-orange-100 text-orange-800 border-orange-400";
+      case "REVISION_REQUIRED":
+        return "bg-amber-100 text-amber-800 border-amber-400";
       case "CANCELLED":
         return "bg-gray-100 text-gray-800 border-gray-400";
       default:
@@ -226,10 +234,11 @@ const TaskDetailModal = ({
     }
   };
 
-  // Check if task requires client approval (status is Client Review only)
   const isActionRequired =
-    (safeTask.status === "Client Review" ||
-      safeTask.status?.toUpperCase() === "CLIENT_REVIEW") &&
+    (safeTask.status === "Waiting for Client" ||
+      safeTask.status === "Client Review" ||
+      safeTask.status?.toUpperCase() === "CLIENT_REVIEW" ||
+      safeTask.status?.toUpperCase() === "WAITING_FOR_CLIENT") &&
     !safeTask.clientApproval;
 
   const modalContent = (
@@ -331,6 +340,16 @@ const TaskDetailModal = ({
                   }`}
                 >
                   Details
+                </button>
+                <button
+                  onClick={() => setActiveTab("status-time")}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    activeTab === "status-time"
+                      ? "bg-xtrawrkx-500 text-white"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  }`}
+                >
+                  Status & Time
                 </button>
                 <button
                   onClick={() => setActiveTab("comments")}
@@ -528,6 +547,63 @@ const TaskDetailModal = ({
                           className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
                           style={{ width: `${safeTask.progress}%` }}
                         />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "status-time" && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-4 h-4 text-gray-500" />
+                          <span className="text-xs text-gray-500 font-medium">
+                            Status
+                          </span>
+                        </div>
+                        <span
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border inline-block ${getStatusColor(
+                            safeTask.status,
+                          )}`}
+                        >
+                          {safeTask.status}
+                        </span>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-4 h-4 text-gray-500" />
+                          <span className="text-xs text-gray-500 font-medium">
+                            Time Allotted
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">
+                          {safeTask.timeAllotted != null
+                            ? `${safeTask.timeAllotted} hrs`
+                            : "Not set"}
+                        </span>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Calendar className="w-4 h-4 text-gray-500" />
+                          <span className="text-xs text-gray-500 font-medium">
+                            Due Date
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">
+                          {formatDate(safeTask.scheduledDate)}
+                        </span>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Flag className="w-4 h-4 text-gray-500" />
+                          <span className="text-xs text-gray-500 font-medium">
+                            Auto-accept
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">
+                          {safeTask.autoAccept ? "Yes" : "No"}
+                        </span>
                       </div>
                     </div>
                   </div>

@@ -957,17 +957,12 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
           id: "client-documents",
           label: "Documents",
           icon: FolderOpen,
-          href: comingSoonUrl("Client Portal Documents"),
+          href: "/clients/portal-documents",
           children: [
             {
               id: "shared-documents",
-              label: "Shared Documents",
-              href: comingSoonUrl("Client Portal Documents"),
-            },
-            {
-              id: "document-downloads",
-              label: "Document Downloads",
-              href: comingSoonUrl("Client Portal Documents"),
+              label: "All Documents",
+              href: "/clients/portal-documents",
             },
           ],
         },

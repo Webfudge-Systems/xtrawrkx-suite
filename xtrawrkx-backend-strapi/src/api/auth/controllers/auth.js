@@ -4,9 +4,258 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const activityLogger = require('../../../services/activityLogger');
+const { buildClientAccountPocFields } = require('../../../utils/dedicatedPoc');
+
+async function loadFullClientAccount(strapi, account) {
+    if (!account?.id && !account?.documentId) return null;
+
+    const populate = {
+        accountManager: {
+            populate: {
+                primaryRole: true,
+                department: true,
+                avatar: true,
+            },
+        },
+    };
+
+    let fullAccount = await strapi.db.query('api::client-account.client-account').findOne({
+        where: { id: account.id },
+        populate,
+    });
+
+    if (!fullAccount && account.documentId) {
+        fullAccount = await strapi.db.query('api::client-account.client-account').findOne({
+            where: { documentId: account.documentId },
+            populate,
+        });
+    }
+
+    if (!fullAccount) {
+        try {
+            fullAccount = await strapi.entityService.findOne(
+                'api::client-account.client-account',
+                account.documentId || account.id,
+                {
+                    populate: {
+                        accountManager: {
+                            populate: ['primaryRole', 'department', 'avatar'],
+                        },
+                    },
+                }
+            );
+        } catch {
+            fullAccount = null;
+        }
+    }
+
+    return fullAccount;
+}
+
+async function buildClientPortalAccountPayload(strapi, account) {
+    if (!account?.id && !account?.documentId) return null;
+
+    const fullAccount = await loadFullClientAccount(strapi, account);
+
+    if (!fullAccount) return null;
+
+    const base = {
+        id: fullAccount.id,
+        documentId: fullAccount.documentId || null,
+        email: fullAccount.email,
+        companyName: fullAccount.companyName,
+        industry: fullAccount.industry,
+        type: fullAccount.type,
+        isActive: fullAccount.isActive,
+        emailVerified: fullAccount.emailVerified,
+        phone: fullAccount.phone,
+        onboardingData: fullAccount.onboardingData || null,
+        onboardingCompleted: fullAccount.onboardingCompleted,
+        onboardingCompletedAt: fullAccount.onboardingCompletedAt || null,
+    };
+
+    const pocFields = await buildClientAccountPocFields(fullAccount, strapi);
+
+    return {
+        ...base,
+        ...pocFields,
+    };
+}
 
 // JWT secret - use environment variable or fallback to default
 const JWT_SECRET = process.env.JWT_SECRET || 'myJwtSecret123456789012345678901234567890';
+
+const COMMUNITY_CODE_MAP = {
+    xen: 'XEN',
+    xevfin: 'XEVFIN',
+    xevtg: 'XEVTG',
+    xdd: 'XDD',
+    'xev.fin': 'XEVFIN',
+    'x&d': 'XDD',
+};
+
+function normalizeCommunityCodes(selectedCommunities = []) {
+    if (!Array.isArray(selectedCommunities)) return [];
+
+    const normalized = selectedCommunities
+        .map((community) => String(community || '').trim())
+        .filter(Boolean)
+        .map((community) => {
+            const directMap = COMMUNITY_CODE_MAP[community.toLowerCase()];
+            if (directMap) return directMap;
+
+            const upper = community.toUpperCase().replace(/[^A-Z]/g, '');
+            if (['XEN', 'XEVFIN', 'XEVTG', 'XDD'].includes(upper)) {
+                return upper;
+            }
+            return null;
+        })
+        .filter(Boolean);
+
+    return [...new Set(normalized)];
+}
+
+const CLIENT_MEMBER_DEFAULT_ROLES = {
+    ADMIN: {
+        permissions: ['member.add', 'member.delete', 'member.update', 'role.create', 'role.assign', 'task.assign'],
+        isCustom: false,
+        isRestricted: true,
+    },
+    MANAGER: {
+        permissions: ['member.add', 'member.update', 'role.create', 'role.assign', 'task.assign'],
+        isCustom: false,
+        isRestricted: true,
+    },
+    DEVELOPER: {
+        permissions: ['task.view', 'task.update.assigned'],
+        isCustom: false,
+        isRestricted: false,
+    },
+    DEVOPS_ENGINEER: {
+        permissions: ['task.view', 'task.update.assigned'],
+        isCustom: false,
+        isRestricted: false,
+    },
+    UX_DESIGNER: {
+        permissions: ['task.view', 'task.update.assigned'],
+        isCustom: false,
+        isRestricted: false,
+    },
+};
+
+function normalizeRoleName(value) {
+    return String(value || '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .toUpperCase();
+}
+
+function resolvePortalRole(portalRole, contactRole) {
+    const normalizedPortalRole = normalizeRoleName(portalRole);
+    if (normalizedPortalRole) return normalizedPortalRole;
+
+    const normalizedContactRole = normalizeRoleName(contactRole);
+    if (normalizedContactRole === 'PRIMARY_CONTACT') return 'ADMIN';
+    if (!normalizedContactRole) return 'DEVELOPER';
+    return normalizedContactRole;
+}
+
+function buildRoleState(accountRoles = []) {
+    const roleMap = {};
+    Object.entries(CLIENT_MEMBER_DEFAULT_ROLES).forEach(([name, cfg]) => {
+        roleMap[name] = {
+            name,
+            permissions: cfg.permissions,
+            isCustom: cfg.isCustom,
+            isRestricted: cfg.isRestricted,
+        };
+    });
+
+    if (Array.isArray(accountRoles)) {
+        accountRoles.forEach((role) => {
+            const normalized = normalizeRoleName(role?.name);
+            if (!normalized) return;
+            roleMap[normalized] = {
+                name: normalized,
+                permissions: Array.isArray(role?.permissions) ? role.permissions : [],
+                isCustom: role?.isCustom === true,
+                isRestricted: role?.isRestricted === true,
+            };
+        });
+    }
+
+    return Object.values(roleMap);
+}
+
+async function resolveClientAccountWithContacts(accountIdOrEmail) {
+    if (!accountIdOrEmail) return null;
+    const where =
+        typeof accountIdOrEmail === 'number' || /^\d+$/.test(String(accountIdOrEmail))
+            ? { id: Number(accountIdOrEmail) }
+            : { email: String(accountIdOrEmail).toLowerCase() };
+
+    return strapi.db.query('api::client-account.client-account').findOne({
+        where,
+        populate: {
+            contacts: {
+                populate: {
+                    portalAccess: true,
+                },
+            },
+        },
+    });
+}
+
+function getContactFullName(contact) {
+    return `${contact?.firstName || ''} ${contact?.lastName || ''}`.trim();
+}
+
+function isBcryptHash(value) {
+    return typeof value === 'string' && /^\$2[aby]\$\d{2}\$/.test(value);
+}
+
+async function ensureInitialProjectForAccount(account) {
+    try {
+        if (!account?.id) return null;
+
+        const existing = await strapi.db.query('api::project.project').findOne({
+            where: { clientAccount: account.id }
+        });
+        if (existing?.id) return existing;
+
+        const companyName = String(account.companyName || '').trim() || 'Client';
+        const baseSlug = companyName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+
+        let slug = baseSlug || `client-${account.id}`;
+        let counter = 1;
+        while (true) {
+            const found = await strapi.db.query('api::project.project').findOne({
+                where: { slug }
+            });
+            if (!found) break;
+            slug = `${baseSlug || `client-${account.id}`}-${counter}`;
+            counter++;
+        }
+
+        const created = await strapi.db.query('api::project.project').create({
+            data: {
+                name: `${companyName} - Initial Project`,
+                slug,
+                description: `Initial project for ${companyName}`,
+                status: 'PLANNING',
+                progress: 0,
+                clientAccount: account.id,
+            }
+        });
+        return created;
+    } catch (error) {
+        console.error('ensureInitialProjectForAccount failed:', error);
+        return null;
+    }
+}
 
 /**
  * Authentication Controller
@@ -190,10 +439,94 @@ module.exports = {
                 return ctx.badRequest('Email and password are required');
             }
 
-            // Find client account by email
+            const emailLower = String(email || '').trim().toLowerCase();
+
+            // Member login (same credentials model as created member account access)
+            const memberContact = await strapi.db.query('api::contact.contact').findOne({
+                where: {
+                    email: emailLower,
+                    status: { $ne: 'LEFT_COMPANY' },
+                    clientAccount: { id: { $notNull: true } },
+                },
+                populate: {
+                    clientAccount: true,
+                },
+            });
+
+            if (memberContact?.id && memberContact?.clientAccount?.id) {
+                const memberPortalAccess = await strapi.db.connection('client_portal_access')
+                    .join(
+                        'client_portal_access_contact_lnk',
+                        'client_portal_access_contact_lnk.client_portal_access_id',
+                        'client_portal_access.id'
+                    )
+                    .where({ 'client_portal_access_contact_lnk.contact_id': Number(memberContact.id) })
+                    .select('client_portal_access.*')
+                    .first();
+
+                if (memberPortalAccess?.password && memberPortalAccess?.is_active !== 0) {
+                    const isMemberPasswordValid = isBcryptHash(memberPortalAccess.password)
+                        ? await bcrypt.compare(password, memberPortalAccess.password)
+                        : String(password) === String(memberPortalAccess.password);
+                    if (isMemberPasswordValid) {
+                        await ensureInitialProjectForAccount(memberContact.clientAccount);
+                        const roleName = normalizeRoleName(
+                            memberPortalAccess.role_name || memberContact.role || 'DEVELOPER'
+                        );
+                        const accountRoles = buildRoleState(memberContact.clientAccount.companyRoles || []);
+                        const roleConfig =
+                            accountRoles.find((role) => role.name === roleName) ||
+                            CLIENT_MEMBER_DEFAULT_ROLES.DEVELOPER;
+
+                        await strapi.db.connection('client_portal_access')
+                            .where({ id: Number(memberPortalAccess.id) })
+                            .update({ last_login: new Date().toISOString(), is_active: 1 });
+
+                        const memberAccountPayload = await buildClientPortalAccountPayload(
+                            strapi,
+                            memberContact.clientAccount
+                        );
+
+                        return ctx.send({
+                            account: {
+                                ...memberAccountPayload,
+                                role: roleName,
+                                permissions: roleConfig.permissions || [],
+                                memberContactId: memberContact.id,
+                                memberName: getContactFullName(memberContact) || memberContact.email,
+                                forcePasswordReset: Boolean(memberPortalAccess.force_password_reset),
+                            },
+                            contacts: [
+                                {
+                                    id: memberContact.id,
+                                    firstName: memberContact.firstName,
+                                    lastName: memberContact.lastName,
+                                    email: memberContact.email,
+                                    phone: memberContact.phone,
+                                    role: roleName,
+                                    permissions: roleConfig.permissions || [],
+                                    status: memberContact.status,
+                                    lastActivity: memberPortalAccess.last_login || null,
+                                },
+                            ],
+                            token: jwt.sign({
+                                id: memberContact.clientAccount.id,
+                                email: memberContact.clientAccount.email,
+                                type: 'client',
+                                companyName: memberContact.clientAccount.companyName,
+                                memberContactId: memberContact.id,
+                                role: roleName,
+                                permissions: roleConfig.permissions || [],
+                            }, JWT_SECRET, { expiresIn: '7d' }),
+                        });
+                    }
+                }
+            }
+
+            // Account owner login
             const account = await strapi.db.query('api::client-account.client-account').findOne({
                 where: {
-                    email: email.toLowerCase(),
+                    email: emailLower,
                     isActive: true
                 },
                 populate: {
@@ -204,21 +537,21 @@ module.exports = {
                 }
             });
 
-            if (!account) {
-                return ctx.badRequest('Invalid credentials');
-            }
+            if (!account) return ctx.badRequest('Invalid credentials');
 
-            // Verify password
-            const isValidPassword = await bcrypt.compare(password, account.password);
-            if (!isValidPassword) {
-                return ctx.badRequest('Invalid credentials');
-            }
+            const accountRow = await strapi.db.connection('client_accounts')
+                .where({ id: Number(account.id) })
+                .first();
+            if (!accountRow?.password) return ctx.badRequest('Invalid credentials');
+            const isValidPassword = await bcrypt.compare(password, accountRow.password);
+            if (!isValidPassword) return ctx.badRequest('Invalid credentials');
 
             // Update last login
             await strapi.db.query('api::client-account.client-account').update({
                 where: { id: account.id },
                 data: { lastLoginAt: new Date() },
             });
+            await ensureInitialProjectForAccount(account);
 
             // Generate JWT token
             const token = jwt.sign({
@@ -228,16 +561,13 @@ module.exports = {
                 companyName: account.companyName
             }, JWT_SECRET, { expiresIn: '7d' });
 
+            const ownerAccountPayload = await buildClientPortalAccountPayload(strapi, account);
+
             ctx.send({
                 account: {
-                    id: account.id,
-                    email: account.email,
-                    companyName: account.companyName,
-                    industry: account.industry,
-                    type: account.type,
-                    isActive: account.isActive,
-                    emailVerified: account.emailVerified,
-                    phone: account.phone,
+                    ...ownerAccountPayload,
+                    role: 'ADMIN',
+                    permissions: CLIENT_MEMBER_DEFAULT_ROLES.ADMIN.permissions,
                 },
                 contacts: account.contacts,
                 token: token,
@@ -342,6 +672,8 @@ module.exports = {
             const firstName = nameParts[0] || '';
             const lastName = nameParts.slice(1).join(' ') || '';
 
+            const normalizedCommunities = normalizeCommunityCodes(selectedCommunities);
+
             // Prepare account data
             const accountData = {
                 email: email.toLowerCase(),
@@ -363,10 +695,13 @@ module.exports = {
                 linkedIn: linkedIn || null,
                 twitter: twitter || null,
                 type: 'CUSTOMER',
+                status: normalizedCommunities.length > 0 ? 'COMMUNITY_MEMBER' : 'REGISTERED',
                 emailVerificationToken: otp,
                 emailVerified: false,
                 isActive: false, // Inactive until OTP is verified
-                source: 'ONBOARDING'
+                source: 'ONBOARDING',
+                selectedCommunities: normalizedCommunities,
+                companyRoles: buildRoleState(),
             };
 
             // Only add revenue if it's a valid number (not a range string)
@@ -397,6 +732,7 @@ module.exports = {
                         role: 'PRIMARY_CONTACT',
                         portalAccessLevel: 'FULL_ACCESS',
                         status: 'ACTIVE',
+                        title: 'Admin',
                         clientAccount: account.id,
                         source: 'ONBOARDING'
                     }
@@ -408,6 +744,24 @@ module.exports = {
                     where: { id: account.id }
                 });
                 return ctx.internalServerError('Failed to create contact. Please try again.');
+            }
+
+            try {
+                await strapi.db.query('api::client-portal-access.client-portal-access').create({
+                    data: {
+                        contact: contact.id,
+                        password: hashedPassword,
+                        isActive: true,
+                        accessLevel: 'upload',
+                        roleName: 'ADMIN',
+                        permissions: CLIENT_MEMBER_DEFAULT_ROLES.ADMIN.permissions,
+                        isCustomRole: false,
+                        forcePasswordReset: false,
+                        account: null,
+                    },
+                });
+            } catch (portalAccessError) {
+                console.error('Failed to create portal access for primary contact:', portalAccessError);
             }
 
             // Create initial project for the client account
@@ -437,23 +791,31 @@ module.exports = {
                     }
                 }
 
-                // Generate icon from first letter of company name
-                const icon = companyName.charAt(0).toUpperCase();
-
-                // Create project
+                // Create project with core fields first (most schema-compatible path).
                 project = await strapi.db.query('api::project.project').create({
                     data: {
                         name: `${companyName} - Initial Project`,
                         slug: slug,
                         description: description || `Initial project for ${companyName}`,
                         status: 'PLANNING',
-                        icon: icon,
-                        color: 'from-blue-400 to-blue-600',
+                        progress: 0,
                         clientAccount: account.id,
-                        startDate: new Date()
                     }
                 });
             } catch (projectError) {
+                // Retry with ultra-minimal payload before giving up.
+                try {
+                    project = await strapi.db.query('api::project.project').create({
+                        data: {
+                            name: `${companyName} - Initial Project`,
+                            status: 'PLANNING',
+                            clientAccount: account.id,
+                        }
+                    });
+                } catch (projectRetryError) {
+                    console.error('Failed to create initial project (retry):', projectRetryError);
+                }
+
                 // Log error but don't fail signup - project creation is not critical
                 console.error('Failed to create initial project:', projectError);
                 console.error('Project creation error details:', {
@@ -461,6 +823,28 @@ module.exports = {
                     stack: projectError.stack
                 });
                 // Continue with signup even if project creation fails
+            }
+
+            // Create community memberships from selected onboarding communities
+            if (normalizedCommunities.length > 0) {
+                try {
+                    await Promise.all(
+                        normalizedCommunities.map((communityCode) =>
+                            strapi.db.query('api::community-membership.community-membership').create({
+                                data: {
+                                    clientAccount: account.id,
+                                    community: communityCode,
+                                    status: 'ACTIVE',
+                                    membershipType: 'FREE',
+                                    joinedAt: new Date(),
+                                },
+                            })
+                        )
+                    );
+                } catch (membershipError) {
+                    // Keep signup successful even if membership creation has a partial failure.
+                    console.error('Failed to create one or more community memberships:', membershipError);
+                }
             }
 
             // Send OTP email
@@ -600,12 +984,17 @@ module.exports = {
                 message: 'Account verified successfully',
                 account: {
                     id: updatedAccount.id,
+                    documentId: updatedAccount.documentId || null,
                     email: updatedAccount.email,
                     companyName: updatedAccount.companyName,
                     industry: updatedAccount.industry,
                     type: updatedAccount.type,
                     isActive: updatedAccount.isActive,
                     emailVerified: updatedAccount.emailVerified,
+                    phone: updatedAccount.phone || null,
+                    onboardingData: updatedAccount.onboardingData || null,
+                    onboardingCompleted: updatedAccount.onboardingCompleted,
+                    onboardingCompletedAt: updatedAccount.onboardingCompletedAt || null,
                 },
                 contacts: updatedAccount.contacts || [],
                 token: token,
@@ -789,6 +1178,116 @@ module.exports = {
     /**
      * Get current user information
      */
+    /**
+     * Client portal — fetch dedicated POC for logged-in client account
+     */
+    async getClientDedicatedPoc(ctx) {
+        try {
+            const token = ctx.request.headers.authorization?.replace('Bearer ', '');
+            if (!token) {
+                return ctx.unauthorized('No token provided');
+            }
+
+            let decoded;
+            try {
+                decoded = jwt.verify(token, JWT_SECRET);
+            } catch {
+                return ctx.unauthorized('Invalid token');
+            }
+
+            if (decoded.type !== 'client' || !decoded.id) {
+                return ctx.unauthorized('Client token required');
+            }
+
+            const account = await strapi.db.query('api::client-account.client-account').findOne({
+                where: { id: decoded.id, isActive: true },
+            });
+
+            if (!account) {
+                return ctx.notFound('Client account not found');
+            }
+
+            const fullAccount = await loadFullClientAccount(strapi, account);
+            const pocFields = await buildClientAccountPocFields(fullAccount || account, strapi);
+
+            return ctx.send({
+                success: true,
+                ...pocFields,
+            });
+        } catch (error) {
+            console.error('getClientDedicatedPoc error:', error);
+            return ctx.internalServerError('Failed to load dedicated POC');
+        }
+    },
+
+    /**
+     * Client portal — documents for logged-in client account (ACTIVE only)
+     */
+    async getClientPortalDocuments(ctx) {
+        try {
+            const token = ctx.request.headers.authorization?.replace('Bearer ', '');
+            if (!token) {
+                return ctx.unauthorized('No token provided');
+            }
+
+            let decoded;
+            try {
+                decoded = jwt.verify(token, JWT_SECRET);
+            } catch {
+                return ctx.unauthorized('Invalid token');
+            }
+
+            if (decoded.type !== 'client' || !decoded.id) {
+                return ctx.unauthorized('Client token required');
+            }
+
+            const account = await strapi.db.query('api::client-account.client-account').findOne({
+                where: { id: decoded.id, isActive: true },
+            });
+
+            if (!account) {
+                return ctx.notFound('Client account not found');
+            }
+
+            const rows = await strapi.entityService.findMany(
+                'api::client-portal-document.client-portal-document',
+                {
+                    filters: {
+                        clientAccount: { id: account.id },
+                        status: 'ACTIVE',
+                    },
+                    populate: { documents: true, createdBy: true },
+                    sort: { issueDate: 'desc' },
+                }
+            );
+
+            const baseUrl =
+                strapi.config.get('server.url') ||
+                process.env.PUBLIC_URL ||
+                'http://localhost:1337';
+
+            const withUrls = (rows || []).map((row) => {
+                const files = Array.isArray(row.documents)
+                    ? row.documents.map((f) => ({
+                          ...f,
+                          url: f.url?.startsWith('http')
+                              ? f.url
+                              : `${baseUrl}${f.url}`,
+                      }))
+                    : [];
+                return { ...row, documents: files };
+            });
+
+            return ctx.send({
+                success: true,
+                data: withUrls,
+            });
+        } catch (error) {
+            console.error('getClientPortalDocuments error:', error);
+            return ctx.internalServerError('Failed to load documents');
+        }
+    },
+
     async getCurrentUser(ctx) {
         try {
 
@@ -809,6 +1308,50 @@ module.exports = {
             // Ensure decoded is an object (not a string)
             if (typeof decoded === 'string' || !decoded) {
                 return ctx.unauthorized('Invalid token format');
+            }
+
+            if (decoded.type === 'client') {
+                const account = await strapi.db.query('api::client-account.client-account').findOne({
+                    where: {
+                        id: decoded.id,
+                        isActive: true,
+                    },
+                    populate: {
+                        contacts: {
+                            where: { status: 'ACTIVE' },
+                            populate: {
+                                portalAccess: true,
+                            },
+                        },
+                    },
+                });
+
+                if (!account) {
+                    return ctx.unauthorized('Client account not found or inactive');
+                }
+
+                const accountPayload = await buildClientPortalAccountPayload(strapi, account);
+
+                return ctx.send({
+                    success: true,
+                    type: 'client',
+                    account: accountPayload,
+                    contacts: (account.contacts || []).map((contact) => ({
+                        id: contact.id,
+                        firstName: contact.firstName,
+                        lastName: contact.lastName,
+                        email: contact.email,
+                        phone: contact.phone,
+                        roleRaw: contact.role,
+                        role: resolvePortalRole(contact?.portalAccess?.roleName, contact?.role),
+                        permissions: Array.isArray(contact?.portalAccess?.permissions) ? contact.portalAccess.permissions : [],
+                        status: contact.status,
+                        lastActivity: contact?.portalAccess?.lastLogin || null,
+                    })),
+                    currentMember: decoded.memberContactId
+                        ? (account.contacts || []).find((contact) => String(contact.id) === String(decoded.memberContactId)) || null
+                        : null,
+                });
             }
 
             if (decoded.type !== 'internal') {
@@ -1268,6 +1811,262 @@ module.exports = {
         } catch (error) {
             console.error('Password reset error:', error);
             ctx.internalServerError('Failed to reset password');
+        }
+    },
+
+    async listCompanyMembers(ctx) {
+        try {
+            const accountId = ctx.query.accountId;
+            if (!accountId) {
+                return ctx.badRequest('accountId is required');
+            }
+
+            const account = await resolveClientAccountWithContacts(accountId);
+            if (!account) {
+                return ctx.notFound('Client account not found');
+            }
+
+            const members = (account.contacts || []).map((contact) => {
+                const portalAccess = contact.portalAccess || {};
+                return {
+                    id: contact.id,
+                    name: getContactFullName(contact) || contact.email,
+                    email: contact.email,
+                    loginId: portalAccess.loginId || null,
+                    role: resolvePortalRole(portalAccess.roleName, contact.role),
+                    status: portalAccess.isActive === false ? 'INACTIVE' : (portalAccess.forcePasswordReset ? 'PENDING' : 'ACTIVE'),
+                    lastActivity: portalAccess.lastLogin || contact.updatedAt || contact.createdAt,
+                    updatedAt: contact.updatedAt,
+                    permissions: Array.isArray(portalAccess.permissions) ? portalAccess.permissions : [],
+                    forcePasswordReset: !!portalAccess.forcePasswordReset,
+                };
+            });
+
+            return ctx.send({
+                data: members,
+                roles: buildRoleState(account.companyRoles || []),
+            });
+        } catch (error) {
+            console.error('listCompanyMembers error:', error);
+            return ctx.internalServerError('Failed to load company members');
+        }
+    },
+
+    async createCompanyRole(ctx) {
+        try {
+            const { accountId, name, permissions = [] } = ctx.request.body || {};
+            if (!accountId || !name) {
+                return ctx.badRequest('accountId and role name are required');
+            }
+
+            const account = await resolveClientAccountWithContacts(accountId);
+            if (!account) {
+                return ctx.notFound('Client account not found');
+            }
+
+            const roleName = normalizeRoleName(name);
+            if (roleName === 'ADMIN') {
+                return ctx.badRequest('ADMIN role cannot be modified');
+            }
+
+            const roleSet = buildRoleState(account.companyRoles || []);
+            const nextRoles = roleSet
+                .filter((role) => role.name !== roleName || role.isRestricted)
+                .filter((role) => role.isRestricted || role.isCustom);
+            nextRoles.push({
+                name: roleName,
+                permissions: Array.isArray(permissions) ? permissions : [],
+                isCustom: true,
+                isRestricted: false,
+            });
+
+            await strapi.db.query('api::client-account.client-account').update({
+                where: { id: account.id },
+                data: { companyRoles: buildRoleState(nextRoles) },
+            });
+
+            return ctx.send({ success: true, roles: buildRoleState(nextRoles) });
+        } catch (error) {
+            console.error('createCompanyRole error:', error);
+            return ctx.internalServerError('Failed to create role');
+        }
+    },
+
+    async addCompanyMember(ctx) {
+        try {
+            const {
+                accountId,
+                name,
+                email,
+                role = 'DEVELOPER',
+                password,
+            } = ctx.request.body || {};
+            if (!accountId || !email || !name) {
+                return ctx.badRequest('accountId, name and email are required');
+            }
+
+            const account = await resolveClientAccountWithContacts(accountId);
+            if (!account) {
+                return ctx.notFound('Client account not found');
+            }
+
+            const roleName = normalizeRoleName(role);
+            const roleSet = buildRoleState(account.companyRoles || []);
+            const roleConfig = roleSet.find((entry) => entry.name === roleName);
+            if (!roleConfig) {
+                return ctx.badRequest(`Role ${roleName} does not exist`);
+            }
+
+            const existing = await strapi.db.query('api::contact.contact').findOne({
+                where: { email: email.toLowerCase() },
+            });
+            if (existing) {
+                return ctx.badRequest('Member with this email already exists');
+            }
+            const nameParts = String(name).trim().split(/\s+/);
+            const firstName = nameParts[0] || 'Member';
+            const lastName = nameParts.slice(1).join(' ') || 'User';
+            const passwordValue = String(password || '').trim() ||
+                crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+            if (passwordValue.length < 6) {
+                return ctx.badRequest('password must be at least 6 characters');
+            }
+            const hashedPassword = await bcrypt.hash(passwordValue, 12);
+            const contact = await strapi.db.query('api::contact.contact').create({
+                data: {
+                    firstName,
+                    lastName,
+                    email: email.toLowerCase(),
+                    role: roleName === 'ADMIN' ? 'PRIMARY_CONTACT' : 'TECHNICAL_CONTACT',
+                    portalAccessLevel: 'FULL_ACCESS',
+                    status: 'ACTIVE',
+                    clientAccount: account.id,
+                    source: 'MANUAL',
+                    title: roleName.replace(/_/g, ' '),
+                },
+            });
+
+            await strapi.db.query('api::client-portal-access.client-portal-access').create({
+                data: {
+                    contact: contact.id,
+                    password: hashedPassword,
+                    loginId: String(email).toLowerCase().trim(),
+                    isActive: true,
+                    accessLevel: 'upload',
+                    roleName,
+                    permissions: roleConfig.permissions || [],
+                    isCustomRole: roleConfig.isCustom === true,
+                    forcePasswordReset: false,
+                    account: null,
+                },
+            });
+
+            return ctx.send({
+                success: true,
+                member: {
+                    id: contact.id,
+                    name: getContactFullName(contact),
+                    email: contact.email,
+                    role: roleName,
+                    status: 'ACTIVE',
+                },
+                credentials: {
+                    email: contact.email,
+                    tempPassword: passwordValue,
+                },
+            });
+        } catch (error) {
+            console.error('addCompanyMember error:', error);
+            return ctx.internalServerError('Failed to add member');
+        }
+    },
+
+    async updateCompanyMember(ctx) {
+        try {
+            const { memberId } = ctx.params;
+            const { role, status, name } = ctx.request.body || {};
+            const contact = await strapi.db.query('api::contact.contact').findOne({
+                where: { id: memberId },
+                populate: { portalAccess: true, clientAccount: true },
+            });
+
+            if (!contact) {
+                return ctx.notFound('Member not found');
+            }
+
+            const updateContactData = {};
+            if (name) {
+                const nameParts = String(name).trim().split(/\s+/);
+                updateContactData.firstName = nameParts[0] || contact.firstName;
+                updateContactData.lastName = nameParts.slice(1).join(' ') || contact.lastName;
+            }
+            if (Object.keys(updateContactData).length > 0) {
+                await strapi.db.query('api::contact.contact').update({
+                    where: { id: contact.id },
+                    data: updateContactData,
+                });
+            }
+
+            if (contact.portalAccess) {
+                const portalUpdateData = {};
+                if (role) {
+                    const roleName = normalizeRoleName(role);
+                    if (roleName === 'ADMIN' && normalizeRoleName(contact.portalAccess.roleName) !== 'ADMIN') {
+                        return ctx.badRequest('Only existing admin members can keep ADMIN role');
+                    }
+                    portalUpdateData.roleName = roleName;
+                    const roleSet = buildRoleState(contact.clientAccount?.companyRoles || []);
+                    const roleConfig = roleSet.find((entry) => entry.name === roleName);
+                    portalUpdateData.permissions = roleConfig?.permissions || [];
+                    portalUpdateData.isCustomRole = roleConfig?.isCustom === true;
+                }
+                if (status) {
+                    portalUpdateData.isActive = status === 'ACTIVE';
+                    if (status === 'PENDING') {
+                        portalUpdateData.forcePasswordReset = true;
+                    }
+                }
+
+                if (Object.keys(portalUpdateData).length > 0) {
+                    await strapi.db.query('api::client-portal-access.client-portal-access').update({
+                        where: { id: contact.portalAccess.id },
+                        data: portalUpdateData,
+                    });
+                }
+            }
+
+            return ctx.send({ success: true });
+        } catch (error) {
+            console.error('updateCompanyMember error:', error);
+            return ctx.internalServerError('Failed to update member');
+        }
+    },
+
+    async deleteCompanyMember(ctx) {
+        try {
+            const { memberId } = ctx.params;
+            const contact = await strapi.db.query('api::contact.contact').findOne({
+                where: { id: memberId },
+                populate: { portalAccess: true },
+            });
+            if (!contact) {
+                return ctx.notFound('Member not found');
+            }
+
+            if (normalizeRoleName(contact.portalAccess?.roleName || contact.role) === 'ADMIN') {
+                return ctx.badRequest('Admin member cannot be deleted');
+            }
+
+            if (contact.portalAccess?.id) {
+                await strapi.db.query('api::client-portal-access.client-portal-access').delete({
+                    where: { id: contact.portalAccess.id },
+                });
+            }
+            await strapi.db.query('api::contact.contact').delete({ where: { id: contact.id } });
+            return ctx.send({ success: true });
+        } catch (error) {
+            console.error('deleteCompanyMember error:', error);
+            return ctx.internalServerError('Failed to delete member');
         }
     },
 

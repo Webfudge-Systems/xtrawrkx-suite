@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Table } from "../ui";
-import { Check, Calendar, Eye, GitBranch } from "lucide-react";
+import { Check, Calendar, Clock, Eye, GitBranch } from "lucide-react";
 import ProjectSelector from "../my-task/ProjectSelector";
 import taskService from "../../lib/taskService";
 import projectService from "../../lib/projectService";
@@ -14,6 +14,11 @@ import {
   transformPriorityToStrapi,
   transformSubtask,
 } from "../../lib/dataTransformers";
+import {
+  assertStatusChangeAllowed,
+  getEditableStatusOptionsByLabel,
+  STATUS_REVERT_TO_ASSIGNED_MESSAGE,
+} from "../../lib/taskStatusConstants";
 
 const AssignedTasksTable = ({
   data,
@@ -114,6 +119,17 @@ const AssignedTasksTable = ({
   // Handle status updates
   const handleStatusUpdate = async (taskId, newStatus) => {
     if (!taskId) return;
+
+    const existingTask = data.find((t) => t.id === taskId);
+    const currentStatus =
+      localStatusUpdates[taskId] !== undefined
+        ? localStatusUpdates[taskId]
+        : transformStatus(existingTask?.status || "Assigned");
+    const guard = assertStatusChangeAllowed(currentStatus, newStatus);
+    if (!guard.ok) {
+      alert(guard.message || STATUS_REVERT_TO_ASSIGNED_MESSAGE);
+      return;
+    }
 
     // Optimistically update local state immediately for instant UI feedback
     setLocalStatusUpdates((prev) => ({
@@ -224,6 +240,26 @@ const AssignedTasksTable = ({
       // Revert parent state
       if (onTaskUpdate) {
         onTaskUpdate(taskId, { scheduledDate: originalScheduledDate });
+      }
+    }
+  };
+
+  const handleTimeAllottedUpdate = async (taskId, hours) => {
+    if (!taskId) return;
+
+    const originalTask = data.find((task) => task.id === taskId);
+    const originalValue = originalTask?.timeAllotted;
+
+    if (onTaskUpdate) {
+      onTaskUpdate(taskId, { timeAllotted: hours });
+    }
+
+    try {
+      await taskService.updateTask(taskId, { timeAllotted: hours });
+    } catch (error) {
+      console.error("Error updating time allotted:", error);
+      if (onTaskUpdate) {
+        onTaskUpdate(taskId, { timeAllotted: originalValue });
       }
     }
   };
@@ -426,52 +462,60 @@ const AssignedTasksTable = ({
       },
     },
     {
+      key: "timeAllotted",
+      label: "TIME ALLOTTED",
+      render: (_, task) => (
+        <div
+          className="flex items-center gap-1.5 min-w-[120px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Clock className="w-3.5 h-3.5 flex-shrink-0 text-gray-500" />
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            value={
+              task.timeAllotted != null && task.timeAllotted !== ""
+                ? task.timeAllotted
+                : ""
+            }
+            onChange={(e) => {
+              const raw = e.target.value;
+              handleTimeAllottedUpdate(
+                task.id,
+                raw === "" ? null : parseFloat(raw),
+              );
+            }}
+            className="w-14 text-xs text-gray-700 px-1.5 py-0.5 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+            placeholder="—"
+          />
+          <span className="text-xs text-gray-500">hrs</span>
+        </div>
+      ),
+    },
+    {
       key: "status",
       label: "STATUS",
       render: (_, task) => {
-        const statusOptions = [
-          { value: "To Do", label: "To Do" },
-          { value: "In Progress", label: "In Progress" },
-          { value: "Internal Review", label: "Internal Review" },
-          { value: "Client Review", label: "Client Review" },
-          { value: "Approved", label: "Approved" },
-          { value: "Done", label: "Done" },
-          { value: "Cancelled", label: "Cancelled" },
-        ];
-
-        // Transform status from Strapi format to frontend format
-        // task.status should already be in frontend format from tasksWithLocalUpdates
-        const rawStatus = task.status || "To Do";
-        let currentStatus = transformStatus(rawStatus);
-
-        // Ensure currentStatus exactly matches one of the option values
-        const validStatuses = [
-          "To Do",
-          "In Progress",
-          "Internal Review",
-          "Client Review",
-          "Approved",
-          "Done",
-          "Cancelled",
-        ];
-        if (!validStatuses.includes(currentStatus)) {
-          // If transformed status doesn't match, try to find a match
-          const normalized = currentStatus.toLowerCase().trim();
-          if (
-            normalized === "client review" ||
-            normalized === "client_review"
-          ) {
-            currentStatus = "Client Review";
-          } else if (normalized === "approved") {
-            currentStatus = "Approved";
-          } else {
-            currentStatus = "To Do"; // Default fallback
-          }
-        }
+        let currentStatus =
+          localStatusUpdates[task.id] !== undefined
+            ? localStatusUpdates[task.id]
+            : transformStatus(task.status || "Assigned");
+        const statusOptions = getEditableStatusOptionsByLabel(currentStatus);
 
         const status = currentStatus?.toLowerCase().replace(/\s+/g, "-") || "";
 
         const statusColors = {
+          assigned: {
+            bg: "bg-blue-100",
+            text: "text-blue-800",
+            border: "border-blue-400",
+          },
+          accepted: {
+            bg: "bg-teal-100",
+            text: "text-teal-800",
+            border: "border-teal-400",
+          },
           "to-do": {
             bg: "bg-blue-100",
             text: "text-blue-800",
@@ -482,15 +526,35 @@ const AssignedTasksTable = ({
             text: "text-yellow-800",
             border: "border-yellow-400",
           },
+          "on-hold": {
+            bg: "bg-orange-100",
+            text: "text-orange-800",
+            border: "border-orange-400",
+          },
+          "pending-review": {
+            bg: "bg-purple-100",
+            text: "text-purple-800",
+            border: "border-purple-400",
+          },
+          "revision-required": {
+            bg: "bg-amber-100",
+            text: "text-amber-800",
+            border: "border-amber-400",
+          },
           "internal-review": {
             bg: "bg-purple-100",
             text: "text-purple-800",
             border: "border-purple-400",
           },
+          "waiting-for-client": {
+            bg: "bg-indigo-100",
+            text: "text-indigo-800",
+            border: "border-indigo-400",
+          },
           "client-review": {
-            bg: "bg-purple-100",
-            text: "text-purple-800",
-            border: "border-purple-400",
+            bg: "bg-indigo-100",
+            text: "text-indigo-800",
+            border: "border-indigo-400",
           },
           approved: {
             bg: "bg-blue-100",

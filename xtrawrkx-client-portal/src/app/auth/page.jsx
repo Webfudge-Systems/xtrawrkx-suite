@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@iconify/react";
@@ -166,8 +166,108 @@ function OTPVerificationForm({ tempOTP, onVerify, onBack, email }) {
   );
 }
 
+function readWebsiteHandoff() {
+  if (typeof window === "undefined") return false;
+  try {
+    const p = new URLSearchParams(window.location.search);
+    return (
+      p.get("from") === "xtrawrkx-website" &&
+      (p.get("email") || "").includes("@")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function readInviteHandoff() {
+  if (typeof window === "undefined") return false;
+  try {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("from") === "invite" || p.get("switch_user") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function readHandoffIntent() {
+  if (typeof window === "undefined") return "";
+  try {
+    return (new URLSearchParams(window.location.search).get("intent") || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Survives brief navigations so post-login still lands on Communities after website handoff. */
+const POST_AUTH_LANDING_COMMUNITIES_KEY = "xtrawrkx_portal_post_auth_communities";
+/** One-shot handoff so invite credentials are not left in the address bar (also survives React Strict Mode remount). */
+const INVITE_AUTOLOGIN_STORE_KEY = "xtrawrkx_invite_autologin_once";
+
+function setPostAuthLandingCommunities() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(POST_AUTH_LANDING_COMMUNITIES_KEY, "1");
+  } catch {
+    // ignore
+  }
+}
+
+function takePostAuthLandingCommunities() {
+  if (typeof window === "undefined") return false;
+  try {
+    if (sessionStorage.getItem(POST_AUTH_LANDING_COMMUNITIES_KEY) === "1") {
+      sessionStorage.removeItem(POST_AUTH_LANDING_COMMUNITIES_KEY);
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+function clearPostAuthLandingCommunities() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(POST_AUTH_LANDING_COMMUNITIES_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Website → portal: after sign-in, land on Communities (same as join / “view your community”). */
+function getPostAuthLandingPath() {
+  if (typeof window === "undefined") return "/dashboard";
+  const intent = readHandoffIntent();
+  if (
+    intent === "complete-setup" ||
+    intent === "communities" ||
+    intent === "join"
+  ) {
+    return "/communities";
+  }
+  if (readWebsiteHandoff()) {
+    return "/communities";
+  }
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("from") === "xtrawrkx-website") {
+      return "/communities";
+    }
+  } catch {
+    // ignore
+  }
+  if (takePostAuthLandingCommunities()) {
+    return "/communities";
+  }
+  return "/dashboard";
+}
+
 export default function AuthPage() {
   const [activeForm, setActiveForm] = useState("signin");
+  const [websitePrefillEmail, setWebsitePrefillEmail] = useState("");
+  const [websiteHandoff, setWebsiteHandoff] = useState(readWebsiteHandoff);
+  const [handoffIntent, setHandoffIntent] = useState(readHandoffIntent);
+  const inviteAutoLoginAttempted = useRef(false);
   const [otpStep, setOtpStep] = useState(false);
   const [otpData, setOtpData] = useState({
     email: "",
@@ -180,14 +280,97 @@ export default function AuthPage() {
   const { signIn, checkAuth } = useAuth();
   const { data: session, status } = useSession();
 
-  // Redirect logged-in users to dashboard
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const from = params.get("from");
+    const rawEmail = params.get("email");
+    const intentRaw = (params.get("intent") || "").trim();
+    setHandoffIntent(intentRaw);
+    setWebsiteHandoff(readWebsiteHandoff());
+    if (rawEmail && rawEmail.trim()) {
+      const decoded = decodeURIComponent(rawEmail.trim());
+      setWebsitePrefillEmail(decoded);
+      if (from === "xtrawrkx-website" || from === "invite") {
+        setActiveForm("signin");
+      }
+    }
+
+    const markCommunitiesLanding =
+      from === "xtrawrkx-website" ||
+      intentRaw === "complete-setup" ||
+      intentRaw === "communities" ||
+      intentRaw === "join";
+    if (markCommunitiesLanding) {
+      setPostAuthLandingCommunities();
+    } else if (!from && !intentRaw) {
+      clearPostAuthLandingCommunities();
+    }
+  }, []);
+
+  // Capture invite email/password from URL into sessionStorage, then strip the query (password must not linger in the bar/history).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("from") !== "invite") return;
+      const rawEmail = params.get("email");
+      const rawPassword = params.get("password");
+      if (!rawEmail?.trim() || !rawPassword) return;
+      const email = decodeURIComponent(rawEmail.trim());
+      const password = decodeURIComponent(rawPassword);
+      sessionStorage.setItem(
+        INVITE_AUTOLOGIN_STORE_KEY,
+        JSON.stringify({ email, password })
+      );
+      window.history.replaceState({}, "", "/auth?from=invite");
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || inviteAutoLoginAttempted.current) return;
+    let payload = null;
+    try {
+      const raw = sessionStorage.getItem(INVITE_AUTOLOGIN_STORE_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(INVITE_AUTOLOGIN_STORE_KEY);
+      payload = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!payload?.email || !payload?.password) return;
+    inviteAutoLoginAttempted.current = true;
+    (async () => {
+      try {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("client_token");
+        localStorage.removeItem("client_account");
+        localStorage.removeItem("client_contacts");
+        localStorage.removeItem("demo_user");
+        await signIn(payload.email, payload.password);
+        router.push(getPostAuthLandingPath());
+      } catch (e) {
+        console.error("Invite auto sign-in failed:", e);
+        inviteAutoLoginAttempted.current = false;
+        alert(
+          "Could not sign in from this link. Use your email and temporary password on this page."
+        );
+        setWebsitePrefillEmail(payload.email);
+        setActiveForm("signin");
+      }
+    })();
+  }, [signIn, router]);
+
+  // Redirect logged-in users away from /auth (website handoff → Communities)
   useEffect(() => {
     if (status === "loading") {
       return;
     }
 
-    if (status === "authenticated" && session?.user) {
-      router.push("/dashboard");
+    if (status === "authenticated" && session?.user && !readInviteHandoff()) {
+      router.push(getPostAuthLandingPath());
     }
   }, [status, session, router]);
 
@@ -245,7 +428,7 @@ export default function AuthPage() {
   const handleSignIn = async (formData) => {
     try {
       await signIn(formData.email, formData.password);
-      router.push("/dashboard");
+      router.push(getPostAuthLandingPath());
     } catch (error) {
       console.error("Sign in error:", error);
       alert("Login failed. Please check your credentials.");
@@ -283,7 +466,7 @@ export default function AuthPage() {
 
       if (response.success && response.token) {
         await checkAuth();
-        window.location.href = "/dashboard";
+        window.location.href = getPostAuthLandingPath();
       } else {
         throw new Error(response.message || "Verification failed");
       }
@@ -314,8 +497,9 @@ export default function AuthPage() {
     );
   }
 
-  // If user is authenticated, don't show auth page (redirect is handled in useEffect)
-  if (status === "authenticated") {
+  // If user is authenticated, don't show auth page (redirect is handled in useEffect).
+  // Website handoff: always show sign-in so the correct account can log in (tokens cleared in checkAuth).
+  if (status === "authenticated" && !websiteHandoff) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -515,6 +699,18 @@ export default function AuthPage() {
           transition={{ delay: 0.4, duration: 0.8 }}
         >
           <div className="max-w-md lg:max-w-2xl w-full px-2 sm:px-4">
+            {websiteHandoff && handoffIntent === "complete-setup" ? (
+              <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
+                <p className="font-semibold text-amber-900">
+                  Finish client portal setup
+                </p>
+                <p className="mt-1.5 leading-relaxed text-amber-900/85">
+                  Your website account is linked. Sign in with the same email
+                  and password you use on the xtrawrkx site. After sign-in you can
+                  continue onboarding and join communities.
+                </p>
+              </div>
+            ) : null}
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeForm}
@@ -528,6 +724,7 @@ export default function AuthPage() {
               >
                 {activeForm === "signin" && (
                   <SignInForm
+                    initialEmail={websitePrefillEmail}
                     onForgotPassword={() => setActiveForm("forgot-password")}
                     onSignUp={() => setActiveForm("signup")}
                     onSubmit={handleSignIn}

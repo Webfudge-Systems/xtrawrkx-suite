@@ -230,7 +230,9 @@ module.exports = createCoreController('api::lead-company.lead-company', ({ strap
                 conversionDate: new Date(),
                 healthScore: leadCompany.healthScore,
                 accountManager: leadCompany.assignedTo?.id,
-                convertedFromLead: leadCompany.id
+                convertedFromLead: leadCompany.id,
+                source: 'MANUAL',
+                status: 'COMMUNITY_MEMBER'
             };
 
             const clientAccount = await strapi.entityService.create('api::client-account.client-account', {

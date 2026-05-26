@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AuthCard from "./AuthCard";
 import AuthInput from "./AuthInput";
 import AuthButton from "./AuthButton";
@@ -10,12 +10,22 @@ export default function SignInForm({
   onForgotPassword,
   onSignUp,
   onSubmit,
+  initialEmail = "",
   className = "",
 }) {
   const [formData, setFormData] = useState({
-    email: "",
+    email: typeof initialEmail === "string" ? initialEmail.trim() : "",
     password: "",
   });
+
+  useEffect(() => {
+    if (typeof initialEmail === "string" && initialEmail.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        email: initialEmail.trim(),
+      }));
+    }
+  }, [initialEmail]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -43,8 +53,6 @@ export default function SignInForm({
     const newErrors = {};
     if (!formData.email) {
       newErrors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Email is invalid";
     }
     if (!formData.password) {
       newErrors.password = "Password is required";
@@ -84,7 +92,7 @@ export default function SignInForm({
 
           <div className="grid grid-cols-1 gap-6">
             <AuthInput
-              type="email"
+              type="text"
               name="email"
               label="Email Address"
               placeholder="Enter your email"

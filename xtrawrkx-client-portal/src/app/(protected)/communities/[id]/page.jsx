@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams, notFound } from "next/navigation";
 import {
   ArrowLeft,
   Users,
@@ -21,40 +21,15 @@ import {
 } from "lucide-react";
 import { ModernButton } from "../../../../components/ui";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
+import CommunityJoinRequirementsModal from "@/components/communities/CommunityJoinRequirementsModal";
+import { getCommunityById, avatarClassFor } from "@/data/communitiesCatalog";
+import { listActiveMembershipsForClient } from "@/lib/api/communityProgramService";
+import { strapiClient } from "@/lib/strapiClient";
+import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
+import { CommunityChannelChat } from "@/components/chat/CommunityChannelChat";
 
-// Mock data for community detail
-const communityData = {
-  id: 1,
-  name: "XEN",
-  fullName: "XEN Entrepreneurs Network",
-  category: "Business Division",
-  description:
-    "Early-stage startup community focused on innovation and growth. We provide mentorship, networking opportunities, and resources to help entrepreneurs build successful businesses.",
-  members: 1247,
-  tier: "Premium",
-  status: "Active",
-  tags: ["Startup Support", "Networking", "Mentorship", "Innovation"],
-  logo: "/images/logos/xen-logo.png",
-  color: "blue-500",
-  isMember: true,
-  userTier: "x3",
-  userTierName: "Growth Member",
-  canUpgrade: true,
-  nextTier: "x4",
-  nextTierName: "Scale Member",
-  monthlyEvents: 8,
-  activeDiscussions: 23,
-  successStories: 156,
-  joinDate: "2024-01-15",
-  memberSince: "3 months",
-  benefits: [
-    "Weekly networking events",
-    "1-on-1 mentorship sessions",
-    "Pitch deck reviews",
-    "Co-founder matching",
-    "Access to investor network",
-    "Business plan templates",
-  ],
+/** Rich sections — sample content until wired to Strapi events/resources APIs. */
+const DETAIL_TEMPLATE = {
   upcomingEvents: [
     {
       id: 1,
@@ -167,8 +142,158 @@ const communityData = {
   ],
 };
 
+/**
+ * Same visual system as dashboard stats (`dashboard/page.jsx`):
+ * glass card, title + font-black value, dot + change row, tinted icon tile.
+ */
+function CommunityKpiCard({
+  title,
+  value,
+  change,
+  changeType = "increase",
+  icon: IconComponent,
+  configIndex,
+}) {
+  const statConfig = [
+    {
+      color: "bg-xtrawrkx-50",
+      borderColor: "border-xtrawrkx-200",
+      iconColor: "text-xtrawrkx-600",
+      dotColor: "bg-xtrawrkx-500",
+    },
+    {
+      color: "bg-green-50",
+      borderColor: "border-green-200",
+      iconColor: "text-green-600",
+      dotColor: "bg-green-500",
+    },
+    {
+      color: "bg-purple-50",
+      borderColor: "border-purple-200",
+      iconColor: "text-purple-600",
+      dotColor: "bg-purple-500",
+    },
+    {
+      color: "bg-orange-50",
+      borderColor: "border-orange-200",
+      iconColor: "text-orange-600",
+      dotColor: "bg-orange-500",
+    },
+  ];
+
+  const config = statConfig[configIndex % statConfig.length];
+
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="mb-1 text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-3xl font-black text-gray-800">{value}</p>
+          <div className="mt-2 flex flex-wrap items-center text-xs text-gray-500">
+            <span
+              className={`mr-2 h-2 w-2 shrink-0 rounded-full ${config.dotColor}`}
+            />
+            <span
+              className={
+                changeType === "increase"
+                  ? "font-medium text-green-600"
+                  : "font-medium text-red-600"
+              }
+            >
+              {change}
+            </span>
+            {change !== "0" && (
+              <span className="ml-1">this period</span>
+            )}
+          </div>
+        </div>
+        <div
+          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border ${config.color} ${config.borderColor} shadow-lg backdrop-blur-md`}
+        >
+          <IconComponent className={`h-8 w-8 ${config.iconColor}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CommunityDetailPage() {
+  const params = useParams();
+  const id = Number(params?.id);
+
+  const base = useMemo(() => {
+    if (!Number.isFinite(id)) return null;
+    return getCommunityById(id);
+  }, [id]);
+
   const [activeTab, setActiveTab] = useState("overview");
+  const [isMember, setIsMember] = useState(false);
+  const [clientAccountId, setClientAccountId] = useState(null);
+  const [accountDefaults, setAccountDefaults] = useState({});
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const accId = strapiClient.getCurrentAccountId();
+      if (!cancelled) setClientAccountId(accId);
+
+      if (typeof window !== "undefined" && accId) {
+        const raw = localStorage.getItem("client_account");
+        if (raw) {
+          try {
+            const acc = JSON.parse(raw);
+            const attrs = acc.attributes || acc;
+            if (!cancelled) {
+              setAccountDefaults({
+                company:
+                  resolveClientAccountCompanyName(acc) ||
+                  resolveClientAccountCompanyName(attrs),
+                jobTitle: attrs.jobTitle || acc.jobTitle || "",
+                phone: attrs.phone || acc.phone || "",
+              });
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      if (!accId || !base) return;
+
+      const list = await listActiveMembershipsForClient(accId);
+      if (cancelled) return;
+      setIsMember(list.some((m) => m.community === base.strapiEnum));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [base]);
+
+  const communityData = useMemo(() => {
+    if (!base) return null;
+    return {
+      ...DETAIL_TEMPLATE,
+      ...base,
+      description: `${base.description}. Connect with peers, join events, and access resources tailored to this vertical.`,
+      tags:
+        base.tags.length >= 4 ? base.tags : [...base.tags, "Innovation"],
+      isMember,
+      userTierName: isMember
+        ? base.userTierName || "Member"
+        : "Guest",
+      canUpgrade: isMember && Boolean(base.canUpgrade),
+      memberSince: isMember ? "Active" : "—",
+    };
+  }, [base, isMember]);
+
+  if (!base || !communityData) {
+    notFound();
+  }
+
+  const headAvatarClass = avatarClassFor(communityData.color);
 
   const tabs = [
     { id: "overview", label: "Overview", icon: Target },
@@ -178,198 +303,162 @@ export default function CommunityDetailPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-4">
-                <Link href="/communities">
-                  <ModernButton
-                    type="secondary"
-                    size="sm"
-                    text="Back to Communities"
-                    icon={ArrowLeft}
-                  />
-                </Link>
-                <div className="flex items-center space-x-4">
-                  <div
-                    className={`w-16 h-16 bg-${communityData.color} rounded-xl flex items-center justify-center`}
-                  >
-                    <span className="text-white font-bold text-2xl">
-                      {communityData.name.charAt(0)}
-                    </span>
-                  </div>
-                  <div>
-                    <h1 className="text-3xl font-bold text-gray-900">
-                      {communityData.name}
-                    </h1>
-                    <p className="text-gray-600">{communityData.fullName}</p>
-                  </div>
+    <div className="min-h-screen bg-slate-50/90">
+      {/* Header — title & actions */}
+      <div className="border-b border-gray-200/80 bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-6 py-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <Link href="/communities" className="shrink-0">
+                <ModernButton
+                  type="secondary"
+                  size="sm"
+                  text="Back to Communities"
+                  icon={ArrowLeft}
+                />
+              </Link>
+              <div className="flex items-center gap-4">
+                <div
+                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg shadow-gray-900/10 ${headAvatarClass}`}
+                >
+                  <span className="text-2xl font-bold text-white">
+                    {communityData.name.charAt(0)}
+                  </span>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+                    {communityData.name}
+                  </h1>
+                  <p className="mt-0.5 text-sm text-gray-600 sm:text-base">
+                    {communityData.fullName}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center space-x-3">
-                <ModernButton
-                  type="secondary"
-                  size="sm"
-                  text="Notifications"
-                  icon={Bell}
-                />
-                <ModernButton
-                  type="secondary"
-                  size="sm"
-                  text="Share"
-                  icon={Share2}
-                />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!communityData.isMember ? (
                 <ModernButton
                   type="gradient"
                   size="sm"
-                  text="Create Post"
+                  text="Join community"
                   icon={Plus}
+                  onClick={() => setJoinModalOpen(true)}
                 />
-              </div>
-            </div>
-
-            {/* Community Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200"
-              >
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                    <Users className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-blue-600">
-                      Total Members
-                    </p>
-                    <p className="text-2xl font-bold text-blue-900">
-                      {communityData.members.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6 border border-green-200"
-              >
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-green-600">
-                      Events This Month
-                    </p>
-                    <p className="text-2xl font-bold text-green-900">
-                      {communityData.monthlyEvents}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200"
-              >
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                    <MessageCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-purple-600">
-                      Active Discussions
-                    </p>
-                    <p className="text-2xl font-bold text-purple-900">
-                      {communityData.activeDiscussions}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200"
-              >
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
-                    <Award className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-orange-600">
-                      Success Stories
-                    </p>
-                    <p className="text-2xl font-bold text-orange-900">
-                      {communityData.successStories}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
+              ) : null}
+              <ModernButton
+                type="secondary"
+                size="sm"
+                text="Notifications"
+                icon={Bell}
+              />
+              <ModernButton
+                type="secondary"
+                size="sm"
+                text="Share"
+                icon={Share2}
+              />
+              <ModernButton
+                type="gradient"
+                size="sm"
+                text="Create Post"
+                icon={Plus}
+              />
             </div>
           </div>
         </div>
       </div>
 
+      {/* KPIs — match dashboard stats grid */}
+      <div className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-7xl space-y-4 p-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <CommunityKpiCard
+              title="Total members"
+              value={communityData.members.toLocaleString()}
+              change="All active members"
+              changeType="increase"
+              icon={Users}
+              configIndex={0}
+            />
+            <CommunityKpiCard
+              title="Events this month"
+              value={String(communityData.monthlyEvents)}
+              change="Scheduled in calendar"
+              changeType="increase"
+              icon={Calendar}
+              configIndex={1}
+            />
+            <CommunityKpiCard
+              title="Active discussions"
+              value={String(communityData.activeDiscussions)}
+              change="Open conversations"
+              changeType="increase"
+              icon={MessageCircle}
+              configIndex={2}
+            />
+            <CommunityKpiCard
+              title="Success stories"
+              value={Number(
+                communityData.successStoriesCount || 0
+              ).toLocaleString()}
+              change="Community highlights"
+              changeType="increase"
+              icon={Award}
+              configIndex={3}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-8">
-              <div className="text-center mb-6">
+            <div className="sticky top-8 overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm ring-1 ring-gray-100">
+              <div className="mb-6 text-center">
                 <div
-                  className={`w-20 h-20 bg-${communityData.color} rounded-xl flex items-center justify-center mx-auto mb-4`}
+                  className={`mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl shadow-md ${headAvatarClass}`}
                 >
-                  <span className="text-white font-bold text-3xl">
+                  <span className="text-3xl font-bold text-white">
                     {communityData.name.charAt(0)}
                   </span>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900">
                   {communityData.name}
                 </h3>
-                <p className="text-sm text-gray-600">
-                  {communityData.category}
-                </p>
-                <div className="mt-3">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                    <CheckCircle className="w-4 h-4 mr-1" />
+                <p className="text-sm text-gray-500">{communityData.category}</p>
+                <div className="mt-4">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200/60">
+                    <CheckCircle className="h-3.5 w-3.5" />
                     {communityData.userTierName}
                   </span>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Member since</span>
-                  <span className="font-medium">
+              <dl className="space-y-0 divide-y divide-gray-100 rounded-xl bg-slate-50/50 px-3 py-1">
+                <div className="flex items-center justify-between gap-3 py-3 text-sm">
+                  <dt className="text-gray-500">Member since</dt>
+                  <dd className="font-medium text-gray-900">
                     {communityData.memberSince}
-                  </span>
+                  </dd>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Tier</span>
-                  <span className="font-medium">{communityData.tier}</span>
+                <div className="flex items-center justify-between gap-3 py-3 text-sm">
+                  <dt className="text-gray-500">Tier</dt>
+                  <dd className="font-medium text-gray-900">
+                    {communityData.tier}
+                  </dd>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Status</span>
-                  <span className="font-medium text-green-600">
+                <div className="flex items-center justify-between gap-3 py-3 text-sm">
+                  <dt className="text-gray-500">Status</dt>
+                  <dd className="font-semibold text-emerald-600">
                     {communityData.status}
-                  </span>
+                  </dd>
                 </div>
-              </div>
+              </dl>
 
               {communityData.canUpgrade && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="mt-6 border-t border-gray-100 pt-6">
                   <ModernButton
                     type="gradient"
                     size="sm"
@@ -379,17 +468,17 @@ export default function CommunityDetailPage() {
                 </div>
               )}
 
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">
+              <div className="mt-6 border-t border-gray-100 pt-6">
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Benefits
                 </h4>
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {communityData.benefits.map((benefit, index) => (
                     <li
                       key={index}
-                      className="flex items-center text-sm text-gray-600"
+                      className="flex gap-2.5 text-sm leading-snug text-gray-600"
                     >
-                      <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                      <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                       {benefit}
                     </li>
                   ))}
@@ -400,23 +489,29 @@ export default function CommunityDetailPage() {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
-            {/* Tabs */}
-            <div className="bg-white rounded-xl border border-gray-200 mb-6">
-              <div className="border-b border-gray-200">
-                <nav className="flex space-x-8 px-6">
+            <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm ring-1 ring-gray-100">
+              <div className="p-4 sm:p-5">
+                <nav
+                  className="flex flex-wrap gap-3"
+                  aria-label="Community sections"
+                >
                   {tabs.map((tab) => {
                     const IconComponent = tab.icon;
+                    const isActive = activeTab === tab.id;
                     return (
                       <button
                         key={tab.id}
+                        type="button"
                         onClick={() => setActiveTab(tab.id)}
-                        className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
-                          activeTab === tab.id
-                            ? "border-purple-500 text-purple-600"
-                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                        className={`flex min-w-[7.5rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-white/30 bg-gradient-to-br from-white/70 to-white/40 px-4 py-3 text-sm font-semibold shadow-xl backdrop-blur-xl transition-all duration-300 sm:flex-initial sm:justify-start ${
+                          isActive
+                            ? "text-gray-900 ring-2 ring-xtrawrkx-400/45 shadow-2xl"
+                            : "text-gray-600 hover:text-gray-900 hover:shadow-2xl"
                         }`}
                       >
-                        <IconComponent className="w-4 h-4 mr-2" />
+                        <IconComponent
+                          className={`h-4 w-4 shrink-0 ${isActive ? "text-xtrawrkx-500" : "text-gray-400"}`}
+                        />
                         {tab.label}
                       </button>
                     );
@@ -424,78 +519,80 @@ export default function CommunityDetailPage() {
                 </nav>
               </div>
 
-              <div className="p-6">
+              <div className="border-t border-gray-100 px-5 py-6 sm:px-7 sm:py-8">
                 {activeTab === "overview" && (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  <div className="space-y-8">
+                    <section className="rounded-2xl border border-gray-100 bg-gradient-to-br from-slate-50/80 to-white p-6 sm:p-7">
+                      <h3 className="text-base font-semibold text-gray-900">
                         About {communityData.name}
                       </h3>
-                      <p className="text-gray-600 leading-relaxed">
+                      <p className="mt-3 text-[15px] leading-relaxed text-gray-600">
                         {communityData.description}
                       </p>
-                    </div>
+                    </section>
 
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                    <section>
+                      <h3 className="mb-3 text-base font-semibold text-gray-900">
                         Tags
                       </h3>
                       <div className="flex flex-wrap gap-2">
                         {communityData.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
+                            className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm"
                           >
                             {tag}
                           </span>
                         ))}
                       </div>
-                    </div>
+                    </section>
 
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                        Recent Success Stories
+                    <section>
+                      <h3 className="mb-4 text-base font-semibold text-gray-900">
+                        Recent success stories
                       </h3>
                       <div className="space-y-4">
                         {communityData.successStories.map((story) => (
-                          <div
+                          <article
                             key={story.id}
-                            className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                            className="group relative overflow-hidden rounded-2xl border border-white/30 bg-gradient-to-br from-white/70 to-white/40 p-5 shadow-xl backdrop-blur-xl transition-all duration-300 hover:shadow-2xl"
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h4 className="font-medium text-gray-900 mb-1">
+                            <div className="sm:flex sm:items-start sm:justify-between sm:gap-6">
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-semibold text-gray-900 group-hover:text-gray-950">
                                   {story.title}
                                 </h4>
-                                <p className="text-sm text-gray-600 mb-2">
+                                <p className="mt-1.5 text-sm leading-relaxed text-gray-600">
                                   {story.description}
                                 </p>
-                                <div className="flex items-center text-xs text-gray-500">
-                                  <span>By {story.author}</span>
-                                  <span className="mx-2">•</span>
-                                  <span>{story.company}</span>
-                                  <span className="mx-2">•</span>
-                                  <span>{story.readTime}</span>
-                                </div>
+                                <p className="mt-3 text-xs text-gray-500">
+                                  By {story.author}
+                                  <span className="mx-2 text-gray-300">·</span>
+                                  {story.company}
+                                  <span className="mx-2 text-gray-300">·</span>
+                                  {story.readTime}
+                                </p>
                               </div>
-                              <ModernButton
-                                type="secondary"
-                                size="sm"
-                                text="Read"
-                              />
+                              <div className="mt-4 shrink-0 sm:mt-0">
+                                <ModernButton
+                                  type="secondary"
+                                  size="sm"
+                                  text="Read"
+                                />
+                              </div>
                             </div>
-                          </div>
+                          </article>
                         ))}
                       </div>
-                    </div>
+                    </section>
                   </div>
                 )}
 
                 {activeTab === "events" && (
                   <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Upcoming Events
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="text-base font-semibold text-gray-900">
+                        Upcoming events
                       </h3>
                       <ModernButton
                         type="gradient"
@@ -505,11 +602,11 @@ export default function CommunityDetailPage() {
                       />
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {communityData.upcomingEvents.map((event) => (
                         <div
                           key={event.id}
-                          className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                          className="rounded-2xl border border-gray-200/90 bg-white p-6 shadow-sm transition hover:border-gray-300 hover:shadow-md"
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
@@ -517,7 +614,7 @@ export default function CommunityDetailPage() {
                                 <h4 className="font-semibold text-gray-900">
                                   {event.title}
                                 </h4>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                <span className="inline-flex items-center rounded-lg bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-800 ring-1 ring-sky-100">
                                   {event.type}
                                 </span>
                               </div>
@@ -559,66 +656,33 @@ export default function CommunityDetailPage() {
                 )}
 
                 {activeTab === "discussions" && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Recent Discussions
-                      </h3>
-                      <ModernButton
-                        type="gradient"
-                        size="sm"
-                        text="Start Discussion"
-                        icon={Plus}
+                  <div className="space-y-4">
+                    {isMember ? (
+                      <CommunityChannelChat
+                        clientAccountId={clientAccountId}
+                        communityCatalogId={base?.id}
+                        title={`${base?.fullName || base?.name || "Community"} discussion`}
                       />
-                    </div>
-
-                    <div className="space-y-4">
-                      {communityData.recentDiscussions.map((discussion) => (
-                        <div
-                          key={discussion.id}
-                          className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                        >
-                          <div className="flex items-start space-x-3">
-                            <Avatar className="w-10 h-10">
-                              <AvatarImage src={discussion.authorAvatar} />
-                              <AvatarFallback>
-                                {discussion.author.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <h4 className="font-medium text-gray-900">
-                                  {discussion.title}
-                                </h4>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                  {discussion.category}
-                                </span>
-                              </div>
-                              <div className="flex items-center text-sm text-gray-500">
-                                <span>By {discussion.author}</span>
-                                <span className="mx-2">•</span>
-                                <span>{discussion.replies} replies</span>
-                                <span className="mx-2">•</span>
-                                <span>{discussion.lastActivity}</span>
-                              </div>
-                            </div>
-                            <ModernButton
-                              type="secondary"
-                              size="sm"
-                              text="View"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/80 p-8 text-center">
+                        <MessageCircle className="mx-auto mb-3 h-10 w-10 text-gray-400" />
+                        <p className="text-sm font-medium text-gray-800">
+                          Join this community to use the live discussion chat.
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Messages are shared with the Xtrawrkx team and other
+                          members in this program.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {activeTab === "resources" && (
                   <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Community Resources
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="text-base font-semibold text-gray-900">
+                        Community resources
                       </h3>
                       <ModernButton
                         type="gradient"
@@ -628,16 +692,16 @@ export default function CommunityDetailPage() {
                       />
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {communityData.resources.map((resource) => (
                         <div
                           key={resource.id}
-                          className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                          className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md"
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-4">
-                              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <FileText className="w-6 h-6 text-gray-600" />
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 ring-1 ring-slate-200/80">
+                                <FileText className="h-6 w-6 text-slate-600" />
                               </div>
                               <div>
                                 <h4 className="font-medium text-gray-900">
@@ -655,7 +719,7 @@ export default function CommunityDetailPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center space-x-2">
+                            <div className="flex shrink-0 items-center gap-2 sm:justify-end">
                               <ModernButton
                                 type="secondary"
                                 size="sm"
@@ -674,6 +738,18 @@ export default function CommunityDetailPage() {
           </div>
         </div>
       </div>
+
+      <CommunityJoinRequirementsModal
+        isOpen={joinModalOpen}
+        onClose={() => setJoinModalOpen(false)}
+        community={base}
+        clientAccountId={clientAccountId}
+        accountDefaults={accountDefaults}
+        onSuccess={() => {
+          setIsMember(true);
+          setJoinModalOpen(false);
+        }}
+      />
     </div>
   );
 }

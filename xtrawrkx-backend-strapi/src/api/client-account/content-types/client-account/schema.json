@@ -107,7 +107,13 @@
                 "ACTIVE",
                 "INACTIVE",
                 "CHURNED",
-                "ON_HOLD"
+                "ON_HOLD",
+                "REGISTERED",
+                "COMMUNITY_MEMBER",
+                "COMMUNITY_PAID",
+                "COMMUNITY_NON_PAID",
+                "LOST",
+                "STOPPED"
             ],
             "default": "ACTIVE"
         },
@@ -128,6 +134,12 @@
             "relation": "oneToMany",
             "target": "api::chat-message.chat-message",
             "mappedBy": "clientAccount"
+        },
+        "portalAuthoredChatMessages": {
+            "type": "relation",
+            "relation": "oneToMany",
+            "target": "api::chat-message.chat-message",
+            "mappedBy": "authorClientAccount"
         },
         "tasks": {
             "type": "relation",
@@ -153,6 +165,12 @@
             "target": "api::invoice.invoice",
             "mappedBy": "clientAccount"
         },
+        "portalDocuments": {
+            "type": "relation",
+            "relation": "oneToMany",
+            "target": "api::client-portal-document.client-portal-document",
+            "mappedBy": "clientAccount"
+        },
         "proposals": {
             "type": "relation",
             "relation": "oneToMany",
@@ -168,7 +186,25 @@
         "accountManager": {
             "type": "relation",
             "relation": "manyToOne",
+            "target": "api::xtrawrkx-user.xtrawrkx-user",
+            "description": "Dedicated POC (Point of Contact) assigned to this client"
+        },
+        "pocAssignedAt": {
+            "type": "datetime"
+        },
+        "pocAssignedBy": {
+            "type": "relation",
+            "relation": "manyToOne",
             "target": "api::xtrawrkx-user.xtrawrkx-user"
+        },
+        "pocAssignmentStatus": {
+            "type": "enumeration",
+            "enum": [
+                "UNASSIGNED",
+                "ASSIGNED",
+                "PENDING"
+            ],
+            "default": "UNASSIGNED"
         },
         "password": {
             "type": "password",
@@ -228,6 +264,9 @@
             "relation": "oneToMany",
             "target": "api::community-membership.community-membership",
             "mappedBy": "clientAccount"
+        },
+        "companyRoles": {
+            "type": "json"
         }
     }
 }

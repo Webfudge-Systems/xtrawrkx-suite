@@ -14,41 +14,13 @@ import { Button } from "@/components/ui/Button";
 import { ChatWindow } from "./ChatWindow";
 import { useChat } from "@/components/providers/ChatProvider";
 
-// Mock data for quick access conversations
-const quickConversations = [
-  {
-    id: 1,
-    name: "Gabriel Matuła",
-    role: "Project Manager",
-    lastMessage: "Thanks for the feedback on the designs!",
-    time: "2 min ago",
-    unread: 3,
-    avatar:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face",
-    isOnline: true,
-    isPinned: true,
-  },
-  {
-    id: 2,
-    name: "Support Team",
-    role: "Customer Support",
-    lastMessage: "Your issue has been resolved",
-    time: "1 day ago",
-    unread: 0,
-    avatar:
-      "https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?w=40&h=40&fit=crop&crop=face",
-    isOnline: true,
-    isPinned: true,
-  },
-];
-
 export function FloatingChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState(null);
 
   // Use chat context for unread count and send message
-  const { unreadCount, sendMessage } = useChat();
+  const { unreadCount, sendMessage, conversations, markAsRead } = useChat();
 
   // Handle conversation selection
   const handleConversationSelect = (conversation) => {
@@ -71,11 +43,10 @@ export function FloatingChatWidget() {
 
   // Handle quick chat with team
   const handleQuickChat = () => {
-    const teamConversation = quickConversations.find(
-      (conv) => conv.name === "Support Team"
-    );
-    if (teamConversation) {
-      handleConversationSelect(teamConversation);
+    const support = conversations.find((c) => c.id === "support");
+    if (support) {
+      markAsRead(support.id);
+      handleConversationSelect(support);
     }
   };
 
@@ -190,12 +161,13 @@ export function FloatingChatWidget() {
                         Start a conversation
                       </h4>
                       <div className="space-y-3">
-                        {quickConversations.map((conversation) => (
+                        {conversations.map((conversation) => (
                           <button
                             key={conversation.id}
-                            onClick={() =>
-                              handleConversationSelect(conversation)
-                            }
+                            onClick={() => {
+                              markAsRead(conversation.id);
+                              handleConversationSelect(conversation);
+                            }}
                             className="w-full flex items-center space-x-4 p-4 rounded-xl hover:bg-white/50 hover:shadow-md transition-all duration-200 text-left group"
                           >
                             <div className="relative">

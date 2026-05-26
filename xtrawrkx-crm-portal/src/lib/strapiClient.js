@@ -19,11 +19,18 @@ class StrapiClient {
 
     /**
      * Get authentication token
+     * CRM login stores JWT in `xtrawrkx-authToken` (see authService); legacy paths use `strapi_token`.
+     * Chat and other /api/* calls require this token for routes protected by authenticate middleware.
      */
     getToken() {
-        if (this.token) return this.token;
         if (typeof window !== 'undefined') {
-            this.token = localStorage.getItem('strapi_token');
+            const t =
+                localStorage.getItem('strapi_token') ||
+                localStorage.getItem('xtrawrkx-authToken') ||
+                localStorage.getItem('fluxx-authToken') ||
+                localStorage.getItem('auth_token');
+            this.token = t || null;
+            return t || null;
         }
         return this.token;
     }
@@ -35,6 +42,9 @@ class StrapiClient {
         this.token = null;
         if (typeof window !== 'undefined') {
             localStorage.removeItem('strapi_token');
+            localStorage.removeItem('xtrawrkx-authToken');
+            localStorage.removeItem('fluxx-authToken');
+            localStorage.removeItem('auth_token');
         }
     }
 
@@ -335,6 +345,27 @@ class StrapiClient {
 
     async deleteInvoice(id) {
         return this.delete(`/invoices/${id}`);
+    }
+
+    // Client portal documents API
+    async getClientPortalDocuments(params = {}) {
+        return this.get('/client-portal-documents', params);
+    }
+
+    async getClientPortalDocument(id, params = {}) {
+        return this.get(`/client-portal-documents/${id}`, params);
+    }
+
+    async createClientPortalDocument(data) {
+        return this.post('/client-portal-documents', { data });
+    }
+
+    async updateClientPortalDocument(id, data) {
+        return this.put(`/client-portal-documents/${id}`, { data });
+    }
+
+    async deleteClientPortalDocument(id) {
+        return this.delete(`/client-portal-documents/${id}`);
     }
 
     // Proposals API

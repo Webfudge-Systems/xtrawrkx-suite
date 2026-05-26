@@ -1,44 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   User,
-  Mail,
-  Phone,
-  Calendar,
   CreditCard,
-  CheckCircle,
-  Edit,
-  Save,
-  X,
   AlertCircle,
-  MapPin,
-  Clock,
-  Ticket,
   Shield,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
-import ModernButton from "@/components/ui/ModernButton";
 
-export default function RegistrationDetails({ event, onEdit }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedDetails, setEditedDetails] = useState(
-    event.registrationDetails || {}
-  );
-
-  const handleSave = () => {
-    // Here you would typically save the changes to your backend
-    setIsEditing(false);
-    // You might want to show a success message here
-  };
-
-  const handleCancel = () => {
-    setEditedDetails(event.registrationDetails);
-    setIsEditing(false);
-  };
+export default function RegistrationDetails({ event }) {
+  const editedDetails = event.registrationDetails || {};
 
   const getPaymentStatusColor = (status) => {
     switch (status) {
@@ -76,17 +48,19 @@ export default function RegistrationDetails({ event, onEdit }) {
             Not Registered
           </h3>
           <p className="text-gray-500 mb-6">
-            You haven't registered for this event yet. Click "Register Now" to
-            secure your spot.
+            You haven&apos;t registered for this event yet. Register on the
+            xtrawrkx website to secure your spot.
           </p>
-          <ModernButton
-            type="primary"
-            size="md"
-            text="Register Now"
-            onClick={() => {
-            }}
-            className="w-full"
-          />
+          {event.websiteUrl && (
+            <a
+              href={`${event.websiteUrl}/register`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-xtrawrkx-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-xtrawrkx-700 w-full"
+            >
+              Register Now
+            </a>
+          )}
         </div>
       </motion.div>
     );
@@ -100,257 +74,96 @@ export default function RegistrationDetails({ event, onEdit }) {
     >
       <div className="space-y-4">
         {/* Registration Status */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-xl bg-green-50 border border-green-200 px-4 py-3">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-green-600" />
-            <span className="font-medium text-gray-900">
+            <span className="font-medium text-green-900">
               Registration Status
             </span>
           </div>
-          <Badge className="bg-green-100 text-green-800">
+          <Badge className="bg-green-100 text-green-800 capitalize">
             {event.registrationStatus}
           </Badge>
         </div>
 
         {/* Registration ID */}
-        <div className="bg-gray-50 rounded-lg p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Registration ID</span>
-            <span className="text-sm font-mono font-medium text-gray-900">
-              {editedDetails.registrationId}
-            </span>
-          </div>
-        </div>
-
-        {/* Personal Information */}
-        <div className="space-y-3">
-          <h4 className="font-medium text-gray-900 flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Personal Information
-          </h4>
-
-          <div className="space-y-2">
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide">
-                Full Name
-              </label>
-              {isEditing ? (
-                <Input
-                  value={editedDetails.attendeeName}
-                  onChange={(e) =>
-                    setEditedDetails({
-                      ...editedDetails,
-                      attendeeName: e.target.value,
-                    })
-                  }
-                  className="mt-1"
-                />
-              ) : (
-                <p className="text-sm text-gray-900 mt-1">
-                  {editedDetails.attendeeName}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide">
-                Email Address
-              </label>
-              {isEditing ? (
-                <Input
-                  type="email"
-                  value={editedDetails.email}
-                  onChange={(e) =>
-                    setEditedDetails({
-                      ...editedDetails,
-                      email: e.target.value,
-                    })
-                  }
-                  className="mt-1"
-                />
-              ) : (
-                <p className="text-sm text-gray-900 mt-1 flex items-center gap-2">
-                  <Mail className="h-3 w-3 text-gray-400" />
-                  {editedDetails.email}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide">
-                Phone Number
-              </label>
-              {isEditing ? (
-                <Input
-                  type="tel"
-                  value={editedDetails.phone}
-                  onChange={(e) =>
-                    setEditedDetails({
-                      ...editedDetails,
-                      phone: e.target.value,
-                    })
-                  }
-                  className="mt-1"
-                />
-              ) : (
-                <p className="text-sm text-gray-900 mt-1 flex items-center gap-2">
-                  <Phone className="h-3 w-3 text-gray-400" />
-                  {editedDetails.phone}
-                </p>
-              )}
+        {editedDetails.registrationId && (
+          <div className="bg-gray-50 rounded-lg p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-gray-500">Registration ID</span>
+              <span className="text-xs font-mono font-medium text-gray-900 break-all">
+                {editedDetails.registrationId}
+              </span>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Event Preferences */}
-        <div className="space-y-3">
-          <h4 className="font-medium text-gray-900 flex items-center gap-2">
-            <Ticket className="h-4 w-4" />
-            Event Preferences
-          </h4>
-
-          <div className="space-y-2">
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide">
-                Dietary Requirements
-              </label>
-              {isEditing ? (
-                <Input
-                  value={editedDetails.dietaryRequirements}
-                  onChange={(e) =>
-                    setEditedDetails({
-                      ...editedDetails,
-                      dietaryRequirements: e.target.value,
-                    })
-                  }
-                  className="mt-1"
-                />
-              ) : (
-                <p className="text-sm text-gray-900 mt-1">
-                  {editedDetails.dietaryRequirements}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide">
-                Special Requests
-              </label>
-              {isEditing ? (
-                <Input
-                  value={editedDetails.specialRequests}
-                  onChange={(e) =>
-                    setEditedDetails({
-                      ...editedDetails,
-                      specialRequests: e.target.value,
-                    })
-                  }
-                  className="mt-1"
-                />
-              ) : (
-                <p className="text-sm text-gray-900 mt-1">
-                  {editedDetails.specialRequests}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Emergency Contact */}
-        <div className="space-y-3">
-          <h4 className="font-medium text-gray-900 flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" />
-            Emergency Contact
-          </h4>
-
-          <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wide">
-              Contact Information
+        {/* Company */}
+        {editedDetails.companyName && (
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+              <User className="h-3 w-3" /> Company
             </label>
-            {isEditing ? (
-              <Input
-                value={editedDetails.emergencyContact}
-                onChange={(e) =>
-                  setEditedDetails({
-                    ...editedDetails,
-                    emergencyContact: e.target.value,
-                  })
-                }
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm text-gray-900 mt-1">
-                {editedDetails.emergencyContact}
-              </p>
+            <p className="text-sm font-medium text-gray-900">
+              {editedDetails.companyName}
+            </p>
+          </div>
+        )}
+
+        {/* Payment Information */}
+        <div className="space-y-2">
+          <h4 className="font-medium text-gray-900 flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Payment
+          </h4>
+
+          <div className="space-y-2 rounded-lg bg-gray-50 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Payment Status</span>
+              <Badge
+                className={getPaymentStatusColor(
+                  editedDetails.paymentStatus
+                )}
+              >
+                {editedDetails.isFree
+                  ? "Free"
+                  : editedDetails.paymentStatus || "—"}
+              </Badge>
+            </div>
+
+            {!editedDetails.isFree && editedDetails.totalCost != null && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Amount</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  ₹{Number(editedDetails.totalCost).toLocaleString()}
+                </span>
+              </div>
+            )}
+
+            {editedDetails.registeredAt && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Registered on</span>
+                <span className="text-sm text-gray-900">
+                  {formatDate(editedDetails.registeredAt)}
+                </span>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Payment Information */}
-        <div className="space-y-3">
-          <h4 className="font-medium text-gray-900 flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            Payment Information
-          </h4>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Payment Status</span>
-              <Badge
-                className={getPaymentStatusColor(editedDetails.paymentStatus)}
-              >
-                {editedDetails.paymentStatus}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Payment Method</span>
-              <span className="text-sm text-gray-900">
-                {editedDetails.paymentMethod}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Registration Date</span>
-              <span className="text-sm text-gray-900">
-                {formatDate(editedDetails.registrationDate)}
-              </span>
-            </div>
+        {/* Visit on website */}
+        {event.websiteUrl && (
+          <div className="pt-2 border-t border-gray-200">
+            <a
+              href={event.websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              View event on website ↗
+            </a>
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="pt-4 border-t border-gray-200">
-          {isEditing ? (
-            <div className="flex gap-2">
-              <ModernButton
-                type="success"
-                size="sm"
-                text="Save Changes"
-                icon={Save}
-                onClick={handleSave}
-                className="flex-1"
-              />
-              <ModernButton
-                type="secondary"
-                size="sm"
-                text="Cancel"
-                icon={X}
-                onClick={handleCancel}
-                className="flex-1"
-              />
-            </div>
-          ) : (
-            <ModernButton
-              type="secondary"
-              size="sm"
-              text="Edit Registration"
-              icon={Edit}
-              onClick={() => setIsEditing(true)}
-              className="w-full"
-            />
-          )}
-        </div>
+        )}
       </div>
     </motion.div>
   );

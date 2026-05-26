@@ -63,6 +63,11 @@ import {
   transformComment,
   formatDate,
 } from "../../../lib/dataTransformers";
+import {
+  assertStatusChangeAllowed,
+  getEditableStatusOptionsByLabel,
+  STATUS_REVERT_TO_ASSIGNED_MESSAGE,
+} from "../../../lib/taskStatusConstants";
 import taskService from "../../../lib/taskService";
 import subtaskService from "../../../lib/subtaskService";
 import commentService from "../../../lib/commentService";
@@ -852,6 +857,30 @@ export default function ProjectDetail({ params }) {
     }
   };
 
+  const handleTimeAllottedUpdate = async (taskId, hours) => {
+    if (!taskId) return;
+
+    try {
+      await taskService.updateTask(taskId, { timeAllotted: hours });
+
+      setProject((prevProject) => ({
+        ...prevProject,
+        tasks: prevProject.tasks.map((task) =>
+          task.id === taskId ? { ...task, timeAllotted: hours } : task,
+        ),
+      }));
+
+      if (taskDetailModal.isOpen && taskDetailModal.task?.id === taskId) {
+        setTaskDetailModal((prev) => ({
+          ...prev,
+          task: { ...prev.task, timeAllotted: hours },
+        }));
+      }
+    } catch (error) {
+      console.error("Error updating time allotted:", error);
+    }
+  };
+
   // Handle project status updates
   const handleProjectStatusUpdate = async (newStatus) => {
     if (!project || loadingStatusUpdate) return;
@@ -907,6 +936,13 @@ export default function ProjectDetail({ params }) {
   // Handle task status updates
   const handleStatusUpdate = async (taskId, newStatus) => {
     if (!taskId) return;
+
+    const existingTask = project?.tasks?.find((t) => t.id === taskId);
+    const guard = assertStatusChangeAllowed(existingTask?.status, newStatus);
+    if (!guard.ok) {
+      alert(guard.message || STATUS_REVERT_TO_ASSIGNED_MESSAGE);
+      return;
+    }
 
     const strapiStatus = transformStatusToStrapi(newStatus);
 
@@ -1352,6 +1388,40 @@ export default function ProjectDetail({ params }) {
       },
     },
     {
+      key: "visibility",
+      label: "VISIBILITY",
+      render: (_, task) => (
+        <div className="min-w-[150px]">
+          <span
+            className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+              task.isSharedWithClient
+                ? "bg-green-100 text-green-700 border-green-200"
+                : "bg-gray-100 text-gray-700 border-gray-200"
+            }`}
+          >
+            {task.isSharedWithClient ? "Shared with Client" : "Internal Only"}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "source",
+      label: "SOURCE",
+      render: (_, task) => (
+        <div className="min-w-[120px]">
+          <span
+            className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+              task.createdBySource === "client"
+                ? "bg-blue-100 text-blue-700 border-blue-200"
+                : "bg-orange-100 text-orange-700 border-orange-200"
+            }`}
+          >
+            {task.createdBySource === "client" ? "Client Created" : "Internal"}
+          </span>
+        </div>
+      ),
+    },
+    {
       key: "dueDate",
       label: "DUE DATE",
       render: (_, task) => {
@@ -1386,58 +1456,43 @@ export default function ProjectDetail({ params }) {
       },
     },
     {
+      key: "timeAllotted",
+      label: "TIME ALLOTTED",
+      render: (_, task) => (
+        <div
+          className="flex items-center gap-2 min-w-[130px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Clock className="w-4 h-4 flex-shrink-0 text-gray-500" />
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            value={
+              task.timeAllotted != null && task.timeAllotted !== ""
+                ? task.timeAllotted
+                : ""
+            }
+            onChange={(e) => {
+              const raw = e.target.value;
+              handleTimeAllottedUpdate(
+                task.id,
+                raw === "" ? null : parseFloat(raw),
+              );
+            }}
+            className="w-16 text-sm text-gray-700 px-2 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+            placeholder="—"
+          />
+          <span className="text-xs text-gray-500 whitespace-nowrap">hrs</span>
+        </div>
+      ),
+    },
+    {
       key: "status",
       label: "STATUS",
       render: (_, task) => {
-        const statusOptions = [
-          { value: "To Do", label: "To Do" },
-          { value: "In Progress", label: "In Progress" },
-          { value: "Internal Review", label: "Internal Review" },
-          { value: "Client Review", label: "Client Review" },
-          { value: "Approved", label: "Approved" },
-          { value: "Done", label: "Done" },
-          { value: "Cancelled", label: "Cancelled" },
-        ];
-
-        // Normalize status to match option values
-        const normalizeStatus = (status) => {
-          if (!status) return "To Do";
-          const statusLower = status.toLowerCase();
-          if (
-            statusLower === "to do" ||
-            statusLower === "todo" ||
-            statusLower === "scheduled"
-          )
-            return "To Do";
-          if (statusLower === "in progress" || statusLower === "in_progress")
-            return "In Progress";
-          if (
-            statusLower === "internal review" ||
-            statusLower === "in review" ||
-            statusLower === "in_review"
-          )
-            return "Internal Review";
-          if (
-            statusLower === "client review" ||
-            statusLower === "client_review"
-          )
-            return "Client Review";
-          if (statusLower === "approved") return "Approved";
-          if (statusLower === "done" || statusLower === "completed")
-            return "Done";
-          if (statusLower === "cancelled" || statusLower === "canceled")
-            return "Cancelled";
-          // Try to match by capitalizing first letter of each word
-          return status
-            .split(" ")
-            .map(
-              (word) =>
-                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-            )
-            .join(" ");
-        };
-
-        const currentStatus = normalizeStatus(task.status || "To Do");
+        const currentStatus = task.status || "Assigned";
+        const statusOptions = getEditableStatusOptionsByLabel(currentStatus);
         const status = currentStatus?.toLowerCase().replace(/\s+/g, "-") || "";
 
         const statusColors = {

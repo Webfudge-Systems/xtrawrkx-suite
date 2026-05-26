@@ -16,6 +16,100 @@ const formatDate = (dateString) => {
   });
 };
 
+const CLIENT_STATUS_KEYS = [
+  "ACTIVE",
+  "INACTIVE",
+  "CHURNED",
+  "ON_HOLD",
+  "REGISTERED",
+  "COMMUNITY_MEMBER",
+  "COMMUNITY_PAID",
+  "COMMUNITY_NON_PAID",
+  "LOST",
+  "STOPPED",
+];
+
+const DEFAULT_STATUS_COUNTS = CLIENT_STATUS_KEYS.reduce((acc, status) => {
+  acc[status] = 0;
+  return acc;
+}, {});
+
+const TAB_STATUS_MAP = {
+  active: "ACTIVE",
+  inactive: "INACTIVE",
+  churned: "CHURNED",
+  "on-hold": "ON_HOLD",
+  registered: "REGISTERED",
+  "community-member": "COMMUNITY_MEMBER",
+  "community-paid": "COMMUNITY_PAID",
+  "community-non-paid": "COMMUNITY_NON_PAID",
+  lost: "LOST",
+  stopped: "STOPPED",
+};
+
+const STATUS_COLORS = {
+  active: {
+    bg: "bg-green-100",
+    text: "text-green-800",
+    border: "border-green-400",
+    shadow: "shadow-green-200",
+  },
+  inactive: {
+    bg: "bg-gray-100",
+    text: "text-gray-800",
+    border: "border-gray-400",
+    shadow: "shadow-gray-200",
+  },
+  churned: {
+    bg: "bg-red-100",
+    text: "text-red-800",
+    border: "border-red-400",
+    shadow: "shadow-red-200",
+  },
+  on_hold: {
+    bg: "bg-yellow-100",
+    text: "text-yellow-800",
+    border: "border-yellow-400",
+    shadow: "shadow-yellow-200",
+  },
+  registered: {
+    bg: "bg-blue-100",
+    text: "text-blue-800",
+    border: "border-blue-400",
+    shadow: "shadow-blue-200",
+  },
+  community_member: {
+    bg: "bg-indigo-100",
+    text: "text-indigo-800",
+    border: "border-indigo-400",
+    shadow: "shadow-indigo-200",
+  },
+  community_paid: {
+    bg: "bg-emerald-100",
+    text: "text-emerald-800",
+    border: "border-emerald-400",
+    shadow: "shadow-emerald-200",
+  },
+  community_non_paid: {
+    bg: "bg-cyan-100",
+    text: "text-cyan-800",
+    border: "border-cyan-400",
+    shadow: "shadow-cyan-200",
+  },
+  lost: {
+    bg: "bg-rose-100",
+    text: "text-rose-800",
+    border: "border-rose-400",
+    shadow: "shadow-rose-200",
+  },
+  stopped: {
+    bg: "bg-orange-100",
+    text: "text-orange-800",
+    border: "border-orange-400",
+    shadow: "shadow-orange-200",
+  },
+};
+
 import clientAccountService from "../../../lib/api/clientAccountService";
 import PageHeader from "../../../components/PageHeader";
 import ClientAccountsKPIs from "./components/ClientAccountsKPIs";
@@ -112,7 +206,7 @@ export default function ClientAccountsPage() {
       console.error("Error fetching stats:", err);
       // Set default stats if API fails
       setStats({
-        byStatus: { ACTIVE: 0, INACTIVE: 0, CHURNED: 0, ON_HOLD: 0 },
+        byStatus: DEFAULT_STATUS_COUNTS,
         totalRevenue: 0,
         averageHealthScore: 0,
         recentConversions: 0,
@@ -133,14 +227,8 @@ export default function ClientAccountsPage() {
         ?.toLowerCase()
         .includes(searchQuery.toLowerCase());
 
-    const matchesTab =
-      activeTab === "all" ||
-      (activeTab === "active" && account.status?.toLowerCase() === "active") ||
-      (activeTab === "inactive" &&
-        account.status?.toLowerCase() === "inactive") ||
-      (activeTab === "churned" &&
-        account.status?.toLowerCase() === "churned") ||
-      (activeTab === "on-hold" && account.status?.toLowerCase() === "on_hold");
+    const tabStatus = TAB_STATUS_MAP[activeTab];
+    const matchesTab = activeTab === "all" || account.status === tabStatus;
 
     return matchesSearch && matchesTab;
   });
@@ -188,6 +276,28 @@ export default function ClientAccountsPage() {
       label: "On Hold",
       count: stats.byStatus?.ON_HOLD || 0,
     },
+    {
+      key: "registered",
+      label: "Registered",
+      count: stats.byStatus?.REGISTERED || 0,
+    },
+    {
+      key: "community-member",
+      label: "Community Member",
+      count: stats.byStatus?.COMMUNITY_MEMBER || 0,
+    },
+    {
+      key: "community-paid",
+      label: "Community Paid",
+      count: stats.byStatus?.COMMUNITY_PAID || 0,
+    },
+    {
+      key: "community-non-paid",
+      label: "Community Non-Paid",
+      count: stats.byStatus?.COMMUNITY_NON_PAID || 0,
+    },
+    { key: "lost", label: "Lost", count: stats.byStatus?.LOST || 0 },
+    { key: "stopped", label: "Stopped", count: stats.byStatus?.STOPPED || 0 },
   ];
 
   // Table columns configuration
@@ -336,34 +446,7 @@ export default function ClientAccountsPage() {
       width: "140px",
       render: (_, account) => {
         const status = account.status?.toLowerCase() || "active";
-        const statusColors = {
-          active: {
-            bg: "bg-green-100",
-            text: "text-green-800",
-            border: "border-green-400",
-            shadow: "shadow-green-200",
-          },
-          inactive: {
-            bg: "bg-gray-100",
-            text: "text-gray-800",
-            border: "border-gray-400",
-            shadow: "shadow-gray-200",
-          },
-          churned: {
-            bg: "bg-red-100",
-            text: "text-red-800",
-            border: "border-red-400",
-            shadow: "shadow-red-200",
-          },
-          on_hold: {
-            bg: "bg-yellow-100",
-            text: "text-yellow-800",
-            border: "border-yellow-400",
-            shadow: "shadow-yellow-200",
-          },
-        };
-
-        const colors = statusColors[status] || statusColors.active;
+        const colors = STATUS_COLORS[status] || STATUS_COLORS.active;
         const displayStatus = account.status || "ACTIVE";
 
         return (
@@ -430,18 +513,32 @@ export default function ClientAccountsPage() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
+              const canToggleStatus =
+                account.status === "ACTIVE" || account.status === "INACTIVE";
+              if (!canToggleStatus) return;
               handleStatusUpdate(
                 account.id,
                 account.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
               );
             }}
-            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2 rounded-lg transition-all duration-200"
-            title={account.status === "ACTIVE" ? "Deactivate" : "Activate"}
+            disabled={
+              account.status !== "ACTIVE" && account.status !== "INACTIVE"
+            }
+            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={
+              account.status === "ACTIVE"
+                ? "Deactivate"
+                : account.status === "INACTIVE"
+                  ? "Activate"
+                  : "Toggle is only available for Active/Inactive accounts"
+            }
           >
             {account.status === "ACTIVE" ? (
               <XCircle className="w-4 h-4" />
-            ) : (
+            ) : account.status === "INACTIVE" ? (
               <CheckCircle className="w-4 h-4" />
+            ) : (
+              <Clock className="w-4 h-4" />
             )}
           </Button>
           <Button

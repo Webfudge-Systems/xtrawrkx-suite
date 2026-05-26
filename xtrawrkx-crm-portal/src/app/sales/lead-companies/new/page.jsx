@@ -17,6 +17,10 @@ import contactService from "../../../../lib/api/contactService";
 import strapiClient from "../../../../lib/strapiClient";
 import { useAuth } from "../../../../contexts/AuthContext";
 import {
+  LEAD_COMPANY_TYPES,
+  getLeadSubTypesForCompanyType,
+} from "../../../../data/companyRegistrationOptions";
+import {
   Building2,
   User,
   Mail,
@@ -132,104 +136,6 @@ export default function AddLeadCompanyPage() {
     { value: "SIZE_501_1000", label: "501-1000 employees" },
     { value: "SIZE_1000_PLUS", label: "1000+ employees" },
   ];
-
-  const companyTypes = [
-    { id: "startup-corporate", name: "Startup and Corporates" },
-    { id: "investor", name: "Investors" },
-    { id: "enablers-academia", name: "Enablers & Academia" },
-  ];
-
-  const subTypeOptions = {
-    "startup-corporate": [
-      "EV 2W",
-      "EV 3W",
-      "EV OEM",
-      "EV 4W",
-      "Motor OEM",
-      "Motor Controller OEM",
-      "Batteries",
-      "Charging Infra",
-      "Drones",
-      "AGVs",
-      "Consumer electronics",
-      "Incubator / accelerator",
-      "Power electronics",
-      "Other OE",
-      "Group",
-      "EV Fleet",
-      "E-commerce companies",
-      "3rd party logistics",
-      "Vehicle Smarts",
-      "Swapping",
-      "EV Leasing",
-      "EV Rentals",
-      "EV NBFC",
-      "Power electronics+Vechicle smart",
-      "Electronics Components",
-      "1DL/MDL",
-      "Franchisee",
-      "Smart Battery",
-      "Dealer",
-      "Motor Parts",
-      "Spare Part",
-      "Traditional Auto",
-      "Smart Electronic",
-      "Mech Parts",
-      "Energy Storing",
-      "Automotive Parts_ EV manufacturers",
-      "IOT",
-      "Inverter",
-      "Aggregator",
-    ],
-    investor: [
-      "Future Founder",
-      "Private Lender P2P",
-      "Angel",
-      "Angel Network",
-      "Micro VC",
-      "VC",
-      "Family Office",
-      "Private Equity PE",
-      "Debt",
-      "WC Working Capital",
-      "NBFC",
-      "Bill discounting",
-      "Investment Bank",
-      "Banks",
-      "Asset Investor",
-      "Asset Financier",
-      "Asset Leasing",
-      "Op Franchisee",
-      "Franchise Network",
-      "Incubation Center",
-      "Accelerator",
-      "Industry body",
-      "Gov Body",
-      "Gov Policy",
-      "Alternative Investment Platform",
-      "Strategic investor",
-      "CVC",
-      "HNI",
-    ],
-    "enablers-academia": [
-      "Incubator",
-      "Accelerator",
-      "Venture Studio",
-      "Academia",
-      "Government Office",
-      "Mentor",
-      "Investment Banker",
-    ],
-  };
-
-  // Get sub-type options based on selected type
-  const getSubTypeOptions = () => {
-    if (!companyData.type) return [];
-    return subTypeOptions[companyData.type]?.map((subType) => ({
-      value: subType,
-      label: subType,
-    })) || [];
-  };
 
   // Fetch users on mount
   useEffect(() => {
@@ -723,7 +629,7 @@ export default function AddLeadCompanyPage() {
                   label="Company Type"
                   value={companyData.type}
                   onChange={(value) => handleCompanyChange("type", value)}
-                  options={companyTypes.map((type) => ({
+                  options={LEAD_COMPANY_TYPES.map((type) => ({
                     value: type.id,
                     label: type.name,
                   }))}
@@ -736,7 +642,7 @@ export default function AddLeadCompanyPage() {
                   label="Sub-Type"
                   value={companyData.subType}
                   onChange={(value) => handleCompanyChange("subType", value)}
-                  options={getSubTypeOptions()}
+                  options={getLeadSubTypesForCompanyType(companyData.type)}
                   placeholder={
                     companyData.type
                       ? "Select sub-type"

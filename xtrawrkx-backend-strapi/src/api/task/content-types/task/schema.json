@@ -22,15 +22,33 @@
         "status": {
             "type": "enumeration",
             "enum": [
-                "SCHEDULED",
+                "ASSIGNED",
+                "ACCEPTED",
                 "IN_PROGRESS",
+                "ON_HOLD",
+                "PENDING_REVIEW",
+                "REVISION_REQUIRED",
+                "COMPLETED",
+                "CANCELLED",
+                "WAITING_FOR_CLIENT",
+                "SCHEDULED",
                 "IN_REVIEW",
                 "CLIENT_REVIEW",
-                "APPROVED",
-                "COMPLETED",
-                "CANCELLED"
+                "APPROVED"
             ],
-            "default": "SCHEDULED"
+            "default": "ASSIGNED"
+        },
+        "timeAllotted": {
+            "type": "decimal",
+            "min": 0
+        },
+        "autoAccept": {
+            "type": "boolean",
+            "default": true
+        },
+        "sharePreferenceSetAtCreation": {
+            "type": "boolean",
+            "default": false
         },
         "priority": {
             "type": "enumeration",
@@ -122,6 +140,21 @@
         "requiresApproval": {
             "type": "boolean",
             "default": false
+        },
+        "isSharedWithClient": {
+            "type": "boolean",
+            "default": false
+        },
+        "clientId": {
+            "type": "string"
+        },
+        "createdBySource": {
+            "type": "enumeration",
+            "enum": [
+                "internal",
+                "client"
+            ],
+            "default": "internal"
         }
     }
 }

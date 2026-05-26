@@ -8,8 +8,9 @@ import { Menu, User, LogOut, Home, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
-import { useSession } from "@/lib/session";
+import { useSession } from "@/lib/auth";
 import { ChatNotifications } from "../chat/ChatNotifications";
+import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
 
 // Top navigation items matching reference
 const navigationTabs = [
@@ -26,6 +27,47 @@ export function TopNavbar({ onMenuClick }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const clientAccount = (() => {
+    // Prefer a real Strapi-shaped account from localStorage if present.
+    if (typeof window === "undefined") return session?.account || session?.user?.account || session;
+    try {
+      const raw = localStorage.getItem("client_account");
+      if (!raw) return session?.account || session?.user?.account || session;
+      return JSON.parse(raw);
+    } catch {
+      return session?.account || session?.user?.account || session;
+    }
+  })();
+
+  const clientDisplayName =
+    resolveClientAccountCompanyName(clientAccount) ||
+    String(clientAccount?.companyName || "").trim() ||
+    "Client Portal";
+
+  const memberEmail =
+    session?.user?.email ||
+    session?.email ||
+    clientAccount?.email ||
+    "";
+
+  const portalTitle = (() => {
+    if (typeof window === "undefined") {
+      return session?.account?.companyName || "Client Portal";
+    }
+    try {
+      const raw = localStorage.getItem("client_account");
+      if (!raw) return "Client Portal";
+      const acc = JSON.parse(raw);
+      return (
+        resolveClientAccountCompanyName(acc) ||
+        acc.companyName ||
+        "Client Portal"
+      );
+    } catch {
+      return "Client Portal";
+    }
+  })();
 
   return (
     <>
@@ -51,7 +93,7 @@ export function TopNavbar({ onMenuClick }) {
                   <Home className="h-4 w-4 text-white" />
                 </div>
                 <h1 className="text-lg font-semibold text-gray-900">
-                  {session?.account?.companyName || "Client Portal"}
+                  {portalTitle}
                 </h1>
               </div>
 
@@ -122,17 +164,17 @@ export function TopNavbar({ onMenuClick }) {
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={session?.avatarUrl} />
                           <AvatarFallback className="bg-xtrawrkx-500 text-white font-semibold">
-                            {session?.name?.charAt(0) ||
-                              session?.email?.charAt(0) ||
+                            {clientDisplayName?.charAt(0) ||
+                              memberEmail?.charAt(0) ||
                               "A"}
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           <p className="text-sm font-semibold text-gray-900">
-                            {session?.name || "Alex Carter"}
+                            {clientDisplayName}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {session?.email || "alex@abcinc.com"}
+                            {memberEmail || " "}
                           </p>
                         </div>
                       </div>
@@ -158,36 +200,6 @@ export function TopNavbar({ onMenuClick }) {
             </div>
           </div>
         </div>
-      </header>
-
-      {/* Click outside handlers */}
-      {showUserMenu && (
-        <div
-          className="fixed inset-0 z-30"
-          onClick={() => {
-            setShowUserMenu(false);
-          }}
-        />
-      )}
-    </>
-  );
-}
-
-      </header>
-
-      {/* Click outside handlers */}
-      {showUserMenu && (
-        <div
-          className="fixed inset-0 z-30"
-          onClick={() => {
-            setShowUserMenu(false);
-          }}
-        />
-      )}
-    </>
-  );
-}
-
       </header>
 
       {/* Click outside handlers */}

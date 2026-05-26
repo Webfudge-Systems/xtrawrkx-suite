@@ -164,7 +164,7 @@
             "type": "relation",
             "relation": "oneToMany",
             "target": "api::chat-message.chat-message",
-            "mappedBy": "createdBy"
+            "mappedBy": "authorUser"
         },
         "tasks": {
             "type": "relation",

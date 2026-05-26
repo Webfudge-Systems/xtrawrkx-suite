@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "install:all": "npm install && cd xtrawrkx-backend-strapi && npm install && cd ../xtrawrkx-crm-portal && npm install && cd ../xtrawrkx-client-portal && npm install && cd ../xtrawrkx-accounts && npm install && cd ../xtrawrkx-pm-dashboard && npm install"
+    "install:all": "npm install && cd xtrawrkx-backend-strapi && npm install && cd ../xtrawrkx-crm-portal && npm install && cd ../xtrawrkx-client-portal && npm install && cd ../xtrawrkx-accounts && npm install && cd ../xtrawrkx-pm-dashboard && npm install",
+    "dev": "npm run dev --prefix xtrawrkx-crm-portal",
+    "dev:crm": "npm run dev --prefix xtrawrkx-crm-portal",
+    "dev:client": "npm run dev --prefix xtrawrkx-client-portal"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

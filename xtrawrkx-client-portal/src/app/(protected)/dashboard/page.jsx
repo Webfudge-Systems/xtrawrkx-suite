@@ -38,6 +38,8 @@ import strapiClient from "@/lib/strapiClient";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import TaskDetailModal from "@/components/tasks/TaskDetailModal";
+import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
+import { COMMUNITIES_LIST } from "@/data/communitiesCatalog";
 
 // Dashboard Stats
 const dashboardStats = [
@@ -298,16 +300,18 @@ export default function DashboardPage() {
   const [todaysSchedule, setTodaysSchedule] = useState([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
 
-  // Get current date
+  // Get current date (short: sat, 4/18/2026)
   const getCurrentDate = () => {
     const now = new Date();
-    const options = {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
+    const weekday = now
+      .toLocaleDateString("en-US", { weekday: "short" })
+      .toLowerCase();
+    const datePart = now.toLocaleDateString("en-US", {
+      month: "numeric",
       day: "numeric",
-    };
-    return now.toLocaleDateString("en-US", options);
+      year: "numeric",
+    });
+    return `${weekday}, ${datePart}`;
   };
 
   // Get greeting based on time of day
@@ -320,12 +324,27 @@ export default function DashboardPage() {
 
   // Get user display name
   const getUserDisplayName = () => {
-    if (!session) return "User";
-    const account = session.account || session;
+    const sessionAccount = session?.account || session?.user?.account || session;
+
+    let storedAccount = null;
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("client_account");
+        if (raw) storedAccount = JSON.parse(raw);
+      } catch {
+        storedAccount = null;
+      }
+    }
+
+    const account = storedAccount || sessionAccount;
+    const company =
+      resolveClientAccountCompanyName(account) ||
+      String(account?.companyName || "").trim();
+    if (company) return company;
+
+    // Last-resort fallbacks (should rarely be used in client portal).
     return (
-      account?.companyName ||
-      account?.name ||
-      account?.email?.split("@")[0] ||
+      String(account?.email || "").split("@")[0] ||
       "User"
     );
   };
@@ -794,6 +813,10 @@ export default function DashboardPage() {
         const filteredTasks = allTasks.filter((task) => {
           const taskData = task.attributes || task;
 
+          if (!taskData.isSharedWithClient) {
+            return false;
+          }
+
           // Handle both single project and projects array (many-to-many)
           let projects = [];
 
@@ -1016,6 +1039,8 @@ export default function DashboardPage() {
               (taskData.status || "").toUpperCase() === "CLIENT_REVIEW",
             clientApproval: taskData.clientApproval || null,
             approvedAt: taskData.approvedAt || null,
+            isSharedWithClient: !!taskData.isSharedWithClient,
+            createdBySource: taskData.createdBySource || "internal",
             createdAt: taskData.createdAt || new Date().toISOString(),
             updatedAt: taskData.updatedAt || new Date().toISOString(),
           };
@@ -1066,6 +1091,65 @@ export default function DashboardPage() {
       taskCompletion,
     });
   }, [projects, tasks]);
+
+  useEffect(() => {
+    const isSameDay = (d1, d2) =>
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate();
+
+    if (tasksLoading) {
+      setScheduleLoading(true);
+      return;
+    }
+
+    const now = new Date();
+    const scheduled = tasks
+      .filter((task) => task?.scheduledDate)
+      .filter((task) => {
+        const scheduledDate = new Date(task.scheduledDate);
+        return !Number.isNaN(scheduledDate.getTime()) && isSameDay(scheduledDate, now);
+      })
+      .sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate))
+      .map((task) => {
+        const scheduledDate = new Date(task.scheduledDate);
+        const statusUpper = String(task.status || "").toUpperCase();
+        const done = statusUpper === "DONE" || statusUpper === "COMPLETED";
+        const inProgress =
+          statusUpper === "IN PROGRESS" ||
+          statusUpper === "IN_PROGRESS" ||
+          statusUpper === "ACTIVE";
+        const status = done ? "Completed" : inProgress ? "In Progress" : "Scheduled";
+        return {
+          id: task.id,
+          title: task.name,
+          time: scheduledDate.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          timeInfo: task.project?.name || "General",
+          status,
+          statusColor: done
+            ? "text-green-700 bg-green-100"
+            : inProgress
+            ? "text-yellow-700 bg-yellow-100"
+            : "text-blue-700 bg-blue-100",
+          bgColor: done ? "bg-green-50" : inProgress ? "bg-yellow-50" : "bg-blue-50",
+          borderColor: done
+            ? "border-green-200"
+            : inProgress
+            ? "border-yellow-200"
+            : "border-blue-200",
+          dotColor: done ? "bg-green-500" : inProgress ? "bg-yellow-500" : "bg-blue-500",
+          icon: Calendar,
+          task,
+          scheduledDate: task.scheduledDate,
+        };
+      });
+
+    setTodaysSchedule(scheduled);
+    setScheduleLoading(false);
+  }, [tasks, tasksLoading]);
 
   // Fetch communities and memberships
   useEffect(() => {
@@ -1132,22 +1216,15 @@ export default function DashboardPage() {
           }
         }
 
-        // Fetch community memberships for this client
-        const membershipParams = strapiClient.buildQueryString({
-          filters: {
-            clientAccount: {
-              id: {
-                $eq: accountId,
-              },
-            },
-          },
-          populate: ["community", "clientAccount"],
-          pagination: { pageSize: 100 },
-        });
-        const membershipsUrl = `${strapiClient.buildURL(
-          "/community-memberships",
-          {}
-        )}?${membershipParams}`;
+        // `community` on membership is an enum — do not populate it. Strapi 5 REST
+        // relation filters also 400; use list-for-client instead.
+        const membershipsUrl = strapiClient.buildURL(
+          "/community-memberships/list-for-client",
+          {
+            clientAccountId: String(accountId),
+            pageSize: 100,
+          }
+        );
         const membershipsResponse = await fetch(membershipsUrl, {
           method: "GET",
           headers: strapiClient.getHeaders(),
@@ -1169,41 +1246,28 @@ export default function DashboardPage() {
           }
         }
 
-        // Map communities with membership status
-        const communitiesWithMembership = allCommunities.map((community) => {
-          const communityData = community.attributes || community;
-          const communityName = communityData.name || "";
+        const activeMemberships = memberships.filter(
+          (m) => String(m.status || "").toUpperCase() === "ACTIVE"
+        );
 
-          // Find matching membership
-          const membership = memberships.find((m) => {
-            const membershipCommunity =
-              m.community?.data?.attributes?.name ||
-              m.community?.attributes?.name ||
-              m.community ||
-              "";
-            return (
-              membershipCommunity.toUpperCase() ===
-                communityName.toUpperCase() ||
-              m.community === communityName.toUpperCase()
-            );
-          });
-
-          const isMember =
-            membership && (membership.status || "").toUpperCase() === "ACTIVE";
-
+        // Use same enum-based source as Communities page so dashboard and list stay consistent.
+        const communitiesWithMembership = COMMUNITIES_LIST.map((community) => {
+          const membership = activeMemberships.find(
+            (m) => String(m.community || "").toUpperCase() === String(community.strapiEnum || "").toUpperCase()
+          );
           return {
-            id: community.id || community.documentId,
-            name: communityName,
-            fullName: communityData.description || communityName,
-            category: communityData.category || "Community",
-            description: communityData.description || "",
-            members: 0, // Could be fetched if available
-            tier: membership?.membershipType || "Standard",
-            status: isMember ? "Active" : "Available",
-            isMember: isMember,
-            membership: membership,
-            color: communityData.color || "blue-500",
-            icon: communityData.icon || null,
+            id: community.id,
+            name: community.name,
+            fullName: community.fullName,
+            category: community.category,
+            description: community.description || "",
+            members: community.members || 0,
+            tier: membership?.membershipType || community.tier || "Standard",
+            status: membership ? "Active" : "Available",
+            isMember: Boolean(membership),
+            membership: membership || null,
+            color: community.color || "blue-500",
+            icon: community.icon || null,
           };
         });
 
@@ -1330,7 +1394,6 @@ export default function DashboardPage() {
     return (
       <div className="space-y-4 bg-white min-h-screen">
         <PageHeader
-          title="Dashboard"
           subtitle={getCurrentDate()}
           breadcrumb={[]}
           showSearch={false}
@@ -1350,7 +1413,6 @@ export default function DashboardPage() {
       {/* Page Header */}
       <div className="px-4 pt-4">
         <PageHeader
-          title="Dashboard"
           subtitle={getCurrentDate()}
           breadcrumb={[]}
           showSearch={true}
@@ -1473,7 +1535,7 @@ export default function DashboardPage() {
             {/* Tasks Section */}
             <Card
               outlined={true}
-              title="My Tasks"
+              title="Tasks"
               subtitle="Track your current tasks and progress"
               actions={
                 <button className="px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 hover:border-white/40 transition-all duration-300 text-sm font-medium text-gray-900 flex items-center gap-2 shadow-lg">
@@ -2110,8 +2172,8 @@ export default function DashboardPage() {
             {/* Communities Section */}
             <Card
               outlined={true}
-              title="My Communities"
-              subtitle="Your active community memberships"
+              title="Joined Communities"
+              subtitle="Communities you joined from website and portal"
               actions={
                 <button
                   onClick={() => router.push("/communities")}
@@ -2125,19 +2187,21 @@ export default function DashboardPage() {
                 <div className="flex justify-center items-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
                 </div>
-              ) : communities.length === 0 ? (
+              ) : communities.filter((community) => community.isMember).length === 0 ? (
                 <div className="text-center py-12">
                   <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 font-medium">
-                    No communities found
+                    No joined communities yet
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
-                    Communities will appear here when available
+                    Join a community to see it here
                   </p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {communities.map((community) => {
+                  {communities
+                    .filter((community) => community.isMember)
+                    .map((community) => {
                     return (
                       <div
                         key={community.id}

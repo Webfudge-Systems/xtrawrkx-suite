@@ -27,6 +27,12 @@ export default function ClientAccountsFilterModal({
     { value: "INACTIVE", label: "Inactive" },
     { value: "CHURNED", label: "Churned" },
     { value: "ON_HOLD", label: "On Hold" },
+    { value: "REGISTERED", label: "Registered" },
+    { value: "COMMUNITY_MEMBER", label: "Community Member" },
+    { value: "COMMUNITY_PAID", label: "Community Paid" },
+    { value: "COMMUNITY_NON_PAID", label: "Community Non-Paid" },
+    { value: "LOST", label: "Lost" },
+    { value: "STOPPED", label: "Stopped" },
   ];
 
   const industryOptions = [

@@ -666,7 +666,12 @@ class StrapiClient {
         if (accountData) {
             try {
                 const account = JSON.parse(accountData);
-                return account.id;
+                if (account.id != null && account.id !== '') {
+                    return account.id;
+                }
+                if (account.documentId != null && account.documentId !== '') {
+                    return account.documentId;
+                }
             } catch (error) {
                 console.error('Error parsing client account data:', error);
             }

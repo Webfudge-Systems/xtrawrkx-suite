@@ -16,7 +16,7 @@
             "type": "text",
             "required": true
         },
-        "createdBy": {
+        "authorUser": {
             "type": "relation",
             "relation": "manyToOne",
             "target": "api::xtrawrkx-user.xtrawrkx-user",
@@ -72,6 +72,20 @@
         "isThreadStarter": {
             "type": "boolean",
             "default": false
+        },
+        "channelKey": {
+            "type": "string",
+            "default": ""
+        },
+        "fromClient": {
+            "type": "boolean",
+            "default": false
+        },
+        "authorClientAccount": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::client-account.client-account",
+            "inversedBy": "portalAuthoredChatMessages"
         }
     }
 }
