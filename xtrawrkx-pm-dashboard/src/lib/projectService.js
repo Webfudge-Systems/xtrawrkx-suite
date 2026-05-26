@@ -86,6 +86,34 @@ class ProjectService {
     }
 
     /**
+     * Get project by numeric ID using a filter query (Strapi v5 compatible)
+     * In Strapi v5, the single-document endpoint uses documentId, not numeric id.
+     * This method uses the list endpoint with an id filter as a fallback.
+     * @param {number} id - Numeric project ID
+     * @param {Array} populate - Relations to populate
+     * @returns {Promise<Object>} - Project data
+     */
+    async getProjectByNumericId(id, populate = ['projectManager', 'teamMembers', 'tasks', 'account']) {
+        try {
+            const params = {
+                'filters[id][$eq]': id,
+                populate: populate.join(',')
+            };
+
+            const response = await apiClient.get('/api/projects', params);
+
+            if (response.data && response.data.length > 0) {
+                return response.data[0];
+            } else {
+                throw new Error('Project not found');
+            }
+        } catch (error) {
+            console.error(`Error fetching project by numeric id ${id}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Create new project
      * @param {Object} projectData - Project data
      * @returns {Promise<Object>} - Created project data

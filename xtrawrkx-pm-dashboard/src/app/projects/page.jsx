@@ -800,6 +800,8 @@ export default function ProjectsPage() {
   const handleProjectClick = (project) => {
     if (project?.slug) {
       router.push(`/projects/${project.slug}`);
+    } else if (project?.documentId) {
+      router.push(`/projects/${project.documentId}`);
     } else if (project?.id) {
       router.push(`/projects/${project.id}`);
     }
@@ -809,6 +811,8 @@ export default function ProjectsPage() {
   const handleEditProject = (project) => {
     if (project?.slug) {
       router.push(`/projects/${project.slug}/edit`);
+    } else if (project?.documentId) {
+      router.push(`/projects/${project.documentId}/edit`);
     } else if (project?.id) {
       router.push(`/projects/${project.id}/edit`);
     }

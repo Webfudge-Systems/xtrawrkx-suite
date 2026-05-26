@@ -182,7 +182,7 @@ export function TopNavbar({ onMenuClick }) {
 
                     <div className="py-2">
                       <Link
-                        href="/settings/profile"
+                        href="/settings"
                         className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                       >
                         <User className="h-4 w-4" />

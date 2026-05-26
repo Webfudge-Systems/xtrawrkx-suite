@@ -277,6 +277,7 @@ export const transformProject = (strapiProject) => {
 
     return {
         id: strapiProject.id,
+        documentId: strapiProject.documentId || projectData.documentId,
         name: projectData.name || strapiProject.name,
         slug: projectData.slug || strapiProject.slug,
         description: projectData.description || strapiProject.description,

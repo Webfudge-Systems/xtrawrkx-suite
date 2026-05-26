@@ -1100,6 +1100,11 @@ export interface ApiContactContact extends Struct.CollectionTypeSchema {
       'api::lead-company.lead-company'
     >;
     linkedIn: Schema.Attribute.String;
+    linkedinHtmlSnapshot: Schema.Attribute.Text;
+    linkedinIndustry: Schema.Attribute.String;
+    linkedinLeadScore: Schema.Attribute.String;
+    linkedinPersona: Schema.Attribute.String;
+    linkedinProfileData: Schema.Attribute.JSON;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',

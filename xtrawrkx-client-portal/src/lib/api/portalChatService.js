@@ -4,6 +4,10 @@
 
 import { strapiClient } from "../strapiClient";
 import { formatDistanceToNow } from "date-fns";
+import {
+  messageSourceType,
+  resolveMessageSourceLabel,
+} from "../portalChannelLabels";
 
 export function readLastReadTs(accountId, channelKey) {
   if (typeof window === "undefined") return 0;
@@ -123,7 +127,7 @@ function authorClientIsCurrentPortalUser(authorAccId, myClientAccountId) {
   return false;
 }
 
-export function mapStrapiChatToBubble(raw, myClientAccountId) {
+export function mapStrapiChatToBubble(raw, myClientAccountId, channelLookups = {}) {
   const m = flattenStrapiEntity(raw);
   if (!m) return null;
 
@@ -146,7 +150,14 @@ export function mapStrapiChatToBubble(raw, myClientAccountId) {
   const clientLabel = acc?.companyName?.trim() || "You";
 
   const chRaw = m.channelKey != null ? String(m.channelKey) : "";
-  const channelTag = chRaw.startsWith("community:") ? "Program" : "Support";
+  const sourceType = messageSourceType(chRaw);
+  const sourceLabel = resolveMessageSourceLabel(chRaw, channelLookups);
+  const channelTag =
+    sourceType === "project"
+      ? "Project"
+      : sourceType === "community"
+        ? "Program"
+        : "Support";
 
   return {
     id: m.id ?? m.documentId ?? `row-${Math.random()}`,
@@ -157,8 +168,85 @@ export function mapStrapiChatToBubble(raw, myClientAccountId) {
     senderName: isMine ? clientLabel : teamName,
     avatarUrl: isMine ? null : teamAvatarUrl,
     clientAvatarUrl: null,
+    channelKey: chRaw,
     channelTag,
+    sourceType,
+    sourceLabel,
   };
+}
+
+function projectBelongsToAccount(projectData, accountId) {
+  let projectClientAccountId = null;
+  if (projectData.clientAccount) {
+    if (projectData.clientAccount.attributes) {
+      const attrs = projectData.clientAccount.attributes;
+      projectClientAccountId = attrs.id || attrs.documentId;
+    } else if (
+      projectData.clientAccount.id != null ||
+      projectData.clientAccount.documentId != null
+    ) {
+      projectClientAccountId =
+        projectData.clientAccount.id || projectData.clientAccount.documentId;
+    } else if (
+      typeof projectData.clientAccount === "number" ||
+      typeof projectData.clientAccount === "string"
+    ) {
+      projectClientAccountId = projectData.clientAccount;
+    }
+  }
+  if (!projectClientAccountId && projectData.account) {
+    const acc = projectData.account.attributes || projectData.account;
+    projectClientAccountId = acc?.id || acc?.documentId;
+  }
+  if (!projectClientAccountId) return false;
+  const accountIdNum =
+    typeof accountId === "string" ? parseInt(accountId, 10) : accountId;
+  const projectIdNum =
+    typeof projectClientAccountId === "string"
+      ? parseInt(projectClientAccountId, 10)
+      : projectClientAccountId;
+  return (
+    projectIdNum === accountIdNum ||
+    String(projectClientAccountId) === String(accountId) ||
+    projectClientAccountId == accountId
+  );
+}
+
+/** Map project id / documentId / slug → display name for chat source labels. */
+export async function fetchClientProjectNameMap(accountId) {
+  const map = {};
+  const idRaw = accountId == null ? "" : String(accountId).trim();
+  if (!idRaw) return map;
+
+  try {
+    const queryParams = strapiClient.buildQueryString({
+      populate: ["clientAccount", "account"],
+      pagination: { pageSize: 100 },
+    });
+    const fullUrl = strapiClient.buildURL("/projects", {});
+    const res = await strapiClient.request(`${fullUrl}?${queryParams}`, {
+      method: "GET",
+    });
+    let allProjects = [];
+    if (Array.isArray(res?.data)) allProjects = res.data;
+    else if (Array.isArray(res)) allProjects = res;
+    else if (res?.data?.data) allProjects = res.data.data;
+
+    for (const project of allProjects) {
+      const projectData = project.attributes || project;
+      if (!projectBelongsToAccount(projectData, idRaw)) continue;
+      const name = (projectData.name || "Unnamed Project").trim();
+      const numericId = project.id ?? projectData.id;
+      const docId = project.documentId ?? projectData.documentId;
+      const slug = projectData.slug;
+      if (numericId != null && numericId !== "") map[String(numericId)] = name;
+      if (docId != null && docId !== "") map[String(docId)] = name;
+      if (slug) map[String(slug)] = name;
+    }
+  } catch (e) {
+    console.warn("Could not load project names for chat labels", e);
+  }
+  return map;
 }
 
 export async function fetchChatMessages(clientAccountId, channelKey = "") {
@@ -260,4 +348,54 @@ export function previewTime(iso) {
   } catch {
     return "";
   }
+}
+
+/** @param {string} projectId @param {string} slug */
+export { projectDiscussionChannelKey, getProjectDiscussionChannels } from "../projectDiscussionChannels";
+
+export async function fetchProjectDiscussionMessages(
+  clientAccountId,
+  channelKey
+) {
+  return fetchChatMessages(clientAccountId, channelKey);
+}
+
+export async function sendProjectDiscussionMessage(
+  clientAccountId,
+  channelKey,
+  messageText
+) {
+  return sendPortalChatMessage(clientAccountId, messageText, channelKey);
+}
+
+function rowPreviewText(raw) {
+  const m = flattenStrapiEntity(raw);
+  return (m?.message || "").trim();
+}
+
+function rowCreatedAt(raw) {
+  const m = flattenStrapiEntity(raw);
+  const t = m?.createdAt ? new Date(m.createdAt).getTime() : 0;
+  return t;
+}
+
+/**
+ * Build channel sidebar rows (last message preview) from fetched message lists.
+ * @param {Array<{ id: string, name: string, channelKey: string }>} channelDefs
+ * @param {Record<string, unknown[]>} messagesByChannelKey
+ */
+export function buildProjectChannelSummaries(channelDefs, messagesByChannelKey) {
+  return channelDefs.map((ch) => {
+    const rows = messagesByChannelKey[ch.channelKey] || [];
+    const sorted = [...rows].sort((a, b) => rowCreatedAt(a) - rowCreatedAt(b));
+    const last = sorted[sorted.length - 1];
+    const preview = last ? rowPreviewText(last) : "No messages yet";
+    const lastAt = last ? flattenStrapiEntity(last)?.createdAt : null;
+    return {
+      ...ch,
+      lastMessage: preview,
+      lastActivity: lastAt ? previewTime(lastAt) : "—",
+      unreadCount: 0,
+    };
+  });
 }

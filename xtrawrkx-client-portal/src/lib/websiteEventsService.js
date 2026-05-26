@@ -2,16 +2,13 @@
  * Fetches the public event catalog from the xtrawrkx website (Next.js app / Firebase),
  * same source as `client` PastEvents / UpcomingEvents.
  *
- * Also provides fetchUserRegistrations(email) to load "My Events" data.
+ * Browser calls same-origin `/api/website/*` routes; the portal server proxies to the
+ * marketing site (localhost:3000 in dev, with production fallback).
  */
 
-const websiteBase = () => {
-  const raw =
-    process.env.NEXT_PUBLIC_XTRAWRKX_WEBSITE_URL ||
-    process.env.NEXT_PUBLIC_WEBSITE_URL ||
-    "http://localhost:3000";
-  return String(raw).replace(/\/$/, "");
-};
+import { getWebsiteBaseUrl } from "@/lib/websiteUrl";
+
+const websiteBase = () => getWebsiteBaseUrl();
 
 function inferTicketType(priceStr) {
   const p = String(priceStr || "").trim().toLowerCase();
@@ -69,8 +66,7 @@ export function mapWebsiteEventToPortalEvent(row) {
 }
 
 export async function fetchWebsiteEventsCatalog() {
-  const url = `${websiteBase()}/api/public/events`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch("/api/website/events", { cache: "no-store" });
   const json = await res.json().catch(() => ({}));
 
   if (!res.ok) {
@@ -89,11 +85,13 @@ export async function fetchWebsiteEventsCatalog() {
  */
 export async function fetchUserRegistrations(email) {
   if (!email) return [];
-  const url = `${websiteBase()}/api/public/registrations?email=${encodeURIComponent(
-    email.trim().toLowerCase()
-  )}`;
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(
+      `/api/website/registrations?email=${encodeURIComponent(
+        email.trim().toLowerCase()
+      )}`,
+      { cache: "no-store" }
+    );
     const json = await res.json().catch(() => ({}));
     if (!res.ok) return [];
     return Array.isArray(json?.data) ? json.data : [];

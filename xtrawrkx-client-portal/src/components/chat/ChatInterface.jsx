@@ -32,7 +32,10 @@ export function ChatInterface() {
   const filteredConversations = conversations.filter(
     (conv) =>
       conv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.role.toLowerCase().includes(searchQuery.toLowerCase())
+      conv.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (conv.lastMessageSource || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase())
   );
 
   // Sort conversations: pinned first, then by unread count, then by time
@@ -240,7 +243,13 @@ function ConversationItem({ conversation, isSelected, onSelect, onAction }) {
             </div>
           </div>
 
-          <p className="text-sm text-gray-500 truncate mt-2">
+          {conversation.lastMessageSource &&
+          conversation.lastMessageSource !== "General Support" ? (
+            <p className="mt-1.5 truncate text-xs font-semibold text-sky-700">
+              {conversation.lastMessageSource}
+            </p>
+          ) : null}
+          <p className="text-sm text-gray-500 truncate mt-1.5">
             {conversation.lastMessage}
           </p>
         </div>

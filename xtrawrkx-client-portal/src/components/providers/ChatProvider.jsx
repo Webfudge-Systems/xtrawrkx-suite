@@ -12,6 +12,7 @@ import { strapiClient } from "@/lib/strapiClient";
 import {
   fetchChatMessages,
   fetchAllChannelsChatMessages,
+  fetchClientProjectNameMap,
   sendPortalChatMessage,
   mapStrapiChatToBubble,
   readLastReadTs,
@@ -20,6 +21,10 @@ import {
   writeLastReadNowSupportInbox,
   previewTime,
 } from "@/lib/api/portalChatService";
+import {
+  messageSourceType,
+  resolveMessageSourceLabel,
+} from "@/lib/portalChannelLabels";
 
 const ChatContext = createContext();
 
@@ -42,15 +47,20 @@ export function ChatProvider({ children }) {
   const pollRef = useRef(null);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
+  const channelLookupsRef = useRef({ projectNamesById: {} });
 
   const bootstrapConversations = useCallback(async () => {
     const rawId = strapiClient.getCurrentAccountId();
     if (rawId == null || rawId === "") {
       setAccountId(null);
       setConversations([]);
+      channelLookupsRef.current = { projectNamesById: {} };
       return;
     }
     setAccountId(rawId);
+    channelLookupsRef.current = {
+      projectNamesById: await fetchClientProjectNameMap(rawId),
+    };
 
     const list = [
       {
@@ -88,7 +98,9 @@ export function ChatProvider({ children }) {
             ? await fetchAllChannelsChatMessages(accountId)
             : await fetchChatMessages(accountId, conv.channelKey ?? "");
         const bubbles = rows
-          .map((r) => mapStrapiChatToBubble(r, accountId))
+          .map((r) =>
+            mapStrapiChatToBubble(r, accountId, channelLookupsRef.current)
+          )
           .filter(Boolean);
         setMessages((prev) => {
           const prevList = prev[conv.id] || [];
@@ -103,6 +115,12 @@ export function ChatProvider({ children }) {
           ? { ...last.attributes, id: last.id }
           : last;
         const lastText = lastRaw?.message || "";
+        const lastChKey =
+          lastRaw?.channelKey != null ? String(lastRaw.channelKey) : "";
+        const lastMessageSource = resolveMessageSourceLabel(
+          lastChKey,
+          channelLookupsRef.current
+        );
         const lastAt = lastRaw?.createdAt
           ? new Date(lastRaw.createdAt).getTime()
           : 0;
@@ -129,6 +147,7 @@ export function ChatProvider({ children }) {
                   ...c,
                   lastMessage: lastText,
                   lastMessageAt: lastAt,
+                  lastMessageSource,
                   time: preview || c.time,
                   unread: unreadFromTeam,
                   sortKey: lastAt || c.sortKey,
@@ -185,6 +204,11 @@ export function ChatProvider({ children }) {
         }
       }
       const ck = conv.channelKey != null ? String(conv.channelKey) : "";
+      const sourceType = messageSourceType(ck);
+      const sourceLabel = resolveMessageSourceLabel(
+        ck,
+        channelLookupsRef.current
+      );
       const optimistic = {
         id: `tmp-${Date.now()}`,
         text,
@@ -194,7 +218,15 @@ export function ChatProvider({ children }) {
         status: "sending",
         avatarUrl: null,
         clientAvatarUrl: null,
-        channelTag: ck.startsWith("community:") ? "Program" : "Support",
+        channelKey: ck,
+        sourceType,
+        sourceLabel,
+        channelTag:
+          sourceType === "project"
+            ? "Project"
+            : sourceType === "community"
+              ? "Program"
+              : "Support",
       };
       setMessages((prev) => ({
         ...prev,
@@ -213,7 +245,11 @@ export function ChatProvider({ children }) {
             (m) => m.id !== optimistic.id
           );
           if (created) {
-            const bubble = mapStrapiChatToBubble(created, accountId);
+            const bubble = mapStrapiChatToBubble(
+              created,
+              accountId,
+              channelLookupsRef.current
+            );
             if (bubble) {
               return {
                 ...prev,

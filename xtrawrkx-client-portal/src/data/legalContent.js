@@ -52,7 +52,7 @@ export const legalRelatedPages = [
 export const aboutContent = {
   title: "About",
   description:
-    "Learn about the Xtrawrkx Client Portal and how we support your projects and communities.",
+    "Learn about the xtrawrkx Client Portal and how we support your projects and communities.",
   lastUpdated: "May 2026",
   sections: [
     {
@@ -61,8 +61,8 @@ export const aboutContent = {
       icon: Building2,
       navDescription: "What the client portal is",
       paragraphs: [
-        "The Xtrawrkx Client Portal is your central workspace for projects, tasks, communities, events, and account settings. It connects your team with delivery updates, messaging, and resources in one place.",
-        "This portal is part of the broader Xtrawrkx ecosystem — built to keep collaboration transparent and your work moving forward.",
+        "The xtrawrkx Client Portal is your central workspace for projects, tasks, communities, events, and account settings. It connects your team with delivery updates, messaging, and resources in one place.",
+        "This portal is part of the broader xtrawrkx ecosystem — built to keep collaboration transparent and your work moving forward.",
       ],
     },
     {
@@ -93,7 +93,7 @@ export const aboutContent = {
       navDescription: "How to reach us",
       paragraphs: [
         "For account or billing questions, reach your assigned point of contact from the sidebar, or email support@xtrawrkx.com (placeholder).",
-        "Office: Xtrawrkx Management Consulting Pvt. Ltd. — sample address, Bengaluru, India.",
+        "Office: xtrawrkx Management Consulting Pvt. Ltd. — sample address, Bengaluru, India.",
       ],
     },
   ],
@@ -111,7 +111,7 @@ export const privacyContent = {
       icon: ScrollText,
       navDescription: "Scope of this policy",
       paragraphs: [
-        "This Privacy Policy describes how Xtrawrkx (“we”, “us”) handles personal information when you access the Client Portal and related services. This is placeholder text for demonstration purposes.",
+        "This Privacy Policy describes how xtrawrkx (“we”, “us”) handles personal information when you access the Client Portal and related services. This is placeholder text for demonstration purposes.",
         "By using the portal, you acknowledge that you have read this policy. We may update it from time to time; the “Last updated” date reflects the latest revision.",
       ],
     },
@@ -175,7 +175,7 @@ export const privacyContent = {
 export const termsContent = {
   title: "Terms of Service",
   description:
-    "Terms governing your use of the Xtrawrkx Client Portal.",
+    "Terms governing your use of the xtrawrkx Client Portal.",
   lastUpdated: "May 2026",
   sections: [
     {
@@ -223,7 +223,7 @@ export const termsContent = {
       icon: Copyright,
       navDescription: "Ownership and licenses",
       paragraphs: [
-        "The portal, branding, and underlying software are owned by Xtrawrkx or its licensors. You retain rights to content you submit; you grant us a limited license to host and display it as needed to operate the service.",
+        "The portal, branding, and underlying software are owned by xtrawrkx or its licensors. You retain rights to content you submit; you grant us a limited license to host and display it as needed to operate the service.",
       ],
     },
     {

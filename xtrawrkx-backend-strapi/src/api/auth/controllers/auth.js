@@ -210,6 +210,77 @@ function getContactFullName(contact) {
     return `${contact?.firstName || ''} ${contact?.lastName || ''}`.trim();
 }
 
+function buildClientProfileSettings(account, contact) {
+    const onboarding =
+        account?.onboardingData && typeof account.onboardingData === 'object'
+            ? account.onboardingData
+            : {};
+    const preferences =
+        onboarding.preferences && typeof onboarding.preferences === 'object'
+            ? onboarding.preferences
+            : {};
+
+    const profileImage = contact?.profileImage;
+    const avatarUrl =
+        profileImage?.url ||
+        (profileImage?.formats?.thumbnail?.url ?? null);
+
+    return {
+        contactId: contact?.id || null,
+        firstName: contact?.firstName || onboarding.firstName || '',
+        lastName: contact?.lastName || onboarding.lastName || '',
+        email: contact?.email || account?.email || '',
+        accountEmail: account?.email || '',
+        phone: contact?.phone || account?.phone || '',
+        bio: contact?.description || onboarding.bio || '',
+        timezone: preferences.timezone || 'America/Los_Angeles',
+        avatarUrl,
+        notifications: preferences.notifications || {
+            email: true,
+            projectUpdates: true,
+            messages: true,
+        },
+        appearance: preferences.appearance || { theme: 'light' },
+        language: preferences.language || 'en',
+    };
+}
+
+async function resolveClientPortalContact(strapi, account, decoded, contacts = null) {
+    const accountId = account?.id;
+    if (!accountId) return null;
+
+    if (decoded?.memberContactId) {
+        const member = await strapi.db.query('api::contact.contact').findOne({
+            where: {
+                id: decoded.memberContactId,
+                clientAccount: { id: accountId },
+                status: { $ne: 'LEFT_COMPANY' },
+            },
+            populate: { profileImage: true },
+        });
+        if (member) return member;
+    }
+
+    let list = Array.isArray(contacts) ? contacts : null;
+    if (!list) {
+        list = await strapi.db.query('api::contact.contact').findMany({
+            where: {
+                clientAccount: { id: accountId },
+                status: { $ne: 'LEFT_COMPANY' },
+            },
+            populate: { profileImage: true },
+        });
+    }
+
+    const emailLower = String(account.email || '').trim().toLowerCase();
+    return (
+        list.find((c) => c.role === 'PRIMARY_CONTACT') ||
+        list.find((c) => String(c.email || '').trim().toLowerCase() === emailLower) ||
+        list[0] ||
+        null
+    );
+}
+
 function isBcryptHash(value) {
     return typeof value === 'string' && /^\$2[aby]\$\d{2}\$/.test(value);
 }
@@ -1331,11 +1402,18 @@ module.exports = {
                 }
 
                 const accountPayload = await buildClientPortalAccountPayload(strapi, account);
+                const profileContact = await resolveClientPortalContact(
+                    strapi,
+                    account,
+                    decoded,
+                    account.contacts
+                );
 
                 return ctx.send({
                     success: true,
                     type: 'client',
                     account: accountPayload,
+                    profile: buildClientProfileSettings(account, profileContact),
                     contacts: (account.contacts || []).map((contact) => ({
                         id: contact.id,
                         firstName: contact.firstName,
@@ -1493,9 +1571,107 @@ module.exports = {
                     }
                 });
             } else if (decoded.type === 'client') {
-                // For client accounts, we might want to update contact information
-                // This would depend on your specific requirements
-                return ctx.badRequest('Profile updates for client accounts not implemented yet');
+                const account = await strapi.db.query('api::client-account.client-account').findOne({
+                    where: { id: decoded.id, isActive: true },
+                    populate: {
+                        contacts: {
+                            where: { status: { $ne: 'LEFT_COMPANY' } },
+                            populate: { profileImage: true },
+                        },
+                    },
+                });
+
+                if (!account) {
+                    return ctx.notFound('Client account not found');
+                }
+
+                let contact = await resolveClientPortalContact(
+                    strapi,
+                    account,
+                    decoded,
+                    account.contacts
+                );
+
+                const contactUpdate = {};
+                if (firstName != null && String(firstName).trim()) {
+                    contactUpdate.firstName = String(firstName).trim();
+                }
+                if (lastName != null && String(lastName).trim()) {
+                    contactUpdate.lastName = String(lastName).trim();
+                }
+                if (phone !== undefined) {
+                    contactUpdate.phone = phone ? String(phone).trim() : null;
+                }
+                if (bio !== undefined) {
+                    contactUpdate.description = bio ? String(bio).trim() : null;
+                }
+
+                if (!contact) {
+                    if (!contactUpdate.firstName || !contactUpdate.lastName) {
+                        return ctx.badRequest('First name and last name are required');
+                    }
+                    contact = await strapi.entityService.create('api::contact.contact', {
+                        data: {
+                            ...contactUpdate,
+                            email: account.email,
+                            role: 'PRIMARY_CONTACT',
+                            clientAccount: account.id,
+                            status: 'ACTIVE',
+                        },
+                        populate: { profileImage: true },
+                    });
+                } else if (Object.keys(contactUpdate).length > 0) {
+                    contact = await strapi.entityService.update('api::contact.contact', contact.id, {
+                        data: contactUpdate,
+                        populate: { profileImage: true },
+                    });
+                }
+
+                const existingOnboarding =
+                    account.onboardingData && typeof account.onboardingData === 'object'
+                        ? account.onboardingData
+                        : {};
+                const preferences = {
+                    ...(existingOnboarding.preferences && typeof existingOnboarding.preferences === 'object'
+                        ? existingOnboarding.preferences
+                        : {}),
+                };
+
+                if (timezone) {
+                    preferences.timezone = String(timezone).trim();
+                }
+                if (ctx.request.body.notifications && typeof ctx.request.body.notifications === 'object') {
+                    preferences.notifications = ctx.request.body.notifications;
+                }
+                if (ctx.request.body.appearance && typeof ctx.request.body.appearance === 'object') {
+                    preferences.appearance = ctx.request.body.appearance;
+                }
+                if (ctx.request.body.language) {
+                    preferences.language = String(ctx.request.body.language).trim();
+                }
+
+                const accountUpdate = {
+                    onboardingData: {
+                        ...existingOnboarding,
+                        ...(bio !== undefined ? { bio: bio ? String(bio).trim() : null } : {}),
+                        preferences,
+                    },
+                };
+                if (phone !== undefined) {
+                    accountUpdate.phone = phone ? String(phone).trim() : account.phone;
+                }
+
+                const updatedAccount = await strapi.entityService.update(
+                    'api::client-account.client-account',
+                    account.id,
+                    { data: accountUpdate }
+                );
+
+                return ctx.send({
+                    success: true,
+                    message: 'Profile updated successfully',
+                    profile: buildClientProfileSettings(updatedAccount, contact),
+                });
             } else {
                 return ctx.badRequest('Invalid token type');
             }
@@ -1528,11 +1704,6 @@ module.exports = {
                 return ctx.unauthorized('Invalid token format');
             }
 
-            if (decoded.type !== 'internal') {
-                return ctx.badRequest('Avatar upload only available for internal users');
-            }
-
-            // Check if file was uploaded
             const files = ctx.request.files;
             if (!files || !files.avatar) {
                 return ctx.badRequest('No avatar file provided');
@@ -1540,19 +1711,87 @@ module.exports = {
 
             const avatarFile = files.avatar;
 
-            // Validate file type
             const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
             if (!allowedTypes.includes(avatarFile.type)) {
                 return ctx.badRequest('Invalid file type. Please upload JPEG, PNG, or WebP images only.');
             }
 
-            // Validate file size (max 5MB)
-            const maxSize = 5 * 1024 * 1024; // 5MB
+            const maxSize = 5 * 1024 * 1024;
             if (avatarFile.size > maxSize) {
                 return ctx.badRequest('File size too large. Maximum size is 5MB.');
             }
 
-            // Upload file using Strapi's upload service
+            if (decoded.type === 'client') {
+                const account = await strapi.db.query('api::client-account.client-account').findOne({
+                    where: { id: decoded.id, isActive: true },
+                    populate: {
+                        contacts: {
+                            where: { status: { $ne: 'LEFT_COMPANY' } },
+                        },
+                    },
+                });
+
+                if (!account) {
+                    return ctx.notFound('Client account not found');
+                }
+
+                let contact = await resolveClientPortalContact(
+                    strapi,
+                    account,
+                    decoded,
+                    account.contacts
+                );
+
+                if (!contact) {
+                    return ctx.badRequest(
+                        'Save your profile name first, then upload a profile picture.'
+                    );
+                }
+
+                const uploadedFiles = await strapi.plugins.upload.services.upload.upload({
+                    data: {
+                        refId: contact.id,
+                        ref: 'api::contact.contact',
+                        field: 'profileImage',
+                    },
+                    files: avatarFile,
+                });
+
+                if (!uploadedFiles || uploadedFiles.length === 0) {
+                    return ctx.internalServerError('Failed to upload avatar');
+                }
+
+                const uploadedFile = uploadedFiles[0];
+                const updatedContact = await strapi.entityService.update(
+                    'api::contact.contact',
+                    contact.id,
+                    {
+                        data: { profileImage: uploadedFile.id },
+                        populate: { profileImage: true },
+                    }
+                );
+
+                const baseUrl =
+                    strapi.config.get('server.url') ||
+                    process.env.PUBLIC_URL ||
+                    'http://localhost:1337';
+                const avatarUrl = updatedContact?.profileImage?.url
+                    ? updatedContact.profileImage.url.startsWith('http')
+                        ? updatedContact.profileImage.url
+                        : `${baseUrl}${updatedContact.profileImage.url}`
+                    : null;
+
+                return ctx.send({
+                    success: true,
+                    message: 'Avatar uploaded successfully',
+                    avatarUrl,
+                });
+            }
+
+            if (decoded.type !== 'internal') {
+                return ctx.badRequest('Avatar upload is not available for this account type');
+            }
+
             const uploadedFiles = await strapi.plugins.upload.services.upload.upload({
                 data: {
                     refId: decoded.id,
@@ -1568,7 +1807,6 @@ module.exports = {
 
             const uploadedFile = uploadedFiles[0];
 
-            // Update user with new avatar
             const updatedUser = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').update({
                 where: { id: decoded.id },
                 data: {
@@ -1583,7 +1821,6 @@ module.exports = {
                 return ctx.notFound('User not found');
             }
 
-            // Log the avatar upload activity
             try {
                 await activityLogger.logAvatarUpload(
                     updatedUser.id.toString(),
@@ -1593,8 +1830,7 @@ module.exports = {
             } catch (logError) {
             }
 
-            // Return success response with avatar URL
-            ctx.send({
+            return ctx.send({
                 success: true,
                 message: 'Avatar uploaded successfully',
                 avatarUrl: updatedUser.avatar?.url || null,
@@ -1629,23 +1865,82 @@ module.exports = {
                 return ctx.unauthorized('Invalid token format');
             }
 
-            if (decoded.type !== 'internal') {
-                return ctx.badRequest('Password change only available for internal users');
-            }
-
             const { currentPassword, newPassword } = ctx.request.body;
 
-            // Validate input
             if (!currentPassword || !newPassword) {
                 return ctx.badRequest('Current password and new password are required');
             }
 
-            // Validate new password strength
             if (newPassword.length < 8) {
                 return ctx.badRequest('New password must be at least 8 characters long');
             }
 
-            // Get current user
+            const bcrypt = require('bcryptjs');
+            const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+
+            if (decoded.type === 'client') {
+                if (decoded.memberContactId) {
+                    const memberPortalAccess = await strapi.db.connection('client_portal_access')
+                        .join(
+                            'client_portal_access_contact_lnk',
+                            'client_portal_access_contact_lnk.client_portal_access_id',
+                            'client_portal_access.id'
+                        )
+                        .where({
+                            'client_portal_access_contact_lnk.contact_id': Number(
+                                decoded.memberContactId
+                            ),
+                        })
+                        .select('client_portal_access.*')
+                        .first();
+
+                    if (!memberPortalAccess?.password) {
+                        return ctx.notFound('Portal access not found');
+                    }
+
+                    const isValid = isBcryptHash(memberPortalAccess.password)
+                        ? await bcrypt.compare(currentPassword, memberPortalAccess.password)
+                        : String(currentPassword) === String(memberPortalAccess.password);
+
+                    if (!isValid) {
+                        return ctx.badRequest('Current password is incorrect');
+                    }
+
+                    await strapi.db.connection('client_portal_access')
+                        .where({ id: Number(memberPortalAccess.id) })
+                        .update({
+                            password: hashedNewPassword,
+                            force_password_reset: 0,
+                        });
+                } else {
+                    const accountRow = await strapi.db.connection('client_accounts')
+                        .where({ id: Number(decoded.id) })
+                        .first();
+
+                    if (!accountRow?.password) {
+                        return ctx.notFound('Client account not found');
+                    }
+
+                    const isValid = await bcrypt.compare(currentPassword, accountRow.password);
+                    if (!isValid) {
+                        return ctx.badRequest('Current password is incorrect');
+                    }
+
+                    await strapi.db.connection('client_accounts')
+                        .where({ id: Number(decoded.id) })
+                        .update({ password: hashedNewPassword });
+                }
+
+                return ctx.send({
+                    success: true,
+                    message: 'Password changed successfully',
+                });
+            }
+
+            if (decoded.type !== 'internal') {
+                return ctx.badRequest('Password change is not available for this account type');
+            }
+
             const user = await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').findOne({
                 where: { id: decoded.id },
             });
@@ -1654,18 +1949,12 @@ module.exports = {
                 return ctx.notFound('User not found');
             }
 
-            // Verify current password
-            const bcrypt = require('bcryptjs');
             const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
 
             if (!isCurrentPasswordValid) {
                 return ctx.badRequest('Current password is incorrect');
             }
 
-            // Hash new password
-            const hashedNewPassword = await bcrypt.hash(newPassword, 12);
-
-            // Update user password
             await strapi.db.query('api::xtrawrkx-user.xtrawrkx-user').update({
                 where: { id: decoded.id },
                 data: {
@@ -1674,7 +1963,6 @@ module.exports = {
                 },
             });
 
-            // Log the password change activity
             try {
                 await activityLogger.logPasswordChange(
                     decoded.id.toString(),
@@ -1684,7 +1972,7 @@ module.exports = {
             } catch (logError) {
             }
 
-            ctx.send({
+            return ctx.send({
                 success: true,
                 message: 'Password changed successfully',
             });

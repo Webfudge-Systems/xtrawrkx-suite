@@ -231,33 +231,38 @@ export default function EditProjectPage() {
         throw new Error("Project identifier is required");
       }
 
+      const populateFields = ["projectManager", "account", "deal", "clientAccount"];
+
       let strapiProject = null;
 
-      // Try to parse as ID first (if it's numeric)
+      // In Strapi v5, single documents are fetched by documentId (UUID string).
+      // Numeric-only IDs are not valid for the single-document endpoint.
       const parsedId = parseInt(slugParam, 10);
-      if (!isNaN(parsedId)) {
+      const isNumericOnly = !isNaN(parsedId) && String(parsedId) === slugParam;
+
+      if (isNumericOnly) {
+        // Backward-compat: use filter query instead of single-document endpoint
         try {
-          strapiProject = await projectService.getProjectById(parsedId, [
-            "projectManager",
-            "account",
-            "deal",
-            "clientAccount",
-          ]);
-          setProjectId(parsedId);
-        } catch (idError) {
+          strapiProject = await projectService.getProjectByNumericId(parsedId, populateFields);
+          setProjectId(strapiProject?.documentId || strapiProject?.id);
+        } catch (numericIdError) {
+          // Not found by numeric id, will try slug filter below
+        }
+      } else {
+        // Try by documentId via direct endpoint
+        try {
+          strapiProject = await projectService.getProjectById(slugParam, populateFields);
+          setProjectId(strapiProject?.documentId || strapiProject?.id);
+        } catch (docIdError) {
+          // Not found by documentId, will try slug filter below
         }
       }
 
-      // If not found by ID or not numeric, try by slug
+      // If not found yet, try by slug filter
       if (!strapiProject) {
         try {
-          strapiProject = await projectService.getProjectBySlug(slugParam, [
-            "projectManager",
-            "account",
-            "deal",
-            "clientAccount",
-          ]);
-          setProjectId(strapiProject.id || strapiProject.documentId);
+          strapiProject = await projectService.getProjectBySlug(slugParam, populateFields);
+          setProjectId(strapiProject?.documentId || strapiProject?.id);
         } catch (slugError) {
           console.error("Failed to fetch by slug:", slugError);
           throw new Error("Project not found");

@@ -66,9 +66,32 @@ export function MessageList({ messages }) {
   );
 }
 
+function sourceBadgeClass(sourceType, isClient) {
+  if (sourceType === "project") {
+    return isClient
+      ? "bg-white/20 text-white"
+      : "bg-sky-100 text-sky-900";
+  }
+  if (sourceType === "community") {
+    return isClient
+      ? "bg-white/20 text-white"
+      : "bg-violet-100 text-violet-800";
+  }
+  return isClient
+    ? "bg-white/20 text-white"
+    : "bg-amber-100 text-amber-900";
+}
+
 function MessageItem({ message, isLast }) {
   const isClient = message.sender === "client";
   const isTeam = message.sender === "team";
+  const sourceLabel =
+    message.sourceLabel ||
+    (message.channelTag === "Project"
+      ? "Project"
+      : message.channelTag === "Program"
+        ? "Program Discussion"
+        : null);
 
   return (
     <motion.div
@@ -110,21 +133,17 @@ function MessageItem({ message, isLast }) {
             <span>
               {formatDistanceToNow(message.timestamp, { addSuffix: true })}
             </span>
-            {message.channelTag && (
+            {sourceLabel && sourceLabel !== "General Support" ? (
               <span
-                className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                  message.channelTag === "Program"
-                    ? isClient
-                      ? "bg-white/20 text-white"
-                      : "bg-violet-100 text-violet-800"
-                    : isClient
-                      ? "bg-white/20 text-white"
-                      : "bg-amber-100 text-amber-900"
-                }`}
+                className={`max-w-[12rem] truncate rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide ${sourceBadgeClass(
+                  message.sourceType,
+                  isClient
+                )}`}
+                title={sourceLabel}
               >
-                {message.channelTag}
+                {sourceLabel}
               </span>
-            )}
+            ) : null}
           </div>
 
           {/* Message status indicator for client messages */}

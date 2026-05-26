@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, Phone } from "lucide-react";
+import { Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supportConfig } from "@/config/supportConfig";
 
@@ -21,7 +21,7 @@ function ContactLink({ href, icon: Icon, label }) {
 }
 
 export default function SupportAssistanceCard({ collapsed = false }) {
-  const { title, description, email, phone } = supportConfig;
+  const { title, description, email } = supportConfig;
 
   if (collapsed) {
     return (
@@ -59,7 +59,6 @@ export default function SupportAssistanceCard({ collapsed = false }) {
 
       <div className="space-y-1.5">
         <ContactLink href={`mailto:${email}`} icon={Mail} label={email} />
-        <ContactLink href={`tel:${phone}`} icon={Phone} label={phone} />
       </div>
 
       <span

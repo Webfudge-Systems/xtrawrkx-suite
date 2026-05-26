@@ -38,11 +38,7 @@ import {
 } from "lucide-react";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import {
-  getChannelsByProjectId,
-  getMessagesByChannelId,
-  teamMembers,
-} from "../../../data/centralData";
+import ProjectDiscussionBoard from "../../../components/projects/ProjectDiscussionBoard";
 import { TaskContextMenuProject } from "../../../components/projects";
 import {
   TaskDetailModal,
@@ -82,8 +78,6 @@ export default function ProjectDetail({ params }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
-  const [selectedChannel, setSelectedChannel] = useState(null);
-  const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -188,48 +182,48 @@ export default function ProjectDetail({ params }) {
           throw new Error("Project identifier is required");
         }
 
+        const populateFields = [
+          "projectManager",
+          "teamMembers",
+          "tasks",
+          "tasks.assignee",
+          "tasks.collaborators",
+          "tasks.project",
+          "tasks.subtasks",
+          "account",
+          "deal",
+          "deal.leadCompany",
+          "deal.clientAccount",
+          "clientAccount",
+        ];
+
         let strapiProject = null;
 
-        // Try to parse as ID first (if it's numeric)
+        // In Strapi v5, single documents are fetched by documentId (UUID string).
+        // Numeric-only IDs are not valid for the single-document endpoint.
         const parsedId = parseInt(slugParam, 10);
-        if (!isNaN(parsedId)) {
-          // It's a numeric ID, fetch by ID
+        const isNumericOnly = !isNaN(parsedId) && String(parsedId) === slugParam;
+
+        if (isNumericOnly) {
+          // Backward-compat: use filter query instead of single-document endpoint
           try {
-            strapiProject = await projectService.getProjectById(parsedId, [
-              "projectManager",
-              "teamMembers",
-              "tasks",
-              "tasks.assignee",
-              "tasks.collaborators",
-              "tasks.project",
-              "tasks.subtasks",
-              "account",
-              "deal",
-              "deal.leadCompany",
-              "deal.clientAccount",
-              "clientAccount",
-            ]);
-          } catch (idError) {
+            strapiProject = await projectService.getProjectByNumericId(parsedId, populateFields);
+          } catch (numericIdError) {
+            // Not found by numeric id, will try slug filter below
+          }
+        } else {
+          // Try by documentId via direct endpoint
+          try {
+            strapiProject = await projectService.getProjectById(slugParam, populateFields);
+          } catch (docIdError) {
+            // Not found by documentId, will try slug filter below
           }
         }
 
-        // If not found by ID or not numeric, try by slug
+        // If not found yet, try by slug filter
         if (!strapiProject) {
           try {
-            strapiProject = await projectService.getProjectBySlug(slugParam, [
-              "projectManager",
-              "teamMembers",
-              "tasks",
-              "tasks.assignee",
-              "tasks.collaborators",
-              "tasks.project",
-              "tasks.subtasks",
-              "account",
-              "deal",
-              "deal.leadCompany",
-              "deal.clientAccount",
-              "clientAccount",
-            ]);
+            strapiProject = await projectService.getProjectBySlug(slugParam, populateFields);
           } catch (slugError) {
             console.error("Failed to fetch by slug:", slugError);
             throw new Error("Project not found");
@@ -459,14 +453,6 @@ export default function ProjectDetail({ params }) {
         // Debug logging
 
         setProject(enrichedProject);
-
-        // Set first channel as selected when project loads
-        if (enrichedProject.id) {
-          const channels = getChannelsByProjectId(enrichedProject.id);
-          if (channels.length > 0) {
-            setSelectedChannel(channels[0]);
-          }
-        }
       } catch (err) {
         console.error("Error loading project:", err);
         setError(err.message || "Failed to load project");
@@ -3178,213 +3164,14 @@ export default function ProjectDetail({ params }) {
             }}
           />
 
-          {/* Discussion Tab */}
           {activeTab === "discussion" && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
-              {/* Channels List */}
-              <div className="lg:col-span-1 rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-4">
-                <div className="space-y-4 h-full flex flex-col">
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">
-                      Channel
-                    </h3>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="Search channel or message"
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex-1 space-y-2 overflow-y-auto">
-                    {project &&
-                      getChannelsByProjectId(project.id).map((channel) => (
-                        <div
-                          key={channel.id}
-                          onClick={() => setSelectedChannel(channel)}
-                          className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                            selectedChannel?.id === channel.id
-                              ? "bg-gray-100"
-                              : "hover:bg-gray-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium text-gray-900 text-sm">
-                                {channel.name}
-                              </h4>
-                              {channel.unreadCount > 0 && (
-                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                              )}
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              {channel.lastActivity}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-600 truncate">
-                            {channel.lastMessage}
-                          </p>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Discussion Area */}
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl flex flex-col">
-                {selectedChannel ? (
-                  <>
-                    {/* Header */}
-                    <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {selectedChannel.name}
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <button className="flex items-center gap-2 px-3 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                          <Plus className="w-4 h-4" />
-                          <span className="text-sm">Attach Task</span>
-                        </button>
-                        <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Messages */}
-                    <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                      {getMessagesByChannelId(selectedChannel.id).map(
-                        (message) => {
-                          const sender = teamMembers[message.senderId];
-                          const isCurrentUser = message.senderId === 1; // Assuming current user is ID 1
-                          const messageDate = new Date(message.timestamp);
-
-                          return (
-                            <div
-                              key={message.id}
-                              className={`flex ${
-                                isCurrentUser ? "justify-end" : "justify-start"
-                              }`}
-                            >
-                              <div
-                                className={`flex gap-3 max-w-[70%] ${
-                                  isCurrentUser
-                                    ? "flex-row-reverse"
-                                    : "flex-row"
-                                }`}
-                              >
-                                {!isCurrentUser && (
-                                  <div
-                                    className={`w-8 h-8 ${
-                                      sender?.color || "bg-gray-500"
-                                    } rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}
-                                  >
-                                    {sender?.avatar || "U"}
-                                  </div>
-                                )}
-                                <div
-                                  className={`flex flex-col ${
-                                    isCurrentUser ? "items-end" : "items-start"
-                                  }`}
-                                >
-                                  <div
-                                    className={`px-4 py-2 rounded-lg ${
-                                      isCurrentUser
-                                        ? "bg-blue-500 text-white"
-                                        : "bg-gray-100 text-gray-900"
-                                    }`}
-                                  >
-                                    <p className="text-sm">{message.content}</p>
-                                  </div>
-                                  <div
-                                    className={`flex items-center gap-2 mt-1 text-xs text-gray-500 ${
-                                      isCurrentUser
-                                        ? "flex-row-reverse"
-                                        : "flex-row"
-                                    }`}
-                                  >
-                                    <span>
-                                      {messageDate.toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                      })}
-                                    </span>
-                                    <span>
-                                      {sender?.name || "Unknown User"}
-                                    </span>
-                                  </div>
-                                </div>
-                                {isCurrentUser && (
-                                  <div
-                                    className={`w-8 h-8 ${
-                                      sender?.color || "bg-gray-500"
-                                    } rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}
-                                  >
-                                    {sender?.avatar || "U"}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        },
-                      )}
-                    </div>
-
-                    {/* Message Input */}
-                    <div className="p-4 border-t border-gray-200">
-                      <div className="flex items-end gap-3">
-                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          JB
-                        </div>
-                        <div className="flex-1">
-                          <textarea
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            placeholder="Write a message"
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            rows={3}
-                          />
-                          <div className="flex items-center justify-between mt-2">
-                            <div className="flex items-center gap-3">
-                              <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                                <Plus className="w-4 h-4" />
-                              </button>
-                              <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                                <Paperclip className="w-4 h-4" />
-                              </button>
-                              <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                                <Smile className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <button
-                              onClick={() => {
-                                // Handle send message
-                                setNewMessage("");
-                              }}
-                              disabled={!newMessage.trim()}
-                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                            >
-                              Send Message
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center">
-                      <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">
-                        Select a channel to start the discussion
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ProjectDiscussionBoard
+              projectId={project?.id}
+              clientAccountId={
+                project?.clientAccount?.id || project?.client?.id
+              }
+              projectName={project?.name}
+            />
           )}
         </div>
       </div>
