@@ -40,4 +40,17 @@ See [XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./XTRAWRKX_PRODUCTION_DEPLOYMENT_G
 ## Migration
 
 - Remove nested `apps/landing/package-lock.json`; use root `package-lock.json` only.
-- Commit `apps/landing/` to git (was untracked after monorepo merge).
+- After adding landing to workspaces, run **`npm install` at repo root** and **commit `package-lock.json`** — Vercel runs `npm ci` and fails if the lock file is out of sync with `apps/landing/package.json`.
+
+## Vercel build failure (`npm ci` / EUSAGE)
+
+If install fails with **Missing: next@… from lock file** (landing deps):
+
+```bash
+npm install
+git add package-lock.json
+git commit -m "chore: sync package-lock for @xtrawrkx/landing workspace"
+git push origin master
+```
+
+Then redeploy on Vercel.
