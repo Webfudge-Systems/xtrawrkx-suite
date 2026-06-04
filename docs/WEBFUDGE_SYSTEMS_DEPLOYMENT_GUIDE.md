@@ -188,9 +188,9 @@ Project **`xtrawrkx-suite`** · Service **`xtrawrkx_suits`** (API).
 | **Root Directory** | **`apps/backend`** |
 | **Config-as-code file** | **`/apps/backend/railway.json`** (absolute from repo root) |
 
-If deploy fails at **Snapshot** with `service config at 'railway.json' not found`, the service still points at the old monorepo path or a deleted root `railway.json`. Fix both settings above and redeploy.
+If deploy fails at **Snapshot** with `service config at 'railway.json' not found`, set **Config-as-code file** to **`/apps/backend/railway.json`** (not bare `railway.json`). Railway does not resolve a bare path relative to Root Directory.
 
-Config file in repo: `apps/backend/railway.json` (build + start + health check on `/api/apps`).
+Repo files: `apps/backend/railway.json` (canonical) and root `railway.json` (fallback if the dashboard path is still `railway.json`). Prefer updating the dashboard path and keeping both files in sync.
 
 ### 2.2 Build
 

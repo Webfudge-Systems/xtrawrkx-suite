@@ -17,7 +17,7 @@ When **Postgres shows “Completed”** on Railway but the **API service is “C
 | Setting | Value |
 |--------|--------|
 | **Root Directory** | `apps/backend` |
-| **Config-as-code file** | `/apps/backend/railway.json` (from repo root) |
+| **Config-as-code file** | **`/apps/backend/railway.json`** (absolute from repo root — not `railway.json`) |
 | **Build** | `npm install && npm run build` |
 | **Start** | `npm run start` → `strapi start` |
 | **Watch Paths** (only if Root Directory is `/`) | `apps/backend/**` |
