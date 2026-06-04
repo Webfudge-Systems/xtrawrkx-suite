@@ -186,12 +186,17 @@ Project **`xtrawrkx-suite`** · Service **`xtrawrkx_suits`** (API).
 | Repository | `Webfudge-Systems/xtrawrkx-suite` |
 | Branch | `master` (or `main`) |
 | **Root Directory** | **`apps/backend`** |
+| **Config-as-code file** | **`/apps/backend/railway.json`** (absolute from repo root) |
+
+If deploy fails at **Snapshot** with `service config at 'railway.json' not found`, the service still points at the old monorepo path or a deleted root `railway.json`. Fix both settings above and redeploy.
+
+Config file in repo: `apps/backend/railway.json` (build + start + health check on `/api/apps`).
 
 ### 2.2 Build
 
 | Setting | Value |
 |---------|--------|
-| Build | `npm install` or `npm ci` |
+| Build | `npm install && npm run build` (from `railway.json`) |
 | Start | `npm run start` |
 | Node | 20.x |
 
@@ -314,6 +319,13 @@ curl -s https://api.xtrawrkx.com/api/health/redis
 
 4. Admin: `https://api.xtrawrkx.com/admin`
 5. Custom domain: Railway → Networking → `api.xtrawrkx.com` → DNS CNAME.
+
+### 5.1 Deploy failures
+
+| Error | Fix |
+|-------|-----|
+| `service config at 'railway.json' not found` | **Settings → Root Directory:** `apps/backend` · **Config file:** `/apps/backend/railway.json` · commit includes `apps/backend/railway.json` |
+| `KnexTimeoutError` | [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md) |
 
 ---
 

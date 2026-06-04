@@ -16,10 +16,13 @@ When **Postgres shows “Completed”** on Railway but the **API service is “C
 
 | Setting | Value |
 |--------|--------|
-| **Root directory** | `apps/backend` (if deploying from monorepo) |
-| **Build** | `npm install` (or `npm ci`) |
+| **Root Directory** | `apps/backend` |
+| **Config-as-code file** | `/apps/backend/railway.json` (from repo root) |
+| **Build** | `npm install && npm run build` |
 | **Start** | `npm run start` → `strapi start` |
-| **Watch Paths** | `apps/backend/**` (optional, for monorepo) |
+| **Watch Paths** (only if Root Directory is `/`) | `apps/backend/**` |
+
+Repo file: **`apps/backend/railway.json`**. Fixes snapshot error `service config at 'railway.json' not found` after the monorepo move (old `xtrawrkx-backend-strapi/` path removed).
 
 ### 2. Link Postgres to the API service
 

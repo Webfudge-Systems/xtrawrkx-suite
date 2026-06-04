@@ -2,7 +2,7 @@
 
 Strapi **5** backend for the Xtrawrkx suite: CRM, PM, Accounts, auth, multi-tenant organizations, and content APIs.
 
-**Production:** Railway project `xtrawrkx-suite` · **Root directory:** `apps/backend`
+**Production:** Railway project `xtrawrkx-suite` · **Root directory:** `apps/backend` · **Config file:** `/apps/backend/railway.json`
 
 ---
 
@@ -67,6 +67,7 @@ Link **Redis** for API caching → `REDIS_URL`.
 
 ```
 apps/backend/
+├── railway.json      # Railway build/start config (required after monorepo move)
 ├── config/           # database, middlewares (CORS), plugins
 ├── src/api/          # Content-types & controllers
 ├── database/seeds/   # Apps/modules, platform admin
