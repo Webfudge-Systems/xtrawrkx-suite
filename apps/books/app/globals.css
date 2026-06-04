@@ -1,0 +1,154 @@
+@import url("https://fonts.googleapis.com/css2?family=Host+Grotesk:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --books-bg-page: #f5f5f5;
+  --books-bg-card: #ffffff;
+  --books-bg-elevated: #ffffff;
+  --books-border: rgba(0, 0, 0, 0.08);
+  --books-border-em: rgba(0, 0, 0, 0.15);
+  --books-text-primary: #111827;
+  --books-text-secondary: #6b7280;
+  --books-text-tertiary: #9ca3af;
+  --books-green: #10b981;
+  --books-green-bg: rgba(16, 185, 129, 0.1);
+  /** Solid brand orange — avatars, active tabs, primary buttons (same in light/dark). */
+  --books-brand: #ea580c;
+  --books-brand-hover: #c2410c;
+  --books-orange-bg: rgba(234, 88, 12, 0.1);
+  /** Text/icons on surfaces — not for solid fills (use --books-brand). */
+  --books-orange-text: #ea580c;
+  --books-input-bg: #ffffff;
+  --books-input-border: rgba(0, 0, 0, 0.1);
+  --books-input-text: #111827;
+  --books-input-placeholder: #6b7280;
+  --books-chart-loss: #171717;
+  --books-chart-grid: #e5e7eb;
+  --books-chart-tick: #6b7280;
+  --books-chart-tick-muted: #9ca3af;
+  --books-tooltip-bg: #ffffff;
+  --books-tooltip-border: #fed7aa;
+  --books-tooltip-text: #111827;
+  --books-pl-empty-bg: rgba(251, 191, 36, 0.12);
+  --books-pl-empty-border: rgba(251, 191, 36, 0.22);
+  --books-pl-empty-text: #451a03;
+  --books-scroll-track: #f5f5f5;
+  --books-scroll-thumb: #d1d5db;
+  /** Table header / muted stripes (light gray vs white card; dark elevated vs card) */
+  --books-surface-muted: #f5f5f5;
+  /**
+   * Shared chrome for dashboard cards, sidebar rails, tab/toolbars, and header actions.
+   * Matches `Card` variant `elevated` (Total Balance, KPI tiles): same fill + elevation.
+   */
+  --books-shell-radius: 0.75rem;
+  --books-shell-shadow: 0 3px 16px rgba(15, 23, 42, 0.1), 0 2px 5px rgba(15, 23, 42, 0.06);
+}
+
+.dark {
+  --books-bg-page: #16181c;
+  --books-bg-card: #1e2128;
+  --books-bg-elevated: #252830;
+  --books-border: rgba(255, 255, 255, 0.08);
+  --books-border-em: rgba(255, 255, 255, 0.15);
+  --books-text-primary: #f0f0f0;
+  --books-text-secondary: #9ca3af;
+  --books-text-tertiary: #6b7280;
+  --books-green: #34d399;
+  --books-green-bg: rgba(52, 211, 153, 0.12);
+  --books-brand: #ea580c;
+  --books-brand-hover: #c2410c;
+  --books-orange-bg: rgba(234, 88, 12, 0.15);
+  /** Lighter orange for labels/icons on dark cards only */
+  --books-orange-text: #fb923c;
+  --books-input-bg: #252830;
+  --books-input-border: rgba(255, 255, 255, 0.1);
+  --books-input-text: #f0f0f0;
+  --books-input-placeholder: #6b7280;
+  --books-chart-loss: #f0f0f0;
+  --books-chart-grid: rgba(255, 255, 255, 0.08);
+  --books-chart-tick: #9ca3af;
+  --books-chart-tick-muted: #6b7280;
+  --books-tooltip-bg: #252830;
+  --books-tooltip-border: rgba(255, 255, 255, 0.12);
+  --books-tooltip-text: #f0f0f0;
+  --books-pl-empty-bg: rgba(251, 191, 36, 0.1);
+  --books-pl-empty-border: rgba(251, 191, 36, 0.2);
+  --books-pl-empty-text: #f0f0f0;
+  --books-scroll-track: #1e2128;
+  --books-scroll-thumb: #3a3d45;
+  --books-surface-muted: #252830;
+  --books-shell-shadow: 0 4px 28px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.38);
+  color-scheme: dark;
+}
+
+@layer components {
+  /** Books-only: same surface recipe as dashboard `Card` elevated + Total Balance tile */
+  .books-shell-surface {
+    background-color: var(--books-bg-card);
+    border-radius: var(--books-shell-radius);
+    box-shadow: var(--books-shell-shadow);
+  }
+
+  .books-shell-surface--rail {
+    border-radius: 9999px;
+  }
+
+  /** Horizontal capsule (header tab tracks, icon clusters, profile) — same fill + shadow as dashboard cards */
+  .books-shell-surface-pill {
+    background-color: var(--books-bg-card);
+    border-radius: 9999px;
+    box-shadow: var(--books-shell-shadow);
+  }
+}
+
+@layer utilities {
+  /** Scroll still works (wheel / touch / keyboard); track + thumb hidden (sidebar rail, etc.) */
+  .books-hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .books-hide-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--books-border, rgba(0, 0, 0, 0.08));
+  }
+
+  body {
+    @apply bg-[var(--books-bg-page)] font-sans text-[var(--books-text-primary)] antialiased;
+  }
+
+  button {
+    @apply rounded-lg;
+  }
+}
+
+/* Scrollbars (WebKit + Firefox) */
+* {
+  scrollbar-color: var(--books-scroll-thumb) var(--books-scroll-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--books-scroll-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--books-scroll-thumb);
+  border-radius: 9999px;
+}

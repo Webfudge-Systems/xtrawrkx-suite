@@ -1,0 +1,43 @@
+{
+    "kind": "collectionType",
+    "collectionName": "client_portal_documents",
+    "info": {
+        "singularName": "client-portal-document",
+        "pluralName": "client-portal-documents",
+        "displayName": "Client Portal Document",
+        "description": "Documents shared with client portal accounts"
+    },
+    "options": { "draftAndPublish": false },
+    "pluginOptions": {},
+    "attributes": {
+        "name": { "type": "string", "required": true },
+        "clientAccount": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::client-account.client-account"
+        },
+        "issueDate": { "type": "datetime", "required": true },
+        "status": {
+            "type": "enumeration",
+            "enum": ["DRAFT", "ACTIVE", "ARCHIVED"],
+            "default": "DRAFT"
+        },
+        "notes": { "type": "text" },
+        "documents": {
+            "type": "media",
+            "multiple": true,
+            "required": false,
+            "allowedTypes": ["images", "files", "videos", "audios"]
+        },
+        "uploadedBy": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "plugin::users-permissions.user"
+        },
+        "organization": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::organization.organization"
+        }
+    }
+}

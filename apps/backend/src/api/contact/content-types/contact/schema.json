@@ -1,0 +1,154 @@
+{
+  "kind": "collectionType",
+  "collectionName": "contacts",
+  "info": {
+    "singularName": "contact",
+    "pluralName": "contacts",
+    "displayName": "Contact",
+    "description": "CRM contacts (people)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "firstName": {
+      "type": "string",
+      "required": true
+    },
+    "lastName": {
+      "type": "string",
+      "required": true
+    },
+    "email": {
+      "type": "email",
+      "required": true
+    },
+    "phone": {
+      "type": "string"
+    },
+    "companyName": {
+      "type": "string"
+    },
+    "companyWebsite": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "default": "ACTIVE"
+    },
+    "source": {
+      "type": "string",
+      "default": "OTHER"
+    },
+    "preferredContactMethod": {
+      "type": "string"
+    },
+    "birthDate": {
+      "type": "date"
+    },
+    "timezone": {
+      "type": "string"
+    },
+    "jobTitle": {
+      "type": "string"
+    },
+    "department": {
+      "type": "string"
+    },
+    "contactRole": {
+      "type": "string"
+    },
+    "isPrimaryContact": {
+      "type": "boolean",
+      "default": false
+    },
+    "address": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "zipCode": {
+      "type": "string"
+    },
+    "linkedIn": {
+      "type": "string"
+    },
+    "twitter": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "text"
+    },
+    "assignedTo": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "leadCompany": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::lead-company.lead-company"
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "isCustomer": {
+      "type": "boolean",
+      "default": false
+    },
+    "isVendor": {
+      "type": "boolean",
+      "default": false
+    },
+    "clientType": {
+      "type": "enumeration",
+      "enum": ["agency_client", "direct_client", "partner", "individual"],
+      "default": "agency_client"
+    },
+    "currency": {
+      "type": "string",
+      "default": "INR"
+    },
+    "billingAddress": {
+      "type": "json"
+    },
+    "shippingAddress": {
+      "type": "json"
+    },
+    "paymentTerms": {
+      "type": "enumeration",
+      "enum": ["net_15", "net_30", "net_45", "net_60", "due_on_receipt"],
+      "default": "net_30"
+    },
+    "creditLimit": {
+      "type": "integer",
+      "default": 0
+    },
+    "taxNumber": {
+      "type": "string"
+    },
+    "portalAccess": {
+      "type": "boolean",
+      "default": false
+    },
+    "unusedCredits": {
+      "type": "integer",
+      "default": 0
+    }
+  }
+}

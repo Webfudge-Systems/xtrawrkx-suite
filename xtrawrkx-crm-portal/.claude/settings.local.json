@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(//c/Projects/xtrawrkx_suits/packages/ui/src/**)"
-    ],
-    "deny": [],
-    "ask": []
-  }
-}

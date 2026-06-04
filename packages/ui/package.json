@@ -1,0 +1,57 @@
+{
+  "name": "@webfudge/ui",
+  "version": "0.1.0",
+  "description": "Reusable UI components for WebFudge Platform",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": "./index.js",
+    "./book-components": "./book-components/index.ts",
+    "./components": "./components/index.js",
+    "./components/*": "./components/*/index.js",
+    "./layouts": "./layouts/index.js",
+    "./layouts/*": "./layouts/*/index.js",
+    "./feedback": "./feedback/index.js",
+    "./themes": "./themes/index.js",
+    "./utils/*": "./utils/*"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "ui",
+    "components",
+    "react",
+    "tailwind",
+    "webfudge"
+  ],
+  "author": "WebFudge Systems",
+  "license": "MIT",
+  "peerDependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "@webfudge/auth": "*",
+    "@webfudge/utils": "*"
+  },
+  "dependencies": {
+    "@webfudge/utils": "*",
+    "@fullcalendar/core": "^6.1.20",
+    "@fullcalendar/daygrid": "^6.1.20",
+    "@fullcalendar/interaction": "^6.1.20",
+    "@fullcalendar/react": "^6.1.20",
+    "@fullcalendar/timegrid": "^6.1.20",
+    "clsx": "^2.0.0",
+    "framer-motion": "^10.0.0",
+    "lucide-react": "^0.300.0",
+    "recharts": "^3.8.1",
+    "tailwind-merge": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Xtrawrkx CRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Host+Grotesk:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link rel="stylesheet" href="sidebar.css" />
+  </head>
+  <body>
+    <div class="xtrawrkx-sidebar-container">
+      <!-- Header -->
+      <div class="xtrawrkx-sidebar-header">
+        <div class="xtrawrkx-sidebar-title">
+          <div
+            class="xtrawrkx-logo"
+            id="xtrawrkx-logo-btn"
+            style="cursor: pointer"
+          >
+            <!-- <svg
+              class="xtrawrkx-logo-icon"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 2L2 7L12 12L22 7L12 2Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M2 17L12 22L22 17"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M2 12L12 17L22 12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg> -->
+            <span class="xtrawrkx-logo-text">xtrawrkx</span>
+          </div>
+        </div>
+        <div class="xtrawrkx-header-actions">
+          <button
+            class="xtrawrkx-header-icon-btn"
+            id="xtrawrkx-refresh-btn"
+            aria-label="Refresh data"
+            title="Refresh data"
+          >
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <button
+            class="xtrawrkx-header-btn-cta"
+            id="xtrawrkx-crm-btn"
+            aria-label="Open CRM in new tab"
+            title="Open CRM in new tab"
+          >
+            <i class="fas fa-external-link-alt"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="xtrawrkx-sidebar-content">
+        <!-- Login Form (shown when not authenticated) -->
+        <div class="xtrawrkx-login-form" id="xtrawrkx-login-form">
+          <div class="xtrawrkx-login-card">
+            <div class="xtrawrkx-login-header">
+              <h2>Welcome Back</h2>
+              <p>Sign in to import LinkedIn data to your CRM</p>
+            </div>
+            <form id="xtrawrkx-auth-form" class="xtrawrkx-form">
+              <div class="xtrawrkx-form-group">
+                <label for="xtrawrkx-login-email">Email Address</label>
+                <input
+                  type="email"
+                  id="xtrawrkx-login-email"
+                  placeholder="Enter your email"
+                  required
+                  autocomplete="email"
+                />
+              </div>
+              <div class="xtrawrkx-form-group">
+                <label for="xtrawrkx-login-password">Password</label>
+                <input
+                  type="password"
+                  id="xtrawrkx-login-password"
+                  placeholder="Enter your password"
+                  required
+                  autocomplete="current-password"
+                />
+              </div>
+              <div class="xtrawrkx-form-actions">
+                <button
+                  type="submit"
+                  class="btn-primary"
+                  id="xtrawrkx-login-submit"
+                >
+                  <span>Sign In</span>
+                  <div class="btn-icon">
+                    <i class="fas fa-sign-in-alt"></i>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  id="xtrawrkx-open-crm"
+                >
+                  <span>Open CRM Settings</span>
+                  <div class="btn-icon">
+                    <i class="fas fa-external-link-alt"></i>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  id="xtrawrkx-test-connection"
+                  style="margin-top: 8px; font-size: 12px"
+                >
+                  <span>Test Connection</span>
+                </button>
+              </div>
+              <div
+                class="xtrawrkx-login-error"
+                id="xtrawrkx-login-error"
+                style="display: none"
+              ></div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Data Import UI (shown when authenticated) -->
+        <div
+          class="xtrawrkx-sidebar-loading"
+          id="xtrawrkx-sidebar-loading"
+          style="display: none"
+        >
+          <div class="xtrawrkx-loading-card">
+            <div class="xtrawrkx-spinner"></div>
+            <h3>Please wait</h3>
+            <p>Loading…</p>
+          </div>
+        </div>
+
+        <!-- Existing Lead Details UI (shown when contact already exists) -->
+        <div
+          class="xtrawrkx-existing-lead"
+          id="xtrawrkx-existing-lead"
+          style="display: none"
+        >
+          <!-- Profile Header -->
+          <div class="xtrawrkx-existing-header">
+            <div class="xtrawrkx-existing-profile">
+              <div class="xtrawrkx-existing-image" id="xtrawrkx-existing-image">
+                <i class="fas fa-user default-avatar"></i>
+              </div>
+              <div class="xtrawrkx-existing-info">
+                <h2 class="xtrawrkx-existing-name" id="xtrawrkx-existing-name">
+                  Name
+                </h2>
+                <p
+                  class="xtrawrkx-existing-subtitle"
+                  id="xtrawrkx-existing-title"
+                >
+                  Title
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab Navigation -->
+          <div class="xtrawrkx-tab-navigation">
+            <button
+              class="xtrawrkx-tab-btn active"
+              data-tab="details"
+              id="xtrawrkx-details-tab"
+            >
+              DETAILS
+            </button>
+            <button
+              class="xtrawrkx-tab-btn"
+              data-tab="related"
+              id="xtrawrkx-related-tab"
+            >
+              RELATED
+            </button>
+            <button
+              class="xtrawrkx-tab-btn"
+              data-tab="company"
+              id="xtrawrkx-company-tab"
+            >
+              COMPANY
+            </button>
+            <button
+              class="xtrawrkx-tab-btn"
+              data-tab="chats"
+              id="xtrawrkx-chats-tab"
+            >
+              CHATS
+            </button>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="xtrawrkx-existing-content">
+            <!-- Details Tab Content -->
+            <div
+              class="xtrawrkx-tab-content active"
+              id="xtrawrkx-details-content"
+            >
+              <!-- Contact Information Section -->
+              <div class="xtrawrkx-existing-section">
+                <div class="xtrawrkx-existing-details">
+                  <div class="xtrawrkx-existing-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Name</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-existing-full-name"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-existing-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Company</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-existing-company"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-existing-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Title</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-existing-job-title"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-existing-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Contact Type</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-existing-contact-type"
+                      >
+                        Potential Customer
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-existing-row xtrawrkx-owner-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Owner</label>
+                      <div
+                        class="xtrawrkx-field-value xtrawrkx-owner-highlight"
+                        id="xtrawrkx-existing-owner"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Work Email Section -->
+              <div class="xtrawrkx-existing-section">
+                <h3 class="xtrawrkx-section-title">Work Email</h3>
+                <div class="xtrawrkx-existing-details">
+                  <div class="xtrawrkx-existing-row">
+                    <div class="xtrawrkx-field-group">
+                      <div
+                        class="xtrawrkx-field-value xtrawrkx-email-placeholder"
+                        id="xtrawrkx-existing-email"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Work Phone Section -->
+              <div class="xtrawrkx-existing-section">
+                <h3 class="xtrawrkx-section-title">Work Phone</h3>
+                <div class="xtrawrkx-existing-details">
+                  <div class="xtrawrkx-existing-row">
+                    <div class="xtrawrkx-field-group">
+                      <div
+                        class="xtrawrkx-field-value xtrawrkx-phone-placeholder"
+                        id="xtrawrkx-existing-phone"
+                      >
+                        Add Phone
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Work Website Section -->
+              <div class="xtrawrkx-existing-section">
+                <h3 class="xtrawrkx-section-title">Work Website</h3>
+                <div class="xtrawrkx-existing-details">
+                  <div class="xtrawrkx-existing-row">
+                    <div class="xtrawrkx-field-group">
+                      <div
+                        class="xtrawrkx-field-value xtrawrkx-website-placeholder"
+                        id="xtrawrkx-existing-website"
+                      >
+                        Add Website
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Description Section -->
+              <div class="xtrawrkx-existing-section">
+                <h3 class="xtrawrkx-section-title">About</h3>
+                <div class="xtrawrkx-existing-details">
+                  <div class="xtrawrkx-existing-row">
+                    <div class="xtrawrkx-field-group">
+                      <div
+                        class="xtrawrkx-field-value xtrawrkx-description"
+                        id="xtrawrkx-existing-description"
+                      >
+                        No description available
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Related Tab Content -->
+            <div class="xtrawrkx-tab-content" id="xtrawrkx-related-content">
+              <!-- Total Won and Win Rate -->
+              <div class="xtrawrkx-stats-section">
+                <div class="xtrawrkx-stat-item">
+                  <div>
+                    <label class="xtrawrkx-stat-label">Total Won</label>
+                    <div class="xtrawrkx-stat-value" id="xtrawrkx-total-won">
+                      $0
+                    </div>
+                  </div>
+                </div>
+                <div class="xtrawrkx-stat-item">
+                  <div>
+                    <label class="xtrawrkx-stat-label"
+                      >Win Rate
+                      <i class="fas fa-check-circle"></i>
+                    </label>
+                    <div class="xtrawrkx-stat-value" id="xtrawrkx-win-rate">
+                      0%
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Deals -->
+              <div class="xtrawrkx-related-section">
+                <div class="xtrawrkx-related-header">
+                  <h3 class="xtrawrkx-related-title">Deals (0)</h3>
+                  <button class="xtrawrkx-expand-btn">
+                    <i class="fas fa-chevron-down"></i>
+                  </button>
+                </div>
+                <div
+                  class="xtrawrkx-related-content-area"
+                  id="xtrawrkx-pipeline-content"
+                >
+                  <div class="xtrawrkx-empty-state">
+                    No pipeline records found
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tasks -->
+              <div class="xtrawrkx-related-section">
+                <div class="xtrawrkx-related-header">
+                  <h3 class="xtrawrkx-related-title">Tasks (0)</h3>
+                  <button class="xtrawrkx-expand-btn">
+                    <i class="fas fa-chevron-down"></i>
+                  </button>
+                  <button class="xtrawrkx-add-btn">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+                <div
+                  class="xtrawrkx-related-content-area"
+                  id="xtrawrkx-tasks-content"
+                >
+                  <div class="xtrawrkx-empty-state">No tasks found</div>
+                </div>
+              </div>
+
+              <!-- Files -->
+              <div class="xtrawrkx-related-section">
+                <div class="xtrawrkx-related-header">
+                  <h3 class="xtrawrkx-related-title">Files (0)</h3>
+                  <button class="xtrawrkx-expand-btn">
+                    <i class="fas fa-chevron-down"></i>
+                  </button>
+                  <button class="xtrawrkx-add-btn">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+                <div
+                  class="xtrawrkx-related-content-area"
+                  id="xtrawrkx-files-content"
+                >
+                  <div class="xtrawrkx-empty-state">No files found</div>
+                </div>
+              </div>
+
+              <!-- Calendar Events -->
+              <div class="xtrawrkx-related-section">
+                <div class="xtrawrkx-related-header">
+                  <h3 class="xtrawrkx-related-title">Calendar Events (0)</h3>
+                  <button class="xtrawrkx-expand-btn">
+                    <i class="fas fa-chevron-down"></i>
+                  </button>
+                  <button class="xtrawrkx-add-btn">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+                <div
+                  class="xtrawrkx-related-content-area"
+                  id="xtrawrkx-calendar-content"
+                >
+                  <div class="xtrawrkx-empty-state">
+                    No calendar events found
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Company Tab Content -->
+            <div class="xtrawrkx-tab-content" id="xtrawrkx-company-content">
+              <!-- Company Status -->
+              <div class="xtrawrkx-company-status-section">
+                <div class="xtrawrkx-company-status-header">
+                  <h3
+                    class="xtrawrkx-company-status-title"
+                    id="xtrawrkx-company-name"
+                  >
+                    Company Name
+                  </h3>
+                  <span
+                    class="xtrawrkx-company-status-badge"
+                    id="xtrawrkx-company-status"
+                    >Lead</span
+                  >
+                </div>
+                <div class="xtrawrkx-company-details">
+                  <div class="xtrawrkx-company-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Industry</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-industry"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-company-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Website</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-website"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-company-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Employees</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-employees"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-company-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Founded</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-founded"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-company-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Location</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-location"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div class="xtrawrkx-company-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Health Score</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-health-score"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Lead-specific fields -->
+                  <div
+                    class="xtrawrkx-company-row xtrawrkx-lead-only"
+                    id="xtrawrkx-lead-segment-row"
+                    style="display: none"
+                  >
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Segment</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-segment"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="xtrawrkx-company-row xtrawrkx-lead-only"
+                    id="xtrawrkx-lead-status-row"
+                    style="display: none"
+                  >
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Lead Status</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-lead-status"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="xtrawrkx-company-row xtrawrkx-lead-only"
+                    id="xtrawrkx-deal-value-row"
+                    style="display: none"
+                  >
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Deal Value</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-deal-value"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Client-specific fields -->
+                  <div
+                    class="xtrawrkx-company-row xtrawrkx-client-only"
+                    id="xtrawrkx-client-type-row"
+                    style="display: none"
+                  >
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Client Type</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-client-type"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="xtrawrkx-company-row xtrawrkx-client-only"
+                    id="xtrawrkx-revenue-row"
+                    style="display: none"
+                  >
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Revenue</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-revenue"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="xtrawrkx-company-row xtrawrkx-client-only"
+                    id="xtrawrkx-conversion-date-row"
+                    style="display: none"
+                  >
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label"
+                        >Conversion Date</label
+                      >
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-conversion-date"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="xtrawrkx-company-row">
+                    <div class="xtrawrkx-field-group">
+                      <label class="xtrawrkx-field-label">Last Contact</label>
+                      <div
+                        class="xtrawrkx-field-value"
+                        id="xtrawrkx-company-last-contact"
+                      >
+                        -
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Company Contacts -->
+              <div class="xtrawrkx-related-section">
+                <div class="xtrawrkx-related-header">
+                  <h3 class="xtrawrkx-related-title">Other Contacts (0)</h3>
+                  <button class="xtrawrkx-expand-btn">
+                    <i class="fas fa-chevron-down"></i>
+                  </button>
+                </div>
+                <div
+                  class="xtrawrkx-related-content-area"
+                  id="xtrawrkx-company-contacts-content"
+                >
+                  <div class="xtrawrkx-empty-state">
+                    No other contacts found
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chats Tab Content -->
+            <div class="xtrawrkx-tab-content" id="xtrawrkx-chats-content">
+              <!-- Chat Messages -->
+              <div class="xtrawrkx-chats-section">
+                <div class="xtrawrkx-chats-header">
+                  <h3 class="xtrawrkx-chats-title">Recent Messages</h3>
+                  <button class="xtrawrkx-add-btn" title="Start New Chat">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M12 5V19M5 12H19"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div class="xtrawrkx-chats-list" id="xtrawrkx-chats-list">
+                  <div class="xtrawrkx-empty-state">No chat messages found</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Button -->
+          <div class="xtrawrkx-existing-actions">
+            <button
+              type="button"
+              class="btn-generate-pitch xtrawrkx-generate-pitch-trigger xtrawrkx-generate-pitch-existing"
+            >
+              <span>Generate Pitch</span>
+            </button>
+            <button class="btn-view-crm" id="xtrawrkx-view-crm-btn">
+              <span>View in CRM</span>
+              <div class="btn-icon">
+                <i class="fas fa-arrow-up-right"></i>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="xtrawrkx-sidebar-body"
+          id="xtrawrkx-sidebar-body"
+          style="display: none"
+        >
+          <!-- Profile Header Section -->
+          <div class="xtrawrkx-profile-header">
+            <div class="xtrawrkx-profile-left">
+              <div class="xtrawrkx-profile-image" id="xtrawrkx-profile-image">
+                <i class="fas fa-user default-avatar"></i>
+              </div>
+              <div class="xtrawrkx-profile-info">
+                <h2 class="xtrawrkx-profile-name" id="xtrawrkx-profile-name">
+                  Name
+                </h2>
+                <!-- Compatibility Score Badge -->
+                <div
+                  class="xtrawrkx-compatibility-score"
+                  id="xtrawrkx-compatibility-score"
+                  style="display: none"
+                >
+                  <span class="xtrawrkx-score-label">Compatibility Score</span>
+                  <span class="xtrawrkx-score-value" id="xtrawrkx-score-value"
+                    >-</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="xtrawrkx-profile-actions">
+              <button class="btn-add-xtrawrkx" id="xtrawrkx-import-btn">
+                <span>Analyze Profile</span>
+              </button>
+              <button
+                type="button"
+                class="btn-quick-add-crm"
+                id="xtrawrkx-quick-add-btn"
+                style="display: none"
+                title="Quick-add this profile to CRM without full HTML capture"
+              >
+                <span>Add to CRM</span>
+              </button>
+              <button
+                type="button"
+                class="btn-generate-pitch xtrawrkx-generate-pitch-trigger xtrawrkx-generate-pitch-sidebar"
+                style="display: none"
+              >
+                <span>Generate Pitch</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="xtrawrkx-divider"></div>
+
+          <!-- Experience Selection Section -->
+          <div
+            class="xtrawrkx-experience-section"
+            id="xtrawrkx-experience-section"
+            style="display: none"
+          >
+            <h3 class="xtrawrkx-section-title">Select Experience to Add</h3>
+            <div class="xtrawrkx-experience-list" id="xtrawrkx-experience-list">
+              <!-- Experience items will be populated by JavaScript -->
+            </div>
+          </div>
+
+          <div
+            class="xtrawrkx-divider"
+            id="xtrawrkx-experience-divider"
+            style="display: none"
+          ></div>
+
+          <!-- Details Section -->
+          <div class="xtrawrkx-details-section">
+            <div
+              class="xtrawrkx-detail-item"
+              id="xtrawrkx-job-title-item"
+              style="display: none"
+            >
+              <div class="xtrawrkx-detail-icon">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect
+                    x="2"
+                    y="7"
+                    width="20"
+                    height="14"
+                    rx="2"
+                    ry="2"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  />
+                  <path
+                    d="M16 21V19C16 17.9391 15.5786 16.9217 14.8284 16.1716C14.0783 15.4214 13.0609 15 12 15C10.9391 15 9.92172 15.4214 9.17157 16.1716C8.42143 16.9217 8 17.9391 8 19V21"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  />
+                  <path
+                    d="M12 7V3C12 2.46957 11.7893 1.96086 11.4142 1.58579C11.0391 1.21071 10.5304 1 10 1H6C5.46957 1 4.96086 1.21071 4.58579 1.58579C4.21071 1.96086 4 2.46957 4 3V7"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  />
+                </svg>
+              </div>
+              <div class="xtrawrkx-detail-content">
+                <div class="xtrawrkx-detail-label" id="xtrawrkx-job-title-label">Job Title</div>
+                <div class="xtrawrkx-detail-value" id="xtrawrkx-job-title">
+                  -
+                </div>
+              </div>
+            </div>
+            <div
+              class="xtrawrkx-detail-item"
+              id="xtrawrkx-linkedin-item"
+              style="display: none"
+            >
+              <div class="xtrawrkx-detail-icon">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M16 8C17.5913 8 19.1174 8.63214 20.2426 9.75736C21.3679 10.8826 22 12.4087 22 14V21H18V14C18 13.4696 17.7893 12.9609 17.4142 12.5858C17.0391 12.2107 16.5304 12 16 12C15.4696 12 14.9609 12.2107 14.5858 12.5858C14.2107 12.9609 14 13.4696 14 14V21H10V14C10 12.4087 10.6321 10.8826 11.7574 9.75736C12.8826 8.63214 14.4087 8 16 8Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M6 9H2V21H6V9Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <circle
+                    cx="4"
+                    cy="4"
+                    r="2"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  />
+                </svg>
+              </div>
+              <div class="xtrawrkx-detail-content">
+                <div class="xtrawrkx-detail-label">LinkedIn</div>
+                <div class="xtrawrkx-detail-value">
+                  <a
+                    href="#"
+                    id="xtrawrkx-linkedin-url"
+                    target="_blank"
+                    class="xtrawrkx-linkedin-link"
+                    >-</a
+                  >
+                </div>
+              </div>
+            </div>
+            <div
+              class="xtrawrkx-detail-item"
+              id="xtrawrkx-description-item"
+              style="display: none"
+            >
+              <div class="xtrawrkx-detail-icon">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M4 4H20C21.1046 4 22 4.89543 22 6V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6C2 4.89543 2.89543 4 4 4Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  />
+                  <path
+                    d="M7 8H17M7 12H17M7 16H13"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </div>
+              <div class="xtrawrkx-detail-content">
+                <div class="xtrawrkx-detail-label">Description</div>
+                <div
+                  class="xtrawrkx-detail-value xtrawrkx-description-text"
+                  id="xtrawrkx-description"
+                >
+                  -
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Company Info Section -->
+          <div class="xtrawrkx-divider"></div>
+          <div
+            class="xtrawrkx-company-section"
+            id="xtrawrkx-company-section"
+            style="display: none"
+          >
+            <div class="xtrawrkx-section-label">Company Info:</div>
+            <div class="xtrawrkx-company-info">
+              <div class="xtrawrkx-company-icon">
+                <i class="fas fa-building"></i>
+              </div>
+              <div class="xtrawrkx-company-details">
+                <div class="xtrawrkx-company-label">Company</div>
+                <div
+                  class="xtrawrkx-company-name"
+                  id="xtrawrkx-profile-company-name"
+                >
+                  -
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Full HTML capture preview (Phase 1 — no AI); hidden when using CRM sync -->
+          <div class="xtrawrkx-divider" id="xtrawrkx-html-capture-divider" style="display: none"></div>
+          <div
+            class="xtrawrkx-html-capture-panel"
+            id="xtrawrkx-html-capture-panel"
+            style="display: none"
+            aria-live="polite"
+          >
+            <div class="xtrawrkx-html-capture-panel-head">
+              <h3 class="xtrawrkx-section-title">Captured HTML</h3>
+              <button
+                type="button"
+                class="xtrawrkx-html-capture-close"
+                id="xtrawrkx-html-capture-close"
+                aria-label="Hide HTML preview"
+              >
+                ×
+              </button>
+            </div>
+            <p class="xtrawrkx-html-capture-meta" id="xtrawrkx-html-capture-meta"></p>
+            <div class="xtrawrkx-html-capture-actions">
+              <button type="button" class="btn-secondary" id="xtrawrkx-copy-structured-json">
+                Copy extracted JSON
+              </button>
+              <button type="button" class="btn-secondary" id="xtrawrkx-copy-full-html">
+                Copy full HTML
+              </button>
+            </div>
+            <h4 class="xtrawrkx-html-capture-subtitle">Extracted profile (DOM)</h4>
+            <pre class="xtrawrkx-html-capture-pre xtrawrkx-structured-json-pre" id="xtrawrkx-structured-json-pre"></pre>
+            <h4 class="xtrawrkx-html-capture-subtitle">Raw HTML preview</h4>
+            <pre class="xtrawrkx-html-capture-pre" id="xtrawrkx-html-capture-pre"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Outreach variants modal -->
+      <div
+        id="xtrawrkx-outreach-modal"
+        class="xtrawrkx-outreach-modal"
+        style="display: none"
+        aria-hidden="true"
+        role="dialog"
+        aria-labelledby="xtrawrkx-outreach-title"
+      >
+        <div class="xtrawrkx-outreach-backdrop" aria-hidden="true"></div>
+        <div class="xtrawrkx-outreach-dialog">
+          <div class="xtrawrkx-outreach-header">
+            <h2 id="xtrawrkx-outreach-title">Generated outreach</h2>
+            <button
+              type="button"
+              id="xtrawrkx-outreach-close"
+              class="xtrawrkx-outreach-close"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          <div class="xtrawrkx-outreach-body">
+            <section class="xtrawrkx-outreach-block">
+              <div class="xtrawrkx-outreach-block-head">
+                <label for="xtrawrkx-outreach-dm">Short DM</label>
+                <button
+                  type="button"
+                  class="btn-secondary xtrawrkx-copy-btn"
+                  data-copy-target="xtrawrkx-outreach-dm"
+                >
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="xtrawrkx-outreach-dm"
+                readonly
+                rows="4"
+                class="xtrawrkx-outreach-textarea"
+              ></textarea>
+            </section>
+            <section class="xtrawrkx-outreach-block">
+              <div class="xtrawrkx-outreach-block-head">
+                <label for="xtrawrkx-outreach-pitch">Personalized pitch</label>
+                <button
+                  type="button"
+                  class="btn-secondary xtrawrkx-copy-btn"
+                  data-copy-target="xtrawrkx-outreach-pitch"
+                >
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="xtrawrkx-outreach-pitch"
+                readonly
+                rows="6"
+                class="xtrawrkx-outreach-textarea"
+              ></textarea>
+            </section>
+            <section class="xtrawrkx-outreach-block">
+              <div class="xtrawrkx-outreach-block-head">
+                <label for="xtrawrkx-outreach-sales">Sales message</label>
+                <button
+                  type="button"
+                  class="btn-secondary xtrawrkx-copy-btn"
+                  data-copy-target="xtrawrkx-outreach-sales"
+                >
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="xtrawrkx-outreach-sales"
+                readonly
+                rows="6"
+                class="xtrawrkx-outreach-textarea"
+              ></textarea>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../utils/logger.js"></script>
+    <script src="../utils/config.js"></script>
+    <script src="../utils/error-handler.js"></script>
+    <script src="profileCaptureMode.js"></script>
+    <script src="../content/profile-structured-parser.js"></script>
+    <script src="sidebar.js"></script>
+  </body>
+</html>

@@ -1,0 +1,46 @@
+{
+    "kind": "collectionType",
+    "collectionName": "community_submissions",
+    "info": {
+        "singularName": "community-submission",
+        "pluralName": "community-submissions",
+        "displayName": "Community Submission",
+        "description": "Client applications to join different communities"
+    },
+    "options": { "draftAndPublish": false },
+    "pluginOptions": {},
+    "attributes": {
+        "clientAccount": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::client-account.client-account"
+        },
+        "community": {
+            "type": "enumeration",
+            "enum": ["XEN", "XEVFIN", "XEVTG", "XDD"],
+            "required": true
+        },
+        "submissionData": { "type": "json", "required": true },
+        "status": {
+            "type": "enumeration",
+            "enum": ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "PENDING_INFO"],
+            "default": "SUBMITTED"
+        },
+        "submissionId": { "type": "string", "unique": true, "required": true },
+        "reviewNotes": { "type": "text" },
+        "reviewedBy": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "plugin::users-permissions.user"
+        },
+        "reviewedAt": { "type": "datetime" },
+        "approvedAt": { "type": "datetime" },
+        "rejectedAt": { "type": "datetime" },
+        "rejectionReason": { "type": "text" },
+        "organization": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::organization.organization"
+        }
+    }
+}

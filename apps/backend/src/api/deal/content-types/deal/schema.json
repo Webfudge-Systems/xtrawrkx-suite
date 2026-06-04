@@ -1,0 +1,92 @@
+{
+  "kind": "collectionType",
+  "collectionName": "deals",
+  "info": {
+    "singularName": "deal",
+    "pluralName": "deals",
+    "displayName": "Deal",
+    "description": "CRM sales opportunities / pipeline deals"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "value": {
+      "type": "decimal",
+      "default": 0
+    },
+    "stage": {
+      "type": "enumeration",
+      "enum": ["discovery", "prospect", "proposal", "negotiation", "won", "lost"],
+      "default": "discovery"
+    },
+    "priority": {
+      "type": "enumeration",
+      "enum": ["low", "medium", "high"],
+      "default": "medium"
+    },
+    "probability": {
+      "type": "integer",
+      "default": 0,
+      "min": 0,
+      "max": 100
+    },
+    "visibility": {
+      "type": "enumeration",
+      "enum": ["public", "private", "team"],
+      "default": "public"
+    },
+    "dealGroup": {
+      "type": "string"
+    },
+    "expectedCloseDate": {
+      "type": "date"
+    },
+    "source": {
+      "type": "string",
+      "default": "OTHER"
+    },
+    "description": {
+      "type": "text"
+    },
+    "notes": {
+      "type": "text"
+    },
+    "assignedTo": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "leadCompany": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::lead-company.lead-company"
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "contact": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::contact.contact"
+    },
+    "deliveryProject": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::project.project",
+      "mappedBy": "sourceDeal"
+    }
+  }
+}

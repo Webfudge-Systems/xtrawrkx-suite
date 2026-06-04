@@ -1,0 +1,29 @@
+{
+  "kind": "collectionType",
+  "collectionName": "documents",
+  "info": {
+    "singularName": "document",
+    "pluralName": "documents",
+    "displayName": "Document",
+    "description": "Uploaded financial documents"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "fileName":       { "type": "string", "required": true },
+    "fileUrl":        { "type": "string", "required": true },
+    "fileType":       { "type": "string" },
+    "fileSize":       { "type": "integer" },
+    "status":         { "type": "enumeration", "enum": ["processing","processed","unreadable"], "default": "processing" },
+    "documentType":   { "type": "enumeration", "enum": ["invoice","bill","expense","bank_statement","contract","other"], "default": "other" },
+    "inboxType":      { "type": "enumeration", "enum": ["all_documents","bank_statements"], "default": "all_documents" },
+    "emailSubject":   { "type": "string" },
+    "extractedData":  { "type": "json" },
+    "isLinked":       { "type": "boolean", "default": false },
+    "uploadedBy":     { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" },
+    "linkedInvoice":  { "type": "relation", "relation": "manyToOne", "target": "api::invoice.invoice" },
+    "linkedBill":     { "type": "relation", "relation": "manyToOne", "target": "api::bill.bill" },
+    "linkedExpense":  { "type": "relation", "relation": "manyToOne", "target": "api::expense.expense" },
+    "organization":   { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" }
+  }
+}

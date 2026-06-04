@@ -1,0 +1,36 @@
+{
+  "kind": "collectionType",
+  "collectionName": "expenses",
+  "info": {
+    "singularName": "expense",
+    "pluralName": "expenses",
+    "displayName": "Expense",
+    "description": "Business expenses"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "expenseNumber":  { "type": "string" },
+    "expenseDate":    { "type": "date", "required": true },
+    "amount":         { "type": "integer", "required": true },
+    "category":       { "type": "enumeration", "enum": ["subcontractor","software_saas","travel","office","meals","training","marketing","utilities","rent","salaries","other"], "required": true },
+    "description":    { "type": "text" },
+    "billable":       { "type": "boolean", "default": false },
+    "reimbursable":   { "type": "boolean", "default": false },
+    "status":         { "type": "enumeration", "enum": ["draft","submitted","approved","rejected","reimbursed"], "default": "draft" },
+    "paymentMode":    { "type": "enumeration", "enum": ["cash","card","bank_transfer","upi","other"], "default": "card" },
+    "referenceNumber":{ "type": "string" },
+    "taxAmount":      { "type": "integer", "default": 0 },
+    "taxRate":        { "type": "decimal", "default": 0 },
+    "invoiced":       { "type": "boolean", "default": false },
+    "invoicedOn":     { "type": "datetime" },
+    "project":        { "type": "relation", "relation": "manyToOne", "target": "api::project.project" },
+    "customer":       { "type": "relation", "relation": "manyToOne", "target": "api::contact.contact" },
+    "bankAccount":    { "type": "relation", "relation": "manyToOne", "target": "api::bank-account.bank-account" },
+    "invoice":        { "type": "relation", "relation": "manyToOne", "target": "api::invoice.invoice" },
+    "submittedBy":    { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" },
+    "approvedBy":     { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" },
+    "organization":   { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":  { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

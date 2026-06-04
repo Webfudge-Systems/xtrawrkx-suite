@@ -1,0 +1,34 @@
+{
+  "name": "@webfudge/auth",
+  "version": "0.1.0",
+  "description": "Authentication and authorization system for WebFudge Platform",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": "./src/index.js",
+    "./components": "./src/components/index.js",
+    "./hooks": "./src/hooks/index.js",
+    "./services": "./src/services/index.js"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "auth",
+    "authentication",
+    "authorization",
+    "rbac"
+  ],
+  "author": "WebFudge Systems",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}

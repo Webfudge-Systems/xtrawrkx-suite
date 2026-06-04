@@ -1,0 +1,120 @@
+{
+  "kind": "collectionType",
+  "collectionName": "lead_companies",
+  "info": {
+    "singularName": "lead-company",
+    "pluralName": "lead-companies",
+    "displayName": "Lead Company",
+    "description": "CRM lead companies (potential clients)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "companyName": {
+      "type": "string",
+      "required": true
+    },
+    "industry": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "website": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "email"
+    },
+    "address": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "zipCode": {
+      "type": "string"
+    },
+    "employees": {
+      "type": "string"
+    },
+    "founded": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "linkedIn": {
+      "type": "string"
+    },
+    "twitter": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "default": "WEBSITE"
+    },
+    "status": {
+      "type": "string",
+      "default": "NEW"
+    },
+    "segment": {
+      "type": "string",
+      "default": "WARM"
+    },
+    "score": {
+      "type": "integer",
+      "default": 0
+    },
+    "healthScore": {
+      "type": "integer",
+      "default": 0
+    },
+    "dealValue": {
+      "type": "decimal",
+      "default": 0
+    },
+    "notes": {
+      "type": "text"
+    },
+    "nextConnectDate": {
+      "type": "date"
+    },
+    "assignedTo": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "contacts": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::contact.contact",
+      "mappedBy": "leadCompany"
+    },
+    "convertedAt": {
+      "type": "datetime"
+    },
+    "convertedAccount": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::client-account.client-account",
+      "mappedBy": "convertedFromLead"
+    }
+  }
+}

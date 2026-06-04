@@ -1,21 +1,62 @@
-node_modules/
-.pnp.*
-.next/
-dist/
-build/
-.vscode/
-.DS_Store
-.env*
-apps/*/.env*
-backend/strapi/.env*
-backend/strapi/public/uploads/
-backend/strapi/.cache/
-.turbo/
-.claude/
+# Dependencies
+node_modules
+.pnp
+.pnp.js
 
-# Logs and temp
-*.log
-logs/
-tmp/
-temp/
-.cache/
+# Testing
+coverage
+
+# Next.js
+.next/
+out/
+
+# Production
+build
+dist
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local env files
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# Typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Turbo
+.turbo
+
+# Strapi
+.tmp
+.cache
+.strapi
+.strapi-updater.json
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db

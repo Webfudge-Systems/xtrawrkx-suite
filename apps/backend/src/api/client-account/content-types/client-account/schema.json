@@ -1,0 +1,126 @@
+{
+  "kind": "collectionType",
+  "collectionName": "client_accounts",
+  "info": {
+    "singularName": "client-account",
+    "pluralName": "client-accounts",
+    "displayName": "Client Account",
+    "description": "Converted client companies and business accounts"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "companyName": {
+      "type": "string",
+      "required": true
+    },
+    "industry": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "website": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "email"
+    },
+    "address": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "zipCode": {
+      "type": "string"
+    },
+    "employees": {
+      "type": "string"
+    },
+    "founded": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "linkedIn": {
+      "type": "string"
+    },
+    "twitter": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "text"
+    },
+    "status": {
+      "type": "string",
+      "default": "ACTIVE"
+    },
+    "healthScore": {
+      "type": "integer",
+      "default": 75
+    },
+    "dealValue": {
+      "type": "decimal",
+      "default": 0
+    },
+    "accountType": {
+      "type": "string",
+      "default": "STANDARD"
+    },
+    "onboardingDate": {
+      "type": "datetime"
+    },
+    "contractStartDate": {
+      "type": "datetime"
+    },
+    "contractEndDate": {
+      "type": "datetime"
+    },
+    "billingCycle": {
+      "type": "string",
+      "default": "MONTHLY"
+    },
+    "paymentTerms": {
+      "type": "string",
+      "default": "NET_30"
+    },
+    "conversionDate": {
+      "type": "datetime"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "assignedTo": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "convertedFromLead": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::lead-company.lead-company",
+      "inversedBy": "convertedAccount"
+    },
+    "contacts": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::contact.contact",
+      "mappedBy": "clientAccount"
+    }
+  }
+}

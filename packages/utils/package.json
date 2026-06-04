@@ -1,0 +1,28 @@
+{
+  "name": "@webfudge/utils",
+  "version": "0.1.0",
+  "description": "Common utility functions for WebFudge Platform",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": "./src/index.js",
+    "./formatters": "./src/formatters/index.js",
+    "./formatters/calendarDate": "./src/formatters/calendarDate.js",
+    "./crmShared": "./src/crmShared/index.js"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "utils",
+    "formatters",
+    "helpers"
+  ],
+  "author": "WebFudge Systems",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "platform_activities",
+  "info": {
+    "singularName": "platform-activity",
+    "pluralName": "platform-activities",
+    "displayName": "Platform Activity",
+    "description": "Audit timeline entries for platform-managed organizations"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "required": true
+    },
+    "actor": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "action": {
+      "type": "enumeration",
+      "enum": ["create", "update", "delete"],
+      "required": true
+    },
+    "subjectType": {
+      "type": "string",
+      "required": true
+    },
+    "subjectId": {
+      "type": "integer",
+      "required": true
+    },
+    "summary": {
+      "type": "text",
+      "required": true
+    },
+    "meta": {
+      "type": "json"
+    }
+  }
+}

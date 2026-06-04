@@ -1,0 +1,26 @@
+{
+  "kind": "collectionType",
+  "collectionName": "estimate_line_items",
+  "info": {
+    "singularName": "estimate-line-item",
+    "pluralName": "estimate-line-items",
+    "displayName": "Estimate Line Item",
+    "description": "Line items for estimates"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "description":     { "type": "text" },
+    "quantity":        { "type": "decimal", "default": 1 },
+    "rate":            { "type": "integer", "required": true, "default": 0 },
+    "amount":          { "type": "integer", "default": 0 },
+    "discountPercent": { "type": "decimal", "default": 0 },
+    "taxRate":         { "type": "decimal", "default": 0 },
+    "taxAmount":       { "type": "integer", "default": 0 },
+    "total":           { "type": "integer", "default": 0 },
+    "sortOrder":       { "type": "integer", "default": 0 },
+    "estimate":        { "type": "relation", "relation": "manyToOne", "target": "api::estimate.estimate" },
+    "item":            { "type": "relation", "relation": "manyToOne", "target": "api::item.item" },
+    "organization":    { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" }
+  }
+}

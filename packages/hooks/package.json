@@ -1,0 +1,28 @@
+{
+  "name": "@webfudge/hooks",
+  "version": "0.1.0",
+  "description": "Custom React hooks for WebFudge Platform",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "hooks",
+    "react-hooks",
+    "custom-hooks"
+  ],
+  "author": "WebFudge Systems",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}

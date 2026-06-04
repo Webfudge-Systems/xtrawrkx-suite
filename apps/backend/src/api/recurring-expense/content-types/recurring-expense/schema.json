@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "recurring_expenses",
+  "info": {
+    "singularName": "recurring-expense",
+    "pluralName": "recurring-expenses",
+    "displayName": "Recurring Expense",
+    "description": "Recurring expense profiles"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "profileName":       { "type": "string" },
+    "status":            { "type": "enumeration", "enum": ["active","paused","expired"], "default": "active" },
+    "frequency":         { "type": "enumeration", "enum": ["weekly","monthly","quarterly","yearly"], "default": "monthly" },
+    "startDate":         { "type": "date" },
+    "endDate":           { "type": "date" },
+    "nextExpenseDate":   { "type": "date" },
+    "amount":            { "type": "integer", "default": 0 },
+    "category":          { "type": "enumeration", "enum": ["subcontractor","software_saas","travel","office","meals","training","marketing","utilities","rent","salaries","other"] },
+    "billable":          { "type": "boolean", "default": false },
+    "lastCreatedAt":     { "type": "datetime" },
+    "project":           { "type": "relation", "relation": "manyToOne", "target": "api::project.project" },
+    "organization":      { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":     { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

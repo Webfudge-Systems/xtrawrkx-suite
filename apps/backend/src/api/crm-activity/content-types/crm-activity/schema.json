@@ -1,0 +1,51 @@
+{
+  "kind": "collectionType",
+  "collectionName": "crm_activities",
+  "info": {
+    "singularName": "crm-activity",
+    "pluralName": "crm-activities",
+    "displayName": "CRM Activity",
+    "description": "Audit timeline entries for CRM entities (contacts, lead companies, etc.)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "actor": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "action": {
+      "type": "enumeration",
+      "enum": ["create", "update", "delete", "comment"],
+      "required": true
+    },
+    "subjectType": {
+      "type": "string",
+      "required": true
+    },
+    "subjectId": {
+      "type": "integer",
+      "required": true
+    },
+    "leadCompany": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::lead-company.lead-company"
+    },
+    "summary": {
+      "type": "text",
+      "required": true
+    },
+    "meta": {
+      "type": "json"
+    }
+  }
+}

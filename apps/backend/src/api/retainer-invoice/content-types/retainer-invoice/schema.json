@@ -1,0 +1,28 @@
+{
+  "kind": "collectionType",
+  "collectionName": "retainer_invoices",
+  "info": {
+    "singularName": "retainer-invoice",
+    "pluralName": "retainer-invoices",
+    "displayName": "Retainer Invoice",
+    "description": "Retainer / advance invoices"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "retainerNumber": { "type": "string" },
+    "status":         { "type": "enumeration", "enum": ["draft","sent","viewed","partial","paid","void"], "default": "draft" },
+    "retainerDate":   { "type": "date" },
+    "dueDate":        { "type": "date" },
+    "amount":         { "type": "integer", "required": true, "default": 0 },
+    "balanceDue":     { "type": "integer", "default": 0 },
+    "paidAmount":     { "type": "integer", "default": 0 },
+    "currency":       { "type": "string", "default": "INR" },
+    "notes":          { "type": "text" },
+    "retainerType":   { "type": "enumeration", "enum": ["advance","monthly","project_based"], "default": "project_based" },
+    "customer":       { "type": "relation", "relation": "manyToOne", "target": "api::contact.contact" },
+    "project":        { "type": "relation", "relation": "manyToOne", "target": "api::project.project" },
+    "organization":   { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":  { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

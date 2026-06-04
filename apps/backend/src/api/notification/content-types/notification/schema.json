@@ -1,0 +1,74 @@
+{
+  "kind": "collectionType",
+  "collectionName": "notifications",
+  "info": {
+    "singularName": "notification",
+    "pluralName": "notifications",
+    "displayName": "Notification",
+    "description": "In-app notifications for users within an organization"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "info",
+        "success",
+        "warning",
+        "error",
+        "mention",
+        "lead_created",
+        "lead_updated",
+        "lead_assigned",
+        "lead_comment",
+        "deal_created",
+        "deal_updated",
+        "deal_comment",
+        "contact_updated",
+        "contact_comment",
+        "client_account_updated",
+        "client_account_comment",
+        "task_assigned",
+        "task_updated",
+        "task_comment",
+        "project_updated",
+        "project_comment",
+        "invite_sent",
+        "invite_accepted",
+        "system"
+      ],
+      "default": "info"
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "message": {
+      "type": "text"
+    },
+    "isRead": {
+      "type": "boolean",
+      "default": false
+    },
+    "readAt": {
+      "type": "datetime"
+    },
+    "data": {
+      "type": "json",
+      "default": {}
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    }
+  }
+}

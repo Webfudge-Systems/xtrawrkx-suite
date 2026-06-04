@@ -1,0 +1,152 @@
+{
+  "kind": "collectionType",
+  "collectionName": "meetings",
+  "info": {
+    "singularName": "meeting",
+    "pluralName": "meetings",
+    "displayName": "Meeting",
+    "description": "CRM meetings — scheduled calls, demos, check-ins, and client meetings"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "startTime": {
+      "type": "datetime",
+      "required": true
+    },
+    "endTime": {
+      "type": "datetime"
+    },
+    "meetingType": {
+      "type": "enumeration",
+      "enum": [
+        "discovery",
+        "demo",
+        "follow_up",
+        "check_in",
+        "review",
+        "internal",
+        "other"
+      ],
+      "default": "other"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": [
+        "scheduled",
+        "completed",
+        "cancelled",
+        "no_show"
+      ],
+      "default": "scheduled"
+    },
+    "location": {
+      "type": "string"
+    },
+    "isVirtual": {
+      "type": "boolean",
+      "default": false
+    },
+    "agenda": {
+      "type": "text"
+    },
+    "notes": {
+      "type": "text"
+    },
+    "outcome": {
+      "type": "enumeration",
+      "enum": [
+        "positive",
+        "neutral",
+        "negative",
+        "pending"
+      ],
+      "default": "pending"
+    },
+    "reminderPreset": {
+      "type": "enumeration",
+      "enum": [
+        "none",
+        "tenMin",
+        "thirtyMin",
+        "oneHour",
+        "oneDay"
+      ],
+      "default": "thirtyMin"
+    },
+    "visibility": {
+      "type": "enumeration",
+      "enum": [
+        "public",
+        "private",
+        "team"
+      ],
+      "default": "public"
+    },
+    "attendeesMeta": {
+      "type": "json",
+      "default": []
+    },
+    "recurrenceRule": {
+      "type": "string"
+    },
+    "recordingUrl": {
+      "type": "string"
+    },
+    "aiSummary": {
+      "type": "text"
+    },
+    "transcriptUrl": {
+      "type": "string"
+    },
+    "externalMeetingId": {
+      "type": "string"
+    },
+    "organizer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "assignedTo": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "deal": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::deal.deal"
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "leadCompany": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::lead-company.lead-company"
+    },
+    "contact": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::contact.contact"
+    },
+    "attendees": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::contact.contact"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    }
+  }
+}

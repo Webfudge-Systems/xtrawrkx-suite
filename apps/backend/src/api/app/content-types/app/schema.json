@@ -1,0 +1,60 @@
+{
+  "kind": "collectionType",
+  "collectionName": "apps",
+  "info": {
+    "singularName": "app",
+    "pluralName": "apps",
+    "displayName": "App",
+    "description": "Applications available in the platform"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "icon": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "basePrice": {
+      "type": "decimal",
+      "default": 0
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "modules": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::module.module",
+      "mappedBy": "app"
+    },
+    "features": {
+      "type": "json",
+      "default": []
+    },
+    "color": {
+      "type": "string"
+    },
+    "order": {
+      "type": "integer",
+      "default": 0
+    }
+  }
+}

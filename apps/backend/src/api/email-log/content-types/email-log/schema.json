@@ -1,0 +1,50 @@
+{
+    "kind": "collectionType",
+    "collectionName": "email_logs",
+    "info": {
+        "singularName": "email-log",
+        "pluralName": "email-logs",
+        "displayName": "Email Log",
+        "description": "Email delivery and engagement tracking"
+    },
+    "options": { "draftAndPublish": false },
+    "pluginOptions": {},
+    "attributes": {
+        "campaign": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::email-campaign.email-campaign"
+        },
+        "recipientType": {
+            "type": "enumeration",
+            "enum": ["LEAD_COMPANY", "CONTACT", "CLIENT_ACCOUNT"],
+            "required": true
+        },
+        "recipientId": { "type": "string", "required": true },
+        "email": { "type": "email", "required": true },
+        "status": {
+            "type": "enumeration",
+            "enum": ["SENT", "DELIVERED", "OPENED", "CLICKED", "BOUNCED", "UNSUBSCRIBED"],
+            "default": "SENT"
+        },
+        "sentAt": { "type": "datetime" },
+        "deliveredAt": { "type": "datetime" },
+        "openedAt": { "type": "datetime" },
+        "clickedAt": { "type": "datetime" },
+        "contact": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::contact.contact"
+        },
+        "leadCompany": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::lead-company.lead-company"
+        },
+        "organization": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::organization.organization"
+        }
+    }
+}

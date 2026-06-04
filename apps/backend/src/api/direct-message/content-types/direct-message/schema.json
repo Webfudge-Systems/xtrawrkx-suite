@@ -1,0 +1,35 @@
+{
+  "kind": "collectionType",
+  "collectionName": "direct_messages",
+  "info": {
+    "singularName": "direct-message",
+    "pluralName": "direct-messages",
+    "displayName": "Direct Message",
+    "description": "1:1 messages between users in an organization"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "content": {
+      "type": "text",
+      "required": true
+    },
+    "sender": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "recipient": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "kind": "collectionType",
+  "collectionName": "estimates",
+  "info": {
+    "singularName": "estimate",
+    "pluralName": "estimates",
+    "displayName": "Estimate",
+    "description": "Customer estimates / quotes"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "estimateNumber":        { "type": "string" },
+    "status":                { "type": "enumeration", "enum": ["draft","sent","viewed","accepted","declined","expired","invoiced"], "default": "draft" },
+    "estimateDate":          { "type": "date", "required": true },
+    "expiryDate":            { "type": "date" },
+    "currency":              { "type": "string", "default": "INR" },
+    "subtotal":              { "type": "integer", "default": 0 },
+    "discountType":          { "type": "enumeration", "enum": ["percentage","fixed"] },
+    "discountValue":         { "type": "decimal", "default": 0 },
+    "discountAmount":        { "type": "integer", "default": 0 },
+    "taxAmount":             { "type": "integer", "default": 0 },
+    "total":                 { "type": "integer", "default": 0 },
+    "notes":                 { "type": "text" },
+    "termsConditions":       { "type": "text" },
+    "sentAt":                { "type": "datetime" },
+    "acceptedAt":            { "type": "datetime" },
+    "declinedAt":            { "type": "datetime" },
+    "convertedToInvoice":    { "type": "boolean", "default": false },
+    "customer":              { "type": "relation", "relation": "manyToOne", "target": "api::contact.contact" },
+    "project":               { "type": "relation", "relation": "manyToOne", "target": "api::project.project" },
+    "invoice":               { "type": "relation", "relation": "manyToOne", "target": "api::invoice.invoice" },
+    "organization":          { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":         { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

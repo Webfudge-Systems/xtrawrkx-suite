@@ -8,14 +8,19 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 const dirs = [
-  'xtrawrkx-accounts/src',
   'xtrawrkx-backend-strapi/src',
   'xtrawrkx-backend-strapi/scripts',
   'xtrawrkx-client-portal/src',
-  'xtrawrkx-crm-portal/src',
   'xtrawrkx-linkedin-extension/src',
   'xtrawrkx-linkedin-extension/scripts',
-  'xtrawrkx-pm-dashboard/src',
+  'xtrawrkx-linkedin-extract-api/src',
+  'client/src',
+  // monorepo apps (added when webfudge apps are brought in)
+  // 'apps/crm/src',
+  // 'apps/pm/src',
+  // 'apps/accounts/src',
+  // 'apps/organization-manager/src',
+  // 'apps/client-portal/src',
 ];
 
 const singleLineLog = /^\s*console\.(log|debug|info)\s*\([^;]*\);\s*$/;

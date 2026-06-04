@@ -1,0 +1,154 @@
+{
+  "kind": "collectionType",
+  "collectionName": "invoices",
+  "info": {
+    "singularName": "invoice",
+    "pluralName": "invoices",
+    "displayName": "Invoice",
+    "description": "CRM invoices, proforma invoices and receipts"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "invoiceNumber": {
+      "type": "string",
+      "required": true
+    },
+    "documentType": {
+      "type": "enumeration",
+      "enum": ["INVOICE", "PROFORMA_INVOICE", "CREDIT_NOTE", "RECEIPT"],
+      "default": "INVOICE"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["DRAFT", "SENT", "PAID", "OVERDUE", "CANCELLED", "PARTIAL"],
+      "default": "DRAFT"
+    },
+    "invoiceDate": {
+      "type": "date"
+    },
+    "dueDate": {
+      "type": "date"
+    },
+    "terms": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string",
+      "default": "INR"
+    },
+    "fromOrgName": {
+      "type": "string"
+    },
+    "fromOrgAddress": {
+      "type": "text"
+    },
+    "fromOrgEmail": {
+      "type": "email"
+    },
+    "fromOrgPhone": {
+      "type": "string"
+    },
+    "fromOrgGstin": {
+      "type": "string"
+    },
+    "fromOrgLogo": {
+      "type": "string"
+    },
+    "billToName": {
+      "type": "string"
+    },
+    "billToCompany": {
+      "type": "string"
+    },
+    "billToEmail": {
+      "type": "email"
+    },
+    "billToPhone": {
+      "type": "string"
+    },
+    "billToAddress": {
+      "type": "text"
+    },
+    "billToGstin": {
+      "type": "string"
+    },
+    "sameAsShipTo": {
+      "type": "boolean",
+      "default": true
+    },
+    "shipToName": {
+      "type": "string"
+    },
+    "shipToAddress": {
+      "type": "text"
+    },
+    "lineItems": {
+      "type": "json"
+    },
+    "taxRate": {
+      "type": "decimal"
+    },
+    "taxLabel": {
+      "type": "string",
+      "default": "GST"
+    },
+    "discount": {
+      "type": "decimal",
+      "default": 0
+    },
+    "amountPaid": {
+      "type": "decimal",
+      "default": 0
+    },
+    "subtotal": {
+      "type": "decimal",
+      "default": 0
+    },
+    "total": {
+      "type": "decimal",
+      "default": 0
+    },
+    "balanceDue": {
+      "type": "decimal",
+      "default": 0
+    },
+    "notes": {
+      "type": "text"
+    },
+    "termsAndConditions": {
+      "type": "text"
+    },
+    "showSignature": {
+      "type": "boolean",
+      "default": true
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "assignedTo": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "leadCompany": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::lead-company.lead-company"
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "deal": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::deal.deal"
+    }
+  }
+}

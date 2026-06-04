@@ -1,0 +1,30 @@
+{
+  "kind": "collectionType",
+  "collectionName": "bills",
+  "info": {
+    "singularName": "bill",
+    "pluralName": "bills",
+    "displayName": "Bill",
+    "description": "Vendor bills / supplier invoices"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "billNumber":       { "type": "string" },
+    "vendorBillNumber": { "type": "string" },
+    "status":           { "type": "enumeration", "enum": ["draft","pending_approval","approved","partial","paid","overdue","void"], "default": "draft" },
+    "billDate":         { "type": "date", "required": true },
+    "dueDate":          { "type": "date" },
+    "currency":         { "type": "string", "default": "INR" },
+    "subtotal":         { "type": "integer", "default": 0 },
+    "discountAmount":   { "type": "integer", "default": 0 },
+    "taxAmount":        { "type": "integer", "default": 0 },
+    "total":            { "type": "integer", "default": 0 },
+    "balanceDue":       { "type": "integer", "default": 0 },
+    "paidAmount":       { "type": "integer", "default": 0 },
+    "notes":            { "type": "text" },
+    "billType":         { "type": "enumeration", "enum": ["regular","subcontractor","software_saas","travel","other"], "default": "regular" },
+    "organization":     { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":    { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

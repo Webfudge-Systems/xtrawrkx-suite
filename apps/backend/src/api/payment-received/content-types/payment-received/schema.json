@@ -1,0 +1,29 @@
+{
+  "kind": "collectionType",
+  "collectionName": "payments_received",
+  "info": {
+    "singularName": "payment-received",
+    "pluralName": "payments-received",
+    "displayName": "Payment Received",
+    "description": "Payments received from customers"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "paymentNumber":    { "type": "string" },
+    "paymentDate":      { "type": "date", "required": true },
+    "amount":           { "type": "integer", "required": true },
+    "paymentMode":      { "type": "enumeration", "enum": ["bank_transfer","cash","cheque","credit_card","upi","razorpay","stripe","other"], "default": "bank_transfer" },
+    "referenceNumber":  { "type": "string" },
+    "currency":         { "type": "string", "default": "INR" },
+    "exchangeRate":     { "type": "decimal", "default": 1 },
+    "notes":            { "type": "text" },
+    "isRefund":         { "type": "boolean", "default": false },
+    "excessAmount":     { "type": "integer", "default": 0 },
+    "customer":         { "type": "relation", "relation": "manyToOne", "target": "api::contact.contact" },
+    "invoice":          { "type": "relation", "relation": "manyToOne", "target": "api::invoice.invoice" },
+    "bankAccount":      { "type": "relation", "relation": "manyToOne", "target": "api::bank-account.bank-account" },
+    "organization":     { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":    { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

@@ -1,0 +1,49 @@
+---
+description: Add detailed documentation in docs folder for major changes or updates
+alwaysApply: true
+---
+
+# Document Major Changes in docs/
+
+When you make **major changes or updates**, add **detailed documentation** in the project **`docs/`** folder.
+
+## When to Document
+
+- New features or significant behavior changes
+- Architecture or structural refactors
+- API, config, or schema changes
+- Theme, branding, or layout updates
+- New packages, apps, or integrations
+- Breaking changes or migration steps
+
+## What to Add
+
+1. **New doc file** in `docs/` (e.g. `docs/FEATURE_NAME_UPDATE.md` or `docs/REFACTOR_SUMMARY.md`).
+2. **Content should include**:
+   - **Summary**: What changed and why
+   - **Scope**: Which apps, packages, or files are affected
+   - **Before/after** or **steps** where helpful
+   - **How to use** or **migration** notes if relevant
+3. **Update** `docs/DOCUMENTATION_INDEX.md` if the new doc should appear in the index (e.g. under a "Change summaries" or "Updates" section).
+
+## Example doc structure
+
+```markdown
+# [Feature/Area] Update Summary
+
+## Summary
+Brief description of the change and rationale.
+
+## Scope
+- Apps/packages touched
+- Key files or modules
+
+## Details
+- What was added, removed, or changed
+- Before/after or step-by-step if useful
+
+## Usage / Migration
+- How to use the new behavior or how to migrate (if applicable)
+```
+
+Keep each doc focused, under a few hundred lines, and use clear headings so it stays easy to scan.

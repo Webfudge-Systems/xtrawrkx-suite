@@ -1,0 +1,30 @@
+{
+  "kind": "collectionType",
+  "collectionName": "manual_journals",
+  "info": {
+    "singularName": "manual-journal",
+    "pluralName": "manual-journals",
+    "displayName": "Manual Journal",
+    "description": "Double-entry journal entries"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "journalNumber":   { "type": "string" },
+    "status":          { "type": "enumeration", "enum": ["draft","published"], "default": "draft" },
+    "journalDate":     { "type": "date", "required": true },
+    "referenceNumber": { "type": "string" },
+    "notes":           { "type": "text" },
+    "currency":        { "type": "string", "default": "INR" },
+    "totalDebit":      { "type": "integer", "default": 0 },
+    "totalCredit":     { "type": "integer", "default": 0 },
+    "isBalanced":      { "type": "boolean", "default": false },
+    "source":          { "type": "enumeration", "enum": ["manual","auto_invoice","auto_payment","auto_bill","auto_expense","auto_receipt","auto_payment_received","auto_payment_made"], "default": "manual" },
+    "sourceType":      { "type": "string" },
+    "sourceId":        { "type": "string" },
+    "lines":           { "type": "json" },
+    "reversalOf":      { "type": "string" },
+    "organization":    { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":   { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

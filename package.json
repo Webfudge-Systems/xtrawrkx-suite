@@ -1,17 +1,45 @@
 {
-  "name": "xtrawrkx-suits",
+  "name": "xtrawrkx-suite",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "install:all": "npm install && cd xtrawrkx-backend-strapi && npm install && cd ../xtrawrkx-crm-portal && npm install && cd ../xtrawrkx-client-portal && npm install && cd ../xtrawrkx-accounts && npm install && cd ../xtrawrkx-pm-dashboard && npm install",
-    "dev": "npm run dev --prefix xtrawrkx-crm-portal",
-    "dev:crm": "npm run dev --prefix xtrawrkx-crm-portal",
-    "dev:client": "npm run dev --prefix xtrawrkx-client-portal"
+    "dev": "turbo run dev --filter=!backend",
+    "dev:all": "turbo run dev",
+    "dev:crm": "turbo run dev --filter=@xtrawrkx/crm",
+    "dev:pm": "turbo run dev --filter=@xtrawrkx/pm",
+    "dev:accounts": "turbo run dev --filter=@xtrawrkx/accounts",
+    "dev:org-manager": "turbo run dev --filter=@xtrawrkx/organization-manager",
+    "dev:books": "turbo run dev --filter=@xtrawrkx/books",
+    "dev:client-portal": "turbo run dev --filter=client-portal",
+    "dev:backend": "turbo run dev --filter=backend",
+    "reset:db": "npm run reset:db -w backend",
+    "build": "turbo run build",
+    "build:crm": "turbo run build --filter=@xtrawrkx/crm",
+    "build:pm": "turbo run build --filter=@xtrawrkx/pm",
+    "build:accounts": "turbo run build --filter=@xtrawrkx/accounts",
+    "build:org-manager": "turbo run build --filter=@xtrawrkx/organization-manager",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md,js,jsx,json}\"",
+    "clean": "turbo run clean",
+    "strip-console": "node scripts/strip-console.js"
+  },
+  "devDependencies": {
+    "prettier": "^3.1.1",
+    "serwist": "^9.5.11",
+    "turbo": "^1.11.2"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.2",
-    "jsonwebtoken": "^9.0.2",
-    "node-fetch": "^3.3.2",
-    "sqlite3": "^5.1.7"
-  }
+    "@serwist/next": "^9.5.11",
+    "ajv": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "packageManager": "npm@10.2.5"
 }

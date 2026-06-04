@@ -1,0 +1,190 @@
+{
+    "kind": "collectionType",
+    "collectionName": "organizations",
+    "info": {
+        "singularName": "organization",
+        "pluralName": "organizations",
+        "displayName": "Organization",
+        "description": "Organizations/Enterprises in the platform"
+    },
+    "options": {
+        "draftAndPublish": false
+    },
+    "pluginOptions": {},
+    "attributes": {
+        "name": {
+            "type": "string",
+            "required": true
+        },
+        "slug": {
+            "type": "uid",
+            "targetField": "name",
+            "required": true
+        },
+        "companyEmail": {
+            "type": "email"
+        },
+        "companyPhone": {
+            "type": "string"
+        },
+        "website": {
+            "type": "string"
+        },
+        "logo": {
+            "type": "media",
+            "multiple": false,
+            "required": false,
+            "allowedTypes": [
+                "images"
+            ]
+        },
+        "address": {
+            "type": "json"
+        },
+        "industry": {
+            "type": "enumeration",
+            "enum": [
+                "technology",
+                "finance",
+                "healthcare",
+                "education",
+                "retail",
+                "manufacturing",
+                "services",
+                "other"
+            ]
+        },
+        "size": {
+            "type": "enumeration",
+            "enum": [
+                "size_1_10",
+                "size_11_50",
+                "size_51_200",
+                "size_201_500",
+                "size_500_plus"
+            ]
+        },
+        "owner": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "plugin::users-permissions.user"
+        },
+        "subscriptions": {
+            "type": "relation",
+            "relation": "oneToMany",
+            "target": "api::subscription.subscription",
+            "mappedBy": "organization"
+        },
+        "organizationUsers": {
+            "type": "relation",
+            "relation": "oneToMany",
+            "target": "api::organization-user.organization-user",
+            "mappedBy": "organization"
+        },
+        "activeModules": {
+            "type": "json",
+            "default": {}
+        },
+        "status": {
+            "type": "enumeration",
+            "enum": [
+                "trial",
+                "active",
+                "suspended",
+                "cancelled"
+            ],
+            "default": "trial"
+        },
+        "onboardingCompleted": {
+            "type": "boolean",
+            "default": false
+        },
+        "trialEndsAt": {
+            "type": "datetime"
+        },
+        "fiscalYearStart": {
+            "type": "integer",
+            "default": 4,
+            "min": 1,
+            "max": 12
+        },
+        "baseCurrency": {
+            "type": "string",
+            "default": "INR"
+        },
+        "booksActivated": {
+            "type": "boolean",
+            "default": false
+        },
+        "invoicePrefix": {
+            "type": "string",
+            "default": "INV"
+        },
+        "estimatePrefix": {
+            "type": "string",
+            "default": "EST"
+        },
+        "taxName": {
+            "type": "string",
+            "default": "GST"
+        },
+        "defaultTaxRate": {
+            "type": "decimal",
+            "default": 18
+        },
+        "invoiceSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "billSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "estimateSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "expenseSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "journalSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "poSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "soSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "vendorSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "paymentSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "creditNoteSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "retainerSequence": {
+            "type": "integer",
+            "default": 0
+        },
+        "securitySettings": {
+            "type": "json",
+            "default": {
+                "requireMfa": false,
+                "sessionTimeoutMinutes": 480,
+                "passwordMinLength": 8,
+                "allowPasswordLogin": true,
+                "allowedEmailDomains": []
+            }
+        }
+    }
+}

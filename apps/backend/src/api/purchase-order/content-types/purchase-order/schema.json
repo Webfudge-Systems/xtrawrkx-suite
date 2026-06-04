@@ -1,0 +1,26 @@
+{
+  "kind": "collectionType",
+  "collectionName": "purchase_orders",
+  "info": {
+    "singularName": "purchase-order",
+    "pluralName": "purchase-orders",
+    "displayName": "Purchase Order",
+    "description": "Purchase orders to vendors"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "poNumber":           { "type": "string" },
+    "status":             { "type": "enumeration", "enum": ["draft","sent","billed","cancelled"], "default": "draft" },
+    "poDate":             { "type": "date" },
+    "expectedDelivery":   { "type": "date" },
+    "currency":           { "type": "string", "default": "INR" },
+    "subtotal":           { "type": "integer", "default": 0 },
+    "taxAmount":          { "type": "integer", "default": 0 },
+    "total":              { "type": "integer", "default": 0 },
+    "notes":              { "type": "text" },
+    "deliveryAddress":    { "type": "json" },
+    "organization":       { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":      { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

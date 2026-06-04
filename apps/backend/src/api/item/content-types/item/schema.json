@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "items",
+  "info": {
+    "singularName": "item",
+    "pluralName": "items",
+    "displayName": "Item",
+    "description": "Products and services catalog"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "name":            { "type": "string", "required": true },
+    "sku":             { "type": "string" },
+    "type":            { "type": "enumeration", "enum": ["service","goods","digital","retainer_package","milestone"], "default": "service" },
+    "description":     { "type": "text" },
+    "rate":            { "type": "integer", "required": true, "default": 0 },
+    "unit":            { "type": "string", "default": "hrs" },
+    "taxable":         { "type": "boolean", "default": true },
+    "taxRate":         { "type": "decimal", "default": 0 },
+    "hsnCode":         { "type": "string" },
+    "trackInventory":  { "type": "boolean", "default": false },
+    "stockOnHand":     { "type": "integer", "default": 0 },
+    "reorderPoint":    { "type": "integer", "default": 0 },
+    "purchaseRate":    { "type": "integer", "default": 0 },
+    "salesAccount":    { "type": "string" },
+    "purchaseAccount": { "type": "string" },
+    "isActive":        { "type": "boolean", "default": true },
+    "organization":    { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":   { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

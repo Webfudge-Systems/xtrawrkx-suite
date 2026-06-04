@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "organization_roles",
+  "info": {
+    "singularName": "organization-role",
+    "pluralName": "organization-roles",
+    "displayName": "Organization Role",
+    "description": "Organization membership roles (system-wide templates and org-specific custom roles)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "code": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "accessLevel": {
+      "type": "enumeration",
+      "enum": ["high", "medium", "basic"],
+      "default": "basic",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "isSystem": {
+      "type": "boolean",
+      "default": true
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "permissions": {
+      "type": "json",
+      "default": {}
+    }
+  }
+}

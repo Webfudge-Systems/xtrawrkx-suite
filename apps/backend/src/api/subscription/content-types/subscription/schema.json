@@ -1,0 +1,77 @@
+{
+  "kind": "collectionType",
+  "collectionName": "subscriptions",
+  "info": {
+    "singularName": "subscription",
+    "pluralName": "subscriptions",
+    "displayName": "Subscription",
+    "description": "Organization subscriptions to apps and modules"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "inversedBy": "subscriptions"
+    },
+    "app": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::app.app"
+    },
+    "selectedModules": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::module.module"
+    },
+    "basePrice": {
+      "type": "decimal",
+      "default": 0
+    },
+    "pricePerUser": {
+      "type": "decimal",
+      "default": 0
+    },
+    "totalUsers": {
+      "type": "integer",
+      "default": 1
+    },
+    "calculatedPrice": {
+      "type": "decimal",
+      "default": 0
+    },
+    "billingCycle": {
+      "type": "enumeration",
+      "enum": ["monthly", "annual"],
+      "default": "monthly"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["trial", "active", "suspended", "cancelled"],
+      "default": "trial"
+    },
+    "startDate": {
+      "type": "datetime"
+    },
+    "endDate": {
+      "type": "datetime"
+    },
+    "nextBillingDate": {
+      "type": "datetime"
+    },
+    "autoRenew": {
+      "type": "boolean",
+      "default": true
+    },
+    "paymentMethod": {
+      "type": "string"
+    },
+    "lastPaymentDate": {
+      "type": "datetime"
+    }
+  }
+}

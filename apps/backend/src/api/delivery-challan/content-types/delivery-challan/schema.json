@@ -1,0 +1,24 @@
+{
+  "kind": "collectionType",
+  "collectionName": "delivery_challans",
+  "info": {
+    "singularName": "delivery-challan",
+    "pluralName": "delivery-challans",
+    "displayName": "Delivery Challan",
+    "description": "Delivery challans for dispatched goods"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "challanNumber":   { "type": "string" },
+    "status":          { "type": "enumeration", "enum": ["draft","dispatched","delivered","cancelled"], "default": "draft" },
+    "challanDate":     { "type": "date" },
+    "deliveryDate":    { "type": "date" },
+    "notes":           { "type": "text" },
+    "deliveryAddress": { "type": "json" },
+    "customer":        { "type": "relation", "relation": "manyToOne", "target": "api::contact.contact" },
+    "salesOrder":      { "type": "relation", "relation": "manyToOne", "target": "api::sales-order.sales-order" },
+    "organization":    { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":   { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

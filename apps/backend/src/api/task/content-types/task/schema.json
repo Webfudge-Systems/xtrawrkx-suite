@@ -1,0 +1,186 @@
+{
+  "kind": "collectionType",
+  "collectionName": "tasks",
+  "info": {
+    "singularName": "task",
+    "pluralName": "tasks",
+    "displayName": "Task",
+    "description": "PM and CRM tasks scoped to an organization"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["SCHEDULED", "IN_PROGRESS", "INTERNAL_REVIEW", "ON_HOLD", "COMPLETED", "CANCELLED", "OVERDUE"],
+      "default": "SCHEDULED"
+    },
+    "priority": {
+      "type": "enumeration",
+      "enum": ["low", "medium", "high"],
+      "default": "medium"
+    },
+    "scheduledDate": {
+      "type": "datetime"
+    },
+    "startDate": {
+      "type": "datetime"
+    },
+    "tags": {
+      "type": "json",
+      "default": []
+    },
+    "assignee": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "assigner": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "collaborators": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user"
+    },
+    "pendingCollaborators": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user"
+    },
+    "assignmentApprovalStatus": {
+      "type": "enumeration",
+      "enum": ["not_required", "pending", "approved", "rejected"],
+      "default": "not_required"
+    },
+    "assignmentRequestedBy": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "projects": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::project.project",
+      "inversedBy": "tasks"
+    },
+    "parent": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::task.task",
+      "inversedBy": "subtasks"
+    },
+    "subtasks": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::task.task",
+      "mappedBy": "parent"
+    },
+    "leadCompany": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::lead-company.lead-company"
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "deal": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::deal.deal"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "recurrenceFrequency": {
+      "type": "enumeration",
+      "enum": ["none", "daily", "weekly", "monthly", "custom"],
+      "default": "none"
+    },
+    "recurrenceInterval": {
+      "type": "integer",
+      "default": 1,
+      "min": 1
+    },
+    "recurrenceWeekdays": {
+      "type": "json",
+      "default": []
+    },
+    "recurrenceMonthDay": {
+      "type": "integer",
+      "min": 1,
+      "max": 31
+    },
+    "recurrenceCustomUnit": {
+      "type": "enumeration",
+      "enum": ["day", "week", "month"],
+      "default": "day"
+    },
+    "recurrenceEndsAt": {
+      "type": "datetime"
+    },
+    "recurrenceGroupId": {
+      "type": "string"
+    },
+    "hoursLogged": {
+      "type": "decimal",
+      "default": 0
+    },
+    "billable": {
+      "type": "boolean",
+      "default": true
+    },
+    "invoiced": {
+      "type": "boolean",
+      "default": false
+    },
+    "logDate": {
+      "type": "date"
+    },
+    "startTime": {
+      "type": "string"
+    },
+    "endTime": {
+      "type": "string"
+    },
+    "timerRunning": {
+      "type": "boolean",
+      "default": false
+    },
+    "timerStartedAt": {
+      "type": "datetime"
+    },
+    "invoicedOn": {
+      "type": "datetime"
+    },
+    "rate": {
+      "type": "integer",
+      "default": 0
+    },
+    "timeProject": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::project.project"
+    },
+    "timeInvoice": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::invoice.invoice"
+    }
+  }
+}

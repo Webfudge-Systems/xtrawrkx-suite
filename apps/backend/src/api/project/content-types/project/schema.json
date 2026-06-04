@@ -1,0 +1,127 @@
+{
+  "kind": "collectionType",
+  "collectionName": "projects",
+  "info": {
+    "singularName": "project",
+    "pluralName": "projects",
+    "displayName": "Project",
+    "description": "PM projects scoped to an organization"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name"
+    },
+    "description": {
+      "type": "text"
+    },
+    "status": {
+      "type": "string",
+      "default": "PLANNING"
+    },
+    "startDate": {
+      "type": "datetime"
+    },
+    "endDate": {
+      "type": "datetime"
+    },
+    "budget": {
+      "type": "decimal"
+    },
+    "icon": {
+      "type": "string"
+    },
+    "projectManager": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "teamMembers": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user"
+    },
+    "tasks": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::task.task",
+      "mappedBy": "projects"
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "sourceDeal": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::deal.deal",
+      "inversedBy": "deliveryProject"
+    },
+    "billingMethod": {
+      "type": "enumeration",
+      "enum": ["hourly", "daily_rate_per_user", "fixed_cost", "based_on_tasks", "milestone", "non_billable"],
+      "default": "hourly"
+    },
+    "budgetAmount": {
+      "type": "integer",
+      "default": 0
+    },
+    "budgetType": {
+      "type": "enumeration",
+      "enum": ["hours", "amount"],
+      "default": "amount"
+    },
+    "hourlyRate": {
+      "type": "integer",
+      "default": 0
+    },
+    "currency": {
+      "type": "string",
+      "default": "INR"
+    },
+    "billableStatus": {
+      "type": "enumeration",
+      "enum": ["billable", "non_billable"],
+      "default": "billable"
+    },
+    "totalLoggedHours": {
+      "type": "decimal",
+      "default": 0
+    },
+    "billableHours": {
+      "type": "decimal",
+      "default": 0
+    },
+    "unbilledAmount": {
+      "type": "integer",
+      "default": 0
+    },
+    "projectCode": {
+      "type": "string"
+    },
+    "booksStatus": {
+      "type": "enumeration",
+      "enum": ["active", "completed", "archived"],
+      "default": "active"
+    },
+    "customer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::contact.contact"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "../../tooling/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "types": ["@serwist/next/typings"],
+    "lib": ["dom", "dom.iterable", "esnext", "webworker"]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "public/sw.js"]
+}

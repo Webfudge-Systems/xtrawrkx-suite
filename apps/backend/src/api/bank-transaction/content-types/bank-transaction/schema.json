@@ -1,0 +1,29 @@
+{
+  "kind": "collectionType",
+  "collectionName": "bank_transactions",
+  "info": {
+    "singularName": "bank-transaction",
+    "pluralName": "bank-transactions",
+    "displayName": "Bank Transaction",
+    "description": "Individual bank account transactions"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "transactionDate":   { "type": "date", "required": true },
+    "description":       { "type": "string" },
+    "amount":            { "type": "integer", "required": true },
+    "transactionType":   { "type": "enumeration", "enum": ["credit","debit"], "required": true },
+    "category":          { "type": "string" },
+    "referenceNumber":   { "type": "string" },
+    "status":            { "type": "enumeration", "enum": ["uncategorized","categorized","excluded","reconciled"], "default": "uncategorized" },
+    "source":            { "type": "enumeration", "enum": ["manual","import","auto_payment","auto_receipt"], "default": "manual" },
+    "notes":             { "type": "string" },
+    "bankAccount":       { "type": "relation", "relation": "manyToOne", "target": "api::bank-account.bank-account" },
+    "paymentReceived":   { "type": "relation", "relation": "manyToOne", "target": "api::payment-received.payment-received" },
+    "paymentMade":       { "type": "relation", "relation": "manyToOne", "target": "api::payment-made.payment-made" },
+    "expense":           { "type": "relation", "relation": "manyToOne", "target": "api::expense.expense" },
+    "organization":      { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":     { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

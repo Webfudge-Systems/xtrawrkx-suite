@@ -1,0 +1,30 @@
+declare module '@webfudge/ui' {
+  export const Button: any
+  export const Input: any
+  export const workspaceSearchInputClassName: string
+  export const WorkspaceSearchInput: React.ComponentType<Record<string, unknown>>
+  export const Select: any
+  export const Checkbox: any
+  export const Textarea: any
+  export const Accordion: any
+  export const Card: any
+  export const FormSectionCard: any
+  export const Badge: any
+  export const Avatar: any
+  export const WorkspaceHeader: any
+  export const Table: any
+  export const Pagination: any
+  export const EmptyState: any
+  export const TableResultsCount: any
+  export const TableEmptyBelow: any
+  export const KPICard: any
+  export const Tabs: any
+  export const TabsWithActions: any
+  export const TableRowActionMenuPortal: any
+  export const Modal: any
+  export const LoadingSpinner: any
+  export const PageLoader: any
+  export const SkeletonLoader: any
+  export const CardSkeleton: any
+  export const TableSkeleton: any
+}

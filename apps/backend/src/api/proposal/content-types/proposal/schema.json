@@ -1,0 +1,157 @@
+{
+  "kind": "collectionType",
+  "collectionName": "proposals",
+  "info": {
+    "singularName": "proposal",
+    "pluralName": "proposals",
+    "displayName": "Proposal",
+    "description": "CRM proposals, SOWs and project quotes"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "creationMode": {
+      "type": "enumeration",
+      "enum": ["BUILDER", "UPLOAD"],
+      "default": "BUILDER"
+    },
+    "documentType": {
+      "type": "enumeration",
+      "enum": ["SOW", "PROPOSAL", "QUOTE"],
+      "default": "PROPOSAL"
+    },
+    "proposalFile": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["files"]
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"],
+      "default": "DRAFT"
+    },
+    "proposalNumber": {
+      "type": "string"
+    },
+    "date": {
+      "type": "date"
+    },
+    "validUntil": {
+      "type": "date"
+    },
+    "currency": {
+      "type": "string",
+      "default": "INR"
+    },
+    "clientCompanyName": {
+      "type": "string"
+    },
+    "clientContactName": {
+      "type": "string"
+    },
+    "clientEmail": {
+      "type": "email"
+    },
+    "clientPhone": {
+      "type": "string"
+    },
+    "clientAddress": {
+      "type": "text"
+    },
+    "preparedByCompany": {
+      "type": "string"
+    },
+    "preparedByName": {
+      "type": "string"
+    },
+    "preparedByEmail": {
+      "type": "email"
+    },
+    "preparedByPhone": {
+      "type": "string"
+    },
+    "projectName": {
+      "type": "string"
+    },
+    "projectOverview": {
+      "type": "text"
+    },
+    "modules": {
+      "type": "json"
+    },
+    "milestones": {
+      "type": "json"
+    },
+    "estimatedTimeline": {
+      "type": "string"
+    },
+    "outOfScopeRate": {
+      "type": "decimal"
+    },
+    "outOfScopeRateUnit": {
+      "type": "string"
+    },
+    "warrantyDays": {
+      "type": "integer"
+    },
+    "assumptions": {
+      "type": "json"
+    },
+    "securityItems": {
+      "type": "json"
+    },
+    "outOfScope": {
+      "type": "json"
+    },
+    "handoverDeliverables": {
+      "type": "json"
+    },
+    "acceptanceNotes": {
+      "type": "text"
+    },
+    "paymentTerms": {
+      "type": "string"
+    },
+    "taxInfo": {
+      "type": "string"
+    },
+    "totalValue": {
+      "type": "decimal",
+      "default": 0
+    },
+    "notes": {
+      "type": "text"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "assignedTo": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "leadCompany": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::lead-company.lead-company"
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "deal": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::deal.deal"
+    }
+  }
+}

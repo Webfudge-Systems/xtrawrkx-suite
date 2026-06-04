@@ -1,0 +1,44 @@
+{
+    "kind": "collectionType",
+    "collectionName": "email_campaigns",
+    "info": {
+        "singularName": "email-campaign",
+        "pluralName": "email-campaigns",
+        "displayName": "Email Campaign",
+        "description": "Email marketing campaigns"
+    },
+    "options": { "draftAndPublish": false },
+    "pluginOptions": {},
+    "attributes": {
+        "template": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::email-template.email-template"
+        },
+        "name": { "type": "string", "required": true },
+        "subject": { "type": "string", "required": true },
+        "content": { "type": "richtext", "required": true },
+        "status": {
+            "type": "enumeration",
+            "enum": ["DRAFT", "SCHEDULED", "SENDING", "SENT", "PAUSED"],
+            "default": "DRAFT"
+        },
+        "scheduledDate": { "type": "datetime" },
+        "createdByUser": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "plugin::users-permissions.user"
+        },
+        "emailLogs": {
+            "type": "relation",
+            "relation": "oneToMany",
+            "target": "api::email-log.email-log",
+            "mappedBy": "campaign"
+        },
+        "organization": {
+            "type": "relation",
+            "relation": "manyToOne",
+            "target": "api::organization.organization"
+        }
+    }
+}

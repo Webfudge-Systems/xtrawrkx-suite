@@ -1,0 +1,68 @@
+{
+  "kind": "collectionType",
+  "collectionName": "chart_of_accounts",
+  "info": {
+    "singularName": "chart-of-account",
+    "pluralName": "chart-of-accounts",
+    "displayName": "Chart of Account",
+    "description": "Double-entry chart of accounts per organization"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "accountCode": {
+      "type": "string",
+      "required": true
+    },
+    "accountName": {
+      "type": "string",
+      "required": true
+    },
+    "accountType": {
+      "type": "enumeration",
+      "enum": ["asset", "liability", "equity", "income", "expense", "cost_of_goods_sold", "other_income", "other_expense"],
+      "required": true
+    },
+    "accountSubType": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "isSystem": {
+      "type": "boolean",
+      "default": false
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "parentAccount": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string",
+      "default": "INR"
+    },
+    "openingBalance": {
+      "type": "integer",
+      "default": 0
+    },
+    "currentBalance": {
+      "type": "integer",
+      "default": 0
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "createdByUser": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}

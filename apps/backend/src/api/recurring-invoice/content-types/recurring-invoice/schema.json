@@ -1,0 +1,30 @@
+{
+  "kind": "collectionType",
+  "collectionName": "recurring_invoices",
+  "info": {
+    "singularName": "recurring-invoice",
+    "pluralName": "recurring-invoices",
+    "displayName": "Recurring Invoice",
+    "description": "Recurring invoice profiles"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "profileName":        { "type": "string" },
+    "status":             { "type": "enumeration", "enum": ["active","paused","expired"], "default": "active" },
+    "frequency":          { "type": "enumeration", "enum": ["weekly","monthly","quarterly","yearly"], "default": "monthly" },
+    "startDate":          { "type": "date" },
+    "endDate":            { "type": "date" },
+    "nextInvoiceDate":    { "type": "date" },
+    "totalInvoicesSent":  { "type": "integer", "default": 0 },
+    "lastSentAt":         { "type": "datetime" },
+    "currency":           { "type": "string", "default": "INR" },
+    "total":              { "type": "integer", "default": 0 },
+    "notes":              { "type": "text" },
+    "lineItems":          { "type": "json" },
+    "customer":           { "type": "relation", "relation": "manyToOne", "target": "api::contact.contact" },
+    "project":            { "type": "relation", "relation": "manyToOne", "target": "api::project.project" },
+    "organization":       { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":      { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

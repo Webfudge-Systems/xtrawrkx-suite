@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "credit_notes",
+  "info": {
+    "singularName": "credit-note",
+    "pluralName": "credit-notes",
+    "displayName": "Credit Note",
+    "description": "Customer credit notes"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "creditNoteNumber":  { "type": "string" },
+    "status":            { "type": "enumeration", "enum": ["draft","open","closed","void"], "default": "draft" },
+    "creditNoteDate":    { "type": "date" },
+    "currency":          { "type": "string", "default": "INR" },
+    "subtotal":          { "type": "integer", "default": 0 },
+    "taxAmount":         { "type": "integer", "default": 0 },
+    "total":             { "type": "integer", "default": 0 },
+    "balanceAvailable":  { "type": "integer", "default": 0 },
+    "reason":            { "type": "text" },
+    "customer":          { "type": "relation", "relation": "manyToOne", "target": "api::contact.contact" },
+    "invoice":           { "type": "relation", "relation": "manyToOne", "target": "api::invoice.invoice" },
+    "organization":      { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":     { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

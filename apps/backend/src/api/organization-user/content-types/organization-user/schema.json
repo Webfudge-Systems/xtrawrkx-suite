@@ -1,0 +1,57 @@
+{
+  "kind": "collectionType",
+  "collectionName": "organization_users",
+  "info": {
+    "singularName": "organization-user",
+    "pluralName": "organization-users",
+    "displayName": "Organization User",
+    "description": "Users belonging to organizations"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "inversedBy": "organizationUsers"
+    },
+    "role": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization-role.organization-role"
+    },
+    "customPermissions": {
+      "type": "json",
+      "default": {}
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "joinedAt": {
+      "type": "datetime"
+    },
+    "lastAccessAt": {
+      "type": "datetime"
+    },
+    "departments": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::department.department",
+      "inversedBy": "organizationUsers"
+    },
+    "primaryDepartment": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::department.department"
+    }
+  }
+}

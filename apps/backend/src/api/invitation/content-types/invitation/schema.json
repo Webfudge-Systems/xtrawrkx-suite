@@ -1,0 +1,55 @@
+{
+  "kind": "collectionType",
+  "collectionName": "invitations",
+  "info": {
+    "singularName": "invitation",
+    "pluralName": "invitations",
+    "displayName": "Invitation",
+    "description": "User invitations to organizations"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "email": {
+      "type": "email",
+      "required": true
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "invitedBy": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "role": {
+      "type": "string",
+      "default": "Member"
+    },
+    "permissions": {
+      "type": "json",
+      "default": {}
+    },
+    "token": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["pending", "accepted", "expired"],
+      "default": "pending"
+    },
+    "expiresAt": {
+      "type": "datetime",
+      "required": true
+    },
+    "acceptedAt": {
+      "type": "datetime"
+    }
+  }
+}

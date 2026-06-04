@@ -1,0 +1,29 @@
+{
+  "kind": "collectionType",
+  "collectionName": "bank_accounts",
+  "info": {
+    "singularName": "bank-account",
+    "pluralName": "bank-accounts",
+    "displayName": "Bank Account",
+    "description": "Bank and cash accounts"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "accountName":        { "type": "string", "required": true },
+    "accountType":        { "type": "enumeration", "enum": ["checking","savings","cash","credit_card","payment_clearing"], "required": true },
+    "bankName":           { "type": "string" },
+    "accountNumber":      { "type": "string" },
+    "ifscCode":           { "type": "string" },
+    "currency":           { "type": "string", "default": "INR" },
+    "openingBalance":     { "type": "integer", "default": 0 },
+    "openingBalanceDate": { "type": "date" },
+    "isActive":           { "type": "boolean", "default": true },
+    "isPrimary":          { "type": "boolean", "default": false },
+    "lastSyncAt":         { "type": "datetime" },
+    "connectionStatus":   { "type": "enumeration", "enum": ["manual","connected","disconnected"], "default": "manual" },
+    "description":        { "type": "string" },
+    "organization":       { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":      { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}

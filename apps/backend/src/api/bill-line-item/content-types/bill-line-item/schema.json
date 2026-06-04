@@ -1,0 +1,26 @@
+{
+  "kind": "collectionType",
+  "collectionName": "bill_line_items",
+  "info": {
+    "singularName": "bill-line-item",
+    "pluralName": "bill-line-items",
+    "displayName": "Bill Line Item",
+    "description": "Line items for bills, purchase orders, vendor credits"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "description":     { "type": "text" },
+    "quantity":        { "type": "decimal", "default": 1 },
+    "rate":            { "type": "integer", "required": true, "default": 0 },
+    "amount":          { "type": "integer", "default": 0 },
+    "discountPercent": { "type": "decimal", "default": 0 },
+    "taxRate":         { "type": "decimal", "default": 0 },
+    "taxAmount":       { "type": "integer", "default": 0 },
+    "total":           { "type": "integer", "default": 0 },
+    "sortOrder":       { "type": "integer", "default": 0 },
+    "bill":            { "type": "relation", "relation": "manyToOne", "target": "api::bill.bill" },
+    "item":            { "type": "relation", "relation": "manyToOne", "target": "api::item.item" },
+    "organization":    { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" }
+  }
+}

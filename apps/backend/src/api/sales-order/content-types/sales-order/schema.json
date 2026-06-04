@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "sales_orders",
+  "info": {
+    "singularName": "sales-order",
+    "pluralName": "sales-orders",
+    "displayName": "Sales Order",
+    "description": "Sales orders to customers"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "soNumber":          { "type": "string" },
+    "status":            { "type": "enumeration", "enum": ["draft","confirmed","invoiced","cancelled"], "default": "draft" },
+    "soDate":            { "type": "date" },
+    "expectedShipDate":  { "type": "date" },
+    "currency":          { "type": "string", "default": "INR" },
+    "subtotal":          { "type": "integer", "default": 0 },
+    "taxAmount":         { "type": "integer", "default": 0 },
+    "total":             { "type": "integer", "default": 0 },
+    "notes":             { "type": "text" },
+    "deliveryAddress":   { "type": "json" },
+    "customer":          { "type": "relation", "relation": "manyToOne", "target": "api::contact.contact" },
+    "organization":      { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
+    "createdByUser":     { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
+  }
+}
