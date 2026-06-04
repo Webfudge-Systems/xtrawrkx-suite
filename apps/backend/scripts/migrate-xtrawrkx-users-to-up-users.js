@@ -297,10 +297,9 @@ async function run() {
     console.log(`\nxtrawrkx_users: ${hasLegacy ? legacyCount : 'n/a'} rows`);
     console.log(`up_users: ${hasUp ? upCountBefore : 'table missing'} rows`);
     console.log(
-      `organization_users: ${
-        (await tableExists(client, 'organization_users'))
-          ? (await client.query('SELECT COUNT(*)::int AS c FROM organization_users')).rows[0].c
-          : 'created on first successful Strapi boot'
+      `organization_users: ${(await tableExists(client, 'organization_users'))
+        ? (await client.query('SELECT COUNT(*)::int AS c FROM organization_users')).rows[0].c
+        : 'created on first successful Strapi boot'
       }\n`
     );
 
@@ -325,7 +324,7 @@ async function run() {
       console.log('Redeploy API — Strapi will create organization_users and other missing tables.\n');
     }
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch(() => { });
     console.error(err);
     process.exit(1);
   } finally {
