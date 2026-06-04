@@ -14,13 +14,13 @@ When **Postgres shows “Completed”** on Railway but the **API service is “C
 
 ### 1. Service settings (API)
 
-| Setting | Value |
-|--------|--------|
-| **Root Directory** | `apps/backend` |
-| **Config-as-code file** | **`/apps/backend/railway.json`** (absolute from repo root — not `railway.json`) |
-| **Build** | `npm install && npm run build` |
-| **Start** | `npm run start` → `strapi start` |
-| **Watch Paths** (only if Root Directory is `/`) | `apps/backend/**` |
+| Setting                                         | Value                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Root Directory**                              | `apps/backend`                                                                  |
+| **Config-as-code file**                         | **`/apps/backend/railway.json`** (absolute from repo root — not `railway.json`) |
+| **Build**                                       | `npm install && npm run build`                                                  |
+| **Start**                                       | `npm run start` → `strapi start`                                                |
+| **Watch Paths** (only if Root Directory is `/`) | `apps/backend/**`                                                               |
 
 Repo file: **`apps/backend/railway.json`**. Fixes snapshot error `service config at 'railway.json' not found` after the monorepo move (old `xtrawrkx-backend-strapi/` path removed).
 
@@ -99,13 +99,13 @@ Local dev uses SQLite and often `SEED_DATA=true`. Production must use **postgres
 
 ## Common mistakes
 
-| Symptom | Cause |
-|--------|--------|
-| Crashed on boot, Knex timeout | `DATABASE_CLIENT` still `sqlite` or unset |
-| Crashed on boot | `DATABASE_URL` not linked from Postgres service |
-| Crashed on boot | SSL off while using `*.proxy.rlwy.net` public URL |
-| Slow crash loop | `SEED_DATA=true` + large bootstrap on every restart |
-| Pool full | `DATABASE_POOL_MAX=10` + multiple replicas or restart loop |
+| Symptom                       | Cause                                                      |
+| ----------------------------- | ---------------------------------------------------------- |
+| Crashed on boot, Knex timeout | `DATABASE_CLIENT` still `sqlite` or unset                  |
+| Crashed on boot               | `DATABASE_URL` not linked from Postgres service            |
+| Crashed on boot               | SSL off while using `*.proxy.rlwy.net` public URL          |
+| Slow crash loop               | `SEED_DATA=true` + large bootstrap on every restart        |
+| Pool full                     | `DATABASE_POOL_MAX=10` + multiple replicas or restart loop |
 
 ## Verify
 

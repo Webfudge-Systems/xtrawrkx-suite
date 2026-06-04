@@ -14,7 +14,8 @@
     "upgrade": "npx @strapi/upgrade latest",
     "upgrade:dry": "npx @strapi/upgrade latest --dry",
     "test:redis": "node scripts/test-redis.js",
-    "reset:db": "node scripts/reset-local-db.js"
+    "reset:db": "node scripts/reset-local-db.js",
+    "migrate:legacy-users": "node scripts/migrate-xtrawrkx-users-to-up-users.js"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",

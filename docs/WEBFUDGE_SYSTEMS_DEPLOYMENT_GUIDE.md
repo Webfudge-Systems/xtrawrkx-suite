@@ -272,6 +272,14 @@ flowchart TD
 
 After redeploy: `curl https://api.xtrawrkx.com/api/apps` · Strapi Admin · sample leads/tasks.
 
+#### Healthcheck fails: `cannot drop table xtrawrkx_users`
+
+Build/deploy succeed but **Network → Healthcheck** fails with **service unavailable**. Strapi crashes during schema sync because PostgreSQL blocks dropping legacy **`xtrawrkx_users`** while FKs still reference it. **Keep team data:** migrate `xtrawrkx_users` → **`up_users`**, then drop the legacy table (not a blind DROP).
+
+1. Stop API service.
+2. Run [RAILWAY_POSTGRES_XTRAWRKX_USERS_FIX.md](./RAILWAY_POSTGRES_XTRAWRKX_USERS_FIX.md) — `npm run migrate:legacy-users` in `apps/backend` with Railway `DATABASE_URL` (dry-run first).
+3. Redeploy API.
+
 ### Path B — Import from legacy `api.webfudge.in`
 
 1. Scale API to **0**.
@@ -325,6 +333,7 @@ curl -s https://api.xtrawrkx.com/api/health/redis
 | Error | Fix |
 |-------|-----|
 | `service config at 'railway.json' not found` | **Settings → Root Directory:** `apps/backend` · **Config file:** `/apps/backend/railway.json` · commit includes `apps/backend/railway.json` |
+| Healthcheck fail / `cannot drop table xtrawrkx_users` | [RAILWAY_POSTGRES_XTRAWRKX_USERS_FIX.md](./RAILWAY_POSTGRES_XTRAWRKX_USERS_FIX.md) |
 | `KnexTimeoutError` | [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md) |
 
 ---
@@ -531,6 +540,7 @@ Data migration from old API: [Path B](#path-b--import-from-legacy-apiwebfudgein)
 | Doc | Topic |
 |-----|--------|
 | [ENV_FILES.md](./ENV_FILES.md) | `.env.example` / `.env.local` / `.env.production` |
+| [RAILWAY_POSTGRES_XTRAWRKX_USERS_FIX.md](./RAILWAY_POSTGRES_XTRAWRKX_USERS_FIX.md) | Legacy `xtrawrkx_users` FK conflict — healthcheck / boot crash |
 | [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md) | Postgres SSL, pool, crashes |
 | [REDIS_CACHE.md](./REDIS_CACHE.md) | API caching |
 | [LANDING_MONOREPO_UPDATE.md](./LANDING_MONOREPO_UPDATE.md) | Landing on Vercel |

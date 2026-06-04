@@ -59,7 +59,7 @@ SEED_DATA=false
 Link **Redis** for API caching → `REDIS_URL`.
 
 **Deploy guide:** [docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md](../../docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md)  
-**Troubleshooting:** [docs/RAILWAY_STRAPI_DEPLOY.md](../../docs/RAILWAY_STRAPI_DEPLOY.md) · [docs/REDIS_CACHE.md](../../docs/REDIS_CACHE.md)
+**Troubleshooting:** [docs/RAILWAY_STRAPI_DEPLOY.md](../../docs/RAILWAY_STRAPI_DEPLOY.md) · [docs/RAILWAY_POSTGRES_XTRAWRKX_USERS_FIX.md](../../docs/RAILWAY_POSTGRES_XTRAWRKX_USERS_FIX.md) · [docs/REDIS_CACHE.md](../../docs/REDIS_CACHE.md)
 
 ---
 
@@ -72,7 +72,7 @@ apps/backend/
 ├── src/api/          # Content-types & controllers
 ├── database/seeds/   # Apps/modules, platform admin
 ├── public/uploads/   # Media (copy on DB migration)
-└── scripts/          # reset-local-db, test-redis
+└── scripts/          # reset-local-db, migrate-xtrawrkx-users-to-up-users.js, fix-postgres-xtrawrkx-users.sql
 ```
 
 ---
