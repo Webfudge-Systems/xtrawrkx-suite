@@ -151,11 +151,15 @@ npm run build:landing
 
 ## Deployment
 
-Production deploy (GitHub org, Railway `xtrawrkx-suite`, Vercel Webfudge Systems team, Postgres migration):
+Production deploy:
 
-**[docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md](./docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md)**
+| Doc | Purpose |
+|-----|---------|
+| **[WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md](./docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md)** | Full checklist (GitHub, Railway, Vercel, Postgres, Redis) |
+| **[ENV_FILES.md](./docs/ENV_FILES.md)** | `.env.example` / `.env.local` / `.env.production` per app |
+| **[XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./docs/XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md)** | One-page quick reference |
 
-Quick reference: [docs/XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./docs/XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md) · Railway API: [docs/RAILWAY_STRAPI_DEPLOY.md](./docs/RAILWAY_STRAPI_DEPLOY.md) · Redis: [docs/REDIS_CACHE.md](./docs/REDIS_CACHE.md)
+Repo: `https://github.com/Webfudge-Systems/xtrawrkx-suite` · API: `api.xtrawrkx.com` · Accounts: `base.xtrawrkx.com`
 
 ---
 

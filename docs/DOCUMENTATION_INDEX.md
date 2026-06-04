@@ -28,6 +28,7 @@ Your complete guide to the Webfudge Platform documentation.
 | -------------------------------------- | --------------------------- | --------- | --------- |
 | **[COMMANDS.md](./COMMANDS.md)**       | Complete command reference  | 15 min    | 🟡 Medium |
 | **[ENVIRONMENT.md](./ENVIRONMENT.md)** | Environment variables guide | 15 min    | 🟡 Medium |
+| **[ENV_FILES.md](./ENV_FILES.md)** | `.env.example` / `.env.local` / `.env.production` per app, `*.xtrawrkx.com` URLs | 5 min | 🔴 High |
 | **[WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md](./WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md)** | **From-scratch deploy**: GitHub Webfudge Systems org repo, existing Railway `xtrawrkx-suite`, new Vercel team projects, Postgres paths (keep / import / empty) | 30 min | 🔴 High |
 | **[XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md)** | Production quick reference (`*.xtrawrkx.com`) — points to Webfudge Systems guide for full setup | 10 min | 🔴 High |
 | **[ACCOUNTS_PRODUCTION_DEPLOY.md](./ACCOUNTS_PRODUCTION_DEPLOY.md)** | Accounts app production deploy (env, build, run) | 5 min | 🟡 Medium |

@@ -2,10 +2,10 @@
 export class CloudinaryService {
     // Cloudinary configuration - using environment variables with fallback
     static config = {
-        cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'df2ggvojv',
-        uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'xtrawrkx_uploads',
-        apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '135817735848235',
-        apiSecret: process.env.CLOUDINARY_API_SECRET || 'wm7TK4If40Np8s5DUBEnyrKdUEU' // Keep this secret on server-side only
+        cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+        uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
+        apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+        apiSecret: process.env.CLOUDINARY_API_SECRET,
     };
 
     // Check if Cloudinary is properly configured

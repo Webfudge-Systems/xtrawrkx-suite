@@ -8,18 +8,11 @@ export const CMS_CONFIG = {
     // Admin configuration
     ADMIN_EMAILS: process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || ['admin@xtrawrkx.com'],
 
-    // Strapi backend configuration
-    STRAPI_API_URL: 'https://xtrawrkxsuits-production.up.railway.app/api',
-
-    // Firebase project configuration
-    FIREBASE_CONFIG: {
-        apiKey: "AIzaSyCRyooUo6KheeDUEuEV9Add_XozmN_p--0",
-        authDomain: "xtrawrkx.firebaseapp.com",
-        projectId: "xtrawrkx",
-        messagingSenderId: "647527626177",
-        appId: "1:647527626177:web:7a791b0e6a5d8c14f9ab40",
-        measurementId: "G-NS76C2JWEQ"
-    }
+    STRAPI_API_URL:
+        process.env.NEXT_PUBLIC_STRAPI_API_URL ||
+        (process.env.NEXT_PUBLIC_API_URL
+            ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')}/api`
+            : 'http://localhost:1337/api'),
 };
 
 // Helper function to check if CMS is enabled

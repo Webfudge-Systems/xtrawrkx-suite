@@ -11,7 +11,8 @@ Strapi **5** backend for the Xtrawrkx suite: CRM, PM, Accounts, auth, multi-tena
 ```bash
 # From monorepo root
 npm install
-cp apps/backend/.env.example apps/backend/.env
+cp apps/backend/.env.example apps/backend/.env.local
+cp apps/backend/.env.local apps/backend/.env
 npm run dev:backend
 ```
 

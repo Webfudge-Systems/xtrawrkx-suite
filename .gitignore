@@ -24,8 +24,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# Local env files
+# Local env files (never commit secrets)
 .env
+.env.local
+.env.production
 .env*.local
 .env.development.local
 .env.test.local

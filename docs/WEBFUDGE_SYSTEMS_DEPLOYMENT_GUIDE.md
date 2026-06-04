@@ -1,643 +1,503 @@
-# Webfudge Systems — Complete Deployment Guide (From Scratch)
+# Webfudge Systems — Complete Deployment Guide
 
 ## Summary
 
-End-to-end checklist for deploying the **Xtrawrkx Suite monorepo** using:
+End-to-end checklist for the **Xtrawrkx Suite** monorepo:
 
-| Platform | Account / resource | Role |
-|----------|-------------------|------|
-| **GitHub** | Organization: **Webfudge Systems** | New canonical repo (monorepo source) |
-| **Railway** | Existing project **`xtrawrkx-suite`** | Strapi API, Postgres, Redis |
-| **Vercel** | Team: **Webfudge Systems** | All Next.js frontends |
+| Platform | Resource | Role |
+|----------|----------|------|
+| **GitHub** | [Webfudge-Systems/xtrawrkx-suite](https://github.com/Webfudge-Systems/xtrawrkx-suite) | Source of truth |
+| **Railway** | Project **`xtrawrkx-suite`** | Strapi API, Postgres, Redis |
+| **Vercel** | Team **Webfudge Systems** | Next.js frontends |
 
-This guide assumes you are **not** reusing old personal-repo Vercel/Railway Git links. You reconnect the **existing Railway** project to the **new org repo**, create **new Vercel projects**, and choose how to handle **Postgres data** (keep Railway DB, import from legacy `api.webfudge.in`, or start empty).
+Production domains use **`*.xtrawrkx.com`**. Env templates live in each app as `.env.example` (committed), `.env.local` (dev), and `.env.production` (secrets — **gitignored**).
 
----
-
-## What you are deploying
-
-| App | Path | Port (dev) | Host |
-|-----|------|------------|------|
-| Landing (marketing) | `apps/landing` | 3000 | Vercel |
-| CRM | `apps/crm` | 3001 | Vercel |
-| Client portal | `apps/xtrawrkx-client-portal` | 3002 | Vercel (optional) |
-| Accounts | `apps/accounts` | 3003 | Vercel |
-| Orbit (org manager) | `apps/organization-manager` | 3004 | Vercel |
-| PM | `apps/pm` | 3005 | Vercel |
-| Books | `apps/books` | 3008 | Vercel (optional) |
-| **Strapi API** | `apps/backend` | 1337 | **Railway** |
-
-Shared packages: `packages/auth`, `packages/ui`, `packages/utils`, `packages/config`.
+**Env reference:** [ENV_FILES.md](./ENV_FILES.md)
 
 ---
 
-## Target architecture
+## Production URLs (canonical)
+
+| App | Domain | Repo path | Vercel root |
+|-----|--------|-----------|-------------|
+| Landing | `https://xtrawrkx.com` | `apps/landing` | `apps/landing` |
+| CRM | `https://crm.xtrawrkx.com` | `apps/crm` | `apps/crm` |
+| PM | `https://pm.xtrawrkx.com` | `apps/pm` | `apps/pm` |
+| Accounts | `https://base.xtrawrkx.com` | `apps/accounts` | `apps/accounts` |
+| Orbit | `https://orbit.xtrawrkx.com` | `apps/organization-manager` | `apps/organization-manager` |
+| Client portal | `https://portal.xtrawrkx.com` | `apps/xtrawrkx-client-portal` | `apps/xtrawrkx-client-portal` |
+| API | `https://api.xtrawrkx.com` | `apps/backend` | Railway only |
+| Books (optional) | TBD | `apps/books` | `apps/books` |
+
+| Dev port | App |
+|----------|-----|
+| 3000 | Landing |
+| 3001 | CRM |
+| 3002 | Client portal |
+| 3003 | Accounts |
+| 3004 | Orbit |
+| 3005 | PM |
+| 3008 | Books |
+| 1337 | Strapi API |
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart TB
-  subgraph GH["GitHub — Webfudge Systems"]
-    REPO[xtrawrkx-suite repo]
+  subgraph GH["GitHub Webfudge-Systems/xtrawrkx-suite"]
+    REPO[monorepo]
   end
 
-  subgraph VER["Vercel — Webfudge Systems"]
-    L[landing]
-    CRM[crm]
-    PM[pm]
-    ACC[accounts]
-    ORB[orbit]
+  subgraph VER["Vercel"]
+    L[xtrawrkx.com]
+    CRM[crm.xtrawrkx.com]
+    PM[pm.xtrawrkx.com]
+    BASE[base.xtrawrkx.com]
+    ORB[orbit.xtrawrkx.com]
+    PRT[portal.xtrawrkx.com]
   end
 
-  subgraph RW["Railway — xtrawrkx-suite"]
-    API[Strapi API]
+  subgraph RW["Railway xtrawrkx-suite"]
+    API[api.xtrawrkx.com]
     PG[(Postgres)]
     RD[(Redis)]
   end
 
   REPO --> API
-  REPO --> L
-  REPO --> CRM
-  REPO --> PM
-  REPO --> ACC
-  REPO --> ORB
+  REPO --> L & CRM & PM & BASE & ORB & PRT
 
-  L --> API
-  CRM --> API
-  PM --> API
-  ACC --> API
-  ORB --> API
+  L & CRM & PM & BASE & ORB & PRT --> API
   API --> PG
   API --> RD
 ```
 
 ---
 
-## Domain strategy (pick one before Vercel env vars)
+## Environment files (before deploy)
 
-You must use **one consistent API + app URL set** in Railway, Vercel, and `apps/backend/config/middlewares.js`.
+Each app has three files — see [ENV_FILES.md](./ENV_FILES.md).
 
-### Option A — Legacy production (`*.webfudge.in`)
+| File | Git | Use |
+|------|-----|-----|
+| `.env.example` | Committed | Structure + placeholder secrets |
+| `.env.local` | Ignored | Local dev (`localhost` URLs) |
+| `.env.production` | Ignored | **Copy values into Railway / Vercel** |
 
-Matches current `apps/*/.env.production` and live CRM/PM today.
+### Quick setup (local)
 
-| Service | URL |
-|---------|-----|
-| API | `https://api.webfudge.in` |
-| CRM | `https://crm.webfudge.in` |
-| PM | `https://pm.webfudge.in` |
-| Accounts | `https://accounts.webfudge.in` |
-| Landing | `https://xtrawrkx.com` or your marketing domain |
+```bash
+# Next.js apps — dev
+cp apps/crm/.env.example apps/crm/.env.local
+# … repeat per app, or use existing .env.local files
 
-**CORS:** Add `https://crm.webfudge.in`, `https://pm.webfudge.in`, `https://accounts.webfudge.in`, `https://api.webfudge.in` to `allowedOrigins` in `apps/backend/config/middlewares.js` and redeploy API.
+# Strapi — must use .env (not .env.local alone)
+cp apps/backend/.env.local apps/backend/.env
+```
 
-### Option B — Xtrawrkx subdomains (`*.xtrawrkx.com`) — already in CORS
+### Production copy workflow
 
-| Service | URL |
-|---------|-----|
-| API | `https://api.xtrawrkx.com` |
-| CRM | `https://crm.xtrawrkx.com` |
-| PM | `https://pm.xtrawrkx.com` |
-| Accounts | `https://accounts.xtrawrkx.com` |
-| Orbit | `https://orbit.xtrawrkx.com` |
-| Landing | `https://xtrawrkx.com` |
+1. Open `apps/<app>/.env.production` on your machine (gitignored).
+2. **Railway (API):** paste `apps/backend/.env.production` into service **`xtrawrkx_suits`** → Variables. Fill `DATABASE_URL` and `REDIS_URL` from Railway dashboards (below).
+3. **Vercel (each frontend):** Project → Settings → Environment Variables → **Production** → paste matching app’s `.env.production`.
+4. **Redeploy** every service after env changes (`NEXT_PUBLIC_*` is baked in at build time on Vercel).
 
-Use this table’s URLs in all **Vercel `NEXT_PUBLIC_*`** variables below (replace `<API>` / `<CRM>` etc. with your chosen option).
+### Backend — paste from Railway dashboards
 
-Until DNS is live, use Railway (`*.up.railway.app`) and Vercel (`*.vercel.app`) URLs temporarily — CORS allows `https://*.vercel.app`.
+**Postgres service → Variables** (use on API service via reference or copy):
+
+| Railway key | Maps to API env |
+|-------------|-----------------|
+| `DATABASE_PRIVATE_URL` | `DATABASE_URL` (preferred in same project) |
+| `DATABASE_URL` | Public URL (fallback) |
+
+**Redis service → Variables** (link Redis to API, then reference):
+
+| Railway key | Maps to API env |
+|-------------|-----------------|
+| `REDIS_URL` | `REDIS_URL` (private, `redis.railway.internal`) |
+| `REDISHOST` + `REDISPORT` + `REDISUSER` + `REDISPASSWORD` | Fallback if URL not set |
+
+In Railway UI: API service → Variables → **Add variable reference** from Postgres / Redis services instead of pasting public URLs when possible.
+
+### Landing — extra secrets
+
+From `apps/landing/.env.production` (also in `.env.example` as placeholders):
+
+- Cloudinary: `NEXT_PUBLIC_CLOUDINARY_*`, `CLOUDINARY_API_SECRET`
+- Firebase: `NEXT_PUBLIC_FIREBASE_*`
+- Contact form: `EMAIL_USER`, `EMAIL_PASS` — [LANDING_CONTACT_FORM.md](./LANDING_CONTACT_FORM.md)
 
 ---
 
-## Master checklist (order matters)
+## Master checklist
 
 | # | Phase | Done |
 |---|--------|------|
-| 1 | [GitHub — new org repo](#phase-1--github-webfudge-systems) | ☐ |
-| 2 | [Railway — reconnect repo & configure API](#phase-2--railway-existing-xtrawrkx-suite) | ☐ |
-| 3 | [Postgres — choose data path](#phase-3--postgresql-data-strategy) | ☐ |
-| 4 | [Redis — add & link](#phase-4--redis) | ☐ |
-| 5 | [Backend — deploy & verify](#phase-5--deploy-backend) | ☐ |
-| 6 | [Vercel — new projects](#phase-6--vercel-webfudge-systems) | ☐ |
-| 7 | [DNS & custom domains](#phase-7--dns-and-custom-domains) | ☐ |
+| 0 | [Env files](#environment-files-before-deploy) ready | ☐ |
+| 1 | [GitHub](#phase-1--github) | ☐ |
+| 2 | [Railway API](#phase-2--railway) | ☐ |
+| 3 | [Postgres data](#phase-3--postgresql) — Path A / B / C | ☐ |
+| 4 | [Redis](#phase-4--redis) | ☐ |
+| 5 | [Backend verify](#phase-5--backend) | ☐ |
+| 6 | [Vercel](#phase-6--vercel) | ☐ |
+| 7 | [DNS + CORS](#phase-7--dns-and-cors) | ☐ |
 | 8 | [Smoke tests](#phase-8--verification) | ☐ |
 
 ---
 
-## Phase 1 — GitHub (Webfudge Systems)
+## Phase 1 — GitHub
 
-### 1.1 Create the repository
+**Canonical remote:**
 
-1. Log in to GitHub as a member of **Webfudge Systems**.
-2. **New repository** (e.g. `xtrawrkx-suite` or `xtrawrkx-suits`).
-3. Settings:
-   - **Private** (recommended)
-   - **Do not** add README/license/gitignore if pushing existing monorepo (avoid merge conflicts)
-   - Default branch: **`main`** or **`master`** (pick one; use the same everywhere)
-
-### 1.2 Push local monorepo
-
-From your machine (repo root):
-
-```bash
-# Ensure everything is committed (including apps/landing)
-git status
-git add -A
-git commit -m "chore: prepare monorepo for Webfudge Systems deploy"
-
-# Add new org remote (keep old remote as backup if needed)
-git remote rename origin old-origin   # optional
-git remote add origin https://github.com/<webfudge-systems-org>/<repo-name>.git
-
-# Push default branch
-git push -u origin master
-# or: git push -u origin main
+```text
+https://github.com/Webfudge-Systems/xtrawrkx-suite.git
 ```
 
-### 1.3 Branch for production
+### Push / update
 
-| Host | Recommended branch |
-|------|-------------------|
-| Railway | `master` or `main` |
-| Vercel | Same as Railway |
+```bash
+git remote -v
+# origin → Webfudge-Systems/xtrawrkx-suite
 
-Document the branch name in Railway/Vercel so the team does not deploy the wrong branch.
+git add -A
+git commit -m "your message"
+git push origin master
+```
 
-### 1.4 Repo hygiene before push
+Use one production branch (`master` or `main`) for both Railway and Vercel.
 
-- **Never commit** `.env`, `.env.local`, secrets, or `apps/backend/.tmp/`
-- Confirm `.gitignore` covers SQLite dev DB and uploads you do not want in git
-- Optional: enable branch protection on `main`/`master` (PR required)
+### Do not commit
+
+- `.env`, `.env.local`, `.env.production`
+- `apps/backend/.tmp/`, uploads with PII
 
 ---
 
-## Phase 2 — Railway (existing `xtrawrkx-suite`)
+## Phase 2 — Railway
 
-You already have a Railway project with **Postgres** and service **`xtrawrkx_suits`**. Re-point it to the **new GitHub org repo**.
+Project **`xtrawrkx-suite`** · Service **`xtrawrkx_suits`** (API).
 
-### 2.1 Connect GitHub
-
-1. Railway → **Account Settings** → link **Webfudge Systems** GitHub (org access).
-2. Open project **`xtrawrkx-suite`** → service **`xtrawrkx_suits`** (API).
-3. **Settings → Source**:
-   - **Connect repo:** `Webfudge Systems/<repo-name>`
-   - **Branch:** `master` or `main`
-   - **Root Directory:** `apps/backend` ← **critical for monorepo**
-4. Disconnect old personal-repo link if it still points elsewhere.
-
-### 2.2 Build & start commands
+### 2.1 Source
 
 | Setting | Value |
 |---------|--------|
-| **Root Directory** | `apps/backend` |
-| **Build Command** | `npm install` or `npm ci` |
-| **Start Command** | `npm run start` |
-| **Watch Paths** (optional) | `apps/backend/**` |
+| Repository | `Webfudge-Systems/xtrawrkx-suite` |
+| Branch | `master` (or `main`) |
+| **Root Directory** | **`apps/backend`** |
 
-Node **20.x** (see `apps/backend/package.json` engines).
+### 2.2 Build
 
-### 2.3 Link Postgres to API
+| Setting | Value |
+|---------|--------|
+| Build | `npm install` or `npm ci` |
+| Start | `npm run start` |
+| Node | 20.x |
 
-API service → **Variables**:
+### 2.3 Variables (copy from `apps/backend/.env.production`)
+
+Minimum set:
 
 ```bash
+NODE_ENV=production
+HOST=0.0.0.0
+PORT=${{PORT}}
+PUBLIC_URL=https://api.xtrawrkx.com
+
 DATABASE_CLIENT=postgres
 DATABASE_URL=${{Postgres.DATABASE_PRIVATE_URL}}
 DATABASE_SSL=true
 DATABASE_SSL_REJECT_UNAUTHORIZED=false
 DATABASE_POOL_MIN=0
 DATABASE_POOL_MAX=5
+SEED_DATA=false
+
+REDIS_URL=${{Redis.REDIS_URL}}
+REDIS_ENABLED=true
+CACHE_API_ENABLED=true
+
+APP_KEYS=<from .env.production — keep if Postgres already has data>
+ADMIN_JWT_SECRET=<from .env.production>
+API_TOKEN_SALT=<from .env.production>
+TRANSFER_TOKEN_SALT=<from .env.production>
+JWT_SECRET=<from .env.production>
+ENCRYPTION_KEY=<from .env.production>
+
+PLATFORM_ADMIN_EMAIL=admin@xtrawrkx.com
+PLATFORM_ADMIN_RESET_PASSWORD=false
 ```
 
-Prefer **`DATABASE_PRIVATE_URL`** when API and Postgres are in the same Railway project.
+**If Postgres already has CRM/PM data:** do **not** rotate `APP_KEYS` / `JWT_*` unless you accept forcing all users to log in again.
 
-### 2.4 Required Strapi secrets (API service)
-
-Generate locally (one value per variable):
+Optional app URL hints for emails/links:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+LANDING_APP_URL=https://xtrawrkx.com
+CRM_APP_URL=https://crm.xtrawrkx.com
+PM_APP_URL=https://pm.xtrawrkx.com
+ACCOUNTS_APP_URL=https://base.xtrawrkx.com
 ```
 
-| Variable | Notes |
-|----------|--------|
-| `NODE_ENV` | `production` |
-| `HOST` | `0.0.0.0` |
-| `PORT` | `${{PORT}}` |
-| `SEED_DATA` | **`false`** in production |
-| `APP_KEYS` | 4 comma-separated keys |
-| `ADMIN_JWT_SECRET` | |
-| `API_TOKEN_SALT` | |
-| `TRANSFER_TOKEN_SALT` | |
-| `JWT_SECRET` | |
-| `ENCRYPTION_KEY` | |
-| `PUBLIC_URL` | `https://<API>` (your API domain) |
-
-**If importing legacy DB (Path B below):** copy `APP_KEYS`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `API_TOKEN_SALT`, `TRANSFER_TOKEN_SALT`, `ENCRYPTION_KEY` from the **old** `api.webfudge.in` Railway/host env so existing password hashes work and sessions behave predictably.
-
-**If new secrets on restored DB:** users must log in again (passwords in DB still valid).
-
-### 2.5 Do not copy local dev `.env`
-
-Local uses **SQLite** and often `SEED_DATA=true`. Production must use **Postgres** + **`SEED_DATA=false`**.
-
-More detail: [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md).
+Troubleshooting: [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md)
 
 ---
 
-## Phase 3 — PostgreSQL data strategy
-
-Choose **one** path before the first successful production boot.
+## Phase 3 — PostgreSQL
 
 ```mermaid
 flowchart TD
-  START[Postgres on Railway] --> Q{Data already in this Postgres?}
-  Q -->|Yes - from earlier deploy| A[Path A: Keep & use existing]
-  Q -->|No or wrong/empty schema| Q2{Have live CRM/PM on api.webfudge.in?}
+  START[Railway Postgres] --> Q{Already has Strapi + CRM/PM data?}
+  Q -->|Yes| A[Path A: Keep DB]
+  Q -->|No| Q2{Import from api.webfudge.in?}
   Q2 -->|Yes| B[Path B: pg_dump restore]
-  Q2 -->|No| C[Path C: Empty + bootstrap]
-  A --> DEPLOY[Deploy API SEED_DATA=false]
-  B --> DEPLOY
-  C --> DEPLOY
+  Q2 -->|No| C[Path C: Empty]
+  A & B & C --> API[Deploy API SEED_DATA=false]
 ```
 
-### Path A — Keep existing Railway Postgres data
+### Path A — Keep existing Railway Postgres ⭐
 
-**Use when:** This Postgres already has Strapi tables and CRM/PM data from a previous deploy to the same Railway project.
+**Your case if `xtrawrkx-suite` Postgres already has tenant data.**
 
-1. **Do not** run `pg_restore` or wipe the volume.
-2. Set API env (Phase 2) with **same Strapi secrets** as when that data was created (if unknown, users re-login after new JWT secrets).
-3. Deploy API with `SEED_DATA=false`.
-4. Verify in [Phase 5](#phase-5--deploy-backend).
+| Do | Don't |
+|----|--------|
+| Redeploy API with `SEED_DATA=false` | `pg_restore` / wipe volume |
+| Keep same Strapi secrets as last writer to this DB | `SEED_DATA=true` on boot |
+| Link `DATABASE_PRIVATE_URL` | New empty Postgres service |
 
-**Risk:** Schema from an **old** Strapi version may not match current `apps/backend` — watch deploy logs for migration errors.
+After redeploy: `curl https://api.xtrawrkx.com/api/apps` · Strapi Admin · sample leads/tasks.
 
----
+### Path B — Import from legacy `api.webfudge.in`
 
-### Path B — Import from legacy production (`api.webfudge.in`)
+1. Scale API to **0**.
+2. `pg_dump` old Postgres → `pg_restore` into Railway `DATABASE_URL`.
+3. Copy `public/uploads` from old API.
+4. Use **same** Strapi secrets as old API.
+5. Deploy with `SEED_DATA=false`.
 
-**Use when:** Live CRM/PM data is on the **old** stack and Railway Postgres is empty or should be replaced.
+### Path C — Empty
 
-#### B.1 What to copy
+Fresh Postgres; bootstrap creates apps/modules only when empty; create orgs via Orbit/Admin.
 
-| Asset | Contents |
-|-------|----------|
-| **Postgres dump** | Orgs, users, roles, leads, contacts, deals, tasks, projects, meetings, proposals, invoices, … |
-| **Uploads** | `public/uploads` from old Strapi host |
-| **Strapi secrets** (recommended) | Same `APP_KEYS` / `JWT_*` as old API |
-
-#### B.2 Backup old database
-
-From a machine with network access to **old** Postgres (old Railway project, Supabase, etc.):
-
-```bash
-# Recommended: custom format
-pg_dump "$OLD_DATABASE_URL" \
-  --format=custom \
-  --no-owner \
-  --no-acl \
-  --file=webfudge-crm-pm-$(date +%Y%m%d).dump
-```
-
-Store securely (PII).
-
-**Find `OLD_DATABASE_URL`:** old Railway Postgres → **Connect** → `DATABASE_URL` or `DATABASE_PRIVATE_URL`.
-
-#### B.3 Prepare Railway Postgres
-
-1. **Stop or scale API to 0** (no Strapi writes during restore).
-2. Railway → **Postgres** → **Connect** → copy URL → `NEW_DATABASE_URL`.
-
-#### B.4 Restore
-
-```bash
-pg_restore --clean --if-exists --no-owner --no-acl \
-  -d "$NEW_DATABASE_URL" \
-  webfudge-crm-pm-YYYYMMDD.dump
-```
-
-If errors on roles/extensions, retry with plain SQL dump:
-
-```bash
-pg_dump "$OLD_DATABASE_URL" --clean --if-exists -f backup.sql
-psql "$NEW_DATABASE_URL" -f backup.sql
-```
-
-#### B.5 Uploads
-
-Strapi default provider stores files under `apps/backend/public/uploads`.
-
-- Copy folder from old server into Railway **volume** mounted at `public/uploads`, or
-- Use Railway persistent volume + one-off copy job.
-
-Missing uploads = broken images in CRM/PM, not missing rows in Postgres.
-
-#### B.6 Deploy API
-
-- `SEED_DATA=false`
-- Deploy; watch logs for Strapi schema sync
-- **Do not** set `SEED_DATA=true` after restore
-
-#### B.7 Verify data
-
-```bash
-curl -s https://<API>/api/apps
-```
-
-Strapi Admin → Organizations, Users, sample Lead Company / Task.
-
----
-
-### Path C — Empty database (greenfield)
-
-**Use when:** No legacy data to preserve.
-
-1. Fresh Railway Postgres (or wipe only if you accept data loss).
-2. API env: new Strapi secrets, `SEED_DATA=false`.
-3. On first boot, bootstrap seeds **apps/modules** only when no `App` rows exist (see `apps/backend/database/seeds/`).
-4. Create org/users via Orbit or Strapi Admin — not the same as full CRM/PM import.
-
-Dev-only wipe: [LOCAL_DB_RESET.md](./LOCAL_DB_RESET.md) (SQLite, not production).
-
----
-
-### Path comparison
-
-| Path | Postgres | Uploads | Users |
-|------|----------|---------|-------|
-| A Keep | Existing Railway | Keep on volume if any | Existing |
-| B Import | Replace with dump | Copy from old API | From dump |
-| C Empty | New | None | Manual / seed |
+| Path | When |
+|------|------|
+| A | Data already on Railway Postgres |
+| B | Live data only on old stack |
+| C | Greenfield |
 
 ---
 
 ## Phase 4 — Redis
 
-CRM/PM list caching — strongly recommended in production.
-
-1. Railway project → **+ New** → **Redis**.
-2. Link to **API** service → Variables:
-
-```bash
-REDIS_URL=${{Redis.REDIS_URL}}
-```
-
-Use private URL (`redis.railway.internal`) inside Railway.
-
-3. Optional:
+1. Railway → **+ New** → **Redis** (if not present).
+2. API service → link Redis → `REDIS_URL=${{Redis.REDIS_URL}}`.
+3. Redeploy → log: `✅ Redis connected`.
 
 ```bash
-CACHE_API_ENABLED=true
-CACHE_TTL_SECONDS=300
+curl -s https://api.xtrawrkx.com/api/health/redis
 ```
 
-4. Redeploy API → logs: `✅ Redis connected`.
-
-Verify:
-
-```bash
-curl -s https://<API>/api/health/redis
-```
-
-Detail: [REDIS_CACHE.md](./REDIS_CACHE.md).
+[REDIS_CACHE.md](./REDIS_CACHE.md)
 
 ---
 
-## Phase 5 — Deploy backend
+## Phase 5 — Backend
 
-### 5.1 Trigger deploy
-
-- Push to `master`/`main` on org repo, or
-- Railway → **Deploy** → **Redeploy**
-
-### 5.2 Logs (success)
-
-Look for:
-
-- `strapi start` without `KnexTimeoutError`
-- Postgres connected
-- `Redis connected` (if configured)
-- No crash loop from `SEED_DATA=true`
-
-### 5.3 HTTP checks
+1. Push to `master` or Railway **Redeploy**.
+2. Logs: no `KnexTimeoutError`; Strapi started; Redis OK.
+3. HTTP:
 
 ```bash
-curl -s https://<railway-api-url>/api/apps
-curl -s https://<railway-api-url>/api/health/redis
+curl -s https://api.xtrawrkx.com/api/apps
+curl -s https://api.xtrawrkx.com/api/health/redis
 ```
 
-Admin panel: `https://<API>/admin`
-
-### 5.4 Custom domain (API)
-
-Railway API service → **Networking** → add `api.webfudge.in` or `api.xtrawrkx.com` → DNS CNAME per Railway instructions.
-
-Update `PUBLIC_URL` to match.
-
-### 5.5 Troubleshooting
-
-| Symptom | Fix |
-|---------|-----|
-| `KnexTimeoutError` | `DATABASE_CLIENT=postgres`, linked `DATABASE_URL`, SSL on — [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md) |
-| Wrong code deployed | Root directory must be `apps/backend` |
-| Empty CRM after “success” | Wrong Postgres path — use Path B or check Path A |
-| CORS errors later | Phase 7 + `middlewares.js` |
+4. Admin: `https://api.xtrawrkx.com/admin`
+5. Custom domain: Railway → Networking → `api.xtrawrkx.com` → DNS CNAME.
 
 ---
 
-## Phase 6 — Vercel (Webfudge Systems)
+## Phase 6 — Vercel
 
-Create **new projects** under the **Webfudge Systems** Vercel team. Do not reuse old personal-team projects tied to the previous repo.
+Team: **Webfudge Systems** · Repo: **Webfudge-Systems/xtrawrkx-suite**.
 
-### 6.1 Team & GitHub
-
-1. Vercel → switch team to **Webfudge Systems**.
-2. **Settings → Git** → connect **Webfudge Systems** GitHub org.
-3. Import monorepo repo (same as Railway).
-
-### 6.2 Monorepo settings (every Next app)
-
-Create **one Vercel project per app**:
+### 6.1 Per-project settings
 
 | Setting | Value |
 |---------|--------|
 | Framework | Next.js |
-| **Root Directory** | See table below |
-| **Include files outside root** | **Enabled** |
-| Node.js | 20.x |
-| **Install Command** | `cd ../.. && npm ci` |
-| **Build Command** | `npm run build` |
-| Production branch | `master` or `main` |
+| Root Directory | See table below |
+| Include files outside root | **On** |
+| Install Command | `cd ../.. && npm ci` |
+| Build Command | `npm run build` |
+| Branch | `master` |
 
-`vercel.json` in `apps/landing` and `apps/organization-manager` already sets install from repo root.
+### 6.2 Project map
 
-### 6.3 Vercel project map
+| Vercel project | Root | Domain |
+|----------------|------|--------|
+| `webfudge-landing` | `apps/landing` | `xtrawrkx.com`, `www.xtrawrkx.com` |
+| `webfudge-crm` | `apps/crm` | `crm.xtrawrkx.com` |
+| `webfudge-pm` | `apps/pm` | `pm.xtrawrkx.com` |
+| `webfudge-accounts` | `apps/accounts` | `base.xtrawrkx.com` |
+| `webfudge-orbit` | `apps/organization-manager` | `orbit.xtrawrkx.com` |
+| `webfudge-portal` | `apps/xtrawrkx-client-portal` | `portal.xtrawrkx.com` |
 
-| Vercel project (suggested) | Root directory | Domain (example) |
-|---------------------------|----------------|------------------|
-| `webfudge-landing` | `apps/landing` | `xtrawrkx.com` |
-| `webfudge-crm` | `apps/crm` | `<CRM>` |
-| `webfudge-pm` | `apps/pm` | `<PM>` |
-| `webfudge-accounts` | `apps/accounts` | `<ACCOUNTS>` |
-| `webfudge-orbit` | `apps/organization-manager` | `<ORBIT>` |
-| `webfudge-portal` (optional) | `apps/xtrawrkx-client-portal` | `<PORTAL>` |
+### 6.3 Environment variables
 
-Replace `<CRM>` etc. with URLs from [Domain strategy](#domain-strategy-pick-one-before-vercel-env-vars).
+**Copy entire `apps/<app>/.env.production` into each Vercel project (Production).**  
+Reference values (no secrets in repo):
 
-### 6.4 Environment variables (Production)
+<details>
+<summary>CRM — <code>apps/crm/.env.production</code></summary>
 
-Set per project → **Environment Variables** → **Production**.  
-**Redeploy** after changes (`NEXT_PUBLIC_*` is baked in at build time).
+```bash
+NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_CRM_APP_URL=https://crm.xtrawrkx.com
+NEXT_PUBLIC_PM_APP_URL=https://pm.xtrawrkx.com
+```
+</details>
 
-Use **`<API>`** = your live API URL (Railway default or custom), no trailing path for CRM/PM/Accounts (auth package appends `/api/...`).
+<details>
+<summary>PM — <code>apps/pm/.env.production</code></summary>
 
-#### Landing — `apps/landing`
+```bash
+NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_PM_APP_URL=https://pm.xtrawrkx.com
+NEXT_PUBLIC_CRM_APP_URL=https://crm.xtrawrkx.com
+```
+</details>
+
+<details>
+<summary>Accounts — <code>apps/accounts/.env.production</code></summary>
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_ACCOUNTS_APP_URL=https://base.xtrawrkx.com
+NEXT_PUBLIC_CRM_ORIGIN=https://crm.xtrawrkx.com
+```
+</details>
+
+<details>
+<summary>Orbit — <code>apps/organization-manager/.env.production</code></summary>
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_ORG_MANAGER_URL=https://orbit.xtrawrkx.com
+NEXT_PUBLIC_SITE_URL=https://orbit.xtrawrkx.com
+NEXT_PUBLIC_ACCOUNTS_APP_URL=https://base.xtrawrkx.com
+NEXT_PUBLIC_PM_APP_URL=https://pm.xtrawrkx.com
+NEXT_PUBLIC_CRM_APP_URL=https://crm.xtrawrkx.com
+NEXT_PUBLIC_LANDING_URL=https://xtrawrkx.com
+```
+</details>
+
+<details>
+<summary>Landing — <code>apps/landing/.env.production</code></summary>
 
 ```bash
 NEXT_PUBLIC_BASE_URL=https://xtrawrkx.com
-NEXT_PUBLIC_STRAPI_API_URL=<API>/api
-NEXT_PUBLIC_API_URL=<API>
-NEXT_PUBLIC_CRM_PORTAL_URL=<CRM>
-NEXT_PUBLIC_CLIENT_PORTAL_URL=<PORTAL>
-# Cloudinary, Firebase, EMAIL_USER, EMAIL_PASS — see apps/landing/.env.example
+NEXT_PUBLIC_APP_URL=https://xtrawrkx.com
+NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_STRAPI_API_URL=https://api.xtrawrkx.com/api
+NEXT_PUBLIC_CRM_PORTAL_URL=https://crm.xtrawrkx.com
+NEXT_PUBLIC_CLIENT_PORTAL_URL=https://portal.xtrawrkx.com
+# + Cloudinary, Firebase, EMAIL_* — see apps/landing/.env.production (gitignored)
 ```
+</details>
 
-#### CRM — `apps/crm`
+<details>
+<summary>Client portal — <code>apps/xtrawrkx-client-portal/.env.production</code></summary>
 
 ```bash
-NEXT_PUBLIC_API_URL=<API>
-NEXT_PUBLIC_CRM_APP_URL=<CRM>
-NEXT_PUBLIC_PM_APP_URL=<PM>
+NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_STRAPI_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_XTRAWRKX_WEBSITE_URL=https://xtrawrkx.com
+NEXT_PUBLIC_USE_STRAPI=true
 ```
+</details>
 
-#### PM — `apps/pm`
+### 6.4 Deploy order
 
-```bash
-NEXT_PUBLIC_API_URL=<API>
-NEXT_PUBLIC_PM_APP_URL=<PM>
-NEXT_PUBLIC_CRM_APP_URL=<CRM>
-```
+1. Railway API healthy (`/api/apps`).
+2. Vercel: Landing → CRM → PM → Accounts → Orbit → Portal.
+3. Each deploy **after** env vars are set.
 
-#### Accounts — `apps/accounts`
-
-```bash
-NEXT_PUBLIC_API_URL=<API>
-NEXT_PUBLIC_ACCOUNTS_APP_URL=<ACCOUNTS>
-NEXT_PUBLIC_CRM_ORIGIN=<CRM>
-```
-
-#### Orbit — `apps/organization-manager`
-
-```bash
-NEXT_PUBLIC_API_URL=<API>
-NEXT_PUBLIC_ORG_MANAGER_URL=<ORBIT>
-NEXT_PUBLIC_SITE_URL=<ORBIT>
-NEXT_PUBLIC_ACCOUNTS_APP_URL=<ACCOUNTS>
-NEXT_PUBLIC_PM_APP_URL=<PM>
-NEXT_PUBLIC_CRM_APP_URL=<CRM>
-```
-
-### 6.5 First deploy tips
-
-- Deploy **API first** (Railway), confirm `/api/apps`, then deploy Vercel apps.
-- First Vercel build may take several minutes (`npm ci` at monorepo root).
-- If build fails on lockfile: set `NEXT_IGNORE_INCORRECT_LOCKFILE=1` (see `vercel.json` examples).
-
-### 6.6 Local build sanity check
+### 6.5 Local build check
 
 ```bash
 npm install
-npm run build:landing
-npm run build:crm
-npm run build:pm
-npm run build:accounts
-npm run build:org-manager
+npm run build:landing && npm run build:crm && npm run build:pm
+npm run build:accounts && npm run build:org-manager
 ```
 
 ---
 
-## Phase 7 — DNS and custom domains
+## Phase 7 — DNS and CORS
 
-### 7.1 Railway (API)
+### DNS
 
-| Record | Points to |
-|--------|-----------|
-| `api.webfudge.in` or `api.xtrawrkx.com` | Railway CNAME target |
+| Host | Provider |
+|------|----------|
+| `api.xtrawrkx.com` | Railway CNAME |
+| `xtrawrkx.com`, `www` | Vercel |
+| `crm`, `pm`, `base`, `orbit`, `portal` | Vercel per project |
 
-### 7.2 Vercel (frontends)
+### CORS
 
-Per project → **Domains** → add hostname → follow Vercel DNS (CNAME / A).
+`apps/backend/config/middlewares.js` already includes:
 
-### 7.3 CORS (`apps/backend/config/middlewares.js`)
+- `https://xtrawrkx.com`, `https://www.xtrawrkx.com`
+- `https://crm.xtrawrkx.com`, `https://pm.xtrawrkx.com`
+- `https://base.xtrawrkx.com`, `https://orbit.xtrawrkx.com`, `https://portal.xtrawrkx.com`
+- `https://api.xtrawrkx.com`
+- Pattern: `https://*.vercel.app`, `https://*.xtrawrkx.com`
 
-Ensure **every** production frontend origin is listed in `allowedOrigins`, for example:
+If you still serve legacy `*.webfudge.in`, add those origins and redeploy API.
 
-```javascript
-'https://crm.webfudge.in',
-'https://pm.webfudge.in',
-'https://accounts.webfudge.in',
-'https://xtrawrkx.com',
-'https://www.xtrawrkx.com',
-```
-
-Patterns already allow `https://*.vercel.app` and `https://*.xtrawrkx.com`.
-
-Commit CORS changes → push → Railway redeploys API.
-
-Detail: [BACKEND_CORS_ORG_HEADER_UPDATE.md](./BACKEND_CORS_ORG_HEADER_UPDATE.md).
+[BACKEND_CORS_ORG_HEADER_UPDATE.md](./BACKEND_CORS_ORG_HEADER_UPDATE.md)
 
 ---
 
 ## Phase 8 — Verification
 
-### Backend
-
-| Check | Expected |
-|-------|----------|
-| `GET /api/apps` | JSON list of apps |
-| `GET /api/health/redis` | `configured: true`, ping OK |
-| Strapi Admin | Loads; data visible (Path A/B) |
-| Postgres metrics | Stable connections, no pool exhaustion |
-
-### CRM
-
-| Check | Expected |
-|-------|----------|
-| Login | User from DB (Path A/B) |
-| Org picker | Sets `X-Organization-Id` |
-| Leads / contacts | Data visible |
-| Repeat list request | `X-Cache: HIT` (if Redis on) |
-
-### PM
-
-| Check | Expected |
-|-------|----------|
-| Projects / tasks | Data matches pre-migration |
-| No console CORS errors | |
-
-### Accounts & Orbit
-
-| Check | Expected |
-|-------|----------|
-| Users / roles | Admin can list users |
-| Orbit platform login | `admin@xtrawrkx.com` if seeded/restored |
-
-### Landing
-
-| Check | Expected |
-|-------|----------|
-| Home / contact | Loads |
-| Contact form | Email route configured |
+| Area | Check |
+|------|--------|
+| API | `GET /api/apps`, `GET /api/health/redis`, Admin loads |
+| CRM | Login, org switch, leads/contacts, `X-Cache: HIT` on repeat |
+| PM | Projects/tasks, no CORS errors |
+| Accounts | Users/roles at `base.xtrawrkx.com` |
+| Orbit | Platform admin login |
+| Landing | Home, contact form |
+| Portal | Auth + dashboard |
 
 ---
 
-## Quick reference — where things live
+## Legacy `*.webfudge.in` (optional)
 
-| Item | Location |
-|------|----------|
-| Monorepo | `github.com/<webfudge-systems-org>/<repo>` |
+Only if you still run the old stack in parallel:
+
+| Old | New |
+|-----|-----|
+| `api.webfudge.in` | `api.xtrawrkx.com` |
+| `crm.webfudge.in` | `crm.xtrawrkx.com` |
+| `pm.webfudge.in` | `pm.xtrawrkx.com` |
+| `accounts.webfudge.in` | `base.xtrawrkx.com` |
+
+Data migration from old API: [Path B](#path-b--import-from-legacy-apiwebfudgein).
+
+---
+
+## Quick reference
+
+| Item | Value |
+|------|--------|
+| GitHub | `Webfudge-Systems/xtrawrkx-suite` |
 | Railway project | `xtrawrkx-suite` |
-| API service | `xtrawrkx_suits`, root `apps/backend` |
-| Vercel team | Webfudge Systems |
-| Legacy data source | `api.webfudge.in` Postgres + uploads |
-| Env templates | `apps/*/.env.example`, `apps/backend/.env.example` |
+| API service / root | `xtrawrkx_suits` → `apps/backend` |
+| Env docs | [ENV_FILES.md](./ENV_FILES.md) |
+| Postgres vars | `DATABASE_URL`, `DATABASE_PRIVATE_URL`, `PGHOST`, … |
+| Redis vars | `REDIS_URL`, `REDISHOST`, `REDISPORT`, … |
 
 ---
 
@@ -645,24 +505,21 @@ Detail: [BACKEND_CORS_ORG_HEADER_UPDATE.md](./BACKEND_CORS_ORG_HEADER_UPDATE.md)
 
 | Doc | Topic |
 |-----|--------|
-| [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md) | Postgres SSL, pool, crash fixes |
-| [REDIS_CACHE.md](./REDIS_CACHE.md) | API cache behavior |
-| [ACCOUNTS_PRODUCTION_DEPLOY.md](./ACCOUNTS_PRODUCTION_DEPLOY.md) | Accounts-specific notes |
-| [LANDING_MONOREPO_UPDATE.md](./LANDING_MONOREPO_UPDATE.md) | Landing app in monorepo |
-| [LANDING_CONTACT_FORM.md](./LANDING_CONTACT_FORM.md) | Contact email env |
-| [ENVIRONMENT.md](./ENVIRONMENT.md) | Full env var reference |
-| [XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md) | Earlier xtrawrkx.com–focused checklist |
+| [ENV_FILES.md](./ENV_FILES.md) | `.env.example` / `.env.local` / `.env.production` |
+| [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md) | Postgres SSL, pool, crashes |
+| [REDIS_CACHE.md](./REDIS_CACHE.md) | API caching |
+| [LANDING_MONOREPO_UPDATE.md](./LANDING_MONOREPO_UPDATE.md) | Landing on Vercel |
+| [LANDING_CONTACT_FORM.md](./LANDING_CONTACT_FORM.md) | SMTP env |
+| [XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md) | Short checklist |
+| [ENVIRONMENT.md](./ENVIRONMENT.md) | Extended variable reference |
 
 ---
 
-## Appendix — Postgres CLI on Windows
-
-Install [PostgreSQL client tools](https://www.postgresql.org/download/windows/) or use Railway’s **Connect** in-browser query, or WSL:
+## Appendix — Postgres CLI (Windows)
 
 ```powershell
-# Example with Railway public URL (for restore from your PC)
 $env:PGPASSWORD = "<password>"
 pg_restore -h <host> -p <port> -U postgres -d railway --clean --if-exists --no-owner --no-acl .\backup.dump
 ```
 
-Use **public** Postgres URL from Railway when running tools on your laptop; use **private** URL only inside Railway services.
+Use Railway Postgres **public** URL from your PC; **private** URL only inside Railway network.

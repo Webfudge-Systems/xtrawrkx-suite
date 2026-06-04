@@ -12,6 +12,7 @@ const allowedOrigins = [
   'https://www.xtrawrkx.com',
   'https://crm.xtrawrkx.com',
   'https://pm.xtrawrkx.com',
+  'https://base.xtrawrkx.com',
   'https://accounts.xtrawrkx.com',
   'https://orbit.xtrawrkx.com',
   'https://portal.xtrawrkx.com',
