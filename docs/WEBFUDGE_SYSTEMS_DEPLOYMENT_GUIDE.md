@@ -435,7 +435,20 @@ NEXT_PUBLIC_USE_STRAPI=true
 2. Vercel: Landing → CRM → PM → Accounts → Orbit → Portal.
 3. Each deploy **after** env vars are set.
 
-### 6.5 Local build check
+### 6.5 `npm ci` fails on landing (lock file out of sync)
+
+Vercel install: `cd ../.. && npm ci`. If logs show **Missing: next@… / firebase@… from lock file**, landing was added without updating the root lockfile:
+
+```bash
+npm install
+git add package-lock.json
+git commit -m "chore: sync package-lock for landing workspace"
+git push origin master
+```
+
+Redeploy Vercel **webfudge-landing**. See [LANDING_MONOREPO_UPDATE.md](./LANDING_MONOREPO_UPDATE.md).
+
+### 6.6 Local build check
 
 ```bash
 npm install
