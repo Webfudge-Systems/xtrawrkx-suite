@@ -1,61 +1,80 @@
-# 🚀 Getting started with Strapi
+# Xtrawrkx API (Strapi)
 
-Strapi comes with a full featured [Command Line Interface](https://docs.strapi.io/dev-docs/cli) (CLI) which lets you scaffold and manage your project in seconds.
+Strapi **5** backend for the Xtrawrkx suite: CRM, PM, Accounts, auth, multi-tenant organizations, and content APIs.
 
-### `develop`
-
-Start your Strapi application with autoReload enabled. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-develop)
-
-```
-npm run develop
-# or
-yarn develop
-```
-
-### `start`
-
-Start your Strapi application with autoReload disabled. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-start)
-
-```
-npm run start
-# or
-yarn start
-```
-
-### `build`
-
-Build your admin panel. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-build)
-
-```
-npm run build
-# or
-yarn build
-```
-
-## ⚙️ Deployment
-
-Strapi gives you many possible deployment options for your project including [Strapi Cloud](https://cloud.strapi.io). Browse the [deployment section of the documentation](https://docs.strapi.io/dev-docs/deployment) to find the best solution for your use case.
-
-```
-yarn strapi deploy
-```
-
-## 📚 Learn more
-
-- [Resource center](https://strapi.io/resource-center) - Strapi resource center.
-- [Strapi documentation](https://docs.strapi.io) - Official Strapi documentation.
-- [Strapi tutorials](https://strapi.io/tutorials) - List of tutorials made by the core team and the community.
-- [Strapi blog](https://strapi.io/blog) - Official Strapi blog containing articles made by the Strapi team and the community.
-- [Changelog](https://strapi.io/changelog) - Find out about the Strapi product updates, new features and general improvements.
-
-Feel free to check out the [Strapi GitHub repository](https://github.com/strapi/strapi). Your feedback and contributions are welcome!
-
-## ✨ Community
-
-- [Discord](https://discord.strapi.io) - Come chat with the Strapi community including the core team.
-- [Forum](https://forum.strapi.io/) - Place to discuss, ask questions and find answers, show your Strapi project and get feedback or just talk with other Community members.
-- [Awesome Strapi](https://github.com/strapi/awesome-strapi) - A curated list of awesome things related to Strapi.
+**Production:** Railway project `xtrawrkx-suite` · **Root directory:** `apps/backend`
 
 ---
 
-<sub>🤫 Psst! [Strapi is hiring](https://strapi.io/careers).</sub>
+## Quick start (local)
+
+```bash
+# From monorepo root
+npm install
+cp apps/backend/.env.example apps/backend/.env
+npm run dev:backend
+```
+
+- API: http://localhost:1337  
+- Admin: http://localhost:1337/admin  
+
+Default dev DB is **SQLite** (`.tmp/data.db`). Use PostgreSQL in production.
+
+Reset local DB:
+
+```bash
+npm run reset:db
+```
+
+---
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run develop` / `dev` | Dev with auto-reload |
+| `npm run start` | Production (no reload) |
+| `npm run build` | Build admin panel |
+| `npm run test:redis` | Redis connectivity test |
+
+---
+
+## Production (Railway)
+
+Required variables (see `apps/backend/.env.example`):
+
+```bash
+NODE_ENV=production
+DATABASE_CLIENT=postgres
+DATABASE_URL=${{Postgres.DATABASE_PRIVATE_URL}}
+DATABASE_SSL=true
+DATABASE_SSL_REJECT_UNAUTHORIZED=false
+DATABASE_POOL_MIN=0
+DATABASE_POOL_MAX=5
+SEED_DATA=false
+# APP_KEYS, JWT_SECRET, ADMIN_JWT_SECRET, …
+```
+
+Link **Redis** for API caching → `REDIS_URL`.
+
+**Deploy guide:** [docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md](../../docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md)  
+**Troubleshooting:** [docs/RAILWAY_STRAPI_DEPLOY.md](../../docs/RAILWAY_STRAPI_DEPLOY.md) · [docs/REDIS_CACHE.md](../../docs/REDIS_CACHE.md)
+
+---
+
+## Layout
+
+```
+apps/backend/
+├── config/           # database, middlewares (CORS), plugins
+├── src/api/          # Content-types & controllers
+├── database/seeds/   # Apps/modules, platform admin
+├── public/uploads/   # Media (copy on DB migration)
+└── scripts/          # reset-local-db, test-redis
+```
+
+---
+
+## Learn more
+
+- [Strapi documentation](https://docs.strapi.io)

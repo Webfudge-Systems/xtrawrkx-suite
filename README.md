@@ -1,74 +1,70 @@
-# Webfudge Platform
+# Xtrawrkx Suite
 
-**The operating system for modern businesses** — built by [Webfudge Systems](https://webfudgesystems.in).
+**The operating system for modern businesses** — monorepo by [Webfudge Systems](https://webfudgesystems.in).
 
-Webfudge Systems builds custom software and productized business tools: CRM, project management, finance, automation, ERP-style workflows, and admin panels. This monorepo is the shared codebase for that platform—multiple Next.js apps, one Strapi API, and reusable packages used across products.
+CRM, project management, accounts, marketing site, and shared packages on one **Strapi API** and **npm workspaces** stack.
+
+**Repository:** [github.com/Webfudge-Systems/xtrawrkx-suite](https://github.com/Webfudge-Systems/xtrawrkx-suite)
 
 ---
 
 ## About Webfudge Systems
 
-**Webfudge Systems** is a software company focused on helping businesses run on fewer, better-connected tools instead of a patchwork of disconnected apps.
+**Webfudge Systems** builds connected business software instead of scattered SaaS tools:
 
-We design and ship:
-
-- **CRM & sales** — leads, contacts, deals, proposals, invoices, pipelines
-- **Project management** — projects, tasks, timelines, team workload
-- **Accounts & billing** — organizations, users, roles, subscriptions
-- **Finance (Books)** — sales, purchases, accounting workflows
-- **Custom solutions** — dashboards, ERP-style modules, automation, and industry-specific apps (e.g. automobile / VLM)
-
-**Vision:** A future where operations, data, and teams live on one central platform—not scattered across dozens of SaaS logins.
-
-**Mission:** Build a flexible business operating system that lets companies manage workflows, data, and teams through one integrated, modular stack.
+- **CRM & sales** — leads, contacts, deals, proposals, invoices
+- **Project management** — projects, tasks, timelines, delivery
+- **Accounts** — organizations, users, roles, billing, audit
+- **Finance (Books)** — sales, purchases, accounting UI
+- **Platform admin (Orbit)** — tenant organizations and onboarding
+- **Marketing (Landing)** — public site, events, communities
 
 **Website:** [webfudgesystems.in](https://webfudgesystems.in)  
 **Contact:** [webfudgesystems@gmail.com](mailto:webfudgesystems@gmail.com)
 
 ---
 
-## Platform products (apps)
+## Apps
 
-| App | Package | Default port | Role |
-| --- | --- | ---: | --- |
-| Landing | `apps/landing` | 3000 | Marketing site, signup, product pages |
-| CRM | `apps/crm` | 3001 | Sales, leads, deals, clients, proposals |
-| PM | `apps/pm` | 3002 | Projects, tasks, delivery |
-| Accounts | `apps/accounts` | 3003 | Orgs, users, billing, RBAC |
-| Vendor | `apps/vendor` | 3004 | Vendor / license oversight |
-| Books | `apps/books` | 3005 | Finance & accounting UI |
-| Backend | `apps/backend` | 1337 | Strapi CMS & REST API |
-| VLM (automobile) | `apps/(automobile)/vlm` | — | Vehicle / warranty vertical |
+| App | Path | Package | Port | Hosting |
+| --- | --- | --- | ---: | --- |
+| Landing | `apps/landing` | `@xtrawrkx/landing` | 3000 | Vercel |
+| CRM | `apps/crm` | `@xtrawrkx/crm` | 3001 | Vercel |
+| Client portal | `apps/xtrawrkx-client-portal` | `client-portal` | 3002 | Vercel |
+| Accounts | `apps/accounts` | `@xtrawrkx/accounts` | 3003 | Vercel |
+| Orbit (org manager) | `apps/organization-manager` | `@xtrawrkx/organization-manager` | 3004 | Vercel |
+| PM | `apps/pm` | `@xtrawrkx/pm` | 3005 | Vercel |
+| Books | `apps/books` | `@xtrawrkx/books` | 3008 | Vercel |
+| **API** | `apps/backend` | `backend` | 1337 | Railway |
 
-All frontends share **`@webfudge/ui`**, **`@webfudge/auth`**, and the same Tailwind preset; the backend is the single source of truth for content and auth.
+Shared: `@webfudge/ui`, `@webfudge/auth`, `@webfudge/utils`, `@webfudge/config`.
 
 ---
 
 ## Repository structure
 
-Monorepo: **Turborepo** + **npm workspaces**.
-
 ```
-webfudge-platform/
+xtrawrkx-suite/
 ├── apps/
-│   ├── landing/              # Public site (webfudgesystems.in)
-│   ├── crm/                  # CRM workspace
-│   ├── pm/                   # Project management
-│   ├── accounts/             # Account & org admin
-│   ├── vendor/               # Vendor portal
-│   ├── books/                # Finance / Books
-│   ├── backend/              # Strapi API
-│   └── (automobile)/vlm/     # Vertical: vehicle lifecycle
+│   ├── landing/                 # Marketing site (xtrawrkx.com)
+│   ├── crm/
+│   ├── pm/
+│   ├── accounts/
+│   ├── organization-manager/  # Orbit — platform super-admin
+│   ├── books/
+│   ├── xtrawrkx-client-portal/
+│   ├── backend/                 # Strapi 5 API
+│   └── linkedin-extension/      # Browser extension (optional)
 ├── packages/
-│   ├── ui/                   # Shared components (tables, charts, layout)
-│   ├── auth/                 # Auth provider & helpers
-│   ├── billing/              # Billing utilities
-│   ├── config/               # Tailwind preset, brand tokens
-│   ├── hooks/                # Shared React hooks
-│   └── utils/                # Shared utilities
-├── docs/                     # Architecture, features, change logs
-└── tooling/                  # ESLint, Prettier, TS config
+│   ├── ui/
+│   ├── auth/
+│   ├── config/
+│   ├── utils/
+│   └── hooks/
+└── docs/
 ```
+
+**Tooling:** Turborepo + npm workspaces (`packageManager: npm@10.2.5`).
 
 ---
 
@@ -76,11 +72,12 @@ webfudge-platform/
 
 | Layer | Stack |
 | --- | --- |
-| Frontend | Next.js 14 (App Router), React, Tailwind CSS |
-| UI | `@webfudge/ui` component library |
-| Backend | Strapi 4, REST API, JWT auth |
-| Data | SQLite (dev) / PostgreSQL (production) |
-| Tooling | Turborepo, npm workspaces, ESLint, Prettier |
+| Frontend | Next.js 14–15 (App Router), React, Tailwind CSS |
+| UI | `@webfudge/ui` |
+| Backend | Strapi 5, REST, JWT, multi-tenant org headers |
+| Data | SQLite (local dev) / PostgreSQL (production) |
+| Cache | Redis (optional, API response cache) |
+| Monorepo | Turborepo, npm workspaces |
 
 ---
 
@@ -88,126 +85,118 @@ webfudge-platform/
 
 ### Prerequisites
 
-- Node.js **>= 18**
+- Node.js **>= 18** (backend recommends **20.x**)
 - npm **>= 9**
 
 ### Install
 
 ```bash
+git clone https://github.com/Webfudge-Systems/xtrawrkx-suite.git
+cd xtrawrkx-suite
 npm install
 ```
 
 ### Development
 
-Run the whole workspace (excluding backend and automobile apps by default):
+All frontends (excludes backend by default):
 
 ```bash
 npm run dev
 ```
 
-Run individual products:
+Individual apps:
 
 ```bash
-npm run dev:crm
-npm run dev:pm
+npm run dev:backend      # Strapi → http://localhost:1337/admin
+npm run dev:landing      # http://localhost:3000
+npm run dev:crm          # http://localhost:3001
+npm run dev:pm           # http://localhost:3005
+npm run dev:accounts     # http://localhost:3003
+npm run dev:org-manager  # http://localhost:3004
 npm run dev:books
-npm run dev:backend
+npm run dev:client-portal
 ```
 
-Or from an app directory:
+Reset local SQLite DB (dev only):
 
 ```bash
-cd apps/crm && npm run dev
-cd apps/backend && npm run develop
-```
-
-Strapi admin: `http://localhost:1337/admin`
-
-### Build & production
-
-```bash
-npm run build          # all apps
-npm run build:accounts # single app filter examples in package.json
-npm run start          # production (per turbo config)
+npm run reset:db
 ```
 
 ### Environment
 
-Each app has its own `.env.example`. Copy and fill before running:
+Copy examples per app:
 
 ```bash
 cp apps/backend/.env.example apps/backend/.env
-cp apps/crm/.env.example apps/crm/.env
-cp apps/pm/.env.example apps/pm/.env
-# … same pattern for landing, accounts, books, vendor
+cp apps/crm/.env.example apps/crm/.env.local
+cp apps/pm/.env.example apps/pm/.env.local
+cp apps/accounts/.env.example apps/accounts/.env.local
+cp apps/landing/.env.example apps/landing/.env.local
+cp apps/organization-manager/.env.example apps/organization-manager/.env.local
 ```
 
-See **[docs/ENVIRONMENT.md](./docs/ENVIRONMENT.md)** for variable details.
+See **[docs/ENVIRONMENT.md](./docs/ENVIRONMENT.md)**.
 
-### Root scripts
+### Build
 
-| Script | Description |
-| --- | --- |
-| `npm run dev` | Dev mode for frontends (turbo filters) |
-| `npm run build` | Production build for all apps |
-| `npm run lint` | Lint across the monorepo |
-| `npm run format` | Prettier on TS/JS/MD/JSON |
-| `npm run clean` | Remove build artifacts & `node_modules` |
+```bash
+npm run build
+npm run build:crm
+npm run build:landing
+# … see package.json for other filters
+```
 
 ---
 
-## Shared packages
+## Deployment
 
-- **`@webfudge/ui`** — Buttons, tables, dashboard charts, layout shells, feedback loaders
-- **`@webfudge/auth`** — Session/org context for workspace apps
-- **`@webfudge/billing`** — Subscription and billing helpers
-- **`@webfudge/config`** — Brand colors and Tailwind preset
-- **`@webfudge/utils`** — Calendar, formatting, API helpers
-- **`@webfudge/hooks`** — Shared React hooks
+Production deploy (GitHub org, Railway `xtrawrkx-suite`, Vercel Webfudge Systems team, Postgres migration):
 
-Import example:
+**[docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md](./docs/WEBFUDGE_SYSTEMS_DEPLOYMENT_GUIDE.md)**
 
-```js
-import { Button, LoadingSpinner } from '@webfudge/ui'
-import { useAuth } from '@webfudge/auth'
-```
+Quick reference: [docs/XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./docs/XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md) · Railway API: [docs/RAILWAY_STRAPI_DEPLOY.md](./docs/RAILWAY_STRAPI_DEPLOY.md) · Redis: [docs/REDIS_CACHE.md](./docs/REDIS_CACHE.md)
+
+---
+
+## Root scripts
+
+| Script | Description |
+| --- | --- |
+| `npm run dev` | Dev for workspace frontends |
+| `npm run dev:backend` | Strapi develop |
+| `npm run dev:landing` / `dev:crm` / … | Single app |
+| `npm run build` | Production build (turbo) |
+| `npm run reset:db` | Wipe local SQLite + re-seed |
+| `npm run lint` | Lint monorepo |
+| `npm run format` | Prettier |
 
 ---
 
 ## Documentation
 
-Technical docs live under **`docs/`**:
-
 | Doc | Purpose |
 | --- | --- |
-| **[docs/DOCUMENTATION_INDEX.md](./docs/DOCUMENTATION_INDEX.md)** | Full index of guides and change summaries |
-| **[docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md)** | Onboarding and learning path |
-| **[docs/INSTALLATION.md](./docs/INSTALLATION.md)** | Detailed install & troubleshooting |
-| **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** | System design and diagrams |
-| **[docs/COMMANDS.md](./docs/COMMANDS.md)** | Command reference |
+| **[docs/DOCUMENTATION_INDEX.md](./docs/DOCUMENTATION_INDEX.md)** | Full index |
+| **[docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md)** | Onboarding |
+| **[docs/INSTALLATION.md](./docs/INSTALLATION.md)** | Install & troubleshooting |
+| **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** | System design |
 | **[docs/ENVIRONMENT.md](./docs/ENVIRONMENT.md)** | Environment variables |
 
-Feature-specific notes (CRM dashboards, PM tasks, Books UI, shared component refactors, etc.) are also listed in the documentation index.
+Per-app READMEs: `apps/landing/README.md`, `apps/backend/README.md`, `apps/crm/README.md`, etc.
 
 ---
 
 ## Authentication
 
-JWT-based auth is issued and validated through **Strapi** (`apps/backend`). Workspace apps use **`@webfudge/auth`** for client-side session and organization context.
+JWT auth via **Strapi** (`apps/backend`). Workspace apps use **`@webfudge/auth`** and send **`X-Organization-Id`** for tenant scoping.
 
 ---
 
-## Contributing & license
+## License & use
 
-Internal Webfudge Systems codebase. Contribution and license terms are defined by the organization—contact the team before external use or distribution.
-
----
-
-## Support
-
-- **Email:** [webfudgesystems@gmail.com](mailto:webfudgesystems@gmail.com)
-- **Site:** [https://webfudgesystems.in](https://webfudgesystems.in)
+Internal Webfudge Systems codebase. Contact the team before external use or distribution.
 
 ---
 
-Built with care by **Webfudge Systems**.
+Built by **Webfudge Systems**.
