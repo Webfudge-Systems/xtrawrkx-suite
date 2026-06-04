@@ -1,12 +1,14 @@
 {
-  "name": "client",
+  "name": "@xtrawrkx/landing",
   "version": "0.1.0",
   "private": true,
+  "description": "Xtrawrkx marketing site — events, communities, resources, contact",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start",
-    "test": "vitest run"
+    "start": "next start -p 3000",
+    "test": "vitest run",
+    "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.2",

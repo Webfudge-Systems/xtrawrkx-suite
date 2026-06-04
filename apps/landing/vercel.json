@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && npm ci --include=optional",
+  "buildCommand": "npm run build",
+  "build": {
+    "env": {
+      "NEXT_IGNORE_INCORRECT_LOCKFILE": "1"
+    }
+  }
+}

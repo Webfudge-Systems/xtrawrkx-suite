@@ -48,6 +48,7 @@ flowchart TB
 | PM | Vercel | `apps/pm` |
 | Accounts | Vercel | `apps/accounts` |
 | Orbit (org manager) | Vercel | `apps/organization-manager` |
+| Landing (marketing site) | Vercel | `apps/landing` |
 | Client portal (optional) | Vercel | `apps/xtrawrkx-client-portal` |
 
 **Domain plan (recommended):** use `*.xtrawrkx.com` — already allowed in `apps/backend/config/middlewares.js`. Legacy `*.webfudge.in` URLs in `apps/*/\.env.production` are from the old stack; update Vercel env vars when you cut over.
@@ -350,7 +351,7 @@ For each project:
 | Setting | Value |
 |---------|--------|
 | **Framework Preset** | Next.js |
-| **Root Directory** | `apps/crm` (or `apps/pm`, `apps/accounts`, `apps/organization-manager`) |
+| **Root Directory** | `apps/crm`, `apps/pm`, `apps/accounts`, `apps/landing`, `apps/organization-manager`, … |
 | **Include files outside root** | **Enabled** (required for `packages/*`) |
 | **Node.js Version** | 20.x |
 | **Install Command** | `cd ../.. && npm ci` |
@@ -367,6 +368,7 @@ Reference: `apps/organization-manager/vercel.json` uses root install from monore
 | `xtrawrkx-pm` | `apps/pm` | `pm.xtrawrkx.com` |
 | `xtrawrkx-accounts` | `apps/accounts` | `accounts.xtrawrkx.com` |
 | `xtrawrkx-orbit` | `apps/organization-manager` | `orbit.xtrawrkx.com` |
+| `xtrawrkx-landing` | `apps/landing` | `xtrawrkx.com` / `www.xtrawrkx.com` |
 | `xtrawrkx-portal` (optional) | `apps/xtrawrkx-client-portal` | `portal.xtrawrkx.com` |
 
 **Production branch:** `main` (or your release branch).
@@ -400,6 +402,19 @@ NEXT_PUBLIC_CRM_ORIGIN=https://crm.xtrawrkx.com
 ```
 
 See also: [ACCOUNTS_PRODUCTION_DEPLOY.md](./ACCOUNTS_PRODUCTION_DEPLOY.md).
+
+#### Landing (`apps/landing`)
+
+```bash
+NEXT_PUBLIC_BASE_URL=https://xtrawrkx.com
+NEXT_PUBLIC_STRAPI_API_URL=https://api.xtrawrkx.com/api
+NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_CRM_PORTAL_URL=https://crm.xtrawrkx.com
+NEXT_PUBLIC_CLIENT_PORTAL_URL=https://portal.xtrawrkx.com
+# Plus Cloudinary, Firebase, EMAIL_* — see apps/landing/.env.example
+```
+
+See [LANDING_MONOREPO_UPDATE.md](./LANDING_MONOREPO_UPDATE.md) and [LANDING_CONTACT_FORM.md](./LANDING_CONTACT_FORM.md).
 
 #### Orbit / Organization Manager (`apps/organization-manager`)
 

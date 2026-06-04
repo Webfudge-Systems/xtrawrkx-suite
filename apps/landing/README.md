@@ -17,9 +17,18 @@ A comprehensive professional development platform built with **Next.js 15**, **F
 
 ### 1. Install Dependencies
 
+From the monorepo root:
+
 ```bash
-cd client
 npm install
+npm run dev:landing
+```
+
+Or from this app:
+
+```bash
+cd apps/landing
+npm run dev
 ```
 
 ### 2. Environment Setup
@@ -83,7 +92,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## 🏗️ Project Structure
 
 ```
-client/
+apps/landing/
 ├── app/                    # Next.js App Router
 │   ├── (admin)/           # Admin panel routes
 │   ├── (primary)/         # Main website routes
