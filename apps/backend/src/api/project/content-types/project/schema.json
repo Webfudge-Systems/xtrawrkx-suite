@@ -39,6 +39,10 @@
     "icon": {
       "type": "string"
     },
+    "isPrivate": {
+      "type": "boolean",
+      "default": false
+    },
     "projectManager": {
       "type": "relation",
       "relation": "manyToOne",

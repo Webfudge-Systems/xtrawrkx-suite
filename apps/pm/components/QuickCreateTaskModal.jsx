@@ -80,22 +80,25 @@ export default function QuickCreateTaskModal({
     [lockProject, lockedProject, defaultProjectId, projects, task]
   );
   const projectLocked = Boolean(frozenProject?.id);
+  const effectiveProjectId = projectLocked ? frozenProject?.id : form.projectId;
+
   const rosterForAssignees = useMemo(() => {
     if (assigneeUsers != null) return assigneeUsers;
-    if (projectLocked) {
-      const pid = frozenProject?.id;
-      const projectRecord =
-        projects.find(
-          (p) => String(p.id) === String(pid) || String(p.documentId) === String(pid)
-        ) || projects[0];
+
+    const pid = effectiveProjectId;
+    if (pid != null && String(pid).trim() !== '') {
+      const projectRecord = projects.find(
+        (p) => String(p.id) === String(pid) || String(p.documentId) === String(pid)
+      );
       if (projectRecord) {
         return usersForProjectTaskAssignment(projectRecord, users, {
           extraUsers: task?.assignees || [],
         });
       }
     }
-    return users;
-  }, [assigneeUsers, projectLocked, frozenProject?.id, projects, users, task?.assignees]);
+
+    return projectLocked ? [] : users;
+  }, [assigneeUsers, effectiveProjectId, projectLocked, projects, users, task?.assignees]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -147,7 +150,8 @@ export default function QuickCreateTaskModal({
   };
 
   const isSubtaskCreate = Boolean(parentContext && parentContext.id != null && !task);
-  const isRecurring = !isSubtaskCreate && form.recurrenceFrequency && form.recurrenceFrequency !== 'none';
+  const isSubtask = isSubtaskCreate || Boolean(task?.parentId);
+  const isRecurring = !isSubtask && form.recurrenceFrequency && form.recurrenceFrequency !== 'none';
 
   const submit = () => {
     if (!form.name.trim()) return;
@@ -164,7 +168,9 @@ export default function QuickCreateTaskModal({
       scheduledDate: isRecurring ? null : form.scheduledDate || null,
       projectId: projectLocked ? frozenProject.id : form.projectId || null,
       assignerId: effectiveAssignerId,
-      assigneeUserIds: [...form.assigneeUserIds],
+      assigneeUserIds: isSubtask
+        ? form.assigneeUserIds.slice(0, 1)
+        : [...form.assigneeUserIds],
       ...(isSubtaskCreate
         ? {
             recurrenceFrequency: 'none',
@@ -212,7 +218,7 @@ export default function QuickCreateTaskModal({
           placeholder="Add context, acceptance criteria, or notes"
         />
 
-        {!isSubtaskCreate ? (
+        {!isSubtask ? (
           <TaskRecurrenceFormFields
             value={form}
             onChange={(patch) =>
@@ -276,7 +282,7 @@ export default function QuickCreateTaskModal({
             />
           )}
           <Select
-            label={task ? 'Assigner' : 'Assigner (defaults to you when blank)'}
+                    label={task ? 'Reporter' : 'Reporter (defaults to you when blank)'}
             value={form.assignerId}
             options={users.map((u) => ({ value: String(u.id), label: userLabel(u) }))}
             onChange={(value) => update('assignerId', value)}
@@ -284,21 +290,26 @@ export default function QuickCreateTaskModal({
             containerClassName="sm:col-span-2"
           />
           <div className="sm:col-span-2">
-            <p className="mb-2 block text-sm font-medium leading-none text-black">Assignees</p>
+            <p className="mb-2 block text-sm font-medium leading-none text-black">
+              {isSubtask ? 'Assignee' : 'Assignees'}
+            </p>
             <p className="mb-3 text-xs text-gray-500">
-              {requiresAssignmentApproval
-                ? 'Choose who should work on this task. An admin or manager must approve before they are assigned.'
-                : assigneePickerScopedToProject
-                  ? 'Only members of this project team can be assigned.'
-                  : 'People actively working on this task (shown as overlapping profile circles).'}
+              {isSubtask
+                ? 'Each subtask can have only one assignee.'
+                : requiresAssignmentApproval
+                  ? 'Choose who should work on this task. An admin or manager must approve before they are assigned.'
+                  : assigneePickerScopedToProject
+                    ? 'Only members of this project team can be assigned.'
+                    : 'People actively working on this task (shown as overlapping profile circles).'}
             </p>
             <TaskAssigneesPicker
               userIds={form.assigneeUserIds}
               assignees={task?.assignees}
               users={rosterForAssignees}
-              onChange={(next) => update('assigneeUserIds', next)}
+              onChange={(next) => update('assigneeUserIds', isSubtask ? next.slice(0, 1) : next)}
               disabled={saving}
               compact={false}
+              maxAssignees={isSubtask ? 1 : null}
             />
           </div>
         </div>

@@ -83,6 +83,49 @@ function userCanAccessProjectRow(project, userId) {
   return false;
 }
 
+function projectIsPrivate(project) {
+  return project?.isPrivate === true;
+}
+
+/**
+ * Project list filters for non-admin users.
+ * - Manager: all public projects + private projects where user is on the team.
+ * - Member: only projects where user is PM or team member.
+ */
+function buildProjectListFiltersForUser(ctx, orgId, userId) {
+  const filters = { organization: orgId };
+  if (isPmOrgAdminRole(ctx)) return filters;
+  if (userId == null) {
+    filters.id = { $in: [] };
+    return filters;
+  }
+  if (isPmOrgManagerRole(ctx)) {
+    filters.$or = [
+      { isPrivate: false },
+      { isPrivate: { $null: true } },
+      { projectManager: userId },
+      { teamMembers: userId },
+    ];
+    return filters;
+  }
+  filters.$or = [{ projectManager: userId }, { teamMembers: userId }];
+  return filters;
+}
+
+/**
+ * May view a single project row.
+ * - Admin: all projects.
+ * - Manager: all public projects; private only when on the team.
+ * - Member: only when on the team.
+ */
+function userCanViewProjectRow(ctx, project, userId) {
+  if (!project || userId == null) return false;
+  if (isPmOrgAdminRole(ctx)) return true;
+  if (userCanAccessProjectRow(project, userId)) return true;
+  if (isPmOrgManagerRole(ctx) && !projectIsPrivate(project)) return true;
+  return false;
+}
+
 function roleBasePermissions(role) {
   if (role?.isSystem) return defaultPermissionsForSystemCode(role?.code || role?.name || 'member');
   const raw = role?.permissions;
@@ -224,5 +267,8 @@ module.exports = {
   requireModuleAccess,
   requireOwnerOrModuleManage,
   resolveEffectivePermissions,
+  buildProjectListFiltersForUser,
+  projectIsPrivate,
   userCanAccessProjectRow,
+  userCanViewProjectRow,
 };

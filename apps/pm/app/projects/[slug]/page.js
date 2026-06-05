@@ -60,12 +60,14 @@ import taskService from '../../../lib/api/taskService';
 import { fetchPmAssignableUsers } from '../../../lib/api/messageService';
 import { fetchChatMentionUsers } from '../../../lib/api/chatMentionUsers';
 import { formatDate, transformProject, transformTask, transformUser } from '../../../lib/api/dataTransformers';
+import { enrichTasksWithProjectManager } from '../../../lib/taskListUtils';
 import {
   collectTaskAssigneeUsers,
   usersForProjectTaskAssignment,
 } from '../../../lib/api/projectAssignableUsers';
 import {
   canApproveTaskAssignmentsInPm,
+  canCreateSubtaskOnTask,
   canCreateTaskInProject,
   canEditProjectInPm,
   getPmOrgRoleKind,
@@ -227,6 +229,10 @@ export default function ProjectDetailPage() {
     [project, currentUserId],
   );
   const [tasks, setTasks] = useState([]);
+  const displayTasks = useMemo(
+    () => enrichTasksWithProjectManager(tasks, project ? [project] : []),
+    [tasks, project]
+  );
   const [users, setUsers] = useState([]);
   const [clientOptions, setClientOptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -996,7 +1002,7 @@ export default function ProjectDetailPage() {
 
       {activeTab === 'tasks' ? (
         <ProjectTasksPanel
-          tasks={tasks}
+          tasks={displayTasks}
           tasksLoading={tasksLoading}
           users={projectTaskUsers}
           onRefresh={refreshTasksAndProject}
@@ -1015,7 +1021,9 @@ export default function ProjectDetailPage() {
           onEditTask={(task) => setTaskModal({ open: true, task, parentContext: null })}
           onDeleteTask={(task) => setDeleteTaskModal({ open: true, task })}
           memberScopedTasks={memberScopedTasks}
+          currentUserId={currentUserId}
           canCreateProjectTasks={canCreateProjectTasks}
+          canAddSubtaskOnTask={(row) => canCreateSubtaskOnTask(row, currentUserId)}
           canApproveAssignments={canApproveAssignments}
         />
       ) : null}

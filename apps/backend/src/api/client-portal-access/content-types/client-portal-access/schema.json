@@ -1,67 +1,64 @@
 {
-    "kind": "collectionType",
-    "collectionName": "client_portal_access",
-    "info": {
-        "singularName": "client-portal-access",
-        "pluralName": "client-portal-accesses",
-        "displayName": "Client Portal Access",
-        "description": "Client portal access credentials and permissions"
+  "kind": "collectionType",
+  "collectionName": "client_portal_access",
+  "info": {
+    "singularName": "client-portal-access",
+    "pluralName": "client-portal-accesses",
+    "displayName": "Client Portal Access",
+    "description": "Client portal access credentials and permissions"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "contact": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::contact.contact"
     },
-    "options": {
-        "draftAndPublish": false
+    "password": {
+      "type": "password",
+      "required": true
     },
-    "pluginOptions": {},
-    "attributes": {
-        "contact": {
-            "type": "relation",
-            "relation": "manyToOne",
-            "target": "api::contact.contact"
-        },
-        "password": {
-            "type": "password",
-            "required": true
-        },
-        "isActive": {
-            "type": "boolean",
-            "default": true
-        },
-        "accessLevel": {
-            "type": "enumeration",
-            "enum": [
-                "view",
-                "comment",
-                "upload"
-            ],
-            "default": "view"
-        },
-        "lastLogin": {
-            "type": "datetime"
-        },
-        "roleName": {
-            "type": "string",
-            "default": "DEVELOPER"
-        },
-        "loginId": {
-            "type": "string"
-        },
-        "permissions": {
-            "type": "json"
-        },
-        "isCustomRole": {
-            "type": "boolean",
-            "default": false
-        },
-        "forcePasswordReset": {
-            "type": "boolean",
-            "default": false
-        },
-        "clientAccount": {
-            "type": "relation",
-            "relation": "manyToOne",
-            "target": "api::client-account.client-account"
-        }
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "accessLevel": {
+      "type": "enumeration",
+      "enum": [
+        "view",
+        "comment",
+        "upload"
+      ],
+      "default": "view"
+    },
+    "lastLogin": {
+      "type": "datetime"
+    },
+    "roleName": {
+      "type": "string",
+      "default": "DEVELOPER"
+    },
+    "loginId": {
+      "type": "string"
+    },
+    "permissions": {
+      "type": "json"
+    },
+    "isCustomRole": {
+      "type": "boolean",
+      "default": false
+    },
+    "forcePasswordReset": {
+      "type": "boolean",
+      "default": false
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
     }
+  }
 }
-
-
-

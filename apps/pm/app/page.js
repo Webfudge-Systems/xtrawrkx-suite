@@ -19,6 +19,7 @@ import taskService from '../lib/api/taskService'
 import strapiClient from '../lib/strapiClient'
 import { canReadPM } from '../lib/rbac'
 import { transformTask, transformUser, transformProject } from '../lib/api/dataTransformers'
+import { filterMajorTasks } from '../lib/taskListUtils'
 
 /**
  * Shared height for My Tasks + Upcoming Deadlines.
@@ -76,6 +77,8 @@ export default function DashboardPage() {
     [assigneeTasks]
   )
 
+  const majorTasks = useMemo(() => filterMajorTasks(allTasks), [allTasks])
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -98,12 +101,13 @@ export default function DashboardPage() {
         if (allTasksRes.status === 'fulfilled') {
           const rawTasks = allTasksRes.value?.data || []
           const transformed = rawTasks.map(transformTask).filter(Boolean)
+          const majorTasks = filterMajorTasks(transformed)
           const now = new Date()
           setStats({
-            todo: transformed.filter((t) => t.strapiStatus === 'SCHEDULED').length,
-            inProgress: transformed.filter((t) => t.strapiStatus === 'IN_PROGRESS').length,
-            done: transformed.filter((t) => t.strapiStatus === 'COMPLETED').length,
-            overdue: transformed.filter(
+            todo: majorTasks.filter((t) => t.strapiStatus === 'SCHEDULED').length,
+            inProgress: majorTasks.filter((t) => t.strapiStatus === 'IN_PROGRESS').length,
+            done: majorTasks.filter((t) => t.strapiStatus === 'COMPLETED').length,
+            overdue: majorTasks.filter(
               (t) => t.dueDate && new Date(t.dueDate) < now && t.strapiStatus !== 'COMPLETED'
             ).length,
           })
@@ -245,8 +249,8 @@ export default function DashboardPage() {
 
       {/* Task overview, team workload, projects overview — content-sized, no min-height stretch */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <TaskOverviewWidget stats={stats} tasks={allTasks} />
-        <TeamWorkloadWidget people={people} tasks={allTasks} />
+        <TaskOverviewWidget stats={stats} tasks={majorTasks} />
+        <TeamWorkloadWidget people={people} tasks={majorTasks} />
         <ProjectsOverviewWidget projects={projects} canViewProjects={canViewProjects} />
       </div>
       </>

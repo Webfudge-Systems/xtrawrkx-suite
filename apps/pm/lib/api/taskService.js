@@ -2,6 +2,14 @@ import strapiClient from '../strapiClient';
 
 const CRM_RELATION_FIELDS = ['leadCompany', 'clientAccount', 'contact', 'deal'];
 
+/** Task list/detail: project fields + assigned project manager. */
+const TASK_PROJECTS_POPULATE = {
+  'populate[projects][fields][0]': 'id',
+  'populate[projects][fields][1]': 'name',
+  'populate[projects][fields][2]': 'slug',
+  'populate[projects][populate][projectManager]': '*',
+};
+
 /**
  * Strapi 5 many-to-many relations expect `{ set: [id, ...] }` (not a bare ID array).
  * Maps modal fields `projectId` / `project` onto `projects`.
@@ -16,23 +24,38 @@ function normalizeTaskPayload(taskData = {}) {
   delete payload.project;
   delete payload.projectId;
 
-  let idNum = NaN;
   if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
-    const n = Number(raw);
-    if (!Number.isNaN(n)) idNum = n;
-  }
-
-  if (!Number.isNaN(idNum)) {
-    payload.projects = { set: [idNum] };
+    const trimmed = String(raw).trim();
+    const n = Number(trimmed);
+    if (!Number.isNaN(n) && Number.isFinite(n)) {
+      payload.projects = { set: [n] };
+    } else {
+      // Strapi 5 documentId — backend resolves to integer PK
+      payload.projects = { set: [trimmed] };
+    }
   } else if (hadProjectIdKey) {
     payload.projects = { set: [] };
   }
 
+  const isSubtask = Boolean(
+    (Object.prototype.hasOwnProperty.call(taskData, 'parentId') &&
+      taskData.parentId != null &&
+      taskData.parentId !== '') ||
+      taskData.isSubtask === true ||
+      (Object.prototype.hasOwnProperty.call(payload, 'parent') &&
+        payload.parent != null &&
+        payload.parent !== '')
+  );
+  delete payload.isSubtask;
+
   if (Object.prototype.hasOwnProperty.call(taskData, 'assigneeUserIds')) {
-    const ids = Array.isArray(taskData.assigneeUserIds)
+    let ids = Array.isArray(taskData.assigneeUserIds)
       ? taskData.assigneeUserIds.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0)
       : [];
+    if (isSubtask) ids = ids.slice(0, 1);
     payload.collaborators = { set: ids };
+    if (ids.length === 1) payload.assignee = ids[0];
+    else if (isSubtask) payload.assignee = null;
     delete payload.assigneeUserIds;
   }
 
@@ -58,6 +81,18 @@ function normalizeTaskPayload(taskData = {}) {
     }
   }
 
+  // Subtasks: enforce single assignee even when only collaborators were sent upstream.
+  if (
+    payload.parent != null &&
+    payload.parent !== '' &&
+    payload.collaborators &&
+    Array.isArray(payload.collaborators.set)
+  ) {
+    const one = payload.collaborators.set.slice(0, 1);
+    payload.collaborators = { set: one };
+    payload.assignee = one.length === 1 ? one[0] : null;
+  }
+
   delete payload.subtasks;
 
   return payload;
@@ -77,9 +112,7 @@ class TaskService {
         'populate[assignmentRequestedBy][fields][0]': 'id',
         'populate[assignmentRequestedBy][fields][1]': 'username',
         'populate[assignmentRequestedBy][fields][2]': 'email',
-        'populate[projects][fields][0]': 'id',
-        'populate[projects][fields][1]': 'name',
-        'populate[projects][fields][2]': 'slug',
+        ...TASK_PROJECTS_POPULATE,
         'populate[subtasks][fields][0]': 'id',
         'populate[subtasks][fields][1]': 'name',
         'populate[subtasks][fields][2]': 'status',
@@ -105,7 +138,10 @@ class TaskService {
         'populate[assignee]': '*',
         'populate[assigner]': '*',
         'populate[collaborators]': '*',
-        'populate[projects]': '*',
+        'populate[projects][populate][projectManager]': '*',
+        'populate[projects][fields][0]': 'id',
+        'populate[projects][fields][1]': 'name',
+        'populate[projects][fields][2]': 'slug',
         'populate[parent][fields][0]': 'id',
         'populate[parent][fields][1]': 'name',
         'populate[subtasks][populate][assignee]': '*',
@@ -131,9 +167,7 @@ class TaskService {
         'populate[assignmentRequestedBy][fields][0]': 'id',
         'populate[assignmentRequestedBy][fields][1]': 'username',
         'populate[assignmentRequestedBy][fields][2]': 'email',
-        'populate[projects][fields][0]': 'id',
-        'populate[projects][fields][1]': 'name',
-        'populate[projects][fields][2]': 'slug',
+        ...TASK_PROJECTS_POPULATE,
         'populate[subtasks][fields][0]': 'id',
         'populate[subtasks][fields][1]': 'name',
         'populate[subtasks][fields][2]': 'status',
@@ -162,9 +196,7 @@ class TaskService {
         'populate[assignmentRequestedBy][fields][0]': 'id',
         'populate[assignmentRequestedBy][fields][1]': 'username',
         'populate[assignmentRequestedBy][fields][2]': 'email',
-        'populate[projects][fields][0]': 'id',
-        'populate[projects][fields][1]': 'name',
-        'populate[projects][fields][2]': 'slug',
+        ...TASK_PROJECTS_POPULATE,
         'populate[subtasks][fields][0]': 'id',
         'populate[subtasks][fields][1]': 'name',
         'populate[subtasks][fields][2]': 'status',
@@ -195,9 +227,7 @@ class TaskService {
         'populate[assignmentRequestedBy][fields][0]': 'id',
         'populate[assignmentRequestedBy][fields][1]': 'username',
         'populate[assignmentRequestedBy][fields][2]': 'email',
-        'populate[projects][fields][0]': 'id',
-        'populate[projects][fields][1]': 'name',
-        'populate[projects][fields][2]': 'slug',
+        ...TASK_PROJECTS_POPULATE,
         'populate[subtasks][fields][0]': 'id',
         'populate[subtasks][fields][1]': 'name',
         'populate[subtasks][fields][2]': 'status',
@@ -294,6 +324,11 @@ class TaskService {
     return this.updateTask(id, { status });
   }
 
+  /** Detach a subtask from its parent so it appears as a major (root) task. */
+  async promoteSubtaskToMajorTask(id) {
+    return this.updateTask(id, { parentId: null });
+  }
+
   async approveTaskAssignment(id) {
     try {
       return await strapiClient.post(`/tasks/${id}/approve-assignment`, {});
@@ -353,6 +388,8 @@ class TaskService {
         'populate[assigner]': '*',
         'populate[collaborators]': '*',
         'populate[projects][fields][0]': 'name',
+        'populate[projects][fields][1]': 'slug',
+        'populate[projects][populate][projectManager]': '*',
       };
       return await strapiClient.get('/tasks', params);
     } catch (error) {

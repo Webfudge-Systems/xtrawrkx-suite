@@ -71,6 +71,18 @@ import taskCommentService from '../../lib/api/taskCommentService';
 import { transformProject, transformTask, transformUser } from '../../lib/api/dataTransformers';
 import { usePmTableSort } from '../../hooks/usePmTableSort';
 import { TableSortDropdown as PmTableSortDropdown } from '@webfudge/ui';
+import {
+  buildChildrenByParentId,
+  enrichTasksWithProjectManager,
+  filterMajorTasks,
+  isMajorTask,
+} from '../../lib/taskListUtils';
+import {
+  canCreateSubtaskOnTask,
+  canDeleteTaskInPm,
+  canEditTaskInPm,
+  getPmOrgRoleKind,
+} from '../../lib/pmOrgRoles';
 
 const TABLE_SORT_STORAGE_KEY = 'pm.myTasks.tableSort';
 
@@ -130,7 +142,7 @@ const TOGGLEABLE_COLUMNS = [
   { key: 'project', label: 'Project' },
   { key: 'status', label: 'Status' },
   { key: 'priority', label: 'Priority' },
-  { key: 'assigner', label: 'Assigner' },
+  { key: 'assigner', label: 'Reporter' },
   { key: 'assignees', label: 'Assignees' },
   { key: 'startDate', label: 'Start date' },
   { key: 'dueDate', label: 'Due date' },
@@ -305,6 +317,7 @@ export default function MyTasksPage() {
   const [taskModal, setTaskModal] = useState({ open: false, task: null, parentContext: null });
   const [expandedSubtaskParents, setExpandedSubtaskParents] = useState(() => new Set());
   const [deleteModal, setDeleteModal] = useState({ open: false, task: null });
+  const [promoteModal, setPromoteModal] = useState({ open: false, task: null });
   const [columnPickerOpen, setColumnPickerOpen] = useState(false);
   const [sortPickerOpen, setSortPickerOpen] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
@@ -326,6 +339,9 @@ export default function MyTasksPage() {
     const u = user?.attributes || user;
     return u?.id || user?.id || null;
   }, [user]);
+
+  const pmOrgRoleKind = useMemo(() => getPmOrgRoleKind(), []);
+  const memberScopedTasks = pmOrgRoleKind === 'member';
 
   const loadTasks = useCallback(async () => {
     try {
@@ -369,8 +385,15 @@ export default function MyTasksPage() {
     [isMyTask]
   );
 
+  const allTasksEnriched = useMemo(
+    () => enrichTasksWithProjectManager(allTasks, projects),
+    [allTasks, projects]
+  );
+
+  const majorTasks = useMemo(() => filterMajorTasks(allTasksEnriched), [allTasksEnriched]);
+
   const filteredTasks = useMemo(() => {
-    let list = [...allTasks];
+    let list = [...allTasksEnriched];
     if (activeTab !== 'all') {
       if (activeTab === 'MY_TASKS') list = list.filter(isActiveMyTask);
       else if (activeTab === 'OVERDUE') list = list.filter(isTaskOverdue);
@@ -386,10 +409,13 @@ export default function MyTasksPage() {
       });
     }
     return list;
-  }, [allTasks, activeTab, searchQuery, isActiveMyTask]);
+  }, [allTasksEnriched, activeTab, searchQuery, isActiveMyTask]);
 
-  /** Every task in the active filter gets its own row; parents still expose nested subtasks when expanded. */
-  const tableRootTasks = filteredTasks;
+  /** My Tasks: assigned subtasks as their own rows; other tabs: major tasks only. */
+  const tableRootTasks = useMemo(() => {
+    if (activeTab === 'MY_TASKS') return filteredTasks;
+    return filteredTasks.filter((task) => isMajorTask(task, allTasksEnriched));
+  }, [filteredTasks, activeTab, allTasksEnriched]);
 
   const {
     sortedData: sortedTableRootTasks,
@@ -410,14 +436,10 @@ export default function MyTasksPage() {
   });
 
   const childrenByParentId = useMemo(() => {
-    const map = {};
-    for (const task of allTasks) {
-      if (!task?.parentId) continue;
-      if (!map[task.parentId]) map[task.parentId] = [];
-      map[task.parentId].push(task);
-    }
-    return map;
-  }, [allTasks]);
+    const excludeIds =
+      activeTab === 'MY_TASKS' ? new Set(filteredTasks.map((t) => t?.id).filter(Boolean)) : undefined;
+    return buildChildrenByParentId(allTasksEnriched, { excludeTaskIds: excludeIds });
+  }, [allTasksEnriched, activeTab, filteredTasks]);
 
   const toggleSubtaskExpand = useCallback((taskId) => {
     setExpandedSubtaskParents((prev) => {
@@ -446,14 +468,14 @@ export default function MyTasksPage() {
   }, [tableRootTasks]);
 
   const taskKpis = useMemo(() => {
-    const out = { total: allTasks.length, todo: 0, inProgress: 0, completed: 0 };
-    for (const task of allTasks) {
+    const out = { total: majorTasks.length, todo: 0, inProgress: 0, completed: 0 };
+    for (const task of majorTasks) {
       if (task.strapiStatus === 'SCHEDULED') out.todo += 1;
       if (task.strapiStatus === 'IN_PROGRESS') out.inProgress += 1;
       if (task.strapiStatus === 'COMPLETED') out.completed += 1;
     }
     return out;
-  }, [allTasks]);
+  }, [majorTasks]);
 
   const loadLookups = useCallback(async () => {
     try {
@@ -625,14 +647,16 @@ export default function MyTasksPage() {
   }, [router, searchParams]);
 
   const tabsWithBadges = useMemo(() => {
-    const counts = { all: allTasks.length, MY_TASKS: 0, IN_PROGRESS: 0, OVERDUE: 0 };
+    const counts = { all: majorTasks.length, MY_TASKS: 0, IN_PROGRESS: 0, OVERDUE: 0 };
     for (const task of allTasks) {
       if (isActiveMyTask(task)) counts.MY_TASKS += 1;
+    }
+    for (const task of majorTasks) {
       if (task.strapiStatus === 'IN_PROGRESS') counts.IN_PROGRESS += 1;
       if (isTaskOverdue(task)) counts.OVERDUE += 1;
     }
     return STATUS_TABS.map((tab) => ({ ...tab, badge: counts[tab.id] || 0 }));
-  }, [allTasks, isActiveMyTask]);
+  }, [allTasks, majorTasks, isActiveMyTask]);
 
   const updateTask = useCallback(
     async (task, patch) => {
@@ -667,7 +691,7 @@ export default function MyTasksPage() {
   };
 
   const handleDeleteTask = async () => {
-    if (!deleteModal.task) return;
+    if (!deleteModal.task || !canDeleteTaskInPm(deleteModal.task, getUserId())) return;
     try {
       setSaving(true);
       await taskService.deleteTask(deleteModal.task.id);
@@ -675,6 +699,21 @@ export default function MyTasksPage() {
       await loadTasks();
     } catch (error) {
       console.error('Delete task error:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePromoteSubtask = async () => {
+    const st = promoteModal.task;
+    if (!st?.id || memberScopedTasks) return;
+    try {
+      setSaving(true);
+      await taskService.promoteSubtaskToMajorTask(st.id);
+      setPromoteModal({ open: false, task: null });
+      await loadTasks();
+    } catch (error) {
+      console.error('Promote subtask error:', error);
     } finally {
       setSaving(false);
     }
@@ -872,7 +911,7 @@ export default function MyTasksPage() {
     {
       key: 'assigner',
       visibilityKey: 'assigner',
-      label: 'ASSIGNER',
+      label: 'REPORTER',
       render: (_, row) => {
         const assignerUser = row.assigner || assignerStrapiShape(row, users);
         const derived = ownerDisplayFromUser(assignerUser);
@@ -882,12 +921,12 @@ export default function MyTasksPage() {
           <div
             className="flex min-w-[180px] max-w-[min(280px,22vw)] items-center gap-2.5 py-0.5"
             onClick={(event) => event.stopPropagation()}
-            title={label || 'No assigner'}
+            title={label || 'No reporter'}
           >
             <Avatar
               src={assignerUser?.avatar || undefined}
               fallback={empty ? '?' : derived.avatarFallback}
-              alt={label || 'Assigner'}
+              alt={label || 'Reporter'}
               size="sm"
               className={`flex-shrink-0 text-white ${empty ? 'bg-gray-300 text-gray-600' : 'bg-gray-600'}`}
             />
@@ -1001,11 +1040,16 @@ export default function MyTasksPage() {
             triggerClassName="inline-flex h-9 w-9 items-center justify-center rounded-md p-2 text-teal-600 transition hover:bg-teal-50"
             items={[
               { label: 'View', icon: Eye, onClick: () => router.push(`/tasks/${row.id}`) },
-              { label: 'Edit', icon: Edit3, onClick: () => setTaskModal({ open: true, task: row, parentContext: null }) },
+              ...(canEditTaskInPm(row, getUserId())
+                ? [{ label: 'Edit', icon: Edit3, onClick: () => setTaskModal({ open: true, task: row, parentContext: null }) }]
+                : []),
               { label: 'Copy link', icon: Copy, onClick: () => copyTaskLink(row) },
-              { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteModal({ open: true, task: row }) },
+              ...(canDeleteTaskInPm(row, getUserId())
+                ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteModal({ open: true, task: row }) }]
+                : []),
             ]}
           />
+          {canEditTaskInPm(row, getUserId()) ? (
           <Button
             variant="ghost"
             size="sm"
@@ -1018,6 +1062,7 @@ export default function MyTasksPage() {
           >
             <Pencil className="h-4 w-4" />
           </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="sm"
@@ -1030,6 +1075,7 @@ export default function MyTasksPage() {
           >
             <Link2 className="h-4 w-4" />
           </Button>
+          {canDeleteTaskInPm(row, getUserId()) ? (
           <Button
             variant="ghost"
             size="sm"
@@ -1042,6 +1088,7 @@ export default function MyTasksPage() {
           >
             <Trash2 className="h-4 w-4" />
           </Button>
+          ) : null}
         </div>
       ),
     },
@@ -1310,6 +1357,10 @@ export default function MyTasksPage() {
                   onEditTask={(subtask) => setTaskModal({ open: true, task: subtask, parentContext: null })}
                   onCopyTaskLink={copyTaskLink}
                   onDeleteTask={(subtask) => setDeleteModal({ open: true, task: subtask })}
+                  onPromoteSubtask={(subtask) => setPromoteModal({ open: true, task: subtask })}
+                  currentUserId={getUserId()}
+                  memberScopedTasks={memberScopedTasks}
+                  canAddSubtaskOnTask={(r) => canCreateSubtaskOnTask(r, getUserId())}
                   onAddSubtask={(r) =>
                     setTaskModal({
                       open: true,
@@ -1408,6 +1459,8 @@ export default function MyTasksPage() {
         users={users}
         defaultAssignerId={getUserId() ? String(getUserId()) : ''}
         defaultStatus={activeTab === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'SCHEDULED'}
+        assigneePickerScopedToProject
+        requiresAssignmentApproval={memberScopedTasks}
         saving={saving}
       />
 
@@ -1426,6 +1479,31 @@ export default function MyTasksPage() {
           </div>
         </div>
       </Modal>
+
+      {!memberScopedTasks ? (
+        <Modal
+          isOpen={promoteModal.open}
+          onClose={() => setPromoteModal({ open: false, task: null })}
+          title="Make major task"
+          size="sm"
+        >
+          <div className="space-y-5">
+            <p className="text-sm text-gray-700">
+              Convert{' '}
+              <span className="font-semibold text-gray-900">{promoteModal.task?.name || 'this subtask'}</span>{' '}
+              into a standalone major task? It will no longer appear under its parent.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setPromoteModal({ open: false, task: null })} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={handlePromoteSubtask} disabled={saving}>
+                {saving ? 'Converting...' : 'Make major task'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       {commentComposerMenu &&
         (() => {

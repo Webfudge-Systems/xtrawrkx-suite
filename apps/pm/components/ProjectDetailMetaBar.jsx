@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Avatar, formatRelativeTime } from '@webfudge/ui';
-import { Building2, Clock, Target } from 'lucide-react';
+import { Building2, Clock, Lock, Target } from 'lucide-react';
 import { getProjectStatusMeta } from './PMStatusBadge';
 
 const AVATAR_RING = 'ring-2 ring-white';
@@ -137,6 +137,16 @@ export default function ProjectDetailMetaBar({ project, className = '' }) {
       <MetaSegment className="ml-auto sm:ml-0">
         <TeamStack members={team} />
       </MetaSegment>
+
+      {project.isPrivate ? (
+        <>
+          <MetaDivider />
+          <MetaSegment>
+            <Lock className="h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2} aria-hidden />
+            <span className="text-xs font-medium text-gray-500">Private</span>
+          </MetaSegment>
+        </>
+      ) : null}
     </div>
   );
 }

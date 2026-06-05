@@ -160,7 +160,7 @@ export default function TaskDetailsCard({
   taskInfoDraft,
   isRecurring = false,
   draftRecurring = false,
-  isPmMember = false,
+  canEdit = false,
   saving = false,
   users = [],
   projects = [],
@@ -180,7 +180,11 @@ export default function TaskDetailsCard({
   onViewSubtasks,
   formatDate,
 }) {
-  const canEdit = !isPmMember && onOpenSectionEdit
+  const showEdit = canEdit && onOpenSectionEdit
+  const projectManager = task?.projectManager
+  const pmName = task?.projectManagerName || projectManager?.name || '—'
+  const pmEmail = projectManager?.email || ''
+  const pmInitial = (projectManager?.initials || pmName).charAt(0).toUpperCase() || 'P'
 
   if (editing && taskInfoDraft) {
     return (
@@ -237,8 +241,8 @@ export default function TaskDetailsCard({
             </DetailCell>
           </GridRow>
 
-          <GridRow cols={3}>
-            <DetailCell label="Assigner" icon={User}>
+          <GridRow cols={4}>
+            <DetailCell label="Reporter" icon={User}>
               <Select
                 value={taskInfoDraft.assignerId}
                 options={userSelectOptions}
@@ -247,7 +251,7 @@ export default function TaskDetailsCard({
                 placeholder="Unassigned"
               />
             </DetailCell>
-            <DetailCell label="Assignees" className="md:border-x md:border-gray-100">
+            <DetailCell label="Assignees">
               <TaskAssigneesPicker
                 userIds={taskInfoDraft.assigneeUserIds || []}
                 assignees={task.assignees}
@@ -255,6 +259,27 @@ export default function TaskDetailsCard({
                 onChange={(next) => onTaskInfoFieldChange('assigneeUserIds', next)}
                 disabled={saving}
               />
+            </DetailCell>
+            <DetailCell label="Project Manager" icon={User}>
+              {pmName !== '—' ? (
+                <div className="flex items-center gap-2.5">
+                  <Avatar
+                    size="sm"
+                    src={projectManager?.avatar || undefined}
+                    fallback={pmInitial}
+                    alt={pmName}
+                    className="shrink-0 bg-teal-600 text-white"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold leading-snug text-gray-900">{pmName}</p>
+                    {pmEmail ? (
+                      <p className="truncate text-sm text-gray-500">{pmEmail}</p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <span className="text-base text-gray-400">Not assigned</span>
+              )}
             </DetailCell>
             <DetailCell label="Project" icon={FolderOpen}>
               <Select
@@ -396,8 +421,8 @@ export default function TaskDetailsCard({
       </div>
 
       {/* Assignment row */}
-      <GridRow cols={3}>
-        <DetailCell label="Assigner" icon={User}>
+      <GridRow cols={4}>
+        <DetailCell label="Reporter" icon={User}>
           {assignerName !== '—' ? (
             <div className="flex items-center gap-2.5">
               <Avatar
@@ -419,8 +444,30 @@ export default function TaskDetailsCard({
           )}
         </DetailCell>
 
-        <DetailCell label="Assignees" className="md:border-x md:border-gray-100">
+        <DetailCell label="Assignees">
           <AssigneeStack assignees={task.assignees} />
+        </DetailCell>
+
+        <DetailCell label="Project Manager" icon={User}>
+          {pmName !== '—' ? (
+            <div className="flex items-center gap-2.5">
+              <Avatar
+                size="sm"
+                src={projectManager?.avatar || undefined}
+                fallback={pmInitial}
+                alt={pmName}
+                className="shrink-0 bg-teal-600 text-white"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold leading-snug text-gray-900">{pmName}</p>
+                {pmEmail ? (
+                  <p className="truncate text-sm text-gray-500">{pmEmail}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <span className="text-base text-gray-400">Not assigned</span>
+          )}
         </DetailCell>
 
         <DetailCell label="Project" icon={FolderOpen}>
@@ -602,7 +649,7 @@ export default function TaskDetailsCard({
 
       {/* Edit actions */}
       <div className="border-t border-gray-100 bg-gray-50/50 px-6 py-4 text-center">
-        {canEdit ? (
+        {showEdit ? (
           <p className="text-sm text-gray-600">
             <button
               type="button"

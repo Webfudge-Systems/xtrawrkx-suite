@@ -2205,6 +2205,7 @@ export interface ApiProjectProject extends Struct.CollectionTypeSchema {
     endDate: Schema.Attribute.DateTime
     hourlyRate: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>
     icon: Schema.Attribute.String
+    isPrivate: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
     locale: Schema.Attribute.String & Schema.Attribute.Private
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::project.project'> &
       Schema.Attribute.Private

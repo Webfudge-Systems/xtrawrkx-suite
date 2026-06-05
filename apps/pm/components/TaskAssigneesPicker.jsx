@@ -160,10 +160,15 @@ export default function TaskAssigneesPicker({
   disabled = false,
   compact = false,
   maxShown = null,
-  popoverTitle = 'Assignees (working on this task)',
+  /** When `1`, only one assignee may be selected (subtasks). */
+  maxAssignees = null,
+  popoverTitle,
   pickerMode = 'popover',
   searchable: searchableProp,
 }) {
+  const singleSelect = maxAssignees === 1;
+  const resolvedPopoverTitle =
+    popoverTitle ?? (singleSelect ? 'Assignee (working on this subtask)' : 'Assignees (working on this task)');
   const numericIds = Array.isArray(userIds)
     ? [...new Set(userIds.map(Number).filter((x) => Number.isFinite(x) && x > 0))]
     : [];
@@ -256,7 +261,7 @@ export default function TaskAssigneesPicker({
     }
 
     setMenuCoords({ top, left, maxHeight });
-  }, [open, users.length, compact, popoverTitle, useModal, query, filteredUsers.length]);
+  }, [open, users.length, compact, resolvedPopoverTitle, useModal, query, filteredUsers.length]);
 
   const stackUsers = usersForIds(numericIds, assignees, users);
   const cap = maxShown ?? (compact ? 5 : 8);
@@ -269,6 +274,11 @@ export default function TaskAssigneesPicker({
       suppressScrollCloseRef.current = false;
     }, 200);
     const n = Number(uid);
+    if (singleSelect) {
+      onChange?.(numericIds.includes(n) ? [] : [n]);
+      if (!useModal) setOpen(false);
+      return;
+    }
     const set = new Set(numericIds);
     if (set.has(n)) set.delete(n);
     else set.add(n);
@@ -328,7 +338,7 @@ export default function TaskAssigneesPicker({
             onClick={(e) => e.stopPropagation()}
           >
             <p className="shrink-0 px-3 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-              {popoverTitle}
+              {resolvedPopoverTitle}
             </p>
             {searchable ? (
               <div className="shrink-0 border-b border-gray-100 px-2 pb-2">
@@ -352,14 +362,18 @@ export default function TaskAssigneesPicker({
           <Modal
             isOpen={open}
             onClose={() => setOpen(false)}
-            title={popoverTitle}
+            title={resolvedPopoverTitle}
             size="lg"
             contentClassName="space-y-4 !pt-4"
           >
             <p className="text-sm text-gray-600">
-              {numericIds.length === 0
-                ? 'Search and select teammates for this project.'
-                : `${numericIds.length} teammate${numericIds.length === 1 ? '' : 's'} selected`}
+              {singleSelect
+                ? numericIds.length === 0
+                  ? 'Choose one person for this subtask.'
+                  : 'One assignee selected.'
+                : numericIds.length === 0
+                  ? 'Search and select teammates for this project.'
+                  : `${numericIds.length} teammate${numericIds.length === 1 ? '' : 's'} selected`}
             </p>
             {searchable ? (
               <AssigneeSearchField

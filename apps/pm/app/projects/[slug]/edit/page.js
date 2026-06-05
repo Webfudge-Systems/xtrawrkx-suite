@@ -9,6 +9,7 @@ import { useAuth } from '@webfudge/auth';
 import {
   Card,
   Button,
+  Checkbox,
   Input,
   Textarea,
   Select,
@@ -27,7 +28,7 @@ import projectService from '../../../../lib/api/projectService';
 import { fetchProjectClientOptions, mapProjectClientSelectOptions } from '../../../../lib/api/projectClientOptions';
 import { fetchProjectDirectoryUsers } from '../../../../lib/api/messageService';
 import { transformProject, transformUser } from '../../../../lib/api/dataTransformers';
-import { canEditProjectInPm, getPmOrgRoleKind } from '../../../../lib/pmOrgRoles';
+import { canEditProjectInPm, getPmOrgRoleKind, canToggleProjectPrivacy } from '../../../../lib/pmOrgRoles';
 
 const STATUS_OPTIONS = [
   { value: 'PLANNING', label: 'Planning' },
@@ -68,6 +69,7 @@ export default function EditProjectPage() {
     clientId: '',
     projectManagerId: '',
     teamMemberIds: [],
+    isPrivate: false,
   });
 
   const directoryUsers = useMemo(() => {
@@ -144,6 +146,7 @@ export default function EditProjectPage() {
             clientId: p.clientAccountId ? String(p.clientAccountId) : '',
             projectManagerId: p.projectManager?.id ? String(p.projectManager.id) : '',
             teamMemberIds: (p.team || []).map((m) => String(m.id)),
+            isPrivate: p.isPrivate ?? false,
           });
         }
       } catch (e) {
@@ -190,6 +193,7 @@ export default function EditProjectPage() {
       if (form.clientId) payload.clientAccount = Number(form.clientId);
       else payload.clientAccount = null;
       payload.teamMembers = form.teamMemberIds.map(Number);
+      if (canToggleProjectPrivacy()) payload.isPrivate = form.isPrivate;
 
       await projectService.updateProject(projectId, payload);
       router.push(`/projects/${projectSlug || projectId}`);
@@ -390,6 +394,20 @@ export default function EditProjectPage() {
                 <p className="text-sm text-gray-500">Loading organization members…</p>
               )}
             </div>
+            {canToggleProjectPrivacy() && (
+              <label className="flex items-center gap-3 cursor-pointer select-none pt-1">
+                <Checkbox
+                  checked={form.isPrivate}
+                  onChange={(e) => setForm((p) => ({ ...p, isPrivate: e.target.checked }))}
+                />
+                <span className="text-sm font-medium text-gray-800">
+                  Private project
+                  <span className="ml-1 text-xs font-normal text-gray-500">
+                    — hidden from managers not on the team; admins can always see it
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
         </Card>
 

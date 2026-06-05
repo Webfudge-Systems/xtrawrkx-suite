@@ -5,7 +5,7 @@ export const TASK_SORT_COLUMNS = [
   { key: 'project', label: 'Project' },
   { key: 'status', label: 'Status' },
   { key: 'priority', label: 'Priority' },
-  { key: 'assigner', label: 'Assigner' },
+  { key: 'assigner', label: 'Reporter' },
   { key: 'assignees', label: 'Assignees' },
   { key: 'startDate', label: 'Start date' },
   { key: 'dueDate', label: 'Due date' },

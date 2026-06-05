@@ -21,7 +21,9 @@ const {
   isPmOrgAdminRole,
   isPmOrgManagerRole,
   isPmOrgMemberRole,
+  buildProjectListFiltersForUser,
   userCanAccessProjectRow,
+  userCanViewProjectRow,
 } = require('../../../utils/rbac');
 
 const { relId } = require('../../../utils/books-crud');
@@ -124,11 +126,8 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       defaultSort: 'updatedAt:desc',
     });
 
-    const filters = { organization: ctx.state.orgId };
-    if (isPmOrgMemberRole(ctx) && ctx.state.user?.id) {
-      const uid = ctx.state.user.id;
-      filters.$or = [{ projectManager: uid }, { teamMembers: uid }];
-    }
+    const baseFilters = buildProjectListFiltersForUser(ctx, ctx.state.orgId, ctx.state.user?.id);
+    const filters = { ...baseFilters };
     const extra = query.filters;
     if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
       if (extra.clientAccount) filters.clientAccount = extra.clientAccount;
@@ -167,11 +166,12 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (orgIdFromRelation(entry.organization) !== ctx.state.orgId) {
       return ctx.forbidden('Access denied');
     }
-    if (isPmOrgMemberRole(ctx) && ctx.state.user?.id) {
+    if (!isPmOrgAdminRole(ctx) && ctx.state.user?.id) {
       const gate = await strapi.entityService.findOne(UID, pk, {
         populate: ['teamMembers', 'projectManager'],
+        fields: ['isPrivate'],
       });
-      if (!userCanAccessProjectRow(gate, ctx.state.user.id)) {
+      if (!userCanViewProjectRow(ctx, gate, ctx.state.user.id)) {
         return ctx.forbidden('Access denied');
       }
     }
@@ -359,6 +359,15 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (!project) return ctx.notFound();
     if (orgIdFromRelation(project.organization) !== ctx.state.orgId) {
       return ctx.forbidden('Access denied');
+    }
+    if (!isPmOrgAdminRole(ctx) && ctx.state.user?.id) {
+      const gate = await strapi.entityService.findOne(UID, pk, {
+        populate: ['teamMembers', 'projectManager'],
+        fields: ['isPrivate'],
+      });
+      if (!userCanViewProjectRow(ctx, gate, ctx.state.user.id)) {
+        return ctx.forbidden('Access denied');
+      }
     }
 
     const tasks = await strapi.entityService

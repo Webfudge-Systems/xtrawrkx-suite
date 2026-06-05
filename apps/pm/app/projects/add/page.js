@@ -7,6 +7,7 @@ import { useAuth } from '@webfudge/auth'
 import {
   Card,
   Button,
+  Checkbox,
   Input,
   Textarea,
   Select,
@@ -25,7 +26,7 @@ import projectService from '../../../lib/api/projectService'
 import { fetchProjectClientOptions, mapProjectClientSelectOptions } from '../../../lib/api/projectClientOptions'
 import { fetchProjectDirectoryUsers } from '../../../lib/api/messageService'
 import { transformUser } from '../../../lib/api/dataTransformers'
-import { getPmOrgRoleKind } from '../../../lib/pmOrgRoles'
+import { getPmOrgRoleKind, canToggleProjectPrivacy } from '../../../lib/pmOrgRoles'
 
 const STATUS_OPTIONS = [
   { value: 'PLANNING', label: 'Planning' },
@@ -62,6 +63,7 @@ export default function AddProjectPage() {
     clientId: '',
     projectManagerId: '',
     teamMemberIds: [],
+    isPrivate: false,
   })
 
   /** Org directory + current user if missing from roster (edge cases). */
@@ -157,6 +159,7 @@ export default function AddProjectPage() {
       if (form.projectManagerId) payload.projectManager = Number(form.projectManagerId)
 
       payload.teamMembers = form.teamMemberIds.map(Number)
+      if (canToggleProjectPrivacy()) payload.isPrivate = form.isPrivate
 
       const result = await projectService.createProject(payload)
       const newId = result?.data?.id || result?.id
@@ -348,6 +351,20 @@ export default function AddProjectPage() {
                 <p className="text-sm text-gray-500">Loading organization members…</p>
               )}
             </div>
+            {canToggleProjectPrivacy() && (
+              <label className="flex items-center gap-3 cursor-pointer select-none pt-1">
+                <Checkbox
+                  checked={form.isPrivate}
+                  onChange={(e) => setForm((p) => ({ ...p, isPrivate: e.target.checked }))}
+                />
+                <span className="text-sm font-medium text-gray-800">
+                  Private project
+                  <span className="ml-1 text-xs font-normal text-gray-500">
+                    — hidden from managers not on the team; admins can always see it
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
         </Card>
 

@@ -37,6 +37,7 @@ import {
   Link2,
   ListTodo,
   MessageSquarePlus,
+  Lock,
   Pencil,
   PlayCircle,
   Plus,
@@ -749,7 +750,14 @@ export default function ProjectsPage() {
                     className="min-w-0 flex-1 text-left hover:text-orange-600"
                   >
                     <TableCellTitleSubtitle
-                      title={row.name}
+                      title={
+                        <span className="inline-flex items-center gap-1.5">
+                          {row.name}
+                          {row.isPrivate && (
+                            <Lock className="inline h-3 w-3 text-gray-400 shrink-0" title="Private project" />
+                          )}
+                        </span>
+                      }
                       subtitle={row.description || row.clientName || 'No description'}
                     />
                   </button>

@@ -24,6 +24,7 @@ import {
 } from '@webfudge/ui';
 import {
   Activity,
+  ArrowUpFromLine,
   Calendar,
   CheckCircle2,
   CheckSquare,
@@ -68,8 +69,16 @@ import {
 import taskService from '../../../lib/api/taskService';
 import strapiClient from '../../../lib/strapiClient';
 import { formatDate, transformProject, transformTask, transformUser } from '../../../lib/api/dataTransformers';
-import { getPmOrgRoleKind } from '../../../lib/pmOrgRoles';
+import {
+  canApproveTaskAssignmentsInPm,
+  canCreateSubtaskOnTask,
+  canDeleteTaskInPm,
+  canEditTaskInPm,
+  getPmOrgRoleKind,
+} from '../../../lib/pmOrgRoles';
+import { usersForProjectTaskAssignment } from '../../../lib/api/projectAssignableUsers';
 import { fetchChatMentionUsers } from '../../../lib/api/chatMentionUsers';
+import { enrichTaskWithProjectManager } from '../../../lib/taskListUtils';
 
 const DETAIL_TABS = [
   { key: 'overview', label: 'Overview' },
@@ -182,6 +191,8 @@ export default function TaskDetailPage() {
   }, [authUser]);
   const pmOrgRoleKind = useMemo(() => getPmOrgRoleKind(), []);
   const isPmMember = pmOrgRoleKind === 'member';
+  const canPromoteSubtasks = pmOrgRoleKind !== 'member';
+  const canApproveAssignments = useMemo(() => canApproveTaskAssignmentsInPm(), []);
   const [task, setTask] = useState(null);
   const [ancestorTasks, setAncestorTasks] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -202,6 +213,7 @@ export default function TaskDetailPage() {
   const [subtaskModalOpen, setSubtaskModalOpen] = useState(false);
   const [subtaskEditModal, setSubtaskEditModal] = useState({ open: false, task: null });
   const [subtaskDeleteModal, setSubtaskDeleteModal] = useState({ open: false, task: null });
+  const [promoteModal, setPromoteModal] = useState({ open: false, task: null });
 
   const loadTask = useCallback(async () => {
     if (!id) return;
@@ -318,6 +330,11 @@ export default function TaskDetailPage() {
 
   const activityCount = typeof crmTimelineTotal === 'number' ? crmTimelineTotal : crmTimeline.length;
 
+  const displayTask = useMemo(
+    () => enrichTaskWithProjectManager(task, projects),
+    [task, projects]
+  );
+
   const lastActivityDisplay = useMemo(() => {
     const first = crmTimeline?.[0]?.createdAt;
     if (first) return formatDate(first, 'relative') || '—';
@@ -377,10 +394,19 @@ export default function TaskDetailPage() {
     return (label.slice(0, 2) || 'ME').toUpperCase();
   }, [authUser]);
 
+  const canEditCurrentTask = useMemo(
+    () => (task ? canEditTaskInPm(task, currentUserId) : false),
+    [task, currentUserId]
+  );
+  const canDeleteCurrentTask = useMemo(
+    () => (task ? canDeleteTaskInPm(task, currentUserId) : false),
+    [task, currentUserId]
+  );
+
   const updateTask = async (patch) => {
     if (!task) return;
     let next = patch;
-    if (isPmMember) {
+    if (!canEditTaskInPm(task, currentUserId)) {
       next = {};
       if (patch.status !== undefined) next.status = patch.status;
       if (Object.keys(next).length === 0) return;
@@ -398,7 +424,7 @@ export default function TaskDetailPage() {
   };
 
   const saveTask = async (payload) => {
-    if (!task || isPmMember) return;
+    if (!task || !canEditTaskInPm(task, currentUserId)) return;
     try {
       setSaving(true);
       await taskService.updateTask(task.id, payload);
@@ -415,9 +441,14 @@ export default function TaskDetailPage() {
     }
   };
 
+  const canCreateSubtasks = useMemo(
+    () => (task ? canCreateSubtaskOnTask(task, currentUserId) : false),
+    [task, currentUserId]
+  );
+
   const saveNewSubtask = useCallback(
     async (payload) => {
-      if (!task || isPmMember) return;
+      if (!task || !canCreateSubtasks) return;
       try {
         setSaving(true);
         await taskService.createTask({
@@ -433,14 +464,25 @@ export default function TaskDetailPage() {
         setSaving(false);
       }
     },
-    [task, isPmMember, loadTask, reloadTaskTimeline]
+    [task, canCreateSubtasks, loadTask, reloadTaskTimeline]
   );
+
+  const taskProjectUsers = useMemo(() => {
+    if (!task?.projectId) return users;
+    const projectRecord = projects.find(
+      (p) => String(p.id) === String(task.projectId) || String(p.documentId) === String(task.projectId)
+    );
+    if (!projectRecord) return users;
+    return usersForProjectTaskAssignment(projectRecord, users, {
+      extraUsers: task.assignees || [],
+    });
+  }, [task, projects, users]);
 
   const updateSubtaskField = useCallback(
     async (subtask, patch) => {
       if (!subtask?.id) return;
       let next = patch;
-      if (isPmMember) {
+      if (!canEditTaskInPm(subtask, currentUserId)) {
         next = {};
         if (patch.status !== undefined) next.status = patch.status;
         if (Object.keys(next).length === 0) return;
@@ -456,14 +498,13 @@ export default function TaskDetailPage() {
         setSaving(false);
       }
     },
-    [isPmMember, loadTask, reloadTaskTimeline]
+    [currentUserId, loadTask, reloadTaskTimeline]
   );
 
   const saveEditedSubtask = useCallback(
     async (payload) => {
-      if (isPmMember) return;
       const st = subtaskEditModal.task;
-      if (!st?.id) return;
+      if (!st?.id || !canEditTaskInPm(st, currentUserId)) return;
       try {
         setSaving(true);
         await taskService.updateTask(st.id, payload);
@@ -476,13 +517,12 @@ export default function TaskDetailPage() {
         setSaving(false);
       }
     },
-    [isPmMember, subtaskEditModal.task, loadTask, reloadTaskTimeline]
+    [currentUserId, subtaskEditModal.task, loadTask, reloadTaskTimeline]
   );
 
   const deleteSubtask = useCallback(async () => {
-    if (isPmMember) return;
     const st = subtaskDeleteModal.task;
-    if (!st?.id) return;
+    if (!st?.id || !canDeleteTaskInPm(st, currentUserId)) return;
     try {
       setSaving(true);
       await taskService.deleteTask(st.id);
@@ -494,10 +534,27 @@ export default function TaskDetailPage() {
     } finally {
       setSaving(false);
     }
-  }, [isPmMember, subtaskDeleteModal.task, loadTask, reloadTaskTimeline]);
+  }, [currentUserId, subtaskDeleteModal.task, loadTask, reloadTaskTimeline]);
+
+  const confirmPromoteSubtask = useCallback(async () => {
+    if (!canPromoteSubtasks) return;
+    const st = promoteModal.task;
+    if (!st?.id) return;
+    try {
+      setSaving(true);
+      await taskService.promoteSubtaskToMajorTask(st.id);
+      setPromoteModal({ open: false, task: null });
+      await loadTask();
+      await reloadTaskTimeline({ silent: true });
+    } catch (error) {
+      console.error('Promote subtask error:', error);
+    } finally {
+      setSaving(false);
+    }
+  }, [canPromoteSubtasks, promoteModal.task, loadTask, reloadTaskTimeline]);
 
   const deleteTask = async () => {
-    if (!task || isPmMember) return;
+    if (!task || !canDeleteTaskInPm(task, currentUserId)) return;
     try {
       setSaving(true);
       await taskService.deleteTask(task.id);
@@ -520,11 +577,11 @@ export default function TaskDetailPage() {
   }, [loadTask, reloadTaskTimeline]);
 
   const openTaskInfoEdit = useCallback(() => {
-    if (!task || isPmMember) return;
+    if (!task || !canEditTaskInPm(task, currentUserId)) return;
     setTaskInfoDraft(taskToInlineDraft(task));
     setTaskInfoSaveError('');
     setEditingTaskInfo(true);
-  }, [task, isPmMember]);
+  }, [task, currentUserId]);
 
   const cancelTaskInfoEdit = useCallback(() => {
     setEditingTaskInfo(false);
@@ -537,7 +594,7 @@ export default function TaskDetailPage() {
   }, []);
 
   const saveTaskInfo = useCallback(async () => {
-    if (!task || !taskInfoDraft || isPmMember) return;
+    if (!task || !taskInfoDraft || !canEditTaskInPm(task, currentUserId)) return;
     const d = taskInfoDraft;
     if (!d.name?.trim()) {
       setTaskInfoSaveError('Task name is required');
@@ -568,7 +625,7 @@ export default function TaskDetailPage() {
     } finally {
       setSaving(false);
     }
-  }, [task, taskInfoDraft, isPmMember, loadTask, reloadTaskTimeline]);
+  }, [task, taskInfoDraft, currentUserId, loadTask, reloadTaskTimeline]);
 
   const userSelectOptions = useMemo(
     () => users.map((u) => ({ value: String(u.id), label: userLabel(u) })),
@@ -590,7 +647,7 @@ export default function TaskDetailPage() {
   const subtasksTableSort = usePmTableSort({
     entity: 'task',
     storageKey: task?.id ? `pm.taskDetail.${task.id}.subtasks.sort` : undefined,
-    data: Array.isArray(task?.subtasks) ? task.subtasks : [],
+    data: Array.isArray(displayTask?.subtasks) ? displayTask.subtasks : [],
   });
 
   if (loading) {
@@ -668,7 +725,7 @@ export default function TaskDetailPage() {
               value={row.priority}
               options={PRIORITY_OPTIONS}
               onChange={(priority) => updateSubtaskField(row, { priority })}
-              disabled={isPmMember || saving}
+              disabled={!canEditTaskInPm(row, currentUserId) || saving}
               {...pmTableSelectFillProps(row.priority, 'priority')}
               containerClassName="min-w-[120px]"
               placeholder="Priority"
@@ -677,8 +734,8 @@ export default function TaskDetailPage() {
         ),
       },
       {
-        key: 'assigner',
-        label: 'ASSIGNER',
+        key: 'reporter',
+        label: 'REPORTER',
         render: (_, row) => (
           <div className="flex min-w-[180px] items-center gap-2">
             <Avatar
@@ -695,17 +752,45 @@ export default function TaskDetailPage() {
         ),
       },
       {
+        key: 'projectManager',
+        label: 'PROJECT MANAGER',
+        render: (_, row) => {
+          const pm = row.projectManager;
+          const label = pm?.name || pm?.email || '';
+          return (
+            <div className="flex min-w-[180px] items-center gap-2">
+              <Avatar
+                size="sm"
+                src={pm?.avatar || undefined}
+                fallback={(label || '?').charAt(0).toUpperCase()}
+                alt={label || 'No PM'}
+                className={label ? 'bg-teal-600 text-white' : 'bg-gray-300 text-gray-700'}
+              />
+              <span className={`truncate text-sm font-medium ${label ? 'text-gray-900' : 'text-gray-500'}`}>
+                {label || '—'}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
         key: 'assignees',
-        label: 'ASSIGNEES',
+        label: 'ASSIGNEE',
         render: (_, row) => (
           <div className="min-w-[130px]" onClick={(e) => e.stopPropagation()}>
             <TaskAssigneesPicker
-              userIds={row.assigneeUserIds || []}
+              userIds={(row.assigneeUserIds || []).slice(0, 1)}
               assignees={row.assignees}
               users={users}
-              onChange={(assigneeUserIds) => updateSubtaskField(row, { assigneeUserIds })}
-              disabled={isPmMember || saving}
+              onChange={(assigneeUserIds) =>
+                updateSubtaskField(row, {
+                  assigneeUserIds: assigneeUserIds.slice(0, 1),
+                  isSubtask: true,
+                })
+              }
+              disabled={!canEditTaskInPm(row, currentUserId) || saving}
               compact
+              maxAssignees={1}
             />
           </div>
         ),
@@ -735,16 +820,25 @@ export default function TaskDetailPage() {
               triggerClassName="inline-flex h-9 w-9 items-center justify-center rounded-md p-2 text-teal-600 transition hover:bg-teal-50"
               items={[
                 { label: 'View', icon: Eye, onClick: () => router.push(`/tasks/${row.id}`) },
-                ...(isPmMember
-                  ? []
-                  : [{ label: 'Edit', icon: Edit3, onClick: () => setSubtaskEditModal({ open: true, task: row }) }]),
+                ...(canEditTaskInPm(row, currentUserId)
+                  ? [{ label: 'Edit', icon: Edit3, onClick: () => setSubtaskEditModal({ open: true, task: row }) }]
+                  : []),
                 { label: 'Copy link', icon: Copy, onClick: () => copyTaskLink(row) },
-                ...(isPmMember
-                  ? []
-                  : [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => setSubtaskDeleteModal({ open: true, task: row }) }]),
+                ...(canPromoteSubtasks
+                  ? [
+                      {
+                        label: 'Make major task',
+                        icon: ArrowUpFromLine,
+                        onClick: () => setPromoteModal({ open: true, task: row }),
+                      },
+                    ]
+                  : []),
+                ...(canDeleteTaskInPm(row, currentUserId)
+                  ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => setSubtaskDeleteModal({ open: true, task: row }) }]
+                  : []),
               ]}
             />
-            {!isPmMember ? (
+            {canEditTaskInPm(row, currentUserId) ? (
             <Button
               variant="ghost"
               size="sm"
@@ -780,7 +874,17 @@ export default function TaskDetailPage() {
       <div className="space-y-3">
         <PMPageHeader title={task.name} breadcrumb={breadcrumbItems} showProfile>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {!isPmMember ? (
+            {canPromoteSubtasks && task.parentId ? (
+              <button
+                type="button"
+                className={headerIconBtnClass}
+                title="Make major task"
+                onClick={() => setPromoteModal({ open: true, task })}
+              >
+                <ArrowUpFromLine className="h-5 w-5" />
+              </button>
+            ) : null}
+            {canEditCurrentTask ? (
               <button
                 type="button"
                 className={headerIconBtnClass}
@@ -793,7 +897,7 @@ export default function TaskDetailPage() {
             <button type="button" className={headerIconBtnClass} title="Copy link" onClick={copyTaskLink}>
               <Share2 className="h-5 w-5" />
             </button>
-            {!isPmMember ? (
+            {canDeleteCurrentTask ? (
               <button
                 type="button"
                 className={`group ${headerDangerIconBtnClass}`}
@@ -808,6 +912,15 @@ export default function TaskDetailPage() {
             ) : null}
             <PMRowActions
               items={[
+                ...(task.parentId && canPromoteSubtasks
+                  ? [
+                      {
+                        label: 'Make major task',
+                        icon: ArrowUpFromLine,
+                        onClick: () => setPromoteModal({ open: true, task }),
+                      },
+                    ]
+                  : []),
                 { label: 'Copy link', icon: Copy, onClick: copyTaskLink },
                 { label: 'Refresh', icon: RefreshCw, onClick: refreshAll },
               ]}
@@ -816,7 +929,7 @@ export default function TaskDetailPage() {
           </div>
         </PMPageHeader>
 
-        <TaskDetailMetaBar task={task} />
+        <TaskDetailMetaBar task={displayTask} />
       </div>
 
       <div
@@ -839,12 +952,12 @@ export default function TaskDetailPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <TaskDetailsCard
-              task={task}
+              task={displayTask}
               editing={Boolean(editingTaskInfo && taskInfoDraft)}
               taskInfoDraft={taskInfoDraft}
               isRecurring={isRecurring}
               draftRecurring={draftRecurring}
-              isPmMember={isPmMember}
+              canEdit={canEditCurrentTask}
               saving={saving}
               users={users}
               projects={projects}
@@ -880,6 +993,7 @@ export default function TaskDetailPage() {
               {!task.subtasks?.length ? (
                 <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-center">
                   <p className="text-sm text-gray-600">No subtasks yet for this task.</p>
+                  {canCreateSubtasks ? (
                   <button
                     type="button"
                     onClick={() => setSubtaskModalOpen(true)}
@@ -887,6 +1001,7 @@ export default function TaskDetailPage() {
                   >
                     Add first subtask
                   </button>
+                  ) : null}
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -1011,7 +1126,7 @@ export default function TaskDetailPage() {
                 <h2 className="text-xl font-semibold text-gray-900">Subtasks</h2>
                 <p className="mt-1 text-sm text-gray-500">Break this task into smaller items.</p>
               </div>
-              {!isPmMember ? (
+              {canCreateSubtasks ? (
               <Button type="button" variant="primary" className="gap-2 shrink-0" onClick={() => setSubtaskModalOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Add subtask
@@ -1078,8 +1193,12 @@ export default function TaskDetailPage() {
                 <span className="text-xs font-semibold text-gray-800">{lastActivityDisplay}</span>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-                <span className="text-xs font-medium text-gray-600">Assigner</span>
+                <span className="text-xs font-medium text-gray-600">Reporter</span>
                 <span className="truncate pl-2 text-right text-xs font-semibold text-gray-800">{task.assignerName || '—'}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+                <span className="text-xs font-medium text-gray-600">Project Manager</span>
+                <span className="truncate pl-2 text-right text-xs font-semibold text-gray-800">{displayTask?.projectManagerName || '—'}</span>
               </div>
               <div className="flex items-start justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
                 <span className="shrink-0 text-xs font-medium text-gray-600">Assignees</span>
@@ -1126,7 +1245,7 @@ export default function TaskDetailPage() {
         </Card>
       ) : null}
 
-      {!isPmMember ? (
+      {canEditCurrentTask ? (
       <QuickCreateTaskModal
         isOpen={editModalOpen}
         onClose={() => setEditModalOpen(false)}
@@ -1140,7 +1259,7 @@ export default function TaskDetailPage() {
       />
       ) : null}
 
-      {!isPmMember ? (
+      {canCreateSubtasks ? (
       <QuickCreateTaskModal
         isOpen={subtaskModalOpen}
         onClose={() => setSubtaskModalOpen(false)}
@@ -1151,12 +1270,14 @@ export default function TaskDetailPage() {
         }
         projects={projects}
         users={users}
+        assigneeUsers={taskProjectUsers}
         defaultAssignerId={currentUserId ? String(currentUserId) : ''}
+        assigneePickerScopedToProject={Boolean(task?.projectId)}
+        requiresAssignmentApproval={isPmMember && !canApproveAssignments}
         saving={saving}
       />
       ) : null}
 
-      {!isPmMember ? (
       <QuickCreateTaskModal
         isOpen={subtaskEditModal.open}
         onClose={() => setSubtaskEditModal({ open: false, task: null })}
@@ -1168,9 +1289,8 @@ export default function TaskDetailPage() {
         saving={saving}
         title="Edit Subtask"
       />
-      ) : null}
 
-      {!isPmMember ? (
+      {canDeleteCurrentTask ? (
       <Modal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Delete Task" size="sm">
         <div className="space-y-5">
           <p className="text-sm text-gray-700">
@@ -1188,7 +1308,32 @@ export default function TaskDetailPage() {
       </Modal>
       ) : null}
 
-      {!isPmMember ? (
+      {canPromoteSubtasks ? (
+      <Modal
+        isOpen={promoteModal.open}
+        onClose={() => setPromoteModal({ open: false, task: null })}
+        title="Make major task"
+        size="sm"
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-gray-700">
+            Convert{' '}
+            <span className="font-semibold text-gray-900">{promoteModal.task?.name || 'this subtask'}</span>{' '}
+            into a standalone major task? It will no longer appear under its parent.
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setPromoteModal({ open: false, task: null })} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={confirmPromoteSubtask} disabled={saving}>
+              {saving ? 'Converting...' : 'Make major task'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      ) : null}
+
+      {canPromoteSubtasks ? (
       <Modal
         isOpen={subtaskDeleteModal.open}
         onClose={() => setSubtaskDeleteModal({ open: false, task: null })}

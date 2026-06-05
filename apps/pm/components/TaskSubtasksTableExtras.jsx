@@ -2,8 +2,21 @@
 
 import { useMemo, useState } from 'react';
 import { Avatar, Button, Select, Table, TableCellCreated, TableCellTaskStatusSelect, PM_TASK_STATUS_OPTIONS, ownerDisplayFromUser } from '@webfudge/ui';
-import { ChevronDown, ChevronRight, Copy, Edit3, Eye, Link2, ListTree, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowUpFromLine,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Edit3,
+  Eye,
+  Link2,
+  ListTree,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import PMRowActions from './PMRowActions';
+import { canDeleteTaskInPm, canEditTaskInPm } from '../lib/pmOrgRoles';
 import TaskAssigneesPicker from './TaskAssigneesPicker';
 import { pmTableSelectFillProps, PRIORITY_OPTIONS } from './PMStatusBadge';
 import { usePmTableSort } from '../hooks/usePmTableSort';
@@ -63,9 +76,13 @@ export function TaskSubtasksAfterRow({
   users = [],
   savingId = null,
   memberScopedTasks = false,
+  currentUserId = null,
+  /** When set, overrides memberScopedTasks for the Add subtask button. */
+  canAddSubtaskOnTask,
   onUpdateTask,
   onEditTask,
   onDeleteTask,
+  onPromoteSubtask,
   onCopyTaskLink,
   onOpenTask,
   childrenByParentId = {},
@@ -163,7 +180,7 @@ export function TaskSubtasksAfterRow({
             value={st.priority}
             options={PRIORITY_OPTIONS}
             onChange={(priority) => onUpdateTask?.(st, { priority })}
-            disabled={memberScopedTasks || savingId === st.id}
+            disabled={!canEditTaskInPm(st, currentUserId) || savingId === st.id}
             {...pmTableSelectFillProps(st.priority, 'priority')}
             containerClassName="min-w-[120px]"
             placeholder="Priority"
@@ -172,8 +189,8 @@ export function TaskSubtasksAfterRow({
       ),
     },
     {
-      key: 'assigner',
-      label: 'ASSIGNER',
+      key: 'reporter',
+      label: 'REPORTER',
       render: (_, st) => {
         const assignerUser = st.assigner || null;
         const derived = ownerDisplayFromUser(assignerUser);
@@ -188,7 +205,7 @@ export function TaskSubtasksAfterRow({
             <Avatar
               src={assignerUser?.avatar || undefined}
               fallback={empty ? '?' : derived.avatarFallback}
-              alt={label || 'Assigner'}
+              alt={label || 'Reporter'}
               size="sm"
               className={`text-white ${empty ? 'bg-gray-300 text-gray-600' : 'bg-gray-600'}`}
             />
@@ -201,16 +218,22 @@ export function TaskSubtasksAfterRow({
     },
     {
       key: 'assignees',
-      label: 'ASSIGNEES',
+      label: 'ASSIGNEE',
       render: (_, st) => (
         <div className="min-w-[120px] py-0.5" onClick={(e) => e.stopPropagation()}>
           <TaskAssigneesPicker
-            userIds={st.assigneeUserIds || []}
+            userIds={(st.assigneeUserIds || []).slice(0, 1)}
             assignees={st.assignees}
             users={users || []}
-            onChange={(assigneeUserIds) => onUpdateTask?.(st, { assigneeUserIds })}
-            disabled={memberScopedTasks || savingId === st.id}
+            onChange={(assigneeUserIds) =>
+              onUpdateTask?.(st, {
+                assigneeUserIds: assigneeUserIds.slice(0, 1),
+                isSubtask: true,
+              })
+            }
+            disabled={!canEditTaskInPm(st, currentUserId) || savingId === st.id}
             compact
+            maxAssignees={1}
           />
         </div>
       ),
@@ -240,16 +263,25 @@ export function TaskSubtasksAfterRow({
             triggerClassName="inline-flex h-9 w-9 items-center justify-center rounded-md p-2 text-teal-600 transition hover:bg-teal-50"
             items={[
               { label: 'View', icon: Eye, onClick: () => onOpenTask?.(st) },
-              ...(memberScopedTasks
-                ? []
-                : [{ label: 'Edit', icon: Edit3, onClick: () => onEditTask?.(st) }]),
+              ...(canEditTaskInPm(st, currentUserId)
+                ? [{ label: 'Edit', icon: Edit3, onClick: () => onEditTask?.(st) }]
+                : []),
               { label: 'Copy link', icon: Copy, onClick: () => onCopyTaskLink?.(st) },
-              ...(memberScopedTasks
-                ? []
-                : [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => onDeleteTask?.(st) }]),
+              ...(!memberScopedTasks
+                ? [
+                    {
+                      label: 'Make major task',
+                      icon: ArrowUpFromLine,
+                      onClick: () => onPromoteSubtask?.(st),
+                    },
+                  ]
+                : []),
+              ...(canDeleteTaskInPm(st, currentUserId)
+                ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => onDeleteTask?.(st) }]
+                : []),
             ]}
           />
-          {!memberScopedTasks ? (
+          {canEditTaskInPm(st, currentUserId) ? (
           <Button
             variant="ghost"
             size="sm"
@@ -279,6 +311,20 @@ export function TaskSubtasksAfterRow({
           <Button
             variant="ghost"
             size="sm"
+            className="p-2 text-violet-600 hover:bg-violet-50"
+            title="Make major task"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPromoteSubtask?.(st);
+            }}
+          >
+            <ArrowUpFromLine className="h-4 w-4" />
+          </Button>
+          ) : null}
+          {canDeleteTaskInPm(st, currentUserId) ? (
+          <Button
+            variant="ghost"
+            size="sm"
             className="p-2 text-red-600 hover:bg-red-50"
             title="Delete subtask"
             onClick={(e) => {
@@ -299,9 +345,11 @@ export function TaskSubtasksAfterRow({
       row.subtasks,
       expandedNestedIds,
       memberScopedTasks,
+      currentUserId,
       onCopyTaskLink,
       onDeleteTask,
       onEditTask,
+      onPromoteSubtask,
       onOpenTask,
       onUpdateTask,
       savingId,
@@ -358,7 +406,9 @@ export function TaskSubtasksAfterRow({
               />
             </div>
           )}
-          {!memberScopedTasks ? (
+          {(typeof canAddSubtaskOnTask === 'function'
+            ? canAddSubtaskOnTask(row)
+            : !memberScopedTasks) ? (
           <Button
             type="button"
             variant="outline"
