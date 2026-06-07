@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useBooksTheme } from '@/components/theme/BooksThemeProvider'
+import { BOOKS_SITE } from '@/lib/site'
 
 type SidebarProps = {
   onConfigureFeatures: () => void
@@ -197,7 +198,7 @@ export default function Sidebar({ onConfigureFeatures }: SidebarProps) {
   const railPillInnerClass = 'flex w-full flex-col items-center gap-2 p-2'
 
   const sidebarWidth = 'w-16'
-  const booksLogoSrc = '/Vertical logo 1 bg removed.png'
+  const booksLogoSrc = BOOKS_SITE.logoPath
 
   const quickMenu =
     quickOpen && typeof document !== 'undefined'
@@ -247,12 +248,12 @@ export default function Sidebar({ onConfigureFeatures }: SidebarProps) {
       <Link
         href="/home"
         className="flex w-full shrink-0 items-center justify-center"
-        title="Books home"
-        aria-label="Books home"
+        title={`${BOOKS_SITE.name} home`}
+        aria-label={`${BOOKS_SITE.name} home`}
       >
         <Image
           src={booksLogoSrc}
-          alt="Webfudge Books"
+          alt={BOOKS_SITE.brandName}
           width={40}
           height={32}
           className="h-8 w-auto max-w-[2.5rem] object-contain"

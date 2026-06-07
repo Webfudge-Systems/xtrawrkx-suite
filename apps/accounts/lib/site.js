@@ -1,3 +1,5 @@
+import { FUDGE_SUITE_ASSETS } from '@webfudge/utils'
+
 const siteUrl = (process.env.NEXT_PUBLIC_ACCOUNTS_APP_URL || 'http://localhost:3003').replace(/\/$/, '')
 
 export const ACCOUNTS_SITE = {
@@ -5,13 +7,18 @@ export const ACCOUNTS_SITE = {
   brandShortName: 'Xtrawrkx',
   legalName: 'Xtrawrkx',
   name: 'Fudge Base',
-  shortName: 'Fudge Base',
+  shortName: 'Base',
+  creatorName: 'Webfudge Systems',
+  creatorLine: 'by Webfudge Systems',
   description:
     'Fudge Base is the organization administration workspace for users, roles, departments, teams, security, billing, app access, and audit logs across the Xtrawrkx suite.',
   tagline: 'Manage your organization—users, roles, security, billing, and compliance.',
   url: siteUrl,
-  logoPath: '/favicon/web-app-manifest-512x512.png',
-  ogImagePath: '/favicon/web-app-manifest-512x512.png',
+  ...FUDGE_SUITE_ASSETS.xtrawrkx,
+  brandLogoPath: FUDGE_SUITE_ASSETS.xtrawrkx.brandLogoPath,
+  ogImagePath: FUDGE_SUITE_ASSETS.xtrawrkx.brandLogoPath,
+  creatorLogoPath: FUDGE_SUITE_ASSETS.webfudge.brandLogoPath,
+  creatorIconPath: FUDGE_SUITE_ASSETS.webfudge.logoPath,
   locale: 'en_US',
   themeColor: '#F5630F',
   backgroundColor: '#FFFAF7',

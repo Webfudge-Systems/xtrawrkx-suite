@@ -89,7 +89,7 @@ export default function DashboardPage() {
           canViewProjects
             ? projectService.getAllProjects({ pageSize: 10, sort: 'updatedAt:desc' })
             : Promise.resolve({ data: [] }),
-          canViewTasks ? taskService.getAllTasks({ pageSize: 200 }) : Promise.resolve({ data: [] }),
+          canViewTasks ? taskService.fetchAllTasks({ pageSize: 500, sort: 'updatedAt:desc' }).then((data) => ({ data })) : Promise.resolve({ data: [] }),
           strapiClient.getXtrawrkxUsers({ pageSize: 200 }),
         ])
 
@@ -116,17 +116,17 @@ export default function DashboardPage() {
 
         if (canViewTasks && userId) {
           try {
-            const mineRes = await taskService.getPMTasksByAssignee(userId, { pageSize: 100 })
-            const uid = String(userId)
-            const mine = (mineRes?.data || [])
+            const mineRaw = await taskService.fetchPMTasksByAssignee(userId, { pageSize: 500, sort: 'updatedAt:desc' });
+            const uid = String(userId);
+            const mine = mineRaw
               .map(transformTask)
               .filter(Boolean)
               .filter(
                 (task) =>
                   (task.assigneeUserIds || []).map(String).includes(uid) ||
                   (task.assignees || []).some((a) => a?.id != null && String(a.id) === uid)
-              )
-            setAssigneeTasks(mine)
+              );
+            setAssigneeTasks(mine);
           } catch {
             setAssigneeTasks([])
           }

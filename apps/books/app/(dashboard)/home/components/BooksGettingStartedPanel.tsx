@@ -101,7 +101,7 @@ export default function BooksGettingStartedPanel() {
             Books
           </Badge>
         </div>
-        <h2 className="text-2xl font-semibold text-gray-900 sm:text-3xl">Welcome to Webfudge Books</h2>
+        <h2 className="text-2xl font-semibold text-gray-900 sm:text-3xl">Welcome to Fudge Books</h2>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-gray-600 sm:text-base">
           Set up Sales, Purchases, Banking, and Accountant workflows in one place—then track invoices, bills, and cash with
           Books.
@@ -129,7 +129,7 @@ export default function BooksGettingStartedPanel() {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg transition group-hover:scale-105">
               <Play className="h-8 w-8 pl-1" fill="currentColor" />
             </div>
-            <p className="mt-3 text-sm font-medium text-gray-800">Webfudge Books overview</p>
+            <p className="mt-3 text-sm font-medium text-gray-800">Fudge Books overview</p>
             <p className="text-xs text-gray-500">Placeholder · connect your help video later</p>
           </Link>
           <div className="min-w-0 flex-1 space-y-2">

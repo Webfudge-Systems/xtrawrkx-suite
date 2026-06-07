@@ -350,12 +350,12 @@ export default function ClientsTasksPage() {
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await taskService.getAll({
+      const res = await taskService.getAll({
         sort: 'scheduledDate:desc',
-        'pagination[pageSize]': 500,
+        'pagination[pageSize]': 200,
         populate: ['assignee', 'deal', 'clientAccount', 'projects', 'leadCompany'],
       });
-      setTasks(data || []);
+      setTasks(res.data || []);
     } catch (err) {
       console.error('Error fetching tasks:', err);
       setTasks([]);

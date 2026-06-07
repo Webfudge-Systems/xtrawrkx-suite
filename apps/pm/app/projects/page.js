@@ -406,7 +406,12 @@ export default function ProjectsPage() {
 
   const loadKpiData = useCallback(async () => {
     try {
-      const res = await projectService.getAllProjects({ page: 1, pageSize: 500, sort: 'updatedAt:desc' });
+      const res = await projectService.getAllProjects({
+        page: 1,
+        pageSize: 500,
+        sort: 'updatedAt:desc',
+        includeTaskProgress: false,
+      });
       const rows = (res?.data || []).map(transformProject).filter(Boolean);
       setKpiRows(rows);
       setKpiTotal(res?.meta?.pagination?.total ?? rows.length);
@@ -429,7 +434,7 @@ export default function ProjectsPage() {
       const status = filters.status || (activeTab !== 'all' ? activeTab : '');
       if (status) params.status = status;
       if (filters.ownerId) params.ownerId = filters.ownerId;
-      const res = await projectService.getAllProjects(params);
+      const res = await projectService.getAllProjects({ ...params, includeTaskProgress: true });
       const transformed = (res?.data || []).map(transformProject).filter(Boolean);
       setProjects(transformed);
       setTotalProjects(res?.meta?.pagination?.total || transformed.length);

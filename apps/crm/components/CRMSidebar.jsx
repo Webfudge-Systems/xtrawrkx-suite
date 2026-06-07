@@ -33,6 +33,7 @@ import {
 import SubSidebar from './SubSidebar'
 import { fetchGlobalActivityFeed } from '../lib/api/crmActivityService'
 import { canReadCRM } from '../lib/rbac'
+import { CRM_SITE } from '../lib/site'
 
 function formatRelativeTime(dateString) {
   if (!dateString) return ''
@@ -343,10 +344,10 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
             }`}
           >
             {collapsed ? (
-              <Link href="/" className="flex shrink-0" aria-label="Webfudge CRM home">
+              <Link href="/" className="flex shrink-0" aria-label={`${CRM_SITE.name} home`}>
                 <Image
-                  src="/logo/Vertical logo 1 bg removed.png"
-                  alt="Webfudge"
+                  src={CRM_SITE.logoPath}
+                  alt={CRM_SITE.brandName}
                   width={32}
                   height={32}
                   className="h-8 w-8 object-contain"
@@ -357,19 +358,22 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
               <Link
                 href="/"
                 className="flex min-w-0 flex-1 items-center gap-2.5"
-                aria-label="Webfudge CRM home"
+                aria-label={`${CRM_SITE.name} home`}
               >
                 <Image
-                  src="/logo/Vertical logo 1 bg removed.png"
-                  alt=""
+                  src={CRM_SITE.logoPath}
+                  alt={CRM_SITE.brandName}
                   width={44}
                   height={44}
                   className="h-11 w-11 shrink-0 object-contain"
                   priority
                 />
-                <span className="min-w-0 font-bold text-xl tracking-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(249,115,22,0.35)]">
-                  Webfudge CRM
-                </span>
+                <div className="min-w-0">
+                  <span className="block font-bold text-xl tracking-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(249,115,22,0.35)]">
+                    {CRM_SITE.name}
+                  </span>
+                  <span className="block text-[10px] text-gray-500">{CRM_SITE.creatorLine}</span>
+                </div>
               </Link>
             )}
             <button

@@ -12,6 +12,86 @@ import {
 
 const ENDPOINT = '/lead-companies';
 
+function dateRangeToCreatedAtFilter(range) {
+  if (!range) return null;
+  const now = new Date();
+  if (range === 'last7') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 7);
+    return { $gte: d.toISOString() };
+  }
+  if (range === 'last30') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 30);
+    return { $gte: d.toISOString() };
+  }
+  if (range === 'last90') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 90);
+    return { $gte: d.toISOString() };
+  }
+  if (range === 'thisYear') {
+    const d = new Date(now.getFullYear(), 0, 1);
+    return { $gte: d.toISOString() };
+  }
+  return null;
+}
+
+function valueRangeToDealValueFilter(range) {
+  if (!range) return null;
+  if (range === 'lt100k') return { $lt: 100000 };
+  if (range === '100k_1m') return { $gte: 100000, $lte: 1000000 };
+  if (range === '1m_5m') return { $gt: 1000000, $lte: 5000000 };
+  if (range === 'gt5m') return { $gt: 5000000 };
+  return null;
+}
+
+/** Build Strapi list query for the lead companies table (server-side pagination + filters). */
+export function buildLeadCompanyListParams({
+  page = 1,
+  pageSize = 15,
+  activeTab = 'all',
+  searchQuery = '',
+  appliedFilters = {},
+  sort = 'createdAt:desc',
+  populate = ['assignedTo', 'convertedAccount', 'contacts'],
+} = {}) {
+  const params = {
+    'pagination[page]': page,
+    'pagination[pageSize]': pageSize,
+    sort,
+    populate,
+  };
+
+  const tab = String(activeTab || 'all').toLowerCase();
+  if (tab !== 'all') {
+    params['filters[status][$eq]'] = tab.toUpperCase();
+  }
+
+  const q = String(searchQuery || '').trim();
+  if (q) {
+    params['filters[$or][0][companyName][$containsi]'] = q;
+    params['filters[$or][1][email][$containsi]'] = q;
+  }
+
+  const f = appliedFilters || {};
+  if (f.status) params['filters[status][$eq]'] = String(f.status).toUpperCase();
+  if (f.source) params['filters[source][$eq]'] = String(f.source).toUpperCase();
+  if (f.type) params['filters[type][$eq]'] = f.type;
+  if (f.assignedToId) params['filters[assignedTo][id][$eq]'] = f.assignedToId;
+  if (f.companyQuery?.trim()) {
+    params['filters[companyName][$containsi]'] = f.companyQuery.trim();
+  }
+
+  const createdAt = dateRangeToCreatedAtFilter(f.dateRange);
+  if (createdAt) params['filters[createdAt]'] = createdAt;
+
+  const dealValue = valueRangeToDealValueFilter(f.valueRange);
+  if (dealValue) params['filters[dealValue]'] = dealValue;
+
+  return params;
+}
+
 function normalizeEntry(entry) {
   const n = normalizeStrapiEntry(entry);
   if (
@@ -43,26 +123,47 @@ function normalizeOneResponse(response) {
   return normalizeStrapiOneResponse(response, normalizeEntry);
 }
 
-/** Same source as lead company detail Contacts tab: GET /contacts scoped by org, grouped by leadCompany.id */
+/** Fetch contacts for specific lead companies only (avoids org-wide contact scan). */
 async function mergeContactsOntoLeadCompanies(companies) {
   if (!companies?.length) return companies;
-  const { data: allContacts = [] } = await contactService.getAll({
-    'pagination[pageSize]': 2000,
-    sort: 'createdAt:desc',
-    populate: ['leadCompany'],
-  });
+
+  const leadIds = companies
+    .map((co) => co.id ?? co.documentId)
+    .filter((id) => id != null)
+    .map((id) => parseInt(id, 10))
+    .filter((n) => !Number.isNaN(n));
+
+  if (!leadIds.length) return companies;
+
   const byLead = new Map();
-  for (const c of allContacts) {
-    const lc = c.leadCompany;
-    const lid = lc && typeof lc === 'object' ? lc.id ?? lc.documentId : lc;
-    if (lid == null) continue;
-    const key = String(lid);
-    if (!byLead.has(key)) byLead.set(key, []);
-    byLead.get(key).push(c);
+  const chunkSize = 100;
+  for (let i = 0; i < leadIds.length; i += chunkSize) {
+    const chunk = leadIds.slice(i, i + chunkSize);
+    const query = {
+      sort: 'createdAt:desc',
+      populate: ['leadCompany'],
+      'pagination[page]': 1,
+      'pagination[pageSize]': Math.min(chunk.length * 50, 500),
+    };
+    chunk.forEach((id, idx) => {
+      query[`filters[$or][${idx}][leadCompany][id][$eq]`] = id;
+    });
+    const res = await contactService.getAll(query);
+    const batch = Array.isArray(res.data) ? res.data : [];
+    for (const c of batch) {
+      const lc = c.leadCompany;
+      const lid = lc && typeof lc === 'object' ? lc.id ?? lc.documentId : lc;
+      if (lid == null) continue;
+      const key = String(lid);
+      if (!byLead.has(key)) byLead.set(key, []);
+      byLead.get(key).push(c);
+    }
   }
+
   for (const list of byLead.values()) {
     list.sort((a, b) => Number(!!b.isPrimaryContact) - Number(!!a.isPrimaryContact));
   }
+
   return companies.map((co) => {
     const cid = co.id ?? co.documentId;
     if (cid == null) return co;
@@ -138,28 +239,25 @@ export default {
   },
 
   /**
-   * Stats by status. Derives from getAll when backend has no dedicated stats endpoint.
+   * Stats by status from dedicated backend endpoint (fast counts, no full list fetch).
    */
   async getStats() {
     try {
-      const { data } = await this.getAll({
-        'pagination[pageSize]': 1000,
-        sort: 'createdAt:desc',
-      });
-      const byStatus = (data || []).reduce((acc, company) => {
-        const s = (company.status || 'NEW').toUpperCase();
-        acc[s] = (acc[s] || 0) + 1;
-        return acc;
-      }, {});
-      return { byStatus };
+      const response = await strapiClient.get(`${ENDPOINT}/stats`);
+      const data = response?.data ?? response ?? {};
+      return {
+        byStatus: data.byStatus || {},
+        facets: data.facets || { sources: [], types: [] },
+      };
     } catch (err) {
       console.error('Lead company getStats error:', err);
-      return { byStatus: {} };
+      return { byStatus: {}, facets: { sources: [], types: [] } };
     }
   },
 
-  /** Paginate through all lead companies (dashboard analytics). */
-  async fetchAll() {
+  /** Paginate through all lead companies (dashboard widgets, exports). Avoid mergeContacts on every page. */
+  async fetchAll(params = {}) {
+    const { mergeContactsFromContactsApi, ...rest } = params;
     const pageSize = 100;
     let page = 1;
     const out = [];
@@ -169,12 +267,19 @@ export default {
         'pagination[page]': page,
         'pagination[pageSize]': pageSize,
         sort: 'createdAt:desc',
+        ...rest,
       });
       const batch = Array.isArray(res.data) ? res.data : [];
       out.push(...batch);
       pageCount = res?.meta?.pagination?.pageCount ?? 1;
       page += 1;
     } while (page <= pageCount);
+
+    if (mergeContactsFromContactsApi && out.length) {
+      return mergeContactsOntoLeadCompanies(out);
+    }
     return out;
   },
+
+  buildListParams: buildLeadCompanyListParams,
 };

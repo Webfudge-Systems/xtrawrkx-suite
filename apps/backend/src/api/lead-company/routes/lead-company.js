@@ -13,6 +13,7 @@ module.exports = {
   routes: [
     { method: 'GET',    path: '/lead-companies',               handler: `${UID}.find`,            config: authFalse },
     { method: 'GET',    path: '/lead-companies/statuses',      handler: `${UID}.statuses`,        config: authFalse },
+    { method: 'GET',    path: '/lead-companies/stats',         handler: `${UID}.stats`,           config: authFalse },
     { method: 'GET',    path: '/lead-companies/:id',           handler: `${UID}.findOne`,         config: authFalse },
     { method: 'POST',   path: '/lead-companies',               handler: `${UID}.create`,          config: authFalse },
     { method: 'PUT',    path: '/lead-companies/:id',           handler: `${UID}.update`,          config: authFalse },

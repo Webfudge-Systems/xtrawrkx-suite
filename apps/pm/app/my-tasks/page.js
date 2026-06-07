@@ -11,6 +11,7 @@ import {
   KPICard,
   LoadingSpinner,
   Modal,
+  Pagination,
   Select,
   Table,
   TableCellCreated,
@@ -76,6 +77,7 @@ import {
   enrichTasksWithProjectManager,
   filterMajorTasks,
   isMajorTask,
+  mergeTasksById,
 } from '../../lib/taskListUtils';
 import {
   canCreateSubtaskOnTask,
@@ -85,6 +87,7 @@ import {
 } from '../../lib/pmOrgRoles';
 
 const TABLE_SORT_STORAGE_KEY = 'pm.myTasks.tableSort';
+const TABLE_PAGE_SIZE = 12;
 
 const STATUS_TABS = [
   { id: 'MY_TASKS', label: 'My Tasks' },
@@ -301,6 +304,7 @@ export default function MyTasksPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const openedCreateFromQuery = useRef(false);
+  const loadTasksRequestIdRef = useRef(0);
   const [allTasks, setAllTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -331,6 +335,7 @@ export default function MyTasksPage() {
   const [commentLoadingTaskId, setCommentLoadingTaskId] = useState(null);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [commentError, setCommentError] = useState('');
+  const [tablePage, setTablePage] = useState(1);
   const toolbarRef = useRef(null);
   const columnDragKeyRef = useRef(null);
   const columnDropIndicatorRef = useRef(null);
@@ -343,23 +348,31 @@ export default function MyTasksPage() {
   const pmOrgRoleKind = useMemo(() => getPmOrgRoleKind(), []);
   const memberScopedTasks = pmOrgRoleKind === 'member';
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async ({ silent = false, mergeWithPrevious = false } = {}) => {
+    const requestId = ++loadTasksRequestIdRef.current;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const params = { pageSize: 200, sort: 'updatedAt:desc' };
       if (filters.priority) params.priority = filters.priority;
       if (filters.projectId) params.projectId = filters.projectId;
 
       const res = await taskService.getAllTasks(params);
-      const list = (res?.data || []).map(transformTask).filter(Boolean);
-      setAllTasks(list);
+      if (requestId !== loadTasksRequestIdRef.current) return;
+      const rawList = res?.data || [];
+      const list = rawList.map(transformTask).filter(Boolean);
+      if (mergeWithPrevious) {
+        setAllTasks((prev) => mergeTasksById(list, prev));
+      } else {
+        setAllTasks(list);
+      }
     } catch (error) {
       console.error('Load tasks error:', error);
-      setAllTasks([]);
+      if (requestId !== loadTasksRequestIdRef.current) return;
+      if (!silent) setAllTasks([]);
     } finally {
-      setLoading(false);
+      if (requestId === loadTasksRequestIdRef.current && !silent) setLoading(false);
     }
-  }, [filters.priority, filters.projectId, getUserId]);
+  }, [filters.priority, filters.projectId]);
 
   const currentUserId = useMemo(() => {
     const id = getUserId();
@@ -435,6 +448,14 @@ export default function MyTasksPage() {
     data: tableRootTasks,
   });
 
+  const totalTableRows = sortedTableRootTasks.length;
+  const totalTablePages = Math.max(1, Math.ceil(totalTableRows / TABLE_PAGE_SIZE));
+  const paginatedTableTasks = useMemo(() => {
+    if (taskViewMode !== 'table') return sortedTableRootTasks;
+    const start = (tablePage - 1) * TABLE_PAGE_SIZE;
+    return sortedTableRootTasks.slice(start, start + TABLE_PAGE_SIZE);
+  }, [sortedTableRootTasks, tablePage, taskViewMode]);
+
   const childrenByParentId = useMemo(() => {
     const excludeIds =
       activeTab === 'MY_TASKS' ? new Set(filteredTasks.map((t) => t?.id).filter(Boolean)) : undefined;
@@ -493,6 +514,15 @@ export default function MyTasksPage() {
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [activeTab, searchQuery, filters.priority, filters.projectId, taskViewMode]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(sortedTableRootTasks.length / TABLE_PAGE_SIZE));
+    setTablePage((prev) => Math.min(prev, maxPage));
+  }, [sortedTableRootTasks.length]);
 
   useEffect(() => {
     loadLookups();
@@ -676,13 +706,19 @@ export default function MyTasksPage() {
   const handleSaveTask = async (payload) => {
     try {
       setSaving(true);
+      let savedTask = null;
       if (taskModal.task) {
-        await taskService.updateTask(taskModal.task.id, payload);
+        const res = await taskService.updateTask(taskModal.task.id, payload);
+        savedTask = transformTask(res?.data);
       } else {
-        await taskService.createTask(payload);
+        const res = await taskService.createTask(payload);
+        savedTask = transformTask(res?.data);
       }
       setTaskModal({ open: false, task: null, parentContext: null });
-      await loadTasks();
+      if (savedTask?.id) {
+        setAllTasks((prev) => mergeTasksById([savedTask], prev));
+      }
+      await loadTasks({ silent: true, mergeWithPrevious: true });
     } catch (error) {
       console.error('Save task error:', error);
     } finally {
@@ -1323,8 +1359,14 @@ export default function MyTasksPage() {
       </div>
 
       <div className="text-sm text-gray-600">
-        Showing <span className="font-semibold text-gray-900">{sortedTableRootTasks.length}</span> result
-        {sortedTableRootTasks.length !== 1 ? 's' : ''}
+        Showing <span className="font-semibold text-gray-900">{totalTableRows}</span> result
+        {totalTableRows !== 1 ? 's' : ''}
+        {taskViewMode === 'table' && totalTableRows > TABLE_PAGE_SIZE ? (
+          <>
+            {' '}
+            (page {tablePage} of {totalTablePages})
+          </>
+        ) : null}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -1336,7 +1378,7 @@ export default function MyTasksPage() {
           <>
             <Table
               columns={visibleTableColumns}
-              data={sortedTableRootTasks}
+              data={paginatedTableTasks}
               keyField="id"
               variant="modernEmbedded"
               resizableColumns
@@ -1394,6 +1436,16 @@ export default function MyTasksPage() {
                 )}
               </div>
             )}
+            {totalTablePages > 1 ? (
+              <Pagination
+                currentPage={tablePage}
+                totalPages={totalTablePages}
+                totalItems={totalTableRows}
+                itemsPerPage={TABLE_PAGE_SIZE}
+                onPageChange={setTablePage}
+                className="border-t border-gray-200 bg-gray-50"
+              />
+            ) : null}
           </>
         ) : taskViewMode === 'list' ? (
           <MyTasksListByStatus

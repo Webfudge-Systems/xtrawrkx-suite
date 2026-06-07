@@ -68,10 +68,10 @@ export default function PlatformSidebar({
                 priority
               />
               <div className="min-w-0">
-                <span className="block font-bold text-lg tracking-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent truncate">
+                <span className="block font-bold text-xl tracking-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent truncate">
                   {ORG_MANAGER_SITE.brandName}
                 </span>
-                <p className="text-xs text-gray-500 mt-0.5 truncate">{ORG_MANAGER_SITE.name}</p>
+                <span className="block text-[10px] text-gray-500 truncate">{ORG_MANAGER_SITE.name}</span>
               </div>
             </Link>
           )}

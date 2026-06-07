@@ -677,6 +677,7 @@ export interface ApiClientAccountClientAccount extends Struct.CollectionTypeSche
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::client-account.client-account'> &
       Schema.Attribute.Private
     notes: Schema.Attribute.Text
+    onboardingData: Schema.Attribute.JSON
     onboardingDate: Schema.Attribute.DateTime
     organization: Schema.Attribute.Relation<'manyToOne', 'api::organization.organization'>
     paymentTerms: Schema.Attribute.String & Schema.Attribute.DefaultTo<'NET_30'>

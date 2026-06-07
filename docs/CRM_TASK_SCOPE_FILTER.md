@@ -17,8 +17,9 @@ A task is CRM-scoped when any of these relations is set:
 
 - `leadCompany`
 - `clientAccount`
-- `contact`
 - `deal`
+
+Note: the Task schema has no `contact` relation; server-side `scope=crm` filters only use the three relations above. Client-side CRM filters in `apps/crm/lib/crmTasks.js` may still check `contact` for forward compatibility.
 
 Tasks linked **only** to `projects` (and no CRM relation) are PM tasks and do not appear in CRM.
 

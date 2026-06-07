@@ -1,6 +1,8 @@
 import './globals.css';
 import { AuthProvider } from '@webfudge/auth';
+import { xtrawrkxMetadataIcons } from '@webfudge/utils';
 import LayoutContent from '../components/LayoutContent';
+import { CRM_SITE } from '../lib/site';
 
 export const viewport = {
   themeColor: '#F5630F',
@@ -8,49 +10,48 @@ export const viewport = {
   initialScale: 1,
 };
 
-const siteUrl = (process.env.NEXT_PUBLIC_CRM_APP_URL || 'http://localhost:3007').replace(/\/$/, '');
+const siteUrl = CRM_SITE.url;
 const shareDescription =
   'A modern CRM workspace for leads, deals, client accounts, projects, and communication workflows.';
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Fudge People',
-    template: '%s | Fudge People',
+    default: CRM_SITE.name,
+    template: `%s | ${CRM_SITE.name}`,
   },
-  description:
-    'Fudge People for lead management, deals, accounts, projects, invoices, and team collaboration.',
-  applicationName: 'Fudge People',
+  description: CRM_SITE.description,
+  applicationName: CRM_SITE.name,
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Fudge People',
+    title: CRM_SITE.shortName,
   },
   formatDetection: {
     telephone: false,
   },
-  keywords: ['CRM', 'sales CRM', 'lead management', 'deal pipeline', 'client accounts'],
+  keywords: CRM_SITE.keywords,
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'Fudge People',
+    title: CRM_SITE.name,
     description: shareDescription,
     type: 'website',
     images: [
       {
-        url: '/favicon/web-app-manifest-512x512.png',
+        url: CRM_SITE.ogImagePath,
         width: 512,
         height: 512,
-        alt: 'Fudge People',
+        alt: CRM_SITE.name,
       },
     ],
   },
   twitter: {
     card: 'summary',
-    title: 'Fudge People',
+    title: CRM_SITE.name,
     description: shareDescription,
-    images: ['/favicon/web-app-manifest-512x512.png'],
+    images: [CRM_SITE.ogImagePath],
   },
   robots: {
     index: false,
@@ -62,15 +63,8 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
-    ],
-    apple: [{ url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-    shortcut: ['/favicon/favicon.svg'],
-  },
-  manifest: '/favicon/site.webmanifest',
+  icons: xtrawrkxMetadataIcons(),
+  manifest: CRM_SITE.manifestPath,
 };
 
 export default function RootLayout({ children }) {

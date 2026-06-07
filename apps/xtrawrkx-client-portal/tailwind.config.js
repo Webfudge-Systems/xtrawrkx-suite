@@ -1,6 +1,8 @@
 module.exports = {
+  presets: [require('../../packages/config/tailwind.preset')],
   content: [
     "./src/**/*.{js,jsx}",
+    "../../packages/ui/src/**/*.{js,ts,jsx,tsx}",
     "../../packages/ui/components/**/*.{js,jsx}",
     "../../packages/ui/layouts/**/*.{js,jsx}",
     "../../packages/ui/index.js"
@@ -123,20 +125,22 @@ module.exports = {
           900: '#99182F',
         },
 
-        // Legacy brand colors for backward compatibility
         brand: {
-          primary: '#FF4A74', // Updated to Xtrawrkx brand color
+          primary: '#F5630F',
+          dark: '#1A1A1A',
+          light: '#FFFAF7',
+          white: '#FFFFFF',
+          foreground: '#2d2d2d',
           secondary: '#FF6B94',
-          foreground: '#18181B',
-          'text-light': '#71717A',
-          'text-muted': '#A1A1AA',
+          'text-light': '#666666',
+          'text-muted': '#999999',
           card: '#FFFFFF',
-          border: '#E4E4E7',
-          hover: '#F4F4F5',
+          border: '#e8e8e8',
+          hover: '#f8f8f8',
           success: '#22C55E',
           warning: '#FACC15',
           error: '#EF4444',
-          info: '#FF4A74', // Updated to Xtrawrkx brand color
+          info: '#F5630F',
         }
       },
       fontFamily: {

@@ -2,169 +2,18 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@iconify/react";
+import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import {
+  Button,
+  Input,
+  LoginBrandCorner,
+  LoginMobileBrandHeader,
+} from "@webfudge/ui";
 import { useAuth, useSession } from "@/lib/auth";
-import { SignInForm, SignUpForm, ForgotPasswordForm } from "@/components/auth";
-import { clientSignup, verifyOTP } from "@/lib/api/authService";
-
-// OTP Verification Component
-function OTPVerificationForm({ tempOTP, onVerify, onBack, email }) {
-  const [otp, setOtp] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
-
-    try {
-      await onVerify(otp);
-    } catch (error) {
-      console.error("OTP verification failed:", error);
-      setError(error.message || "Verification failed. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleOtpChange = (e) => {
-    const value = e.target.value.replace(/\D/g, ""); // Only allow digits
-    setOtp(value);
-    if (error) setError(""); // Clear error when user starts typing
-  };
-
-  return (
-    <div className="w-full">
-      <div>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center shadow-md">
-            <svg
-              className="w-6 h-6 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-3xl font-bold text-gray-900">Verify Account</h3>
-            <p className="text-base text-gray-600 mt-2">
-              Enter the verification code to complete your registration
-            </p>
-          </div>
-        </div>
-
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-          {tempOTP ? (
-            <>
-              <p className="text-sm text-blue-800 mb-2">
-                <strong>Development Mode:</strong> Use the code below to proceed
-              </p>
-              <p className="text-lg font-mono font-bold text-blue-900 bg-blue-100 px-3 py-2 rounded-lg inline-block">
-                {tempOTP}
-              </p>
-              <p className="text-xs text-blue-700 mt-2">
-                Email service not configured. Code shown for testing.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-blue-800 mb-2">
-                <strong>Verification Code:</strong> Check your email for the
-                verification code
-              </p>
-              <p className="text-xs text-blue-700">
-                The code was sent to <strong>{email || "your email"}</strong>
-              </p>
-            </>
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label
-              htmlFor="otp"
-              className="block text-base font-medium text-gray-700 mb-2"
-            >
-              Enter Verification Code <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              id="otp"
-              value={otp}
-              onChange={handleOtpChange}
-              className={`block w-full rounded-lg border shadow-sm px-4 py-3.5 text-lg font-mono text-center tracking-widest text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors duration-200 ${
-                error
-                  ? "border-red-300 text-red-900"
-                  : otp.length === 4
-                  ? "border-green-300 bg-green-50"
-                  : "border-gray-300"
-              }`}
-              placeholder="1234"
-              maxLength="4"
-              required
-            />
-            {otp.length === 4 && !error && (
-              <div className="mt-2 flex items-center text-sm text-green-600">
-                <svg
-                  className="w-4 h-4 mr-1"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Code ready! Click to verify.
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="inline-flex items-center justify-center w-full rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 text-lg"
-            >
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Submitting...
-                </div>
-              ) : (
-                "Submit"
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex items-center justify-center w-full rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 border border-gray-300 hover:bg-gray-50 text-gray-700 px-8 py-4 text-lg"
-            >
-              Back to Sign Up
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+import { PORTAL_SITE } from "@/lib/site";
 
 function readWebsiteHandoff() {
   if (typeof window === "undefined") return false;
@@ -198,9 +47,7 @@ function readHandoffIntent() {
   }
 }
 
-/** Survives brief navigations so post-login still lands on Communities after website handoff. */
 const POST_AUTH_LANDING_COMMUNITIES_KEY = "xtrawrkx_portal_post_auth_communities";
-/** One-shot handoff so invite credentials are not left in the address bar (also survives React Strict Mode remount). */
 const INVITE_AUTOLOGIN_STORE_KEY = "xtrawrkx_invite_autologin_once";
 
 function setPostAuthLandingCommunities() {
@@ -234,7 +81,6 @@ function clearPostAuthLandingCommunities() {
   }
 }
 
-/** Website → portal: after sign-in, land on Communities (same as join / “view your community”). */
 function getPostAuthLandingPath() {
   if (typeof window === "undefined") return "/dashboard";
   const intent = readHandoffIntent();
@@ -262,19 +108,304 @@ function getPostAuthLandingPath() {
   return "/dashboard";
 }
 
+const testimonials = [
+  {
+    quote:
+      "Authentication made simple. The OTP system works flawlessly and keeps our accounts secure.",
+  },
+  {
+    quote:
+      "Quick and secure login process. Love the seamless experience from sign-in to dashboard.",
+  },
+  {
+    quote:
+      "The security features give us confidence in managing our business data.",
+  },
+  {
+    quote:
+      "Smooth onboarding that gets us started quickly with all the tools we need.",
+  },
+];
+
+function SignInPanel({
+  initialEmail,
+  websiteHandoff,
+  handoffIntent,
+  onForgotPassword,
+  onSubmit,
+}) {
+  const [email, setEmail] = useState(
+    typeof initialEmail === "string" ? initialEmail.trim() : ""
+  );
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState("");
+
+  useEffect(() => {
+    if (typeof initialEmail === "string" && initialEmail.trim()) {
+      setEmail(initialEmail.trim());
+    }
+  }, [initialEmail]);
+
+  const validate = () => {
+    const next = {};
+    if (!email) next.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(email)) next.email = "Enter a valid email";
+    if (!password) next.password = "Password is required";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoginError("");
+    if (!validate()) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmit({ email, password });
+    } catch (error) {
+      setLoginError(error.message || "Login failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      {websiteHandoff && handoffIntent === "complete-setup" ? (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
+          <p className="font-semibold text-amber-900">Finish client portal setup</p>
+          <p className="mt-1.5 leading-relaxed text-amber-900/85">
+            Your website account is linked. Sign in with the same email and password
+            you use on the xtrawrkx site. After sign-in you can continue onboarding
+            and join communities.
+          </p>
+        </div>
+      ) : null}
+
+      <LoginMobileBrandHeader
+        brandIconPath={PORTAL_SITE.logoPath}
+        brandName={PORTAL_SITE.brandName}
+        productName={PORTAL_SITE.name}
+        creatorLine={PORTAL_SITE.creatorLine}
+      />
+
+      <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
+      <p className="text-gray-600 mb-8">
+        Enter your credentials to access your projects.
+      </p>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {loginError && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">Login failed</p>
+              <p className="text-sm text-red-700 mt-1">{loginError}</p>
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-brand-dark mb-1.5">
+            Email
+          </label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            error={errors.email}
+            className="w-full"
+          />
+          {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-brand-dark mb-1.5">
+            Password
+          </label>
+          <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              error={errors.password}
+              className="w-full pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-dark"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+          {errors.password && (
+            <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={onForgotPassword}
+            className="text-sm text-brand-primary hover:text-orange-600 font-medium transition-colors"
+          >
+            Forgot password?
+          </button>
+        </div>
+
+        <Button type="submit" disabled={isSubmitting} className="w-full" variant="primary">
+          {isSubmitting ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Signing in...
+            </span>
+          ) : (
+            "Sign in"
+          )}
+        </Button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-gray-500">
+        Need access? Contact your administrator.
+      </p>
+    </>
+  );
+}
+
+function ForgotPasswordPanel({ onBackToSignIn }) {
+  const [email, setEmail] = useState("");
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const validate = () => {
+    const next = {};
+    if (!email) next.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(email)) next.email = "Enter a valid email";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitError("");
+    if (!validate()) return;
+    setIsSubmitting(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      setSuccess(true);
+    } catch (error) {
+      setSubmitError(error.message || "Failed to send reset link. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <>
+        <LoginMobileBrandHeader
+          brandIconPath={PORTAL_SITE.logoPath}
+          brandName={PORTAL_SITE.brandName}
+          productName={PORTAL_SITE.name}
+          creatorLine={PORTAL_SITE.creatorLine}
+        />
+        <h2 className="text-3xl font-semibold text-brand-dark mb-2">Check your email</h2>
+        <p className="text-gray-600 mb-8">
+          If an account with <strong>{email}</strong> exists, you will receive reset
+          instructions shortly.
+        </p>
+        <Button type="button" variant="outline" className="w-full" onClick={onBackToSignIn}>
+          Back to sign in
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <LoginMobileBrandHeader
+        brandIconPath={PORTAL_SITE.logoPath}
+        brandName={PORTAL_SITE.brandName}
+        productName={PORTAL_SITE.name}
+        creatorLine={PORTAL_SITE.creatorLine}
+      />
+      <h2 className="text-3xl font-semibold text-brand-dark mb-2">Reset your password</h2>
+      <p className="text-gray-600 mb-8">
+        Enter your email and we&apos;ll send reset instructions.
+      </p>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {submitError && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700">{submitError}</p>
+          </div>
+        )}
+
+        <div>
+          <label htmlFor="reset-email" className="block text-sm font-medium text-brand-dark mb-1.5">
+            Email
+          </label>
+          <Input
+            id="reset-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            error={errors.email}
+            className="w-full"
+          />
+          {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+        </div>
+
+        <Button type="submit" disabled={isSubmitting} className="w-full" variant="primary">
+          {isSubmitting ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Sending...
+            </span>
+          ) : (
+            "Send reset link"
+          )}
+        </Button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-gray-500">
+        Remembered your password?{" "}
+        <button
+          type="button"
+          onClick={onBackToSignIn}
+          className="font-medium text-brand-primary hover:text-orange-600"
+        >
+          Back to sign in
+        </button>
+      </p>
+    </>
+  );
+}
+
 export default function AuthPage() {
   const [activeForm, setActiveForm] = useState("signin");
   const [websitePrefillEmail, setWebsitePrefillEmail] = useState("");
   const [websiteHandoff, setWebsiteHandoff] = useState(readWebsiteHandoff);
   const [handoffIntent, setHandoffIntent] = useState(readHandoffIntent);
   const inviteAutoLoginAttempted = useRef(false);
-  const [otpStep, setOtpStep] = useState(false);
-  const [otpData, setOtpData] = useState({
-    email: "",
-    phone: "",
-    name: "",
-    tempOTP: "",
-  });
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const router = useRouter();
   const { signIn, checkAuth } = useAuth();
@@ -308,7 +439,6 @@ export default function AuthPage() {
     }
   }, []);
 
-  // Capture invite email/password from URL into sessionStorage, then strip the query (password must not linger in the bar/history).
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -363,208 +493,43 @@ export default function AuthPage() {
     })();
   }, [signIn, router]);
 
-  // Redirect logged-in users away from /auth (website handoff → Communities)
   useEffect(() => {
-    if (status === "loading") {
-      return;
-    }
-
+    if (status === "loading") return;
     if (status === "authenticated" && session?.user && !readInviteHandoff()) {
       router.push(getPostAuthLandingPath());
     }
   }, [status, session, router]);
 
-  const testimonials = [
-    {
-      name: "Jeremy Winson",
-      role: "Founder",
-      company: "Elite",
-      companyCode: "ELI",
-      avatar: "JW",
-      quote:
-        "Authentication made simple. The OTP system works flawlessly and keeps our accounts secure.",
-      bgColor: "from-orange-400 to-pink-500",
-    },
-    {
-      name: "Sarah Chen",
-      role: "CEO",
-      company: "TechFlow",
-      companyCode: "TF",
-      avatar: "SC",
-      quote:
-        "Quick and secure login process. Love the seamless experience from signup to dashboard.",
-      bgColor: "from-blue-400 to-cyan-500",
-    },
-    {
-      name: "Alex Rodriguez",
-      role: "CTO",
-      company: "InnovateLab",
-      companyCode: "IL",
-      avatar: "AR",
-      quote:
-        "The security features give us confidence in managing our business data.",
-      bgColor: "from-emerald-400 to-teal-500",
-    },
-    {
-      name: "Maya Patel",
-      role: "Director",
-      company: "GreenTech",
-      companyCode: "GT",
-      avatar: "MP",
-      quote:
-        "Smooth registration process that gets us started quickly with all the tools we need.",
-      bgColor: "from-rose-400 to-pink-500",
-    },
-  ];
-
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 4000); // Change every 4 seconds
-
+    }, 4000);
     return () => clearInterval(interval);
-  }, [testimonials.length]);
+  }, []);
 
   const handleSignIn = async (formData) => {
-    try {
-      await signIn(formData.email, formData.password);
-      router.push(getPostAuthLandingPath());
-    } catch (error) {
-      console.error("Sign in error:", error);
-      alert("Login failed. Please check your credentials.");
-    }
+    await signIn(formData.email, formData.password);
+    await checkAuth();
+    router.push(getPostAuthLandingPath());
   };
 
-  const handleSignUp = async (formData) => {
-    try {
-      // Call backend signup endpoint with all form data
-      const response = await clientSignup(formData);
-
-      if (response.success) {
-        // Show OTP verification step
-        // If OTP is returned in response (dev mode or email failed), use it
-        const otpCode = response.otp || "";
-        setOtpData({
-          email: formData.email,
-          phone: formData.phone,
-          name: formData.name || "",
-          tempOTP: otpCode, // OTP from email or dev mode
-        });
-        setOtpStep(true);
-      } else {
-        throw new Error(response.message || "Sign up failed");
-      }
-    } catch (error) {
-      console.error("Sign up error:", error);
-      alert(error.message || "Sign up failed. Please try again.");
-    }
-  };
-
-  const handleOTPVerification = async (otp) => {
-    try {
-      const response = await verifyOTP(otpData.email, otp);
-
-      if (response.success && response.token) {
-        await checkAuth();
-        window.location.href = getPostAuthLandingPath();
-      } else {
-        throw new Error(response.message || "Verification failed");
-      }
-    } catch (error) {
-      console.error("OTP verification error:", error);
-      throw error;
-    }
-  };
-
-  const handleBackToSignUp = () => {
-    setOtpStep(false);
-    setOtpData({ email: "", phone: "", name: "", tempOTP: "" });
-  };
-
-  const handleForgotPassword = async (formData) => {
-    // TODO: Implement forgot password logic with backend
-  };
-
-  // Show loading state while checking authentication
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF4A74] mx-auto mb-4"></div>
-          <p className="text-white">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-brand-light">
+        <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-lg border border-gray-100">
+          <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
+          <span className="font-medium text-brand-dark">Loading...</span>
         </div>
       </div>
     );
   }
 
-  // If user is authenticated, don't show auth page (redirect is handled in useEffect).
-  // Website handoff: always show sign-in so the correct account can log in (tokens cleared in checkAuth).
   if (status === "authenticated" && !websiteHandoff) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF4A74] mx-auto mb-4"></div>
-          <p className="text-white">Redirecting...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If in OTP step, show OTP verification form with split layout
-  if (otpStep) {
-    return (
-      <div className="min-h-screen w-full overflow-x-hidden">
-        <div className="min-h-screen flex relative">
-          {/* Left side - Welcome Section - Fixed */}
-          <motion.div
-            className="hidden lg:flex w-2/5 p-8 lg:p-16 flex-col justify-center overflow-hidden fixed left-0 top-0 rounded-3xl h-[calc(100vh-3rem)] m-4 lg:m-6 z-10"
-            style={{
-              backgroundImage: "url('/images/download (10).png')",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-            }}
-            initial={{ x: -100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-          >
-            <div className="relative z-10">
-              {/* Logo/Icon */}
-              <div className="mb-12">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-2xl border border-white/30">
-                  <span className="text-white font-bold text-2xl">X</span>
-                </div>
-              </div>
-
-              {/* Main heading */}
-              <div className="mb-16">
-                <h1 className="text-5xl font-bold text-white mb-6 leading-tight drop-shadow-lg">
-                  Almost there!
-                </h1>
-                <p className="text-white/90 text-xl leading-relaxed max-w-md drop-shadow-md">
-                  Just one more step to complete your registration and get
-                  started.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Right side - OTP Form - Scrollable */}
-          <motion.div
-            className="w-full lg:w-3/5 bg-white p-4 sm:p-6 lg:p-8 space-y-6 ml-0 lg:ml-[40%] min-h-screen overflow-y-auto flex items-center justify-center"
-            initial={{ x: 100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.8 }}
-          >
-            <div className="max-w-md lg:max-w-2xl w-full px-2 sm:px-4">
-              <OTPVerificationForm
-                tempOTP={otpData.tempOTP}
-                onVerify={handleOTPVerification}
-                onBack={handleBackToSignUp}
-                email={otpData.email}
-              />
-            </div>
-          </motion.div>
+      <div className="min-h-screen flex items-center justify-center bg-brand-light">
+        <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-lg border border-gray-100">
+          <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
+          <span className="font-medium text-brand-dark">Redirecting...</span>
         </div>
       </div>
     );
@@ -572,9 +537,7 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden">
-      {/* Split Layout */}
       <div className="min-h-screen flex relative">
-        {/* Left side - Welcome Section - Fixed */}
         <motion.div
           className="hidden lg:flex w-2/5 p-8 lg:p-16 flex-col justify-center overflow-hidden fixed left-0 top-0 rounded-3xl h-[calc(100vh-2rem)] m-4 z-10"
           style={{
@@ -587,16 +550,13 @@ export default function AuthPage() {
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.8 }}
         >
-          <div className="relative z-10">
-            {/* Logo/Icon */}
-            <div className="mb-12">
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-2xl border border-white/30">
-                <span className="text-white font-bold text-2xl">X</span>
-              </div>
-            </div>
+          <LoginBrandCorner
+            brandIconPath={PORTAL_SITE.logoPath}
+            brandName={PORTAL_SITE.brandName}
+          />
 
-            {/* Main heading */}
-            <div className="mb-16">
+          <div className="relative z-10">
+            <div className="mb-16 mt-20">
               <h1 className="text-5xl font-bold text-white mb-6 leading-tight drop-shadow-lg">
                 Welcome to{" "}
                 <span className="bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
@@ -605,11 +565,10 @@ export default function AuthPage() {
                 .
               </h1>
               <p className="text-white/90 text-xl leading-relaxed max-w-md drop-shadow-md">
-                Sign in to access your projects and collaborate with your team.
+                {PORTAL_SITE.tagline}
               </p>
             </div>
 
-            {/* Notification-style Testimonial Slider */}
             <div className="relative max-w-lg">
               <div className="h-48 overflow-hidden">
                 {testimonials.map((testimonial, index) => (
@@ -631,25 +590,23 @@ export default function AuthPage() {
                       ease: "easeInOut",
                     }}
                   >
-                    {/* Glass Notification Card */}
                     <div className="bg-white/40 backdrop-blur-xl rounded-2xl p-8 shadow-2xl border border-white/40 ring-1 ring-white/20">
                       <div className="flex items-start space-x-5">
-                        {/* App Icon */}
-                        <div className="w-16 h-16 bg-white/65 backdrop-blur-md rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/50">
-                          <span className="text-primary-600 font-bold text-2xl">
-                            X
-                          </span>
-                        </div>
+                        <Image
+                          src={PORTAL_SITE.logoPath}
+                          alt=""
+                          width={64}
+                          height={64}
+                          className="w-16 h-16 rounded-2xl object-contain flex-shrink-0 bg-white/65 backdrop-blur-md border border-white/50 p-2"
+                          priority
+                        />
 
-                        {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="font-semibold text-white text-lg drop-shadow-md">
                               Xtrawrkx
                             </h4>
-                            <span className="text-sm text-white/70">
-                              1 min ago
-                            </span>
+                            <span className="text-sm text-white/70">1 min ago</span>
                           </div>
                           <p className="text-sm text-white/80 font-medium mb-3">
                             Success Alert
@@ -659,12 +616,9 @@ export default function AuthPage() {
                           </p>
                         </div>
 
-                        {/* Heart Icon */}
                         <div className="flex-shrink-0">
                           <div className="w-8 h-8 backdrop-blur-sm rounded-full flex items-center justify-center border border-red-300/30">
-                            <span className="text-white text-sm">
-                              <Icon icon="mdi:heart" className="text-red-500" />
-                            </span>
+                            <Icon icon="mdi:heart" className="text-red-500" />
                           </div>
                         </div>
                       </div>
@@ -673,7 +627,6 @@ export default function AuthPage() {
                 ))}
               </div>
 
-              {/* Glass dot indicators */}
               <div className="flex justify-center space-x-3 mt-12">
                 {testimonials.map((_, index) => (
                   <button
@@ -691,26 +644,13 @@ export default function AuthPage() {
           </div>
         </motion.div>
 
-        {/* Right side - Forms - Scrollable */}
         <motion.div
           className="w-full lg:w-3/5 bg-white p-4 sm:p-6 lg:p-8 space-y-6 ml-0 lg:ml-[40%] min-h-screen overflow-y-auto flex items-center justify-center"
           initial={{ x: 100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.8 }}
         >
-          <div className="max-w-md lg:max-w-2xl w-full px-2 sm:px-4">
-            {websiteHandoff && handoffIntent === "complete-setup" ? (
-              <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
-                <p className="font-semibold text-amber-900">
-                  Finish client portal setup
-                </p>
-                <p className="mt-1.5 leading-relaxed text-amber-900/85">
-                  Your website account is linked. Sign in with the same email
-                  and password you use on the xtrawrkx site. After sign-in you can
-                  continue onboarding and join communities.
-                </p>
-              </div>
-            ) : null}
+          <div className="max-w-md w-full px-2 sm:px-4">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeForm}
@@ -722,27 +662,16 @@ export default function AuthPage() {
                   ease: "easeInOut",
                 }}
               >
-                {activeForm === "signin" && (
-                  <SignInForm
+                {activeForm === "signin" ? (
+                  <SignInPanel
                     initialEmail={websitePrefillEmail}
+                    websiteHandoff={websiteHandoff}
+                    handoffIntent={handoffIntent}
                     onForgotPassword={() => setActiveForm("forgot-password")}
-                    onSignUp={() => setActiveForm("signup")}
                     onSubmit={handleSignIn}
                   />
-                )}
-
-                {activeForm === "signup" && (
-                  <SignUpForm
-                    onSignIn={() => setActiveForm("signin")}
-                    onSubmit={handleSignUp}
-                  />
-                )}
-
-                {activeForm === "forgot-password" && (
-                  <ForgotPasswordForm
-                    onSignIn={() => setActiveForm("signin")}
-                    onSubmit={handleForgotPassword}
-                  />
+                ) : (
+                  <ForgotPasswordPanel onBackToSignIn={() => setActiveForm("signin")} />
                 )}
               </motion.div>
             </AnimatePresence>

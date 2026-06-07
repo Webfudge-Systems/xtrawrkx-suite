@@ -31,6 +31,7 @@ const {
   userCanAccessProjectRow,
   userCanViewProjectRow,
 } = require('../../../utils/rbac');
+const { attachRelationsToTasks } = require('../../../utils/crm-relation-attach');
 const {
   computeNextOccurrence,
   ensureRecurrenceGroupId,
@@ -495,6 +496,8 @@ const ALLOWED_POPULATE = new Set([
   'assignee',
   'assigner',
   'collaborators',
+  'pendingCollaborators',
+  'assignmentRequestedBy',
   'projects',
   'parent',
   'subtasks',
@@ -577,6 +580,7 @@ async function userMayViewTask(strapi, ctx, orgId, userId, entry) {
   const row = await strapi.entityService.findOne(UID, entry.id, {
     populate: {
       assignee: true,
+      assigner: true,
       collaborators: true,
       pendingCollaborators: true,
       assignmentRequestedBy: true,
@@ -587,6 +591,7 @@ async function userMayViewTask(strapi, ctx, orgId, userId, entry) {
   if (!row || orgIdFromRelation(row.organization) !== orgId) return false;
   const requesterId = relationId(row.assignmentRequestedBy);
   if (requesterId != null && Number(requesterId) === Number(userId)) return true;
+  if (userIsTaskReporter(row, userId)) return true;
   const aid = relationId(row.assignee);
   if (aid != null && Number(aid) === Number(userId)) return true;
   const cols = collaboratorIdsFromEntity(row);
@@ -655,7 +660,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (!isPmOrgAdminRole(ctx) && ctx.state.user?.id && !crmScope) {
       const uid = ctx.state.user.id;
       const pids = await projectIdsVisibleToUser(strapi, ctx, ctx.state.orgId, uid);
-      const visOr = [{ assignee: uid }, { collaborators: { id: uid } }];
+      const visOr = [{ assigner: uid }, { assignee: uid }, { collaborators: { id: uid } }];
       if (pids.length) visOr.push({ projects: { id: { $in: pids } } });
       const hasExtra = Object.keys(extraFilters).length > 0;
       if (hasExtra) {
@@ -667,7 +672,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       Object.assign(filters, extraFilters);
     }
 
-    const results = await strapi.entityService.findMany(UID, {
+    let results = await strapi.entityService.findMany(UID, {
       filters,
       start: (page - 1) * pageSize,
       limit: pageSize,
@@ -675,8 +680,13 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       populate: buildTaskPopulateConfig(query.populate),
     });
 
+    if (results.length > 0) {
+      results = await attachRelationsToTasks(strapi, ctx.state.orgId, results);
+    }
+
     const total = await safeCount(strapi, UID, filters, results.length);
     const pageCount = Math.ceil(Math.max(total, 1) / pageSize);
+    ctx.set('Cache-Control', 'no-store');
     return { data: results, meta: { pagination: { page, pageSize, pageCount, total } } };
   },
 
@@ -691,7 +701,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
 
     const populate = buildTaskPopulateConfig(ctx.query?.populate);
     populate.organization = true;
-    const entry = await strapi.entityService.findOne(UID, pk, {
+    let entry = await strapi.entityService.findOne(UID, pk, {
       populate,
     });
     if (!entry) return ctx.notFound();
@@ -702,6 +712,8 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       const ok = await userMayViewTask(strapi, ctx, ctx.state.orgId, ctx.state.user.id, entry);
       if (!ok) return ctx.forbidden('Access denied');
     }
+    [entry] = await attachRelationsToTasks(strapi, ctx.state.orgId, [entry]);
+    ctx.set('Cache-Control', 'no-store');
     return { data: entry };
   },
 
@@ -1304,6 +1316,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
           : null,
       }));
 
+    ctx.set('Cache-Control', 'no-store');
     return {
       data: {
         overdue: { count: overdue.length, items: slice(overdue, 5) },

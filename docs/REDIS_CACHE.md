@@ -2,7 +2,7 @@
 
 ## Summary
 
-When `REDIS_URL` is set, the API caches **GET** responses for almost all `/api/*` routes — including CRM/PM “big data” such as contacts, lead companies, deals, tasks, projects, meetings, proposals, invoices, notifications, and related list/detail endpoints. **POST/PUT/PATCH/DELETE** clears that organization’s cache so lists stay fresh.
+When `REDIS_URL` is set, the API caches **GET** responses for almost all `/api/*` routes — including CRM/PM “big data” such as contacts, lead companies, deals, projects, meetings, proposals, invoices, notifications, and related list/detail endpoints. **Task** reads (`GET /api/tasks*`) are **never** cached (stale paginated lists). **POST/PUT/PATCH/DELETE** clears that organization’s cache so lists stay fresh.
 
 ## Scope
 
@@ -21,7 +21,6 @@ All authenticated (or public) **GET** requests under `/api/*`, for example:
 - `GET /api/contacts` (+ pagination/filters)
 - `GET /api/lead-companies`
 - `GET /api/deals`
-- `GET /api/tasks`
 - `GET /api/projects`
 - `GET /api/meetings`
 - `GET /api/notifications`
@@ -36,6 +35,7 @@ Cache keys include **user id**, **organization id**, **org role**, and a hash of
 | `/api/auth/*` | Login/signup must never be cached |
 | `/api/health/*` | Ops/diagnostics |
 | `/api/upload`, `/admin/*` | Uploads / admin |
+| `GET /api/tasks`, `GET /api/tasks/*` | Paginated, high-churn; caching caused stale My Tasks lists — see `TASK_LIST_CACHE_FIX.md` |
 | POST, PUT, PATCH, DELETE | Writes; they **invalidate** org cache instead |
 
 ## Invalidation
@@ -89,6 +89,16 @@ curl -s -D - -o /dev/null \
 
 # Second identical request should show: X-Cache: HIT
 ```
+
+## Flush stale cache (one-time after task-cache deploy)
+
+```powershell
+cd apps/backend
+npm run flush:api-cache
+npm run flush:api-cache -- --org 1
+```
+
+Loads `REDIS_URL` from `apps/backend/.env` when not set in the shell. See `TASK_LIST_CACHE_FIX.md`.
 
 ## Local test (no redis-cli)
 

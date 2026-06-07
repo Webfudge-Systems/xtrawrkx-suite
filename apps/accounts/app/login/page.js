@@ -4,8 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@webfudge/auth';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
-import { Button, Input } from '@webfudge/ui';
-import Image from 'next/image';
+import {
+  Button,
+  Input,
+  LoginBrandCorner,
+  LoginProductCredit,
+  LoginMobileBrandHeader,
+} from '@webfudge/ui';
+import { ACCOUNTS_SITE } from '../../lib/site';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -55,21 +61,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left branding panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-primary to-orange-600 flex-col justify-center px-16 py-20">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-primary to-orange-600 relative flex-col justify-center px-16 py-20">
+        <LoginBrandCorner
+          brandIconPath={ACCOUNTS_SITE.logoPath}
+          brandName={ACCOUNTS_SITE.brandName}
+        />
         <div className="max-w-lg">
-          <div className="flex items-center gap-3 mb-8">
-            <Image
-              src="/favicon/web-app-manifest-512x512.png"
-              alt="Xtrawrkx"
-              width={40}
-              height={40}
-              className="rounded-xl"
-            />
-            <div>
-              <p className="text-white font-bold text-lg leading-tight">Fudge Base</p>
-              <p className="text-white/70 text-xs">by Webfudge Systems</p>
-            </div>
-          </div>
+          <LoginProductCredit
+            productName={ACCOUNTS_SITE.name}
+            creatorLine={ACCOUNTS_SITE.creatorLine}
+          />
           <h1 className="text-5xl font-bold text-white mb-6">Welcome back</h1>
           <p className="text-xl text-white/90 mb-4">
             Account Management — users, roles, departments, and access in one workspace.
@@ -95,10 +96,12 @@ export default function LoginPage() {
       {/* Right form panel */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center p-8 lg:p-16">
         <div className="w-full max-w-md mx-auto">
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <Image src="/favicon/web-app-manifest-512x512.png" alt="Xtrawrkx" width={32} height={32} className="rounded-lg" />
-            <span className="font-semibold text-brand-foreground">Fudge Base</span>
-          </div>
+          <LoginMobileBrandHeader
+            brandIconPath={ACCOUNTS_SITE.logoPath}
+            brandName={ACCOUNTS_SITE.brandName}
+            productName={ACCOUNTS_SITE.name}
+            creatorLine={ACCOUNTS_SITE.creatorLine}
+          />
           <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
           <p className="text-gray-600 mb-8">Enter your credentials to access Accounts.</p>
           <form onSubmit={handleSubmit} className="space-y-5">

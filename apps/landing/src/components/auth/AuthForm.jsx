@@ -1,14 +1,16 @@
  "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import { Icon } from "@iconify/react";
 import Button from "../common/Button";
 import SearchableSelect from "../common/SearchableSelect";
 import { FormSkipLink, SignupStepNav } from "./FormNavButtons";
+import CompanyNameField from "./CompanyNameField";
 import {
-  COMPANY_TYPES,
-  getSubTypesForCompanyType,
-  INDUSTRIES,
+  getLeadSubTypesForCompanyType,
+  LEAD_COMPANY_TYPES,
 } from "@/src/data/companyRegistrationOptions";
 import { usePublicAuth } from "@/src/contexts/PublicAuthContext";
 import { commonToasts, toastUtils } from "@/src/utils/toast";
@@ -25,7 +27,6 @@ const signupInitialState = {
   companyPhone: "",
   companyType: "",
   companySubType: "",
-  industry: "",
   website: "",
   companyDescription: "",
   jobTitle: "",
@@ -65,6 +66,15 @@ export default function AuthForm({
   const [signupStep, setSignupStep] = useState(0);
   const [skippedSteps, setSkippedSteps] = useState({ address: false, social: false });
   const [localError, setLocalError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [companyCheck, setCompanyCheck] = useState({
+    checking: false,
+    matches: [],
+    hasStrongMatch: false,
+    hasExactMatch: false,
+    confirmedDifferent: false,
+    canProceed: true,
+  });
   const signupSteps = [
     "Personal",
     "Company Information",
@@ -85,6 +95,15 @@ export default function AuthForm({
   const handleModeChange = (nextMode) => {
     clearError();
     setLocalError("");
+    setShowPassword(false);
+    setCompanyCheck({
+      checking: false,
+      matches: [],
+      hasStrongMatch: false,
+      hasExactMatch: false,
+      confirmedDifferent: false,
+      canProceed: true,
+    });
     setMode(nextMode);
     setSignupStep(0);
     setSkippedSteps({ address: false, social: false });
@@ -113,8 +132,17 @@ export default function AuthForm({
     setSignupData((current) => ({ ...current, [name]: value }));
   };
 
+  const companyTypeOptions = useMemo(
+    () =>
+      LEAD_COMPANY_TYPES.map((type) => ({
+        value: type.id,
+        label: type.name,
+      })),
+    []
+  );
+
   const companySubTypeOptions = useMemo(
-    () => getSubTypesForCompanyType(signupData.companyType),
+    () => getLeadSubTypesForCompanyType(signupData.companyType),
     [signupData.companyType]
   );
 
@@ -124,7 +152,13 @@ export default function AuthForm({
 
     if (!signupData.firstName.trim() || !signupData.lastName.trim()) return "Please complete your personal details.";
     if (!signupData.email.trim() || !signupData.password.trim()) return "Please provide your account email and password.";
-    if (!signupData.companyName.trim() || !signupData.companyEmail.trim() || !signupData.industry.trim()) return "Please complete required company details.";
+    if (!signupData.companyName.trim() || !signupData.companyEmail.trim()) return "Please complete required company details.";
+    if (companyCheck.hasExactMatch) {
+      return "This company is already registered. Sign in to your existing account instead.";
+    }
+    if (companyCheck.hasStrongMatch && !companyCheck.confirmedDifferent) {
+      return "A similar company may already exist. Confirm this is a different organization or sign in instead.";
+    }
     if (
       !addressStepSkipped &&
       (!signupData.addressLine1.trim() || !signupData.city.trim() || !signupData.country.trim())
@@ -219,8 +253,17 @@ export default function AuthForm({
       if (signupData.password.length < 6) return "Password must be at least 6 characters long.";
     }
     if (signupStep === 1) {
-      if (!signupData.companyName.trim() || !signupData.industry.trim() || !signupData.companyEmail.trim() || !signupData.jobTitle.trim()) {
+      if (!signupData.companyName.trim() || !signupData.companyEmail.trim() || !signupData.jobTitle.trim()) {
         return "Please complete all required company fields.";
+      }
+      if (companyCheck.checking) {
+        return "Checking for similar company names — please wait a moment.";
+      }
+      if (companyCheck.hasExactMatch) {
+        return "This company is already registered. Sign in to your existing account instead.";
+      }
+      if (companyCheck.hasStrongMatch && !companyCheck.confirmedDifferent) {
+        return "A similar company may already exist. Confirm this is a different organization or sign in instead.";
       }
     }
     if (signupStep === 2 && !skippedSteps.address) {
@@ -270,80 +313,101 @@ export default function AuthForm({
   const isSignupLastStep = signupStep === signupSteps.length - 1;
   const showSkipButton = signupStep === 2 || signupStep === 3;
 
-  const surfaceClassName = isPage
-    ? "w-full overflow-hidden rounded-[2rem] border border-white/60 bg-white/95 shadow-[0_32px_80px_rgba(15,23,42,0.14)] backdrop-blur"
-    : "w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/60 bg-white shadow-[0_32px_80px_rgba(15,23,42,0.24)]";
+  const brandPanel = (
+    <div className="relative flex h-full min-h-[280px] flex-col justify-between overflow-hidden bg-gradient-to-br from-slate-900 via-sky-900 to-slate-700 px-6 py-10 text-white sm:min-h-[320px] sm:px-10 lg:min-h-0 lg:px-14 lg:py-16">
+      <div className="absolute inset-0">
+        <video
+          src="/mountain_vid1.webm"
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="h-full w-full object-cover opacity-35"
+        />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-sky-950/65 to-brand-primary/35" />
 
-  return (
-    <div className={surfaceClassName}>
-      <div className="grid lg:min-h-[760px] lg:grid-cols-[1fr_0.94fr]">
-        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-sky-900 to-slate-700 px-6 py-10 text-white sm:px-10 lg:px-12 lg:py-14">
-          <div className="absolute inset-0">
-            <video
-              src="/mountain_vid1.webm"
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="h-full w-full object-cover opacity-30"
-            />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950/75 via-sky-900/60 to-pink-500/30" />
-          <div className="relative z-10 flex h-full flex-col justify-between gap-10">
-            <div>
-              <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.28em] text-white/90">
-                xtrawrkx access
-              </span>
-              <h2 className="mt-5 max-w-md font-heading text-4xl leading-tight sm:text-5xl">
-                From complexity to clarity.
-              </h2>
-              <p className="mt-4 max-w-lg text-sm leading-6 text-white/85 sm:text-base">
-                Build your public profile, keep your details in sync, and move
-                into the right community experience from one place.
-              </p>
-            </div>
+      <div className="relative z-10">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 backdrop-blur-sm transition hover:bg-white/15"
+        >
+          <Image
+            src="/logo.png"
+            alt="xtrawrkx"
+            width={36}
+            height={36}
+            className="rounded-lg"
+          />
+          <span className="text-sm font-medium tracking-wide text-white/95">
+            xtrawrkx
+          </span>
+        </Link>
+      </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                  <Icon icon="solar:user-id-bold" width={18} />
-                  Profile ready
-                </div>
-                <p className="text-sm text-white/80">
-                  Capture portal-style identity and company details during
-                  signup.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                  <Icon icon="solar:users-group-rounded-bold" width={18} />
-                  Community aware
-                </div>
-                <p className="text-sm text-white/80">
-                  Membership status is checked after sign-in so users get the
-                  right next step.
-                </p>
-              </div>
-            </div>
-          </div>
+      <div className="relative z-10 mt-8 flex flex-1 flex-col justify-center gap-8 lg:mt-0">
+        <div>
+          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.28em] text-white/90">
+            xtrawrkx access
+          </span>
+          <h2 className="mt-5 max-w-lg font-heading text-3xl leading-tight sm:text-4xl lg:text-5xl">
+            From complexity to clarity.
+          </h2>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-white/85 sm:text-base">
+            Build your public profile, keep your details in sync, and move into
+            the right community experience from one place.
+          </p>
         </div>
 
-        <div className="px-6 py-8 sm:px-10 sm:py-10 lg:px-12 lg:py-12">
-          <div className="mx-auto max-w-[520px]">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <Icon icon="solar:user-id-bold" width={18} />
+              Profile ready
+            </div>
+            <p className="text-sm leading-6 text-white/80">
+              Capture identity and company details during signup.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <Icon icon="solar:users-group-rounded-bold" width={18} />
+              Community aware
+            </div>
+            <p className="text-sm leading-6 text-white/80">
+              After sign-in, we route you to the right community experience.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const formPanelInner = (
+    <>
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium uppercase tracking-[0.24em] text-brand-primary">
                 Welcome
               </p>
-              <h3 className="mt-3 text-3xl font-semibold leading-tight text-slate-900">
+              <h3 className="mt-3 text-3xl font-semibold leading-tight text-slate-900 sm:text-4xl">
                 {activeTitle}
               </h3>
-              <p className="mt-3 max-w-md text-sm leading-6 text-slate-500">
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500 sm:text-base">
                 {isSignup
                   ? "Set up your account to unlock your profile page and community routing."
                   : "Use your email and password to continue to your profile and community access."}
               </p>
             </div>
+            {isPage ? (
+              <Link
+                href="/"
+                className="hidden shrink-0 items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 lg:inline-flex"
+              >
+                <Icon icon="solar:arrow-left-linear" width={16} />
+                Back to site
+              </Link>
+            ) : null}
             {!isPage && onClose ? (
               <button
                 type="button"
@@ -356,34 +420,34 @@ export default function AuthForm({
             ) : null}
           </div>
 
-          <div className="mt-8 grid grid-cols-2 rounded-[1.15rem] border border-slate-200 bg-slate-50 p-1">
+          <div className={`mt-8 grid grid-cols-2 p-1 ${isPage ? "rounded-2xl border border-slate-200 bg-slate-100/80" : "rounded-[1.15rem] border border-slate-200 bg-slate-50"}`}>
             <button
               type="button"
               className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
                 !isSignup
-                  ? "bg-white text-slate-900 shadow-sm"
+                  ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
                   : "text-slate-500 hover:text-slate-900"
               }`}
               onClick={() => handleModeChange("login")}
             >
-              I already have an account
+              Sign in
             </button>
             <button
               type="button"
               className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
                 isSignup
-                  ? "bg-white text-slate-900 shadow-sm"
+                  ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
                   : "text-slate-500 hover:text-slate-900"
               }`}
               onClick={() => handleModeChange("signup")}
             >
-              I need to register
+              Register
             </button>
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             {isSignup ? (
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
+              <div className={`rounded-3xl p-5 ${isPage ? "border border-slate-200/80 bg-slate-50/50" : "border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]"}`}>
                 <div className="mb-5">
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-sm font-semibold text-slate-900">{signupSteps[signupStep]}</p>
@@ -401,23 +465,38 @@ export default function AuthForm({
                     <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">First name *</span><input name="firstName" value={signupData.firstName} onChange={handleSignupChange} className="input" placeholder="Alex" /></label>
                     <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Last name *</span><input name="lastName" value={signupData.lastName} onChange={handleSignupChange} className="input" placeholder="Johnson" /></label>
                     <label className="block sm:col-span-2"><span className="mb-2 block text-sm font-medium text-slate-700">Email *</span><input name="email" type="email" value={signupData.email} onChange={handleSignupChange} className="input" placeholder="alex@company.com" /></label>
-                    <label className="block sm:col-span-2"><span className="mb-2 block text-sm font-medium text-slate-700">Password *</span><input name="password" type="password" value={signupData.password} onChange={handleSignupChange} className="input" placeholder="At least 6 characters" /></label>
+                    <label className="block sm:col-span-2">
+                      <span className="mb-2 block text-sm font-medium text-slate-700">Password *</span>
+                      <div className="relative">
+                        <input
+                          name="password"
+                          type={showPassword ? "text" : "password"}
+                          value={signupData.password}
+                          onChange={handleSignupChange}
+                          className="input pr-12"
+                          placeholder="At least 6 characters"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600"
+                          onClick={() => setShowPassword((current) => !current)}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          <Icon icon={showPassword ? "solar:eye-closed-linear" : "solar:eye-linear"} width={20} />
+                        </button>
+                      </div>
+                    </label>
                     <label className="block sm:col-span-2"><span className="mb-2 block text-sm font-medium text-slate-700">Phone</span><input name="phone" value={signupData.phone} onChange={handleSignupChange} className="input" placeholder="+1 (555) 123-4567" /></label>
                   </div>
                 )}
 
                 {signupStep === 1 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="block sm:col-span-2"><span className="mb-2 block text-sm font-medium text-slate-700">Company name *</span><input name="companyName" value={signupData.companyName} onChange={handleSignupChange} className="input" placeholder="Enter company name" /></label>
-                    <SearchableSelect
-                      className="block"
-                      label="Industry"
-                      name="industry"
-                      value={signupData.industry}
-                      onChange={handleSignupSelectChange}
-                      options={INDUSTRIES}
-                      placeholder="Select industry"
-                      required
+                    <CompanyNameField
+                      value={signupData.companyName}
+                      onChange={handleSignupChange}
+                      onStatusChange={setCompanyCheck}
+                      disabled={authBusy}
                     />
                     <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Role / title *</span><input name="jobTitle" value={signupData.jobTitle} onChange={handleSignupChange} className="input" placeholder="Founder" /></label>
                     <SearchableSelect
@@ -426,7 +505,7 @@ export default function AuthForm({
                       name="companyType"
                       value={signupData.companyType}
                       onChange={handleSignupSelectChange}
-                      options={COMPANY_TYPES}
+                      options={companyTypeOptions}
                       placeholder="Select company type"
                     />
                     <SearchableSelect
@@ -437,7 +516,7 @@ export default function AuthForm({
                       onChange={handleSignupSelectChange}
                       options={companySubTypeOptions}
                       placeholder="Select sub-type"
-                      disabledPlaceholder="Select company type first"
+                      disabledPlaceholder="Please select company type first"
                       disabled={!signupData.companyType}
                     />
                     <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Company email *</span><input name="companyEmail" type="email" value={signupData.companyEmail} onChange={handleSignupChange} className="input" placeholder="contact@company.com" /></label>
@@ -475,7 +554,7 @@ export default function AuthForm({
                 )}
               </div>
             ) : (
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
+              <div className={`rounded-3xl p-5 ${isPage ? "border border-slate-200/80 bg-slate-50/50" : "border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]"}`}>
                 <div className="mb-4">
                   <p className="text-sm font-semibold text-slate-900">
                     Login details
@@ -502,14 +581,24 @@ export default function AuthForm({
                     <span className="mb-2 block text-sm font-medium text-slate-700">
                       Password
                     </span>
-                    <input
-                      name="password"
-                      type="password"
-                      value={loginData.password}
-                      onChange={handleLoginChange}
-                      className="input"
-                      placeholder="Enter your password"
-                    />
+                    <div className="relative">
+                      <input
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        value={loginData.password}
+                        onChange={handleLoginChange}
+                        className="input pr-12"
+                        placeholder="Enter your password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600"
+                        onClick={() => setShowPassword((current) => !current)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        <Icon icon={showPassword ? "solar:eye-closed-linear" : "solar:eye-linear"} width={20} />
+                      </button>
+                    </div>
                   </label>
                 </div>
               </div>
@@ -529,7 +618,10 @@ export default function AuthForm({
                 htmlType={isSignupLastStep ? "submit" : "button"}
                 onContinue={isSignupLastStep ? undefined : goToNextSignupStep}
                 loading={authBusy}
-                disabled={authBusy}
+                disabled={
+                  authBusy ||
+                  (signupStep === 1 && !companyCheck.canProceed)
+                }
               />
             ) : (
               <Button
@@ -576,7 +668,52 @@ export default function AuthForm({
               .
             </p>
           ) : null}
-          </div>
+    </>
+  );
+
+  if (isPage) {
+    return (
+      <div className="min-h-screen w-full bg-white">
+        <div className="flex min-h-screen flex-col lg:flex-row">
+          <aside className="lg:fixed lg:inset-y-0 lg:left-0 lg:z-10 lg:flex lg:w-[42%] xl:w-[40%]">
+            {brandPanel}
+          </aside>
+
+          <main className="flex min-h-screen flex-1 flex-col lg:ml-[42%] xl:ml-[40%]">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 lg:hidden">
+              <Link href="/" className="inline-flex items-center gap-2">
+                <Image
+                  src="/logo.png"
+                  alt="xtrawrkx"
+                  width={32}
+                  height={32}
+                  className="rounded-lg"
+                />
+                <span className="text-sm font-semibold text-slate-900">xtrawrkx</span>
+              </Link>
+              <Link
+                href="/"
+                className="text-sm font-medium text-slate-500 transition hover:text-brand-primary"
+              >
+                Back to site
+              </Link>
+            </div>
+
+            <div className="flex flex-1 items-start justify-center overflow-y-auto px-6 py-8 sm:px-10 sm:py-10 lg:items-center lg:px-12 lg:py-12 xl:px-16">
+              <div className="w-full max-w-2xl">{formPanelInner}</div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/60 bg-white shadow-[0_32px_80px_rgba(15,23,42,0.24)]">
+      <div className="grid lg:min-h-[760px] lg:grid-cols-[1fr_0.94fr]">
+        {brandPanel}
+        <div className="px-6 py-8 sm:px-10 sm:py-10 lg:px-12 lg:py-12">
+          <div className="mx-auto max-w-[520px]">{formPanelInner}</div>
         </div>
       </div>
     </div>

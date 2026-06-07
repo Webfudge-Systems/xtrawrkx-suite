@@ -16,6 +16,7 @@ const {
   safeCount,
 } = require('../../../utils/content-api-helpers');
 const { canAccess, requireModuleAccess, requireOwnerOrModuleManage } = require('../../../utils/rbac');
+const { attachRelationsToContacts } = require('../../../utils/crm-relation-attach');
 
 const UID = 'api::contact.contact';
 
@@ -25,33 +26,106 @@ const sanitizePopulate = createPopulateSanitizer(
   POPULATE_FALLBACK
 );
 
+/** Merge client filters while always enforcing tenant org scope. */
+function buildContactListFilters(orgId, extra) {
+  const orgFilter = { organization: orgId };
+  if (!extra || typeof extra !== 'object' || Array.isArray(extra)) return orgFilter;
+
+  const merged = { ...extra };
+  delete merged.organization;
+
+  const keys = Object.keys(merged).filter((k) => merged[k] != null && merged[k] !== '');
+  if (!keys.length) return orgFilter;
+
+  if (!merged.$or && !merged.$and && keys.length <= 8) {
+    return { ...orgFilter, ...merged };
+  }
+
+  return { $and: [orgFilter, merged] };
+}
+
 module.exports = createCoreController(UID, ({ strapi }) => ({
+  async stats(ctx) {
+    if (!ctx.state.user) return ctx.unauthorized('Missing or invalid credentials');
+    if (!ctx.state.orgId) return ctx.forbidden('No active organization');
+    const denied = requireModuleAccess(ctx, 'crm', 'contacts', 'read');
+    if (denied) return denied;
+
+    const orgId = ctx.state.orgId;
+    const base = { organization: orgId };
+
+    const [total, withEmail, withPhone, withCompany] = await Promise.all([
+      safeCount(strapi, UID, base, 0),
+      safeCount(strapi, UID, { ...base, email: { $notNull: true } }, 0),
+      safeCount(strapi, UID, { ...base, phone: { $notNull: true } }, 0),
+      safeCount(
+        strapi,
+        UID,
+        {
+          $and: [
+            base,
+            {
+              $or: [
+                { companyName: { $notNull: true } },
+                { leadCompany: { id: { $notNull: true } } },
+              ],
+            },
+          ],
+        },
+        0
+      ),
+    ]);
+
+    let facets = { sources: [], preferredContactMethods: [] };
+    try {
+      const rows = await strapi.entityService.findMany(UID, {
+        filters: base,
+        fields: ['source', 'preferredContactMethod'],
+        limit: 5000,
+      });
+      const sources = new Set();
+      const methods = new Set();
+      for (const row of rows || []) {
+        if (row?.source) sources.add(String(row.source).toUpperCase());
+        if (row?.preferredContactMethod) {
+          methods.add(String(row.preferredContactMethod).toUpperCase());
+        }
+      }
+      facets = {
+        sources: [...sources].sort((a, b) => a.localeCompare(b)),
+        preferredContactMethods: [...methods].sort((a, b) => a.localeCompare(b)),
+      };
+    } catch (err) {
+      strapi.log.warn('contact stats facets: %s', err?.message || String(err));
+    }
+
+    return { data: { total, withEmail, withPhone, withCompany, facets } };
+  },
+
   async find(ctx) {
     if (!ctx.state.user) return ctx.unauthorized('Missing or invalid credentials');
     if (!ctx.state.orgId) return ctx.forbidden('No active organization');
     const denied = requireModuleAccess(ctx, 'crm', 'contacts', 'read');
     if (denied) return denied;
 
-    const { query, page, pageSize, sort } = readListQuery(ctx);
+    const { query, page, pageSize, sort } = readListQuery(ctx, {
+      maxPageSize: 500,
+      defaultPageSize: 100,
+    });
 
-    const filters = { organization: ctx.state.orgId };
-    const extra = query.filters;
-    if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
-      if (extra.leadCompany) {
-        filters.leadCompany = extra.leadCompany;
-      }
-      if (extra.clientAccount) {
-        filters.clientAccount = extra.clientAccount;
-      }
-    }
+    const filters = buildContactListFilters(ctx.state.orgId, query.filters);
 
-    const results = await strapi.entityService.findMany(UID, {
+    let results = await strapi.entityService.findMany(UID, {
       filters,
       start: (page - 1) * pageSize,
       limit: pageSize,
       sort,
       populate: sanitizePopulate(query.populate),
     });
+
+    if (results.length > 0) {
+      results = await attachRelationsToContacts(strapi, ctx.state.orgId, results);
+    }
 
     const total = await safeCount(strapi, UID, filters, results.length);
     const pageCount = Math.ceil(Math.max(total, 1) / pageSize);
@@ -65,13 +139,14 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (denied) return denied;
 
     const { id } = ctx.params;
-    const entry = await strapi.entityService.findOne(UID, id, {
+    let entry = await strapi.entityService.findOne(UID, id, {
       populate: sanitizePopulate(ctx.query?.populate),
     });
     if (!entry) return ctx.notFound();
     if (orgIdFromRelation(entry.organization) !== ctx.state.orgId) {
       return ctx.forbidden('Access denied');
     }
+    [entry] = await attachRelationsToContacts(strapi, ctx.state.orgId, [entry]);
     return { data: entry };
   },
 

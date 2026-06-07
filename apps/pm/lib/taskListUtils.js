@@ -62,6 +62,19 @@ export function enrichTasksWithProjectManager(tasks, projects) {
   return (tasks || []).map((t) => enrichTaskWithProjectManager(t, projects));
 }
 
+export function mergeTasksById(apiTasks, previousTasks) {
+  const byId = new Map();
+  for (const task of apiTasks || []) {
+    if (task?.id != null) byId.set(String(task.id), task);
+  }
+  for (const task of previousTasks || []) {
+    if (task?.id == null) continue;
+    const id = String(task.id);
+    if (!byId.has(id)) byId.set(id, task);
+  }
+  return [...byId.values()];
+}
+
 export function buildChildrenByParentId(tasks, { excludeTaskIds } = {}) {
   const exclude =
     excludeTaskIds instanceof Set ? excludeTaskIds : new Set(excludeTaskIds || []);

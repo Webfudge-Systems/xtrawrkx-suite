@@ -4,8 +4,15 @@ import type { ChangeEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@webfudge/auth'
-import { AlertCircle, BookOpen, Eye, EyeOff, Loader2 } from 'lucide-react'
-import { Button, Input } from '@webfudge/ui'
+import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
+import {
+  Button,
+  Input,
+  LoginBrandCorner,
+  LoginProductCredit,
+  LoginMobileBrandHeader,
+} from '@webfudge/ui'
+import { BOOKS_SITE } from '@/lib/site'
 
 type FormErrors = {
   email?: string
@@ -71,18 +78,18 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-primary to-orange-600 flex-col justify-center px-16 py-20">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-primary to-orange-600 relative flex-col justify-center px-16 py-20">
+        <LoginBrandCorner
+          brandIconPath={BOOKS_SITE.logoPath}
+          brandName={BOOKS_SITE.brandName}
+        />
         <div className="max-w-lg">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-white font-semibold text-lg">Webfudge Books</span>
-          </div>
+          <LoginProductCredit
+            productName={BOOKS_SITE.name}
+            creatorLine={BOOKS_SITE.creatorLine}
+          />
           <h1 className="text-5xl font-bold text-white mb-6">Welcome back</h1>
-          <p className="text-xl text-white/90 mb-4">
-            Finance and accounting for service agencies and modern teams.
-          </p>
+          <p className="text-xl text-white/90 mb-4">{BOOKS_SITE.tagline}</p>
           <p className="text-white/80 leading-relaxed">
             Sign in to manage receivables, payables, projects, time tracking, and documents.
           </p>
@@ -91,12 +98,12 @@ export default function LoginPage() {
 
       <div className="w-full lg:w-1/2 flex flex-col justify-center p-8 lg:p-16">
         <div className="w-full max-w-md mx-auto">
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-semibold text-brand-foreground">Webfudge Books</span>
-          </div>
+          <LoginMobileBrandHeader
+            brandIconPath={BOOKS_SITE.logoPath}
+            brandName={BOOKS_SITE.brandName}
+            productName={BOOKS_SITE.name}
+            creatorLine={BOOKS_SITE.creatorLine}
+          />
 
           <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
           <p className="text-gray-600 mb-8">Enter your credentials to access Books.</p>

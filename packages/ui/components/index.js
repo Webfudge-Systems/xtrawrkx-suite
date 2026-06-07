@@ -24,6 +24,11 @@ export { KPICard } from './KPICard';
 export { FormSectionCard } from './FormSectionCard';
 export { SidebarTrialUpsell } from './SidebarTrialUpsell';
 export { PwaInstallPrompt } from './PwaInstallPrompt';
+export {
+  LoginBrandCorner,
+  LoginProductCredit,
+  LoginMobileBrandHeader,
+} from './LoginBrandCorner';
 export { WorkspaceHeader } from './WorkspaceHeader';
 export {
   TableCellCreated,

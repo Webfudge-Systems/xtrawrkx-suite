@@ -3,6 +3,8 @@
  * All monetary values in paise/cents (integer). Display layer converts.
  */
 
+import { listCacheBust, paginateStrapiList } from '@webfudge/utils'
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_STRAPI_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
@@ -252,12 +254,34 @@ export const projectsApi = {
 
 export const tasksApi = {
   list:       (params?: ListParams) => get('/tasks', params),
+  listAll:    (params?: ListParams) => fetchAllTasks(params),
   get:        (id: number | string) => get(`/tasks/${id}`),
   create:     (data: Record<string, unknown>) => post('/tasks', { data }),
   update:     (id: number | string, data: Record<string, unknown>) => put(`/tasks/${id}`, { data }),
   delete:     (id: number | string) => del(`/tasks/${id}`),
   timerStart: (id: number | string) => post(`/tasks/${id}/timer/start`, {}),
   timerStop:  (id: number | string) => post(`/tasks/${id}/timer/stop`, {}),
+}
+
+async function fetchAllTasks(params?: ListParams) {
+  const cacheBust = listCacheBust({})
+  const pageSize = 500
+  const data = await paginateStrapiList(
+    (page, ps, bust) =>
+      get<{ data?: unknown[]; meta?: { pagination?: Record<string, number> } }>('/tasks', {
+        ...params,
+        'pagination[page]': page,
+        'pagination[pageSize]': ps,
+        _: bust,
+      }),
+    { pageSize, cacheBust }
+  )
+  return {
+    data,
+    meta: {
+      pagination: { page: 1, pageSize: data.length, pageCount: 1, total: data.length },
+    },
+  }
 }
 
 export const timesheetApi = {
@@ -322,7 +346,7 @@ export const booksApi = {
   updateInvoice:          (id: number | string, data: Record<string, unknown>): AnyResponse => invoicesApi.update(id, data),
   fetchExpenses:          (params?: ListParams): AnyResponse => expensesApi.list(params),
   fetchProjects:          (params?: ListParams): AnyResponse => projectsApi.list(params),
-  fetchTimeEntries:       (params?: ListParams): AnyResponse => tasksApi.list(params),
+  fetchTimeEntries:       (params?: ListParams): AnyResponse => tasksApi.listAll(params),
   fetchBills:             (params?: ListParams): AnyResponse => billsApi.list(params),
   fetchManualJournals:    (params?: ListParams): AnyResponse => journalsApi.list(params),
   fetchBankAccounts:      (params?: ListParams): AnyResponse => bankingApi.accounts.list(params),

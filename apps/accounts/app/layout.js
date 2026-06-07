@@ -1,51 +1,43 @@
 import './globals.css'
 import { AuthProvider } from '@webfudge/auth'
+import { xtrawrkxMetadataIcons } from '@webfudge/utils'
 import LayoutContent from '../components/LayoutContent'
+import { ACCOUNTS_SITE } from '../lib/site'
 
-const siteUrl = (process.env.NEXT_PUBLIC_ACCOUNTS_APP_URL || 'http://localhost:3003').replace(/\/$/, '')
+const siteUrl = ACCOUNTS_SITE.url
 const shareDescription =
   'A modern workspace for managing your organization—users, roles, security, billing, and compliance.'
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Fudge Base',
-    template: '%s | Fudge Base',
+    default: ACCOUNTS_SITE.name,
+    template: `%s | ${ACCOUNTS_SITE.name}`,
   },
-  description:
-    'Fudge Base for organization administration—users, roles, teams, departments, security, billing, app access, and audit logs.',
-  applicationName: 'Fudge Base',
-  keywords: [
-    'accounts',
-    'organization admin',
-    'user management',
-    'roles and permissions',
-    'RBAC',
-    'teams',
-    'billing',
-    'audit logs',
-  ],
+  description: ACCOUNTS_SITE.description,
+  applicationName: ACCOUNTS_SITE.name,
+  keywords: ACCOUNTS_SITE.keywords,
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'Fudge Base',
+    title: ACCOUNTS_SITE.name,
     description: shareDescription,
     type: 'website',
     images: [
       {
-        url: '/favicon/web-app-manifest-512x512.png',
+        url: ACCOUNTS_SITE.ogImagePath,
         width: 512,
         height: 512,
-        alt: 'Fudge Base',
+        alt: ACCOUNTS_SITE.name,
       },
     ],
   },
   twitter: {
     card: 'summary',
-    title: 'Fudge Base',
+    title: ACCOUNTS_SITE.name,
     description: shareDescription,
-    images: ['/favicon/web-app-manifest-512x512.png'],
+    images: [ACCOUNTS_SITE.ogImagePath],
   },
   robots: {
     index: false,
@@ -57,15 +49,8 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
-    ],
-    apple: [{ url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-    shortcut: ['/favicon/favicon.svg'],
-  },
-  manifest: '/favicon/site.webmanifest',
+  icons: xtrawrkxMetadataIcons(),
+  manifest: ACCOUNTS_SITE.manifestPath,
 }
 
 export default function RootLayout({ children }) {

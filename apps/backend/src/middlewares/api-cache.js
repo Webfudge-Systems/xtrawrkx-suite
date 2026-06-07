@@ -20,9 +20,22 @@ function isCacheEnabled() {
   return redis.isRedisConfigured();
 }
 
-function shouldSkipPath(path) {
+function isTaskApiPath(path) {
+  return path === '/api/tasks' || path.startsWith('/api/tasks/');
+}
+
+/** Paths that must never trigger org cache invalidation (auth, uploads, etc.). */
+function shouldSkipMutationInvalidate(path) {
   if (!path || !path.startsWith('/api')) return true;
   return SKIP_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+/** GET responses that must never be stored in Redis. */
+function shouldSkipGetCache(path) {
+  if (shouldSkipMutationInvalidate(path)) return true;
+  // Task reads are paginated and high-churn; caching any task GET caused stale My Tasks lists.
+  if (isTaskApiPath(path)) return true;
+  return false;
 }
 
 /**
@@ -55,11 +68,12 @@ module.exports = (config, { strapi }) => {
 
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(ctx.method)) {
       await next();
+      // Always invalidate org cache on task writes (POST /api/tasks was previously skipped).
       if (
         ctx.status >= 200 &&
         ctx.status < 300 &&
         path.startsWith('/api') &&
-        !shouldSkipPath(path)
+        !shouldSkipMutationInvalidate(path)
       ) {
         const orgId = ctx.state.orgId ?? ctx.request.headers['x-organization-id'];
         const removed = await cache.invalidateOrg(orgId);
@@ -70,7 +84,7 @@ module.exports = (config, { strapi }) => {
       return;
     }
 
-    if (ctx.method !== 'GET' || shouldSkipPath(path)) {
+    if (ctx.method !== 'GET' || shouldSkipGetCache(path)) {
       return next();
     }
 

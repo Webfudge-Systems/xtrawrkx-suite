@@ -4,6 +4,13 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import clsx from "clsx";
 
+function normalizeOption(option) {
+  if (typeof option === "string") {
+    return { value: option, label: option };
+  }
+  return { value: option.value, label: option.label };
+}
+
 export default function SearchableSelect({
   label,
   name,
@@ -23,13 +30,25 @@ export default function SearchableSelect({
   const [query, setQuery] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(0);
 
+  const normalizedOptions = useMemo(
+    () => options.map(normalizeOption),
+    [options]
+  );
+
+  const selectedOption = useMemo(
+    () => normalizedOptions.find((option) => option.value === value) || null,
+    [normalizedOptions, value]
+  );
+
   const filteredOptions = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return options;
-    return options.filter((option) =>
-      option.toLowerCase().includes(normalized)
+    if (!normalized) return normalizedOptions;
+    return normalizedOptions.filter(
+      (option) =>
+        option.label.toLowerCase().includes(normalized) ||
+        option.value.toLowerCase().includes(normalized)
     );
-  }, [options, query]);
+  }, [normalizedOptions, query]);
 
   const displayPlaceholder = disabled ? disabledPlaceholder : placeholder;
 
@@ -57,7 +76,7 @@ export default function SearchableSelect({
   }, [open]);
 
   const selectOption = (option) => {
-    onChange?.({ target: { name, value: option } });
+    onChange?.({ target: { name, value: option.value } });
     setOpen(false);
     setQuery("");
   };
@@ -134,7 +153,9 @@ export default function SearchableSelect({
             onKeyDown={handleKeyDown}
             className="flex min-w-0 flex-1 items-center truncate text-left disabled:cursor-not-allowed"
           >
-            <span className="truncate">{value || displayPlaceholder}</span>
+            <span className="truncate">
+              {selectedOption?.label || displayPlaceholder}
+            </span>
           </button>
           <span className="flex shrink-0 items-center gap-1">
             {value && !disabled ? (
@@ -203,7 +224,11 @@ export default function SearchableSelect({
               <li className="px-4 py-3 text-sm text-slate-500">No matches found</li>
             ) : (
               filteredOptions.map((option, index) => (
-                <li key={option} role="option" aria-selected={value === option}>
+                <li
+                  key={option.value}
+                  role="option"
+                  aria-selected={value === option.value}
+                >
                   <button
                     type="button"
                     onMouseEnter={() => setHighlightIndex(index)}
@@ -213,11 +238,11 @@ export default function SearchableSelect({
                       highlightIndex === index
                         ? "bg-brand-primary/8 text-slate-900"
                         : "text-slate-700 hover:bg-slate-50",
-                      value === option && "font-medium text-brand-primary"
+                      value === option.value && "font-medium text-brand-primary"
                     )}
                   >
-                    <span>{option}</span>
-                    {value === option ? (
+                    <span>{option.label}</span>
+                    {value === option.value ? (
                       <Icon icon="solar:check-circle-bold" width={18} className="text-brand-primary" />
                     ) : null}
                   </button>

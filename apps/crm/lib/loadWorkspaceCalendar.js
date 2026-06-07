@@ -18,14 +18,14 @@ export async function loadWorkspaceCalendarData(rangeStart, rangeEnd) {
       'filters[startTime][$gte]': startIso,
       'filters[startTime][$lte]': endIso,
     }),
-    taskService.getAll({
+    taskService.fetchAll({
       sort: 'scheduledDate:asc',
       'pagination[pageSize]': 200,
       'filters[scheduledDate][$gte]': startIso,
       'filters[scheduledDate][$lte]': endIso,
       populate: TASK_POPULATE,
     }),
-    taskService.getAll({
+    taskService.fetchAll({
       sort: 'scheduledDate:asc',
       'pagination[pageSize]': 150,
       'filters[recurrenceFrequency][$ne]': 'none',

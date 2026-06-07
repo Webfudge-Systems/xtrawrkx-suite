@@ -2,6 +2,7 @@
  * Aggregates open CRM workload per team member for the manager dashboard view.
  */
 import strapiClient from '../strapiClient'
+import { paginateStrapiList } from '@webfudge/utils'
 import taskService from './taskService'
 import leadCompanyService from './leadCompanyService'
 import dealService from './dealService'
@@ -225,18 +226,8 @@ function initialsFromName(name) {
   return '?'
 }
 
-async function fetchAllPaged(fetchPage) {
-  let page = 1
-  const all = []
-  let pageCount = 1
-  do {
-    const res = await fetchPage(page)
-    const batch = Array.isArray(res?.data) ? res.data : []
-    all.push(...batch)
-    pageCount = res?.meta?.pagination?.pageCount ?? 1
-    page += 1
-  } while (page <= pageCount)
-  return all
+async function fetchAllPaged(fetchPage, options = {}) {
+  return paginateStrapiList(fetchPage, { pageSize: LIST_PAGE_SIZE, ...options })
 }
 
 function bumpCount(map, id) {

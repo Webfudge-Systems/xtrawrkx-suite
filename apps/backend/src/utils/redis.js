@@ -12,7 +12,7 @@ let connectPromise = null;
  * @returns {string | null}
  */
 function resolveRedisUrl() {
-  const explicit = process.env.REDIS_URL?.trim();
+  const explicit = process.env.REDIS_URL?.trim() || process.env.REDIS_PUBLIC_URL?.trim();
   if (explicit) return explicit;
 
   const host = process.env.REDISHOST || process.env.REDIS_HOST;

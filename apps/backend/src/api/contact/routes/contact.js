@@ -12,6 +12,7 @@ module.exports = {
   type: 'content-api',
   routes: [
     { method: 'GET', path: '/contacts', handler: `${UID}.find`, config: authFalse },
+    { method: 'GET', path: '/contacts/stats', handler: `${UID}.stats`, config: authFalse },
     { method: 'GET', path: '/contacts/:id', handler: `${UID}.findOne`, config: authFalse },
     { method: 'POST', path: '/contacts', handler: `${UID}.create`, config: authFalse },
     { method: 'PUT', path: '/contacts/:id', handler: `${UID}.update`, config: authFalse },

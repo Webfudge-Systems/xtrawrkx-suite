@@ -1,6 +1,6 @@
-# Xtrawrkx Orbit (Organization Manager)
+# Webfudge Systems Platform Admin (Organization Manager)
 
-Platform super-admin app: create and manage tenant organizations, licenses, and links into Accounts / PM.
+Platform super-admin app for Webfudge Systems: create and manage tenant organizations, licenses, and links into Accounts / PM.
 
 **Package:** `@xtrawrkx/organization-manager` · **Port:** 3004
 

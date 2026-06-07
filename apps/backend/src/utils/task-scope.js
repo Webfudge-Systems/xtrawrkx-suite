@@ -1,7 +1,7 @@
 'use strict';
 
 /** Relations that scope a task to CRM (see apps/pm/lib/api/taskService.js CRM_RELATION_FIELDS). */
-const CRM_TASK_RELATION_FIELDS = ['leadCompany', 'clientAccount', 'contact', 'deal'];
+const CRM_TASK_RELATION_FIELDS = ['leadCompany', 'clientAccount', 'deal'];
 
 function relationIsSet(rel) {
   if (rel == null || rel === '') return false;

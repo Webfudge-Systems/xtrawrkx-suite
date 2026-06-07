@@ -64,6 +64,9 @@
     "notes": {
       "type": "text"
     },
+    "onboardingData": {
+      "type": "json"
+    },
     "status": {
       "type": "string",
       "default": "ACTIVE"

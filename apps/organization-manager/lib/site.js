@@ -1,3 +1,5 @@
+import { FUDGE_SUITE_ASSETS } from '@webfudge/utils';
+
 const siteUrl = (
   process.env.NEXT_PUBLIC_ORG_MANAGER_URL ||
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -5,35 +7,27 @@ const siteUrl = (
   'http://localhost:3004'
 ).replace(/\/$/, '');
 
-/** Site metadata, SEO, and PWA config for the Xtrawrkx Organization Manager (Orbit) */
+/** Site metadata, SEO, and PWA config — Webfudge Systems Platform Admin */
 export const ORG_MANAGER_SITE = {
-  // Brand identity
-  brandName: 'Xtrawrkx',
-  brandShortName: 'Xtrawrkx',
-  legalName: 'Xtrawrkx',
-  name: 'Fudge Orbit',
-  shortName: 'Fudge Orbit',
+  brandName: 'Webfudge Systems',
+  brandShortName: 'Webfudge',
+  legalName: 'Webfudge Systems',
+  name: 'Platform Admin',
+  shortName: 'Admin',
   description:
-    'Fudge Orbit is the platform super-admin workspace to create, configure, and manage tenant organizations, teams, and access across the Xtrawrkx suite.',
+    'Webfudge Systems Platform Admin — create, configure, and manage tenant organizations, teams, and access across the Webfudge platform.',
   tagline: 'Create and manage organizations, teams, and platform access.',
-
-  // URLs and paths
   url: siteUrl,
-  faviconPath: '/favicon/favicon.svg',
-  ogImagePath: '/favicon/web-app-manifest-512x512.png',
-
-  // Theme
+  ...FUDGE_SUITE_ASSETS.webfudge,
+  brandLogoPath: FUDGE_SUITE_ASSETS.webfudge.brandLogoPath,
+  ogImagePath: FUDGE_SUITE_ASSETS.webfudge.brandLogoPath,
+  faviconPath: FUDGE_SUITE_ASSETS.webfudge.faviconSvg,
   locale: 'en_US',
-  themeColor: '#FF4A74',
-  backgroundColor: '#FFFFFF',
-
-  // Social
-  twitterHandle: '@xtrawrkx',
-
-  // SEO keywords
+  themeColor: '#F5630F',
+  backgroundColor: '#FFFAF7',
   keywords: [
-    'Xtrawrkx',
-    'Orbit',
+    'Webfudge Systems',
+    'Platform Admin',
     'organization management',
     'team management',
     'platform administration',

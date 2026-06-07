@@ -42,7 +42,6 @@ import {
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../components/CRMPageHeader';
 import clientAccountService from '../../../lib/api/clientAccountService';
-import contactService from '../../../lib/api/contactService';
 import { canManageCRM, canWriteCRM } from '../../../lib/rbac';
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.clientAccounts.tableColumnVisibility';
@@ -200,10 +199,6 @@ export default function ClientAccountsPage() {
   const itemsPerPage = 15;
 
   useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  useEffect(() => {
     setColumnVisibility(loadColumnVisibility());
     setColumnOrder(loadColumnOrder());
   }, []);
@@ -307,52 +302,25 @@ export default function ClientAccountsPage() {
     }
   }, []);
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     try {
       setLoading(true);
-      const [accountsRes, contactsRes] = await Promise.all([
-        clientAccountService.getAll({
-          sort: 'createdAt:desc',
-          'pagination[pageSize]': 100,
-          populate: ['assignedTo'],
-        }),
-        contactService.getAll({
-          sort: 'createdAt:desc',
-          'pagination[pageSize]': 1000,
-          populate: ['clientAccount'],
-        }),
-      ]);
-
-      const accountList = Array.isArray(accountsRes.data) ? accountsRes.data : [];
-      const contactList = Array.isArray(contactsRes.data) ? contactsRes.data : [];
-
-      const contactsByAccountId = new Map();
-      for (const contact of contactList) {
-        const ca = contact?.clientAccount;
-        const accountId =
-          ca && typeof ca === 'object' ? ca.id ?? ca.documentId ?? null : ca ?? null;
-        if (accountId == null) continue;
-        const key = String(accountId);
-        if (!contactsByAccountId.has(key)) contactsByAccountId.set(key, []);
-        contactsByAccountId.get(key).push(contact);
-      }
-
-      for (const list of contactsByAccountId.values()) {
-        list.sort((a, b) => Number(!!b.isPrimaryContact) - Number(!!a.isPrimaryContact));
-      }
-
-      const hydratedAccounts = accountList.map((account) => ({
-        ...account,
-        contacts: contactsByAccountId.get(String(account.id)) || [],
-      }));
-
-      setAccounts(hydratedAccounts);
+      const res = await clientAccountService.getAll({
+        sort: 'createdAt:desc',
+        'pagination[pageSize]': 100,
+        populate: ['assignedTo', 'contacts'],
+      });
+      setAccounts(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Error fetching client accounts:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchAccounts();
+  }, [fetchAccounts]);
 
   const handleDeleteAccount = useCallback(
     async (e, accountId) => {

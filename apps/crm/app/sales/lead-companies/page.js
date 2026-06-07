@@ -54,6 +54,7 @@ import { TableSortDropdown as CrmTableSortDropdown } from '@webfudge/ui';
 import { useCrmTableSort } from '../../../hooks/useCrmTableSort';
 import leadCompanyService from '../../../lib/api/leadCompanyService';
 import crmActivityService from '../../../lib/api/crmActivityService';
+import strapiClient from '../../../lib/strapiClient';
 import { canEditCRMRecord, canManageCRM } from '../../../lib/rbac';
 import { commentTextFromMeta } from '../../../lib/leadCompanyComments';
 
@@ -273,7 +274,12 @@ export default function LeadCompaniesPage() {
   const router = useRouter();
   const [leadCompanies, setLeadCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({});
+  const [statsByStatus, setStatsByStatus] = useState({});
+  const [filterFacets, setFilterFacets] = useState({ sources: [], types: [] });
+  const [orgUsers, setOrgUsers] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -316,6 +322,26 @@ export default function LeadCompaniesPage() {
     const widths = loadColumnWidths();
     setColumnWidths(widths);
     persistColumnWidths(widths);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await strapiClient.getXtrawrkxUsers();
+        if (!cancelled) setOrgUsers(Array.isArray(res?.data) ? res.data : []);
+      } catch {
+        if (!cancelled) setOrgUsers([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleColumnResizeEnd = useCallback((next) => {
@@ -425,50 +451,75 @@ export default function LeadCompaniesPage() {
     }
   }, []);
 
-  const fetchLeadCompanies = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await leadCompanyService.getAll({
-        sort: 'createdAt:desc',
-        'pagination[pageSize]': 100,
-        populate: ['assignedTo', 'organization', 'contacts', 'convertedAccount'],
-        mergeContactsFromContactsApi: true,
-      });
-      setLeadCompanies(response.data || []);
-    } catch (err) {
-      console.error('Error fetching lead companies:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const fetchStats = useCallback(async () => {
     try {
       const statsData = await leadCompanyService.getStats();
-      setStats(statsData);
+      setStatsByStatus(statsData.byStatus || {});
+      setFilterFacets(statsData.facets || { sources: [], types: [] });
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
   }, []);
 
+  const {
+    sortRules,
+    columnOptions: sortColumnOptions,
+    hasActiveSort,
+    addSortRule,
+    removeSortRule,
+    setRuleDirection,
+    moveSortRule,
+    clearSort,
+    bindSortableColumns,
+  } = useCrmTableSort({ entity: 'leadCompany', storageKey: TABLE_SORT_STORAGE_KEY, data: leadCompanies });
+
+  const sortApiParam = useMemo(() => {
+    if (!sortRules?.length) return 'createdAt:desc';
+    const rule = sortRules[0];
+    return `${rule.key}:${rule.direction}`;
+  }, [sortRules]);
+
+  const fetchLeadCompanies = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = leadCompanyService.buildListParams({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        activeTab,
+        searchQuery: debouncedSearch,
+        appliedFilters,
+        sort: sortApiParam,
+      });
+      const res = await leadCompanyService.getAll(params);
+      setLeadCompanies(Array.isArray(res.data) ? res.data : []);
+      const pag = res?.meta?.pagination;
+      setTotalItems(pag?.total ?? 0);
+      setTotalPages(Math.max(pag?.pageCount ?? 1, 1));
+    } catch (err) {
+      console.error('Error fetching lead companies:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, activeTab, debouncedSearch, appliedFilters, sortApiParam, itemsPerPage]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   useEffect(() => {
     fetchLeadCompanies();
-    fetchStats();
-  }, [fetchLeadCompanies, fetchStats]);
+  }, [fetchLeadCompanies]);
 
-  // Calculate statistics from visible lead rows to avoid stale server-side aggregates.
-  const leadStats = useMemo(() => {
-    const out = { new: 0, contacted: 0, qualified: 0, lost: 0 };
-    for (const c of leadCompanies) {
-      if (!c) continue;
-      const status = (c.status || '').toString().toUpperCase();
-      if (status === 'NEW') out.new += 1;
-      else if (status === 'CONTACTED') out.contacted += 1;
-      else if (status === 'QUALIFIED') out.qualified += 1;
-      else if (status === 'LOST') out.lost += 1;
-    }
-    return out;
-  }, [leadCompanies]);
+  // KPI / tab counts from lightweight stats endpoint (not full list scan).
+  const leadStats = useMemo(
+    () => ({
+      new: statsByStatus.NEW ?? 0,
+      contacted: statsByStatus.CONTACTED ?? 0,
+      qualified: statsByStatus.QUALIFIED ?? 0,
+      lost: statsByStatus.LOST ?? 0,
+    }),
+    [statsByStatus]
+  );
 
   const statusFilterOptions = useMemo(
     () => [
@@ -482,124 +533,41 @@ export default function LeadCompaniesPage() {
     []
   );
 
-  const sourceFilterOptions = useMemo(() => {
-    const values = new Set();
-    for (const company of leadCompanies) {
-      const src = company?.source;
-      if (src) values.add(String(src).toUpperCase());
-    }
-    return [...values]
-      .sort((a, b) => a.localeCompare(b))
-      .map((value) => ({ value, label: value.replace(/_/g, ' ') }));
-  }, [leadCompanies]);
+  const sourceFilterOptions = useMemo(
+    () =>
+      (filterFacets.sources || []).map((value) => ({
+        value,
+        label: value.replace(/_/g, ' '),
+      })),
+    [filterFacets.sources]
+  );
 
-  const companyTypeFilterOptions = useMemo(() => {
-    const values = new Set();
-    for (const company of leadCompanies) {
-      const type = company?.type;
-      if (type) values.add(String(type));
-    }
-    return [...values]
-      .sort((a, b) => a.localeCompare(b))
-      .map((value) => ({ value, label: value }));
-  }, [leadCompanies]);
+  const companyTypeFilterOptions = useMemo(
+    () =>
+      (filterFacets.types || []).map((value) => ({
+        value,
+        label: value,
+      })),
+    [filterFacets.types]
+  );
 
   const assigneeFilterOptions = useMemo(() => {
-    const map = new Map();
-    for (const company of leadCompanies) {
-      const user = company?.assignedTo;
-      if (!user || typeof user !== 'object') continue;
-      const id = user.id ?? user.documentId;
-      if (id == null) continue;
-      const name =
-        user.username ||
-        [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
-        user.email ||
-        `User ${id}`;
-      map.set(String(id), name);
-    }
-    return [...map.entries()]
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([value, label]) => ({ value, label }));
-  }, [leadCompanies]);
+    return orgUsers
+      .map((user) => {
+        const id = user.id ?? user.documentId;
+        if (id == null) return null;
+        const name =
+          user.username ||
+          [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+          user.email ||
+          `User ${id}`;
+        return { value: String(id), label: name };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [orgUsers]);
 
-  // Filter companies based on search and tab
-  const filteredCompanies = leadCompanies.filter((company) => {
-    if (!company) return false;
-
-    // Search filter
-    const matchesSearch =
-      searchQuery === '' ||
-      company.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.contacts?.some(
-        (c) =>
-          c.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.lastName?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-
-    // Tab filter
-    const matchesTab = activeTab === 'all' || company.status?.toLowerCase() === activeTab.toLowerCase();
-
-    const status = String(company.status || '').toUpperCase();
-    const source = String(company.source || '').toUpperCase();
-    const companyType = String(company.type || '').toLowerCase();
-    const assignedId =
-      company.assignedTo && typeof company.assignedTo === 'object'
-        ? String(company.assignedTo.id ?? company.assignedTo.documentId ?? '')
-        : String(company.assignedTo || '');
-    const companyName = String(company.companyName || '').toLowerCase();
-    const createdAt = company.createdAt ? new Date(company.createdAt) : null;
-    const now = new Date();
-    const daysSinceCreated =
-      createdAt && !Number.isNaN(createdAt.getTime())
-        ? Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
-        : null;
-    const dealValue = Number(company.dealValue || 0);
-
-    const matchesAdvanced =
-      (!appliedFilters.status || status === appliedFilters.status) &&
-      (!appliedFilters.source || source === appliedFilters.source) &&
-      (!appliedFilters.type || companyType === appliedFilters.type.toLowerCase()) &&
-      (!appliedFilters.assignedToId || assignedId === appliedFilters.assignedToId) &&
-      (!appliedFilters.companyQuery ||
-        companyName.includes(appliedFilters.companyQuery.toLowerCase())) &&
-      (!appliedFilters.dateRange ||
-        (daysSinceCreated != null &&
-          ((appliedFilters.dateRange === 'last7' && daysSinceCreated <= 7) ||
-            (appliedFilters.dateRange === 'last30' && daysSinceCreated <= 30) ||
-            (appliedFilters.dateRange === 'last90' && daysSinceCreated <= 90) ||
-            (appliedFilters.dateRange === 'thisYear' &&
-              createdAt &&
-              createdAt.getFullYear() === now.getFullYear())))) &&
-      (!appliedFilters.valueRange ||
-        (appliedFilters.valueRange === 'lt100k' && dealValue < 100000) ||
-        (appliedFilters.valueRange === '100k_1m' && dealValue >= 100000 && dealValue <= 1000000) ||
-        (appliedFilters.valueRange === '1m_5m' && dealValue > 1000000 && dealValue <= 5000000) ||
-        (appliedFilters.valueRange === 'gt5m' && dealValue > 5000000));
-
-    return matchesSearch && matchesTab && matchesAdvanced;
-  });
-
-  // Multi-column sort (client-side, applied after filter)
-  const {
-    sortRules,
-    columnOptions: sortColumnOptions,
-    sortedData: sortedCompanies,
-    hasActiveSort,
-    addSortRule,
-    removeSortRule,
-    setRuleDirection,
-    moveSortRule,
-    clearSort,
-    bindSortableColumns,
-  } = useCrmTableSort({ entity: 'leadCompany', storageKey: TABLE_SORT_STORAGE_KEY, data: filteredCompanies });
-
-  // Calculate pagination (after sort)
-  const totalPages = Math.ceil(sortedCompanies.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedCompanies = sortedCompanies.slice(startIndex, endIndex);
+  const paginatedCompanies = leadCompanies;
 
   useEffect(() => {
     if (!paginatedCompanies?.length) return;
@@ -630,10 +598,10 @@ export default function LeadCompaniesPage() {
     };
   }, [paginatedCompanies]);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when sort changes (tab/search/filters reset page in their handlers).
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, activeTab, appliedFilters]);
+  }, [sortApiParam]);
 
   const hasActiveFilters = useMemo(
     () =>
@@ -648,12 +616,18 @@ export default function LeadCompaniesPage() {
     setShowFilterModal(true);
   }, [appliedFilters]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
   const applyFilters = useCallback(() => {
+    setCurrentPage(1);
     setAppliedFilters(draftFilters);
     setShowFilterModal(false);
   }, [draftFilters]);
 
   const clearAllFilters = useCallback(() => {
+    setCurrentPage(1);
     setDraftFilters(initialFilters);
     setAppliedFilters(initialFilters);
     setShowFilterModal(false);
@@ -661,7 +635,7 @@ export default function LeadCompaniesPage() {
 
   // Tab items
   const tabItems = [
-    { key: 'all', label: 'All Companies', count: leadCompanies.length },
+    { key: 'all', label: 'All Companies', count: statsByStatus.total ?? totalItems },
     { key: 'new', label: 'New', count: leadStats.new },
     { key: 'contacted', label: 'Contacted', count: leadStats.contacted },
     { key: 'qualified', label: 'Qualified', count: leadStats.qualified },
@@ -1400,7 +1374,10 @@ export default function LeadCompaniesPage() {
             badge: item.count.toString(),
           }))}
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={(tab) => {
+            setCurrentPage(1);
+            setActiveTab(tab);
+          }}
           showSearch={true}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -1534,8 +1511,8 @@ export default function LeadCompaniesPage() {
 
       {/* Results Count */}
       <div className="text-sm text-gray-600">
-        Showing <span className="font-semibold text-gray-900">{sortedCompanies.length}</span> result
-        {sortedCompanies.length !== 1 ? 's' : ''}
+        Showing <span className="font-semibold text-gray-900">{totalItems}</span> result
+        {totalItems !== 1 ? 's' : ''}
       </div>
 
       {/* Table */}
@@ -1579,7 +1556,7 @@ export default function LeadCompaniesPage() {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  totalItems={sortedCompanies.length}
+                  totalItems={totalItems}
                   itemsPerPage={itemsPerPage}
                   onPageChange={setCurrentPage}
                 />

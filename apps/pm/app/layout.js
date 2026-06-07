@@ -1,6 +1,8 @@
 import './globals.css';
 import { AuthProvider } from '@webfudge/auth';
+import { xtrawrkxMetadataIcons } from '@webfudge/utils';
 import LayoutContent from '../components/LayoutContent';
+import { PM_SITE } from '../lib/site';
 
 export const viewport = {
   themeColor: '#F5630F',
@@ -8,56 +10,48 @@ export const viewport = {
   initialScale: 1,
 };
 
-const siteUrl = (process.env.NEXT_PUBLIC_PM_APP_URL || 'http://localhost:3006').replace(/\/$/, '');
+const siteUrl = PM_SITE.url;
 const shareDescription =
   'A modern workspace for projects, tasks, team collaboration, and delivery.';
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Fudge Work',
-    template: '%s | Fudge Work',
+    default: PM_SITE.name,
+    template: `%s | ${PM_SITE.name}`,
   },
-  description:
-    'Webfudge Project Management for tracking projects, tasks, teams, messages, and delivery.',
-  applicationName: 'Fudge Work',
+  description: PM_SITE.description,
+  applicationName: PM_SITE.name,
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Fudge Work',
+    title: PM_SITE.shortName,
   },
   formatDetection: {
     telephone: false,
   },
-  keywords: [
-    'project management',
-    'tasks',
-    'team collaboration',
-    'delivery',
-    'productivity',
-    'Webfudge',
-  ],
+  keywords: PM_SITE.keywords,
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'Fudge Work',
+    title: PM_SITE.name,
     description: shareDescription,
     type: 'website',
     images: [
       {
-        url: '/favicon/web-app-manifest-512x512.png',
+        url: PM_SITE.ogImagePath,
         width: 512,
         height: 512,
-        alt: 'Fudge Work',
+        alt: PM_SITE.name,
       },
     ],
   },
   twitter: {
     card: 'summary',
-    title: 'Fudge Work',
+    title: PM_SITE.name,
     description: shareDescription,
-    images: ['/favicon/web-app-manifest-512x512.png'],
+    images: [PM_SITE.ogImagePath],
   },
   robots: {
     index: false,
@@ -69,15 +63,8 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
-    ],
-    apple: [{ url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-    shortcut: ['/favicon/favicon.svg'],
-  },
-  manifest: '/favicon/site.webmanifest',
+  icons: xtrawrkxMetadataIcons(),
+  manifest: PM_SITE.manifestPath,
 };
 
 export default function RootLayout({ children }) {

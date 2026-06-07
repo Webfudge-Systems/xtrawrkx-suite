@@ -240,7 +240,6 @@ export default function LatestAssignedLeadsWidget({ className = '' }) {
         'pagination[pageSize]': LEADS_LIMIT,
         'filters[assignedTo][id][$eq]': userId,
         populate: ['assignedTo'],
-        mergeContactsFromContactsApi: true,
       })
       const raw = Array.isArray(res?.data) ? res.data : []
       setLeads(raw)

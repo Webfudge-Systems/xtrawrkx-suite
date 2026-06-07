@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import CRMSidebar from './CRMSidebar'
 import CRMQuickActionsFab from './CRMQuickActionsFab'
 import { canReadCurrentCRMPath, crmModuleForPath } from '../lib/rbac'
+import { CRM_SITE } from '../lib/site'
 
 const PUBLIC_PATHS = ['/login', '/unauthorized', '/coming-soon']
 
@@ -26,7 +27,7 @@ export default function LayoutContent({ children }) {
   return (
     <WorkspaceLayoutContent
       sidebar={CRMSidebar}
-      appName="Webfudge CRM"
+      appName={CRM_SITE.name}
       pwaStorageKey="crm"
       canView={canView}
       deniedTitle={`${moduleLabel} is not available for your role.`}

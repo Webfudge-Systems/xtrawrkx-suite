@@ -1,0 +1,17 @@
+﻿{
+  "id": "/",
+  "name": "Fudge Orbit",
+  "short_name": "Orbit",
+  "description": "Fudge Orbit for platform super-admin organization and tenant management.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#FF4A74",
+  "background_color": "#FFFFFF",
+  "icons": [
+    { "src": "/favicon_io/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon_io/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon_io/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon_io/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

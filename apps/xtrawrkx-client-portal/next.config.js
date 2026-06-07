@@ -27,6 +27,8 @@ const nextConfig = {
         NEXT_PUBLIC_STRAPI_URL: strapiBaseUrl,
         NEXT_PUBLIC_XTRAWRKX_WEBSITE_URL: websiteBaseUrl,
     },
+    transpilePackages: ['@webfudge/ui', '@webfudge/utils'],
+
     // Optimize for Vercel deployment
     swcMinify: true,
 

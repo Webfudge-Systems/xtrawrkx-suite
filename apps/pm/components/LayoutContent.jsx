@@ -3,6 +3,7 @@
 import { WorkspaceLayoutContent } from '@webfudge/ui'
 import { usePathname } from 'next/navigation'
 import PMSidebar from './PMSidebar'
+import { PM_SITE } from '../lib/site'
 import PMQuickActionsFab from './PMQuickActionsFab'
 import { canReadCurrentPMPath } from '../lib/rbac'
 
@@ -17,7 +18,7 @@ export default function LayoutContent({ children }) {
   return (
     <WorkspaceLayoutContent
       sidebar={PMSidebar}
-      appName="Webfudge PM"
+      appName={PM_SITE.name}
       pwaStorageKey="pm"
       canView={canView}
       deniedTitle="Access denied"

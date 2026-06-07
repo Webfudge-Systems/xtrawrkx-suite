@@ -5,7 +5,7 @@
 import strapiClient from './strapiClient';
 import projectService from './api/projectService';
 import { transformTask, transformProject } from './api/dataTransformers';
-import { mergeTaskListsForCalendar, projectOverlapsRange } from '@webfudge/utils';
+import { mergeTaskListsForCalendar, paginateStrapiList, projectOverlapsRange } from '@webfudge/utils';
 
 function pickRelation(rel) {
   if (!rel) return null;
@@ -51,11 +51,26 @@ const TASK_QUERY_BASE = {
   'populate[projects][fields][2]': 'slug',
 };
 
+async function fetchAllCalendarTasks(queryBase) {
+  const pageSize = Number(queryBase['pagination[pageSize]']) || 200;
+  const rows = await paginateStrapiList(
+    (page, ps, cacheBust) =>
+      strapiClient.get('/tasks', {
+        ...queryBase,
+        'pagination[page]': page,
+        'pagination[pageSize]': ps,
+        _: cacheBust,
+      }),
+    { pageSize }
+  );
+  return rows.map(transformTask).filter(Boolean);
+}
+
 export async function loadWorkspaceCalendarData(rangeStart, rangeEnd) {
   const startIso = rangeStart.toISOString();
   const endIso = rangeEnd.toISOString();
 
-  const [meetingsRaw, taskRangeRes, taskRecurringRes, projRes] = await Promise.all([
+  const [meetingsRaw, rangeTasks, recurringTasks, projRes] = await Promise.all([
     strapiClient.get('/meetings', {
       sort: 'startTime:asc',
       'pagination[pageSize]': 200,
@@ -66,14 +81,14 @@ export async function loadWorkspaceCalendarData(rangeStart, rangeEnd) {
       'populate[2]': 'leadCompany',
       'populate[3]': 'contact',
     }),
-    strapiClient.get('/tasks', {
+    fetchAllCalendarTasks({
       sort: 'scheduledDate:asc',
       'pagination[pageSize]': 200,
       'filters[scheduledDate][$gte]': startIso,
       'filters[scheduledDate][$lte]': endIso,
       ...TASK_QUERY_BASE,
     }),
-    strapiClient.get('/tasks', {
+    fetchAllCalendarTasks({
       sort: 'scheduledDate:asc',
       'pagination[pageSize]': 150,
       'filters[recurrenceFrequency][$ne]': 'none',
@@ -88,10 +103,6 @@ export async function loadWorkspaceCalendarData(rangeStart, rangeEnd) {
   const meetList = Array.isArray(meetBody?.data) ? meetBody.data : Array.isArray(meetBody) ? meetBody : [];
   const meetings = meetList.map(meetingFromApi).filter(Boolean);
 
-  const rawRangeTasks = taskRangeRes?.data || [];
-  const rawRecurringTasks = taskRecurringRes?.data || [];
-  const rangeTasks = rawRangeTasks.map(transformTask).filter(Boolean);
-  const recurringTasks = rawRecurringTasks.map(transformTask).filter(Boolean);
   const tasks = mergeTaskListsForCalendar(rangeTasks, recurringTasks);
 
   const rawProjects = projRes?.data || [];

@@ -1,4 +1,5 @@
 import './globals.css';
+import { webfudgeMetadataIcons } from '@webfudge/utils';
 import Providers from '../components/Providers';
 import LayoutContent from '../components/LayoutContent';
 import { ORG_MANAGER_SITE, orgManagerJsonLd } from '../lib/site';
@@ -26,7 +27,7 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: ORG_MANAGER_SITE.brandShortName,
+    title: ORG_MANAGER_SITE.shortName,
   },
   formatDetection: {
     telephone: false,
@@ -58,7 +59,6 @@ export const metadata = {
     title: ORG_MANAGER_SITE.name,
     description: ORG_MANAGER_SITE.tagline,
     images: [ORG_MANAGER_SITE.ogImagePath],
-    creator: ORG_MANAGER_SITE.twitterHandle,
   },
   robots: {
     index: false,
@@ -70,13 +70,8 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
-    ],
-    apple: [{ url: '/favicon/web-app-manifest-512x512.png', sizes: '512x512', type: 'image/png' }],
-    shortcut: '/favicon/favicon.svg',
-  },
+  icons: webfudgeMetadataIcons(),
+  manifest: ORG_MANAGER_SITE.manifestPath,
 };
 
 export default function RootLayout({ children }) {

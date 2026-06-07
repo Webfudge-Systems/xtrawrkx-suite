@@ -16,6 +16,12 @@ const {
   safeCount,
 } = require('../../../utils/content-api-helpers');
 const { requireModuleAccess } = require('../../../utils/rbac');
+const { attachRelationsToClientAccounts } = require('../../../utils/crm-relation-attach');
+const {
+  verifyLandingSignupSecret,
+  ensureWebsiteClientAccount,
+} = require('../../../utils/website-signup');
+const { handleSimilarCompaniesRequest } = require('../../../utils/similar-companies-handler');
 
 const UID = 'api::client-account.client-account';
 
@@ -40,6 +46,57 @@ function parseOptionalDate(value) {
 }
 
 module.exports = createCoreController(UID, ({ strapi }) => ({
+  /**
+   * POST /api/client-accounts/website-signup
+   * Landing page registration → CRM client account in the Xtrawrkx organization.
+   */
+  async websiteSignup(ctx) {
+    if (!verifyLandingSignupSecret(ctx)) {
+      return ctx.forbidden('Invalid or missing website signup secret.');
+    }
+
+    const body = ctx.request?.body || {};
+    const result = await ensureWebsiteClientAccount(strapi, body);
+
+    if (!result.ok) {
+      return ctx.send(
+        {
+          error: result.error || 'Client account setup failed.',
+          clientAccountSync: {
+            attempted: Boolean(result.attempted),
+            ok: false,
+            error: result.error,
+            status: result.status,
+          },
+        },
+        result.status || 500
+      );
+    }
+
+    return ctx.send({
+      data: result.data,
+      clientAccount: result.data,
+      clientAccountSync: {
+        attempted: Boolean(result.attempted),
+        ok: true,
+        error: null,
+        status: result.status,
+        companyNameSync: result.companyNameSync ?? null,
+      },
+      primaryContactSync: result.primaryContactSync || null,
+      defaultProjectSync: result.defaultProjectSync || null,
+      clientPasswordSync: result.clientPasswordSync || null,
+    });
+  },
+
+  /**
+   * GET /api/client-accounts/similar-companies?name=...
+   * Landing signup — fuzzy match against existing client accounts and leads.
+   */
+  async similarCompanies(ctx) {
+    return handleSimilarCompaniesRequest(strapi, ctx);
+  },
+
   async find(ctx) {
     if (!ctx.state.user) return ctx.unauthorized('Missing or invalid credentials');
     if (!ctx.state.orgId) return ctx.forbidden('No active organization');
@@ -50,13 +107,17 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
 
     const filters = { organization: ctx.state.orgId };
 
-    const results = await strapi.entityService.findMany(UID, {
+    let results = await strapi.entityService.findMany(UID, {
       filters,
       start: (page - 1) * pageSize,
       limit: pageSize,
       sort,
       populate: sanitizePopulate(query.populate),
     });
+
+    if (results.length > 0) {
+      results = await attachRelationsToClientAccounts(strapi, ctx.state.orgId, results);
+    }
 
     const total = await safeCount(strapi, UID, filters, results.length);
     const pageCount = Math.ceil(Math.max(total, 1) / pageSize);
@@ -70,13 +131,14 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (denied) return denied;
 
     const { id } = ctx.params;
-    const entry = await strapi.entityService.findOne(UID, id, {
+    let entry = await strapi.entityService.findOne(UID, id, {
       populate: sanitizePopulate(ctx.query?.populate),
     });
     if (!entry) return ctx.notFound();
     if (orgIdFromRelation(entry.organization) !== ctx.state.orgId) {
       return ctx.forbidden('Access denied');
     }
+    [entry] = await attachRelationsToClientAccounts(strapi, ctx.state.orgId, [entry]);
     return { data: entry };
   },
 

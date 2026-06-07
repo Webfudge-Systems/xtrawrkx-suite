@@ -81,7 +81,7 @@ export default function AccountsSidebar({ collapsed = false, onToggle }) {
                 <span className="block font-bold text-xl tracking-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent">
                   {ACCOUNTS_SITE.name}
                 </span>
-                <span className="block text-[10px] text-gray-500">by Webfudge Systems</span>
+                <span className="block text-[10px] text-gray-500">{ACCOUNTS_SITE.creatorLine}</span>
               </div>
             </Link>
           )}

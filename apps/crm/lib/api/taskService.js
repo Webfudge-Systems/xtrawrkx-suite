@@ -3,6 +3,7 @@
  * CRM list/summary calls pass scope=crm so PM project-only tasks are excluded.
  */
 import strapiClient from '../strapiClient';
+import { listCacheBust, paginateStrapiList } from '@webfudge/utils';
 import { filterCrmTasks, filterCrmMyWorkSummary } from '../crmTasks';
 import {
   buildListQuery,
@@ -92,6 +93,49 @@ async function getAll(params = {}) {
   return normalized;
 }
 
+/**
+ * Paginate through every CRM-scoped task page (list views, dashboards).
+ * @returns {Promise<{ data: object[], meta: { pagination: object } }>}
+ */
+async function fetchAll(params = {}) {
+  const cacheBust = listCacheBust(params);
+  const pageSize = Math.min(
+    Number(params['pagination[pageSize]'] ?? params.pageSize) || 100,
+    500
+  );
+  const rows = await paginateStrapiList(
+    (page, ps) =>
+      strapiClient
+        .get(
+          ENDPOINT,
+          buildListQuery({
+            ...params,
+            ...CRM_SCOPE,
+            'pagination[page]': page,
+            'pagination[pageSize]': ps,
+            _: cacheBust,
+          })
+        )
+        .then((response) => {
+          const normalized = normalizeListResponse(response);
+          normalized.data = filterCrmTasks(normalized.data);
+          return normalized;
+        }),
+    { ...params, pageSize, cacheBust }
+  );
+  return {
+    data: rows,
+    meta: {
+      pagination: {
+        page: 1,
+        pageSize: rows.length,
+        pageCount: 1,
+        total: rows.length,
+      },
+    },
+  };
+}
+
 async function getOne(id, options = {}) {
   const populate =
     options.populate ?? [
@@ -128,6 +172,7 @@ const taskService = {
   fetchMyWorkSummary,
   getByDealId,
   getAll,
+  fetchAll,
   getOne,
   create,
   update,

@@ -19,10 +19,18 @@ function orgIdFromRelation(rel) {
 function readListQuery(ctx, opts = {}) {
   const query = ctx.query || {};
   const maxPageSize = opts.maxPageSize ?? 100;
-  const page = parseInt(query['pagination[page]'] || query.page || '1', 10);
+  const defaultPageSize = opts.defaultPageSize ?? 25;
+  const pag = query.pagination && typeof query.pagination === 'object' ? query.pagination : null;
+  const page = parseInt(
+    query['pagination[page]'] || pag?.page || query.page || '1',
+    10
+  );
   const pageSize = Math.min(
     parseInt(
-      query['pagination[pageSize]'] || query.pageSize || String(opts.defaultPageSize ?? 25),
+      query['pagination[pageSize]'] ||
+        pag?.pageSize ||
+        query.pageSize ||
+        String(defaultPageSize),
       10
     ),
     maxPageSize

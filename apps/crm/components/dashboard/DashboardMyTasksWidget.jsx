@@ -218,7 +218,7 @@ export default function DashboardMyTasksWidget({ className = '' }) {
 
     try {
       setLoading(true)
-      const { data } = await taskService.getAll({
+      const { data } = await taskService.fetchAll({
         sort: 'scheduledDate:asc',
         'pagination[pageSize]': 100,
         'filters[assignee][id][$eq]': userId,

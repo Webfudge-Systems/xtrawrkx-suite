@@ -10,6 +10,7 @@ import invoiceService from './invoiceService';
 import dealService from './dealService';
 import taskService from './taskService';
 import strapiClient from '../strapiClient';
+import { paginateStrapiList } from '@webfudge/utils';
 import { fetchTeamPerformanceSummary } from './teamPerformanceService';
 import { isAssignedToCurrentUser } from '../rbac';
 
@@ -29,18 +30,8 @@ function money(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
-async function fetchAllPaged(fetchPage) {
-  let page = 1;
-  const all = [];
-  let pageCount = 1;
-  do {
-    const res = await fetchPage(page);
-    const batch = Array.isArray(res?.data) ? res.data : [];
-    all.push(...batch);
-    pageCount = res?.meta?.pagination?.pageCount ?? 1;
-    page += 1;
-  } while (page <= pageCount);
-  return all;
+async function fetchAllPaged(fetchPage, options = {}) {
+  return paginateStrapiList(fetchPage, { pageSize: LIST_PAGE_SIZE, ...options });
 }
 
 function isOpenTask(task) {
