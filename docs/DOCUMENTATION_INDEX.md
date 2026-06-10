@@ -10,6 +10,7 @@ Your complete guide to the Webfudge Platform documentation.
 
 | Document                                       | Description                                  | Read Time | Priority |
 | ---------------------------------------------- | -------------------------------------------- | --------- | -------- |
+| **[XTRAWRKX_USER_MANUAL.md](./XTRAWRKX_USER_MANUAL.md)** | **End-user guide** — login credentials, all apps, Landing Firebase CMS, workflows; Orbit steps done; Books excluded | 50 min | 🔴 High |
 | **[GETTING_STARTED.md](./GETTING_STARTED.md)** | Your first stop - overview and learning path | 10 min    | 🔴 High  |
 | **[INSTALLATION.md](./INSTALLATION.md)**       | Step-by-step installation instructions       | 15 min    | 🔴 High  |
 | **[QUICKSTART.md](./QUICKSTART.md)**           | Get running in 5 minutes                     | 5 min     | 🔴 High  |
@@ -45,6 +46,7 @@ Your complete guide to the Webfudge Platform documentation.
 
 | Document                                                                                                 | Description                                                                                                                                                                   |
 | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[XTRAWRKX_USER_MANUAL.md](./XTRAWRKX_USER_MANUAL.md)**                                                 | Complete end-user manual: login credentials, Orbit (steps done), Fudge Base, Fudge People, Fudge Work, Landing CMS, Client Portal; Fudge Books excluded                      |
 | **[LEAD_COMPANIES_LOAD_PERFORMANCE.md](./LEAD_COMPANIES_LOAD_PERFORMANCE.md)**                             | CRM Lead Companies + Contacts lists: server pagination, `/stats` endpoints, scoped queries — fixes slow initial load |
 | **[FUDGE_SUITE_BRANDING.md](./FUDGE_SUITE_BRANDING.md)**                                                 | Fudge Suite (Option A) branding across CRM, PM, Accounts, Books — Xtrawrkx-primary product names with Webfudge Systems creator credit                                  |
 | **[ORBIT_WEBFUDGE_BRANDING.md](./ORBIT_WEBFUDGE_BRANDING.md)**                                           | Organization Manager (Orbit) — full Webfudge Systems branding (naming, logos, favicons, theme)                                                                              |
@@ -53,6 +55,7 @@ Your complete guide to the Webfudge Platform documentation.
 | **[XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md)**                 | Production quick reference and `*.xtrawrkx.com` layout                                                                                                                        |
 | **[LOCAL_DB_RESET.md](./LOCAL_DB_RESET.md)**                                                             | Wipe local SQLite, re-seed platform admin (`admin@xtrawrkx.com`), fix `isPlatformAdmin` + Orbit login                                                                           |
 | **[ACCOUNTS_GREENWAYS_PARITY.md](./ACCOUNTS_GREENWAYS_PARITY.md)**                                       | Fudge Base aligned with Greenways accounts: departments, teams, users+depts, security, billing, backend APIs                                                                      |
+| **[ACCOUNTS_USER_REMOVE_AND_TRANSFER.md](./ACCOUNTS_USER_REMOVE_AND_TRANSFER.md)**                       | Remove user from org, suspend with required assignment transfer (CRM, PM, departments, teams, owner)                                                                            |
 | **[SHARED_COMPONENT_CLEANUP_2026.md](./SHARED_COMPONENT_CLEANUP_2026.md)**                               | CRM dashboard charts → `@webfudge/ui`; shared `QuickActionsFab`; Accounts status badge via `Badge`; missing `.env.example` files for PM, Books, VLM |
 | **[CROSS_APP_UI_CONSOLIDATION.md](./CROSS_APP_UI_CONSOLIDATION.md)**                                     | PM→CRM→Accounts consolidation: TableSortDropdown, AccessDeniedPanel, WorkspaceLayoutContent, shared utils (leadCompanyProfileOptions, contactCompanyFields, industryVisuals) |
 | **[CRM_TABLE_SORT_RESIZE.md](./CRM_TABLE_SORT_RESIZE.md)**                                               | CRM tables (Lead Companies, Contacts, Deals) — multi-column sort panel + drag-to-resize columns, mirroring PM feature set |
@@ -198,10 +201,11 @@ Your complete guide to the Webfudge Platform documentation.
 
 **Essential Reading:**
 
-1. [COMPLETION_REPORT.md](./COMPLETION_REPORT.md) - Current status
-2. [PROJECT_CHECKLIST.md](./PROJECT_CHECKLIST.md) - Progress tracking
-3. [SETUP_SUMMARY.md](./SETUP_SUMMARY.md) - Technical overview
-4. [ARCHITECTURE.md](./ARCHITECTURE.md) - System design
+1. [XTRAWRKX_USER_MANUAL.md](./XTRAWRKX_USER_MANUAL.md) - End-user feature guide for the full suite
+2. [COMPLETION_REPORT.md](./COMPLETION_REPORT.md) - Current status
+3. [PROJECT_CHECKLIST.md](./PROJECT_CHECKLIST.md) - Progress tracking
+4. [SETUP_SUMMARY.md](./SETUP_SUMMARY.md) - Technical overview
+5. [ARCHITECTURE.md](./ARCHITECTURE.md) - System design
 
 **Optional:**
 
@@ -334,6 +338,8 @@ Fully Informed! 📊
 | Understand architecture? | [ARCHITECTURE.md](./ARCHITECTURE.md)           | High-Level Architecture |
 | Track progress?          | [PROJECT_CHECKLIST.md](./PROJECT_CHECKLIST.md) | Checklist               |
 | See what's done?         | [COMPLETION_REPORT.md](./COMPLETION_REPORT.md) | Completion Metrics      |
+| Use CRM, PM, or Accounts? | [XTRAWRKX_USER_MANUAL.md](./XTRAWRKX_USER_MANUAL.md) | Full user manual |
+| Set up a new organization? | [XTRAWRKX_USER_MANUAL.md](./XTRAWRKX_USER_MANUAL.md) | Orbit — steps done |
 
 ### "Where is...?"
 
@@ -525,6 +531,7 @@ _Last Updated: May 27, 2026_
 
 | Document | Description | Date |
 |----------|-------------|------|
+| **[XTRAWRKX_USER_MANUAL.md](./XTRAWRKX_USER_MANUAL.md)** | Complete end-user manual: login passes, Landing Firebase CMS, all suite apps (Orbit steps done; Books excluded) | Jun 2026 |
 | **[LANDING_PREMIUM_REDESIGN.md](./LANDING_PREMIUM_REDESIGN.md)** | Complete premium redesign of the landing page — new design system, animations, all sections | May 2026 |
 | **[LANDING_CONTENT_UPDATE_2026.md](./LANDING_CONTENT_UPDATE_2026.md)** | Full content refresh — brand repositioning, 5 core services, updated copy across all sections | May 2026 |
 | **[LANDING_INDUSTRIES_UPDATE.md](./LANDING_INDUSTRIES_UPDATE.md)** | New Industries section (8 industries), expanded Why Choose Us to 6 cards, fixed Navbar dead links | May 2026 |

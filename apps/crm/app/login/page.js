@@ -77,10 +77,7 @@ export default function LoginPage() {
           brandName={CRM_SITE.brandName}
         />
         <div className="max-w-lg">
-          <LoginProductCredit
-            productName={CRM_SITE.name}
-            creatorLine={CRM_SITE.creatorLine}
-          />
+          <LoginProductCredit productName={CRM_SITE.name} />
           <h1 className="text-5xl font-bold text-white mb-6">Welcome back</h1>
           <p className="text-xl text-white/90 mb-4">
             Sales CRM — manage leads, deals, contacts, and your pipeline in one place.
@@ -110,7 +107,6 @@ export default function LoginPage() {
             brandIconPath={CRM_SITE.logoPath}
             brandName={CRM_SITE.brandName}
             productName={CRM_SITE.name}
-            creatorLine={CRM_SITE.creatorLine}
           />
           <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
           <p className="text-gray-600 mb-8">Enter your credentials to access the CRM.</p>

@@ -5,8 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
   X,
   ChevronDown,
   ChevronRight as ChevronRightIcon,
@@ -30,7 +29,8 @@ import {
 import DedicatedPocSidebarCard from "./DedicatedPocSidebarCard";
 import SupportAssistanceCard from "./SupportAssistanceCard";
 
-export function Sidebar({ isOpen, onClose, collapsed, onCollapseChange }) {
+export function Sidebar({ isOpen, onClose, onToggle }) {
+  const collapsed = false;
   const pathname = usePathname();
   const { data: session } = useSession();
   const userRole = getUserRole(session);
@@ -366,17 +366,13 @@ export function Sidebar({ isOpen, onClose, collapsed, onCollapseChange }) {
           )}
           <button
             onClick={() => {
-              onCollapseChange(!collapsed);
+              onToggle?.();
               if (isOpen) onClose();
             }}
             className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label="Hide sidebar"
           >
-            {collapsed ? (
-              <ChevronRight className="w-5 h-5" />
-            ) : (
-              <ChevronLeft className="w-5 h-5" />
-            )}
+            <PanelLeftClose className="w-5 h-5" strokeWidth={1.75} />
           </button>
           {isOpen && (
             <Button

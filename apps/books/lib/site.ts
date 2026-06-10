@@ -8,8 +8,6 @@ export const BOOKS_SITE = {
   legalName: 'Xtrawrkx',
   name: 'Fudge Books',
   shortName: 'Books',
-  creatorName: 'Webfudge Systems',
-  creatorLine: 'by Webfudge Systems',
   description:
     'Fudge Books is the finance and accounting workspace for receivables, payables, projects, time tracking, and documents across the Xtrawrkx suite.',
   tagline: 'Finance and accounting for service agencies and modern teams.',

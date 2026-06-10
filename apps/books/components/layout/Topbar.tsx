@@ -1,8 +1,9 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import { resolveUserDisplayName, useAuth } from '@webfudge/auth'
+import { WorkspaceBackButton } from '@webfudge/ui'
 import { getRouteMeta } from '@/lib/routes'
 
 type TopbarProps = {
@@ -11,6 +12,7 @@ type TopbarProps = {
 
 export default function Topbar({ className }: TopbarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const { user } = useAuth()
   const meta = getRouteMeta(pathname)
 
@@ -36,6 +38,9 @@ export default function Topbar({ className }: TopbarProps) {
           </>
         ) : (
           <>
+            <div className="mb-1">
+              <WorkspaceBackButton onClick={() => router.back()} />
+            </div>
             <nav className="mb-1 text-xs text-[var(--books-text-secondary)]" aria-label="Breadcrumb">
               {meta.breadcrumbs.join(' > ')}
             </nav>

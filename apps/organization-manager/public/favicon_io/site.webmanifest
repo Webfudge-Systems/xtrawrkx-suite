@@ -1,8 +1,8 @@
 ﻿{
   "id": "/",
-  "name": "Fudge Orbit",
+  "name": "Orbit",
   "short_name": "Orbit",
-  "description": "Fudge Orbit for platform super-admin organization and tenant management.",
+  "description": "Orbit — your central hub to manage multiple companies across Webfudge Systems.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

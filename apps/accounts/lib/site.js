@@ -8,8 +8,6 @@ export const ACCOUNTS_SITE = {
   legalName: 'Xtrawrkx',
   name: 'Fudge Base',
   shortName: 'Base',
-  creatorName: 'Webfudge Systems',
-  creatorLine: 'by Webfudge Systems',
   description:
     'Fudge Base is the organization administration workspace for users, roles, departments, teams, security, billing, app access, and audit logs across the Xtrawrkx suite.',
   tagline: 'Manage your organization—users, roles, security, billing, and compliance.',

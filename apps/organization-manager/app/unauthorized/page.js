@@ -13,10 +13,10 @@ export default function UnauthorizedPage() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Access denied</h1>
         <p className="text-gray-600 mb-6">
-          This portal is restricted to platform super administrators. Use the Accounts or PM apps with your organization credentials.
+          This area requires an Orbit account. Sign in to manage your companies, or use CRM, PM, or Accounts with your organization credentials.
         </p>
         <Link href="/login">
-          <Button variant="primary">Back to admin login</Button>
+          <Button variant="primary">Back to sign in</Button>
         </Link>
       </div>
     </div>

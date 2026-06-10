@@ -37,7 +37,7 @@ import { buildOrgActivityItems } from '../../../lib/orgActivity'
 import { formatOrgStatus, orgStatusVariant } from '../../../lib/orgDisplay'
 import platformService from '../../../lib/platformService'
 
-const ACCOUNTS_URL = process.env.NEXT_PUBLIC_ACCOUNTS_APP_URL || 'http://localhost:3001'
+const ACCOUNTS_URL = process.env.NEXT_PUBLIC_ACCOUNTS_APP_URL || 'http://localhost:3003'
 const PM_URL = process.env.NEXT_PUBLIC_PM_APP_URL || 'http://localhost:3002'
 
 const STATUS_OPTIONS = [
@@ -67,7 +67,7 @@ function OrganizationProfileCard({ org, ownerLabel }) {
         <div className="min-w-0 flex-1 pr-2">
           <h2 className="text-xl font-semibold text-gray-900">Organization profile</h2>
           <p className="mt-1.5 text-base text-gray-500">
-            Internal workspace identity and primary admin for this tenant.
+            Company details and primary owner for this organization.
           </p>
         </div>
         <Badge variant={orgStatusVariant(org.status)} size="sm" className="shrink-0 capitalize">
@@ -392,7 +392,7 @@ export default function OrganizationDetailPage() {
             <EmptyState
               icon={Users}
               title="No members yet"
-              description="Assign an owner when creating the organization to provision the first admin user."
+              description="Assign an owner when creating the organization to add the first team member."
             />
           ) : (
             <>

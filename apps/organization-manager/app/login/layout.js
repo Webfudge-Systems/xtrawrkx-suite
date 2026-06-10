@@ -2,7 +2,7 @@ import { ORG_MANAGER_SITE } from '../../lib/site';
 
 export const metadata = {
   title: 'Sign in',
-  description: `Sign in to ${ORG_MANAGER_SITE.name} to manage organizations and tenants.`,
+  description: `Sign in to ${ORG_MANAGER_SITE.name} to manage your companies and organizations.`,
   alternates: {
     canonical: '/login',
   },

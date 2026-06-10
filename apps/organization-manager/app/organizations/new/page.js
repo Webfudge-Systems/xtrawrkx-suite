@@ -48,7 +48,7 @@ export default function NewOrganizationPage() {
     <div className="space-y-4 p-3 sm:space-y-6 sm:p-4 md:p-6">
       <PlatformPageHeader
         title="Create organization"
-        subtitle="Provision an internal tenant workspace and its primary admin user."
+        subtitle="Add a new company and set up the primary owner for that organization."
         breadcrumb={[
           { label: 'Organizations', href: '/organizations' },
           { label: 'Create' },
@@ -64,8 +64,8 @@ export default function NewOrganizationPage() {
 
         <FormSectionCard
           icon={Building2}
-          title="Workspace"
-          description="Name for this internal organization. A unique slug is generated automatically."
+          title="Company"
+          description="Name for this organization. A unique slug is generated automatically."
         >
           <Input
             label="Organization name"
@@ -78,8 +78,8 @@ export default function NewOrganizationPage() {
 
         <FormSectionCard
           icon={User}
-          title="Primary admin"
-          description="Admin user for this tenant. A new account is created when the email is not already registered."
+          title="Primary owner"
+          description="Owner for this company. A new account is created when the email is not already registered."
         >
           <div className="space-y-4">
             <Input

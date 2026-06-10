@@ -12,16 +12,16 @@ const allowedOrigins = [
   'https://www.xtrawrkx.com',
   'https://crm.xtrawrkx.com',
   'https://pm.xtrawrkx.com',
-  'https://base.xtrawrkx.com',
   'https://accounts.xtrawrkx.com',
-  'https://orbit.xtrawrkx.com',
+  'https://orbit.10x1.webfudge.in',
   'https://portal.xtrawrkx.com',
-  'https://api.xtrawrkx.com',
+  'https://xtrawrkxsuits-production.up.railway.app',
 ];
 
 const allowedOriginPatterns = [
   /^https:\/\/[a-z0-9-]+\.vercel\.app$/,
   /^https:\/\/[a-z0-9-]+\.xtrawrkx\.com$/,
+  /^https:\/\/[a-z0-9-]+\.10x1\.webfudge\.in$/,
 ];
 
 module.exports = [

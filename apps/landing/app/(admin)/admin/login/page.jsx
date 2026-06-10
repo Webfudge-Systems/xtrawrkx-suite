@@ -16,7 +16,7 @@ export default function AdminLogin() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
 
-  const { signIn, user, isStrapiAvailable, loading } = useAuth();
+  const { signIn, user, isFirebaseAvailable, loading } = useAuth();
   const router = useRouter();
 
   // Redirect if already authenticated
@@ -69,9 +69,9 @@ export default function AdminLogin() {
     e.preventDefault();
     setLoginError("");
 
-    if (!isStrapiAvailable) {
+    if (!isFirebaseAvailable) {
       const errorMessage =
-        "Strapi backend is not available. Please check your configuration and try again.";
+        "Firebase authentication is not configured. Please check your configuration and try again.";
       setLoginError(errorMessage);
       return;
     }
@@ -245,7 +245,7 @@ export default function AdminLogin() {
                               : "border-gray-200 hover:border-gray-300"
                           }`}
                           placeholder="Enter your username"
-                          disabled={isSubmitting || !isStrapiAvailable}
+                          disabled={isSubmitting || !isFirebaseAvailable}
                         />
                       </div>
                       {errors.email && (
@@ -283,13 +283,13 @@ export default function AdminLogin() {
                               : "border-gray-200 hover:border-gray-300"
                           }`}
                           placeholder="Enter your password"
-                          disabled={isSubmitting || !isStrapiAvailable}
+                          disabled={isSubmitting || !isFirebaseAvailable}
                         />
                         <button
                           type="button"
                           className="absolute inset-y-0 right-0 pr-3 flex items-center"
                           onClick={() => setShowPassword(!showPassword)}
-                          disabled={isSubmitting || !isStrapiAvailable}
+                          disabled={isSubmitting || !isFirebaseAvailable}
                         >
                           {showPassword ? (
                             <Icon
@@ -315,7 +315,7 @@ export default function AdminLogin() {
                     <div>
                       <button
                         type="submit"
-                        disabled={isSubmitting || !isStrapiAvailable}
+                        disabled={isSubmitting || !isFirebaseAvailable}
                         className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-semibold text-white bg-[#FF4A74] hover:bg-[#FF4A74]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                       >
                         {isSubmitting ? (

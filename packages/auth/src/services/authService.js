@@ -5,7 +5,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_STRAPI_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === 'production'
-    ? 'https://api.xtrawrkx.com'
+    ? 'https://xtrawrkxsuits-production.up.railway.app'
     : 'http://localhost:1337');
 
 const ACCESS_RANK = { none: 0, read: 1, write: 2, manage: 3 };

@@ -10,7 +10,7 @@ End-to-end checklist for the **Xtrawrkx Suite** monorepo:
 | **Railway** | Project **`xtrawrkx-suite`**                                                          | Strapi API, Postgres, Redis |
 | **Vercel**  | Team **Webfudge Systems**                                                             | Next.js frontends           |
 
-Production domains use **`*.xtrawrkx.com`**. Env templates live in each app as `.env.example` (committed), `.env.local` (dev), and `.env.production` (secrets — **gitignored**).
+Production frontends use **`*.xtrawrkx.com`** (Orbit: **`orbit.10x1.webfudge.in`**). The API is hosted on **Railway** at **`xtrawrkxsuits-production.up.railway.app`**. Env templates live in each app as `.env.example` (committed), `.env.local` (dev), and `.env.production` (secrets — **gitignored**).
 
 **Env reference:** [ENV_FILES.md](./ENV_FILES.md)
 
@@ -23,10 +23,10 @@ Production domains use **`*.xtrawrkx.com`**. Env templates live in each app as `
 | Landing          | `https://xtrawrkx.com`        | `apps/landing`                | `apps/landing`                |
 | CRM              | `https://crm.xtrawrkx.com`    | `apps/crm`                    | `apps/crm`                    |
 | PM               | `https://pm.xtrawrkx.com`     | `apps/pm`                     | `apps/pm`                     |
-| Accounts         | `https://base.xtrawrkx.com`   | `apps/accounts`               | `apps/accounts`               |
-| Orbit            | `https://orbit.xtrawrkx.com`  | `apps/organization-manager`   | `apps/organization-manager`   |
+| Accounts         | `https://accounts.xtrawrkx.com`   | `apps/accounts`               | `apps/accounts`               |
+| Orbit            | `https://orbit.10x1.webfudge.in`  | `apps/organization-manager`   | `apps/organization-manager`   |
 | Client portal    | `https://portal.xtrawrkx.com` | `apps/xtrawrkx-client-portal` | `apps/xtrawrkx-client-portal` |
-| API              | `https://api.xtrawrkx.com`    | `apps/backend`                | Railway only                  |
+| API              | `https://xtrawrkxsuits-production.up.railway.app`    | `apps/backend`                | Railway only                  |
 | Books (optional) | TBD                           | `apps/books`                  | `apps/books`                  |
 
 | Dev port | App           |
@@ -54,21 +54,21 @@ flowchart TB
     L[xtrawrkx.com]
     CRM[crm.xtrawrkx.com]
     PM[pm.xtrawrkx.com]
-    BASE[base.xtrawrkx.com]
-    ORB[orbit.xtrawrkx.com]
+    ACC[accounts.xtrawrkx.com]
+    ORB[orbit.10x1.webfudge.in]
     PRT[portal.xtrawrkx.com]
   end
 
   subgraph RW["Railway xtrawrkx-suite"]
-    API[api.xtrawrkx.com]
+    API[xtrawrkxsuits-production.up.railway.app]
     PG[(Postgres)]
     RD[(Redis)]
   end
 
   REPO --> API
-  REPO --> L & CRM & PM & BASE & ORB & PRT
+  REPO --> L & CRM & PM & ACC & ORB & PRT
 
-  L & CRM & PM & BASE & ORB & PRT --> API
+  L & CRM & PM & ACC & ORB & PRT --> API
   API --> PG
   API --> RD
 ```
@@ -208,7 +208,7 @@ Minimum set:
 NODE_ENV=production
 HOST=0.0.0.0
 PORT=${{PORT}}
-PUBLIC_URL=https://api.xtrawrkx.com
+PUBLIC_URL=https://xtrawrkxsuits-production.up.railway.app
 
 DATABASE_CLIENT=postgres
 DATABASE_URL=${{Postgres.DATABASE_PRIVATE_URL}}
@@ -241,7 +241,7 @@ Optional app URL hints for emails/links:
 LANDING_APP_URL=https://xtrawrkx.com
 CRM_APP_URL=https://crm.xtrawrkx.com
 PM_APP_URL=https://pm.xtrawrkx.com
-ACCOUNTS_APP_URL=https://base.xtrawrkx.com
+ACCOUNTS_APP_URL=https://accounts.xtrawrkx.com
 ```
 
 Troubleshooting: [RAILWAY_STRAPI_DEPLOY.md](./RAILWAY_STRAPI_DEPLOY.md)
@@ -270,7 +270,7 @@ flowchart TD
 | Keep same Strapi secrets as last writer to this DB | `SEED_DATA=true` on boot   |
 | Link `DATABASE_PRIVATE_URL`                        | New empty Postgres service |
 
-After redeploy: `curl https://api.xtrawrkx.com/api/apps` · Strapi Admin · sample leads/tasks.
+After redeploy: `curl https://xtrawrkxsuits-production.up.railway.app/api/apps` · Strapi Admin · sample leads/tasks.
 
 #### Healthcheck fails: `cannot drop table xtrawrkx_users`
 
@@ -307,7 +307,7 @@ Fresh Postgres; bootstrap creates apps/modules only when empty; create orgs via 
 3. Redeploy → log: `✅ Redis connected`.
 
 ```bash
-curl -s https://api.xtrawrkx.com/api/health/redis
+curl -s https://xtrawrkxsuits-production.up.railway.app/api/health/redis
 ```
 
 [REDIS_CACHE.md](./REDIS_CACHE.md)
@@ -321,12 +321,12 @@ curl -s https://api.xtrawrkx.com/api/health/redis
 3. HTTP:
 
 ```bash
-curl -s https://api.xtrawrkx.com/api/apps
-curl -s https://api.xtrawrkx.com/api/health/redis
+curl -s https://xtrawrkxsuits-production.up.railway.app/api/apps
+curl -s https://xtrawrkxsuits-production.up.railway.app/api/health/redis
 ```
 
-4. Admin: `https://api.xtrawrkx.com/admin`
-5. Custom domain: Railway → Networking → `api.xtrawrkx.com` → DNS CNAME.
+4. Admin: `https://xtrawrkxsuits-production.up.railway.app/admin`
+5. Railway public URL: `https://xtrawrkxsuits-production.up.railway.app/admin` (optional custom domain in Railway → Networking).
 
 ### 5.1 Deploy failures
 
@@ -360,8 +360,8 @@ Team: **Webfudge Systems** · Repo: **Webfudge-Systems/xtrawrkx-suite**.
 | `webfudge-landing`  | `apps/landing`                | `xtrawrkx.com`, `www.xtrawrkx.com` |
 | `webfudge-crm`      | `apps/crm`                    | `crm.xtrawrkx.com`                 |
 | `webfudge-pm`       | `apps/pm`                     | `pm.xtrawrkx.com`                  |
-| `webfudge-accounts` | `apps/accounts`               | `base.xtrawrkx.com`                |
-| `webfudge-orbit`    | `apps/organization-manager`   | `orbit.xtrawrkx.com`               |
+| `webfudge-accounts` | `apps/accounts`               | `accounts.xtrawrkx.com`                |
+| `webfudge-orbit`    | `apps/organization-manager`   | `orbit.10x1.webfudge.in`               |
 | `webfudge-portal`   | `apps/xtrawrkx-client-portal` | `portal.xtrawrkx.com`              |
 
 ### 6.3 Environment variables
@@ -373,7 +373,7 @@ Reference values (no secrets in repo):
 <summary>CRM — <code>apps/crm/.env.production</code></summary>
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_API_URL=https://xtrawrkxsuits-production.up.railway.app
 NEXT_PUBLIC_CRM_APP_URL=https://crm.xtrawrkx.com
 NEXT_PUBLIC_PM_APP_URL=https://pm.xtrawrkx.com
 ```
@@ -384,7 +384,7 @@ NEXT_PUBLIC_PM_APP_URL=https://pm.xtrawrkx.com
 <summary>PM — <code>apps/pm/.env.production</code></summary>
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_API_URL=https://xtrawrkxsuits-production.up.railway.app
 NEXT_PUBLIC_PM_APP_URL=https://pm.xtrawrkx.com
 NEXT_PUBLIC_CRM_APP_URL=https://crm.xtrawrkx.com
 ```
@@ -395,8 +395,8 @@ NEXT_PUBLIC_CRM_APP_URL=https://crm.xtrawrkx.com
 <summary>Accounts — <code>apps/accounts/.env.production</code></summary>
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
-NEXT_PUBLIC_ACCOUNTS_APP_URL=https://base.xtrawrkx.com
+NEXT_PUBLIC_API_URL=https://xtrawrkxsuits-production.up.railway.app
+NEXT_PUBLIC_ACCOUNTS_APP_URL=https://accounts.xtrawrkx.com
 NEXT_PUBLIC_CRM_ORIGIN=https://crm.xtrawrkx.com
 ```
 
@@ -406,10 +406,10 @@ NEXT_PUBLIC_CRM_ORIGIN=https://crm.xtrawrkx.com
 <summary>Orbit — <code>apps/organization-manager/.env.production</code></summary>
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
-NEXT_PUBLIC_ORG_MANAGER_URL=https://orbit.xtrawrkx.com
-NEXT_PUBLIC_SITE_URL=https://orbit.xtrawrkx.com
-NEXT_PUBLIC_ACCOUNTS_APP_URL=https://base.xtrawrkx.com
+NEXT_PUBLIC_API_URL=https://xtrawrkxsuits-production.up.railway.app
+NEXT_PUBLIC_ORG_MANAGER_URL=https://orbit.10x1.webfudge.in
+NEXT_PUBLIC_SITE_URL=https://orbit.10x1.webfudge.in
+NEXT_PUBLIC_ACCOUNTS_APP_URL=https://accounts.xtrawrkx.com
 NEXT_PUBLIC_PM_APP_URL=https://pm.xtrawrkx.com
 NEXT_PUBLIC_CRM_APP_URL=https://crm.xtrawrkx.com
 NEXT_PUBLIC_LANDING_URL=https://xtrawrkx.com
@@ -423,8 +423,8 @@ NEXT_PUBLIC_LANDING_URL=https://xtrawrkx.com
 ```bash
 NEXT_PUBLIC_BASE_URL=https://xtrawrkx.com
 NEXT_PUBLIC_APP_URL=https://xtrawrkx.com
-NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
-NEXT_PUBLIC_STRAPI_API_URL=https://api.xtrawrkx.com/api
+NEXT_PUBLIC_API_URL=https://xtrawrkxsuits-production.up.railway.app
+NEXT_PUBLIC_STRAPI_API_URL=https://xtrawrkxsuits-production.up.railway.app/api
 NEXT_PUBLIC_CRM_PORTAL_URL=https://crm.xtrawrkx.com
 NEXT_PUBLIC_CLIENT_PORTAL_URL=https://portal.xtrawrkx.com
 # + Cloudinary, Firebase, EMAIL_* — see apps/landing/.env.production (gitignored)
@@ -436,8 +436,8 @@ NEXT_PUBLIC_CLIENT_PORTAL_URL=https://portal.xtrawrkx.com
 <summary>Client portal — <code>apps/xtrawrkx-client-portal/.env.production</code></summary>
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.xtrawrkx.com
-NEXT_PUBLIC_STRAPI_URL=https://api.xtrawrkx.com
+NEXT_PUBLIC_API_URL=https://xtrawrkxsuits-production.up.railway.app
+NEXT_PUBLIC_STRAPI_URL=https://xtrawrkxsuits-production.up.railway.app
 NEXT_PUBLIC_XTRAWRKX_WEBSITE_URL=https://xtrawrkx.com
 NEXT_PUBLIC_USE_STRAPI=true
 ```
@@ -479,7 +479,7 @@ npm run build:accounts && npm run build:org-manager
 
 | Host                                   | Provider           |
 | -------------------------------------- | ------------------ |
-| `api.xtrawrkx.com`                     | Railway CNAME      |
+| `xtrawrkxsuits-production.up.railway.app` | Railway default URL |
 | `xtrawrkx.com`, `www`                  | Vercel             |
 | `crm`, `pm`, `base`, `orbit`, `portal` | Vercel per project |
 
@@ -489,8 +489,8 @@ npm run build:accounts && npm run build:org-manager
 
 - `https://xtrawrkx.com`, `https://www.xtrawrkx.com`
 - `https://crm.xtrawrkx.com`, `https://pm.xtrawrkx.com`
-- `https://base.xtrawrkx.com`, `https://orbit.xtrawrkx.com`, `https://portal.xtrawrkx.com`
-- `https://api.xtrawrkx.com`
+- `https://accounts.xtrawrkx.com`, `https://orbit.10x1.webfudge.in`, `https://portal.xtrawrkx.com`
+- `https://xtrawrkxsuits-production.up.railway.app`
 - Pattern: `https://*.vercel.app`, `https://*.xtrawrkx.com`
 
 If you still serve legacy `*.webfudge.in`, add those origins and redeploy API.
@@ -506,7 +506,7 @@ If you still serve legacy `*.webfudge.in`, add those origins and redeploy API.
 | API      | `GET /api/apps`, `GET /api/health/redis`, Admin loads       |
 | CRM      | Login, org switch, leads/contacts, `X-Cache: HIT` on repeat |
 | PM       | Projects/tasks, no CORS errors                              |
-| Accounts | Users/roles at `base.xtrawrkx.com`                          |
+| Accounts | Users/roles at `accounts.xtrawrkx.com`                          |
 | Orbit    | Platform admin login                                        |
 | Landing  | Home, contact form                                          |
 | Portal   | Auth + dashboard                                            |
@@ -519,10 +519,10 @@ Only if you still run the old stack in parallel:
 
 | Old                    | New                 |
 | ---------------------- | ------------------- |
-| `api.webfudge.in`      | `api.xtrawrkx.com`  |
+| `api.webfudge.in`      | `xtrawrkxsuits-production.up.railway.app`  |
 | `crm.webfudge.in`      | `crm.xtrawrkx.com`  |
 | `pm.webfudge.in`       | `pm.xtrawrkx.com`   |
-| `accounts.webfudge.in` | `base.xtrawrkx.com` |
+| `accounts.webfudge.in` | `accounts.xtrawrkx.com` |
 
 Data migration from old API: [Path B](#path-b--import-from-legacy-apiwebfudgein).
 

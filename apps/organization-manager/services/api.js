@@ -1,7 +1,7 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === 'production'
-    ? 'https://api.xtrawrkx.com'
+    ? 'https://xtrawrkxsuits-production.up.railway.app'
     : 'http://localhost:1337')
 
 class ApiService {

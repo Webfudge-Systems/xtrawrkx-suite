@@ -6,7 +6,10 @@ export const CMS_CONFIG = {
     USE_CMS_DATA: process.env.NEXT_PUBLIC_USE_CMS_DATA === 'true',
 
     // Admin configuration
-    ADMIN_EMAILS: process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || ['admin@xtrawrkx.com'],
+    ADMIN_EMAILS: (process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || [
+        'admin@xtrawrkx.com',
+        'xtrawrkxadmin@xmc.com',
+    ]).map((entry) => entry.trim()).filter(Boolean),
 
     STRAPI_API_URL:
         process.env.NEXT_PUBLIC_STRAPI_API_URL ||
@@ -20,7 +23,11 @@ export const isCMSEnabled = () => CMS_CONFIG.USE_CMS_DATA;
 
 // Helper function to check if user is admin
 export const isUserAdmin = (email) => {
-    return CMS_CONFIG.ADMIN_EMAILS.includes(email);
+    if (!email) return false;
+    const normalized = email.trim().toLowerCase();
+    return CMS_CONFIG.ADMIN_EMAILS.some(
+        (adminEmail) => adminEmail.trim().toLowerCase() === normalized
+    );
 };
 
 // Data source labels for UI

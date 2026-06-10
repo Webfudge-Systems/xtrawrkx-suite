@@ -24,6 +24,9 @@
  *   hasActiveFilters       – boolean
  *   actions                – ReactNode — extra action buttons
  *   children               – ReactNode — extra content below header
+ *   showBack               – show a labeled Back control (default false)
+ *   onBack                 – () => void — custom back handler (defaults to router.back())
+ *   backLabel              – label for the back control (default "Back")
  *   notificationService    – (REQUIRED) app-specific notification service instance
  *   renderGlobalSearchModal – ({ isOpen, onClose, initialQuery }) => ReactNode
  *   searchInputClassName   – Tailwind class override for the search input
@@ -51,6 +54,9 @@ export function AppPageHeader({
   hasActiveFilters = false,
   actions,
   children,
+  showBack = false,
+  onBack,
+  backLabel = 'Back',
   notificationService,
   renderGlobalSearchModal,
   searchInputClassName = DEFAULT_SEARCH_INPUT_CLASS,
@@ -72,6 +78,9 @@ export function AppPageHeader({
       onShareImageClick={onShareImageClick}
       hasActiveFilters={hasActiveFilters}
       actions={actions}
+      showBack={showBack}
+      onBack={onBack}
+      backLabel={backLabel}
       notificationService={notificationService}
       renderGlobalSearchModal={renderGlobalSearchModal}
       searchInputClassName={searchInputClassName}

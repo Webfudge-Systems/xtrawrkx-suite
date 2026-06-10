@@ -15,8 +15,7 @@ import {
   ClipboardList,
   Settings,
   Grid3X3,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
 } from 'lucide-react'
 import { ACCOUNTS_SITE } from '../lib/site'
 
@@ -81,7 +80,6 @@ export default function AccountsSidebar({ collapsed = false, onToggle }) {
                 <span className="block font-bold text-xl tracking-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent">
                   {ACCOUNTS_SITE.name}
                 </span>
-                <span className="block text-[10px] text-gray-500">{ACCOUNTS_SITE.creatorLine}</span>
               </div>
             </Link>
           )}
@@ -89,9 +87,9 @@ export default function AccountsSidebar({ collapsed = false, onToggle }) {
             type="button"
             onClick={onToggle}
             className="p-2 rounded-lg hover:bg-gray-50 transition-colors"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label="Hide sidebar"
           >
-            {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            <PanelLeftClose className="w-5 h-5" strokeWidth={1.75} />
           </button>
         </div>
       </div>

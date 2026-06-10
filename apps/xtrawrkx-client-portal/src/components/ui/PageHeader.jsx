@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { WorkspaceBackButton } from "@webfudge/ui";
 import {
   ChevronRight,
   ChevronDown,
@@ -43,8 +44,12 @@ export function PageHeader({
   actions,
   children,
   hasActiveFilters = false,
+  showBack: showBackProp,
+  onBack,
+  backLabel = "Back",
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = useSession();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] =
@@ -298,6 +303,8 @@ export function PageHeader({
 
   // Check if this is the dashboard page
   const isDashboard = pathname === "/dashboard";
+  const showBack = showBackProp ?? !isDashboard;
+  const handleBack = onBack ?? (() => router.back());
 
   // Build breadcrumb from pathname if not provided (dashboard omits path crumb)
   const breadcrumbItems =
@@ -341,9 +348,15 @@ export function PageHeader({
             });
 
   return (
-    <Card glass={true} className="relative z-[40]" padding={false}>
+    <div className="relative z-[40]">
+      <Card glass={true} padding={false}>
       <div className="flex items-center justify-between p-6">
         <div className="flex-1">
+          {showBack ? (
+            <div className="mb-1">
+              <WorkspaceBackButton onClick={handleBack} label={backLabel} />
+            </div>
+          ) : null}
           {/* Breadcrumb */}
           {breadcrumbItems.length > 0 && (
             <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
@@ -651,5 +664,6 @@ export function PageHeader({
         )}
       </div>
     </Card>
+    </div>
   );
 }

@@ -36,7 +36,9 @@
     "import:legacy-snapshot:bulk:dry-run": "node scripts/import-legacy-snapshot-bulk.js --dry-run",
     "backfill:contact-lead-csv": "node scripts/backfill-contact-lead-from-csv.js",
     "diagnose:crm-org": "node scripts/diagnose-crm-org.js",
-    "diagnose:lead-assignees": "node scripts/diagnose-lead-owner-recovery.js"
+    "diagnose:lead-assignees": "node scripts/diagnose-lead-owner-recovery.js",
+    "sync:platform-admin": "node scripts/sync-platform-admin.js",
+    "sync:platform-admin:reset-password": "node scripts/sync-platform-admin.js --reset-password"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",

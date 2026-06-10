@@ -9,7 +9,7 @@ import { SORT_COLUMNS_BY_ENTITY, sortableKeysForEntity } from '../lib/tableSortC
  * CRM table sort hook — persists rules and sorts row data for a given entity type.
  *
  * @param {{
- *   entity: 'leadCompany' | 'contact' | 'deal',
+ *   entity: 'leadCompany' | 'contact' | 'deal' | 'clientAccount',
  *   storageKey?: string,
  *   data?: unknown[],
  *   defaultRules?: { key: string, direction: 'asc' | 'desc' }[],

@@ -6,7 +6,7 @@ When **Postgres shows “Completed”** on Railway but the **API service is “C
 
 ## Scope
 
-- Hosting: [Railway](https://railway.app) (e.g. `api.webfudge.in` / custom domain on API service)
+- Hosting: [Railway](https://railway.app) at `https://xtrawrkxsuits-production.up.railway.app` (optional custom domain on API service)
 - App: `apps/backend` (Strapi 5)
 - Database: Railway Postgres (`postgres-ssl` template)
 

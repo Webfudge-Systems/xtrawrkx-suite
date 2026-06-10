@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Clock3, Mail, MoreHorizontal, Pencil, ShieldBan, ShieldCheck, UserCheck, UserPlus, Users, UserX } from 'lucide-react'
+import { Clock3, Eye, EyeOff, Mail, MoreHorizontal, Pencil, ShieldBan, ShieldCheck, Trash2, UserCheck, UserPlus, Users, UserX } from 'lucide-react'
 import {
   Avatar,
   Button,
@@ -18,6 +18,8 @@ import {
 } from '@webfudge/ui'
 import AccountsPageHeader from '../../components/AccountsPageHeader'
 import DepartmentPillMultiSelect from '../../components/DepartmentPillMultiSelect'
+import TransferUserSelect from '../../components/TransferUserSelect'
+import { isOrganizationAdmin } from '../../lib/accountsAccess'
 import { departmentsService, rolesService, usersService } from '../../lib/api'
 
 function formatDepartmentLabels(user, departmentCatalog = []) {
@@ -120,12 +122,28 @@ export default function UsersPage() {
   const [editError, setEditError] = useState('')
   const [rowActionMenu, setRowActionMenu] = useState(null)
   const [suspendTargetUser, setSuspendTargetUser] = useState(null)
+  const [suspendTransferToUserId, setSuspendTransferToUserId] = useState('')
+  const [suspendError, setSuspendError] = useState('')
   const [suspendSubmitting, setSuspendSubmitting] = useState(false)
+  const [deleteTargetUser, setDeleteTargetUser] = useState(null)
+  const [deleteTransferToUserId, setDeleteTransferToUserId] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [allDepartments, setAllDepartments] = useState([])
   const [inviteDepartmentIds, setInviteDepartmentIds] = useState([])
   const [invitePrimaryDepartmentId, setInvitePrimaryDepartmentId] = useState(null)
   const [editDepartmentIds, setEditDepartmentIds] = useState([])
   const [editPrimaryDepartmentId, setEditPrimaryDepartmentId] = useState(null)
+  const [editChangePassword, setEditChangePassword] = useState(false)
+  const [editPassword, setEditPassword] = useState('')
+  const [showEditPassword, setShowEditPassword] = useState(false)
+  const [editTransferToUserId, setEditTransferToUserId] = useState('')
+  const canEditPassword = useMemo(() => isOrganizationAdmin(), [])
+  const canManageUsers = useMemo(() => isOrganizationAdmin(), [])
+  const editRequiresTransfer = useMemo(() => {
+    if (!editUser) return false
+    return editStatus === 'suspended' && getUserStatus(editUser) !== 'suspended'
+  }, [editStatus, editUser])
 
   const toggleInviteDepartment = useCallback((deptId) => {
     setInviteDepartmentIds((prev) => {
@@ -357,6 +375,10 @@ export default function UsersPage() {
           : []
       setEditDepartmentIds(deptIds)
       setEditPrimaryDepartmentId(user?.primaryDepartmentId || deptIds[0] || null)
+      setEditChangePassword(false)
+      setEditPassword('')
+      setShowEditPassword(false)
+      setEditTransferToUserId('')
       setEditError('')
     },
     [roles]
@@ -382,6 +404,21 @@ export default function UsersPage() {
       setEditError('Email is required.')
       return
     }
+    if (editChangePassword) {
+      const nextPassword = editPassword.trim()
+      if (!nextPassword) {
+        setEditError('Password is required when changing password.')
+        return
+      }
+      if (nextPassword.length < 8) {
+        setEditError('Password must be at least 8 characters.')
+        return
+      }
+    }
+    if (editRequiresTransfer && !editTransferToUserId) {
+      setEditError('Select a user to receive open assignments before suspending.')
+      return
+    }
 
     try {
       setEditSubmitting(true)
@@ -394,6 +431,8 @@ export default function UsersPage() {
         status: editStatus,
         email,
         username: name,
+        password: editChangePassword ? editPassword.trim() : undefined,
+        transferToUserId: editRequiresTransfer ? editTransferToUserId : undefined,
         departmentIds: editDepartmentIds,
         primaryDepartmentId: editPrimaryDepartmentId,
       })
@@ -405,18 +444,22 @@ export default function UsersPage() {
       setEditSubmitting(false)
     }
   }, [
+    editChangePassword,
     editDepartmentIds,
     editEmail,
     editName,
+    editPassword,
     editPrimaryDepartmentId,
+    editRequiresTransfer,
     editRoleSelection,
     editStatus,
+    editTransferToUserId,
     editUser,
     fetchUsers,
   ])
 
   const toggleUserStatus = useCallback(
-    async (user, nextStatus) => {
+    async (user, nextStatus, transferToUserId) => {
       if (!user?.membershipId) return
       try {
         await usersService.updateMembership({
@@ -424,10 +467,11 @@ export default function UsersPage() {
           roleId: user?.roleId ?? undefined,
           roleCode: String(user?.roleCode || user?.role || 'member').toLowerCase(),
           status: nextStatus,
+          transferToUserId: nextStatus === 'suspended' ? transferToUserId : undefined,
         })
         await fetchUsers()
       } catch (error) {
-        console.error('Failed to update user status:', error)
+        throw error
       }
     },
     [fetchUsers]
@@ -437,23 +481,64 @@ export default function UsersPage() {
     (user, nextStatus) => {
       if (nextStatus === 'suspended') {
         setSuspendTargetUser(user)
+        setSuspendTransferToUserId('')
+        setSuspendError('')
         return
       }
-      toggleUserStatus(user, nextStatus)
+      toggleUserStatus(user, nextStatus).catch((error) => {
+        console.error('Failed to update user status:', error)
+      })
     },
     [toggleUserStatus]
   )
 
   const confirmSuspendUser = useCallback(async () => {
     if (!suspendTargetUser) return
+    if (!suspendTransferToUserId) {
+      setSuspendError('Select a user to receive open assignments before suspending.')
+      return
+    }
     try {
       setSuspendSubmitting(true)
-      await toggleUserStatus(suspendTargetUser, 'suspended')
+      setSuspendError('')
+      await toggleUserStatus(suspendTargetUser, 'suspended', suspendTransferToUserId)
       setSuspendTargetUser(null)
+      setSuspendTransferToUserId('')
+    } catch (error) {
+      setSuspendError(error?.message || 'Failed to suspend user')
     } finally {
       setSuspendSubmitting(false)
     }
-  }, [suspendTargetUser, toggleUserStatus])
+  }, [suspendTargetUser, suspendTransferToUserId, toggleUserStatus])
+
+  const openDeleteModal = useCallback((user) => {
+    setDeleteTargetUser(user)
+    setDeleteTransferToUserId('')
+    setDeleteError('')
+  }, [])
+
+  const confirmDeleteUser = useCallback(async () => {
+    if (!deleteTargetUser?.membershipId) return
+    if (!deleteTransferToUserId) {
+      setDeleteError('Select a user to receive open assignments before removing this user.')
+      return
+    }
+    try {
+      setDeleteSubmitting(true)
+      setDeleteError('')
+      await usersService.removeMembership({
+        membershipId: deleteTargetUser.membershipId,
+        transferToUserId: deleteTransferToUserId,
+      })
+      setDeleteTargetUser(null)
+      setDeleteTransferToUserId('')
+      await fetchUsers()
+    } catch (error) {
+      setDeleteError(error?.message || 'Failed to remove user')
+    } finally {
+      setDeleteSubmitting(false)
+    }
+  }, [deleteTargetUser, deleteTransferToUserId, fetchUsers])
 
   const columns = useMemo(
     () => [
@@ -773,6 +858,49 @@ export default function UsersPage() {
               placeholder="user@company.com"
             />
           </div>
+          {canEditPassword ? (
+            <>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={editChangePassword}
+                  onChange={(e) => {
+                    setEditChangePassword(e.target.checked)
+                    if (!e.target.checked) {
+                      setEditPassword('')
+                      setShowEditPassword(false)
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                />
+                Change password
+              </label>
+              {editChangePassword ? (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">New Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showEditPassword ? 'text' : 'password'}
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      autoComplete="new-password"
+                      className="w-full pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      aria-label={showEditPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showEditPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">Minimum 8 characters. The user will sign in with this password.</p>
+                </div>
+              ) : null}
+            </>
+          ) : null}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Role</label>
             <select
@@ -802,13 +930,28 @@ export default function UsersPage() {
             <label className="text-sm font-medium text-gray-700">Status</label>
             <select
               value={editStatus}
-              onChange={(e) => setEditStatus(e.target.value)}
+              onChange={(e) => {
+                setEditStatus(e.target.value)
+                if (e.target.value !== 'suspended') setEditTransferToUserId('')
+              }}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none"
             >
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
             </select>
           </div>
+          {editRequiresTransfer ? (
+            <TransferUserSelect
+              users={users}
+              excludeUserId={editUser?.id}
+              value={editTransferToUserId}
+              onChange={(nextId) => {
+                setEditTransferToUserId(nextId)
+                setEditError('')
+              }}
+              disabled={editSubmitting}
+            />
+          ) : null}
           {editError ? <p className="text-sm text-red-600">{editError}</p> : null}
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button variant="muted" onClick={() => setEditUser(null)} disabled={editSubmitting}>
@@ -870,6 +1013,19 @@ export default function UsersPage() {
             )}
             {getUserStatus(rowActionMenu.user) === 'suspended' ? 'Activate user' : 'Suspend user'}
           </button>
+          {canManageUsers ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-700 transition-colors hover:bg-red-50"
+              onClick={() => {
+                openDeleteModal(rowActionMenu.user)
+                setRowActionMenu(null)
+              }}
+            >
+              <Trash2 className="w-4 h-4 text-red-600" />
+              Remove user
+            </button>
+          ) : null}
         </TableRowActionMenuPortal>
       ) : null}
 
@@ -886,8 +1042,19 @@ export default function UsersPage() {
             <span className="font-semibold text-gray-900">{getUserDisplayName(suspendTargetUser || {})}</span>?
           </p>
           <p className="text-sm text-gray-500">
-            Suspended users cannot access the workspace until reactivated.
+            Suspended users cannot access the workspace until reactivated. Open assignments must be transferred first.
           </p>
+          <TransferUserSelect
+            users={users}
+            excludeUserId={suspendTargetUser?.id}
+            value={suspendTransferToUserId}
+            onChange={(nextId) => {
+              setSuspendTransferToUserId(nextId)
+              setSuspendError('')
+            }}
+            disabled={suspendSubmitting}
+          />
+          {suspendError ? <p className="text-sm text-red-600">{suspendError}</p> : null}
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button
               variant="muted"
@@ -902,6 +1069,52 @@ export default function UsersPage() {
               disabled={suspendSubmitting}
             >
               {suspendSubmitting ? 'Suspending...' : 'Suspend User'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(deleteTargetUser)}
+        onClose={() => !deleteSubmitting && setDeleteTargetUser(null)}
+        title="Remove User"
+        size="md"
+        closeOnBackdrop={!deleteSubmitting}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">
+            Remove{' '}
+            <span className="font-semibold text-gray-900">{getUserDisplayName(deleteTargetUser || {})}</span>{' '}
+            from this organization?
+          </p>
+          <p className="text-sm text-gray-500">
+            This removes their workspace access. Their account may still exist elsewhere, but they will no longer appear in this organization.
+          </p>
+          <TransferUserSelect
+            users={users}
+            excludeUserId={deleteTargetUser?.id}
+            value={deleteTransferToUserId}
+            onChange={(nextId) => {
+              setDeleteTransferToUserId(nextId)
+              setDeleteError('')
+            }}
+            disabled={deleteSubmitting}
+          />
+          {deleteError ? <p className="text-sm text-red-600">{deleteError}</p> : null}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button
+              variant="muted"
+              onClick={() => setDeleteTargetUser(null)}
+              disabled={deleteSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={confirmDeleteUser}
+              disabled={deleteSubmitting}
+            >
+              {deleteSubmitting ? 'Removing...' : 'Remove User'}
             </Button>
           </div>
         </div>

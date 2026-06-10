@@ -84,10 +84,7 @@ export default function LoginPage() {
           brandName={BOOKS_SITE.brandName}
         />
         <div className="max-w-lg">
-          <LoginProductCredit
-            productName={BOOKS_SITE.name}
-            creatorLine={BOOKS_SITE.creatorLine}
-          />
+          <LoginProductCredit productName={BOOKS_SITE.name} />
           <h1 className="text-5xl font-bold text-white mb-6">Welcome back</h1>
           <p className="text-xl text-white/90 mb-4">{BOOKS_SITE.tagline}</p>
           <p className="text-white/80 leading-relaxed">
@@ -102,7 +99,6 @@ export default function LoginPage() {
             brandIconPath={BOOKS_SITE.logoPath}
             brandName={BOOKS_SITE.brandName}
             productName={BOOKS_SITE.name}
-            creatorLine={BOOKS_SITE.creatorLine}
           />
 
           <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>

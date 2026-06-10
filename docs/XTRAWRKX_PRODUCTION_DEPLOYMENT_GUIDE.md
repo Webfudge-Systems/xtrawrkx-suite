@@ -15,12 +15,12 @@
 
 | App | URL |
 |-----|-----|
-| API | `https://api.xtrawrkx.com` |
+| API | `https://xtrawrkxsuits-production.up.railway.app` |
 | Landing | `https://xtrawrkx.com` |
 | CRM | `https://crm.xtrawrkx.com` |
 | PM | `https://pm.xtrawrkx.com` |
-| Accounts | `https://base.xtrawrkx.com` |
-| Orbit | `https://orbit.xtrawrkx.com` |
+| Accounts | `https://accounts.xtrawrkx.com` |
+| Orbit | `https://orbit.10x1.webfudge.in` |
 | Portal | `https://portal.xtrawrkx.com` |
 
 ## Deploy order

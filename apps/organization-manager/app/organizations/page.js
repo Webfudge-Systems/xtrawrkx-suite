@@ -155,7 +155,7 @@ export default function OrganizationsPage() {
     <div className="min-h-full space-y-4 bg-white p-3 sm:space-y-6 sm:p-4 md:p-6">
       <PlatformPageHeader
         title="Organizations"
-        subtitle="Create and manage tenant organizations with isolated data and users."
+        subtitle="Manage all your companies from one place. Each organization has its own team, data, and apps."
         breadcrumb={[{ label: 'Organizations', href: '/organizations' }]}
       />
 
@@ -232,7 +232,7 @@ export default function OrganizationsPage() {
                 ? 'No organizations match your search. Try a different name or email.'
                 : activeTab !== 'all'
                   ? `No organizations are currently in the ${activeTab} state.`
-                  : 'Create your first tenant organization to provision isolated users and data.'
+                  : 'Create your first company to get started.'
             }
             action={
               <Button onClick={() => router.push('/organizations/new')} className="gap-2">

@@ -2,7 +2,7 @@
 
 ## Summary
 
-Added **multi-column sort** and **drag-to-resize columns** to the three main CRM sales list tables (Lead Companies, Contacts, Deals), matching the feature set that already existed in the PM app.
+Added **multi-column sort** and **drag-to-resize columns** to CRM list tables (Lead Companies, Contacts, Deals, Client Accounts), matching the feature set that already existed in the PM app.
 
 ## Scope
 
@@ -15,6 +15,8 @@ Added **multi-column sort** and **drag-to-resize columns** to the three main CRM
 | `apps/crm/app/sales/lead-companies/page.js` | Sort + resize wired in |
 | `apps/crm/app/sales/contacts/page.js` | Sort + resize wired in |
 | `apps/crm/app/sales/deals/page.js` | Sort + resize wired in |
+| `apps/crm/app/clients/accounts/page.js` | Sort + resize wired in (client-side sort on filtered rows) |
+| `apps/pm/app/clients/accounts/page.js` | Column resize added (sort was already present) |
 
 ## Details
 
@@ -31,7 +33,7 @@ Added **multi-column sort** and **drag-to-resize columns** to the three main CRM
 
 - Drag the handle on the right edge of any column header to resize.
 - Double-click the handle resets that column to its default width.
-- Width state is kept in component state (per session); extend to `localStorage` if persistence across refreshes is desired.
+- Width state is persisted in `localStorage` per page (e.g. `crm.clientAccounts.tableColumnWidths`).
 
 ## Entity Sort Columns
 
@@ -40,6 +42,7 @@ Added **multi-column sort** and **drag-to-resize columns** to the three main CRM
 | `leadCompany` | companyName, status, source, dealValue, contactsCount, assignedTo, type, subType, industry, score, healthScore, city, country, createdAt, updatedAt |
 | `contact` | name, email, phone, jobTitle, company, source, assignedTo, city, country, createdAt, updatedAt |
 | `deal` | deal, value, stage, priority, probability, company, owner, expectedCloseDate, createdAt, updatedAt |
+| `clientAccount` | company, primaryContact, healthScore, dealValue, contactsCount, location, industry, assignedTo, status, createdAt, updatedAt, accountType, billingCycle, website |
 
 ## Architecture
 

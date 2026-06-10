@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Upload, Save, ChevronLeft, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Play, Upload, Save, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button, Modal, LoadingSpinner, WorkflowStatusBadge } from '@webfudge/ui';
 import CRMPageHeader from '../../../components/CRMPageHeader';
 import NodeLibrary from './NodeLibrary';
@@ -224,19 +224,9 @@ export default function AutomationBuilderPage({ workflowId }) {
         <CRMPageHeader
           breadcrumb={breadcrumb}
           showProfile
+          onBack={() => router.push('/automations')}
         >
           <div className="flex items-center gap-3 w-full">
-            {/* Back */}
-            <button
-              onClick={() => router.push('/automations')}
-              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 transition-colors flex-shrink-0"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back
-            </button>
-
-            <div className="w-px h-5 bg-gray-200" />
-
             {/* Editable workflow name */}
             <input
               value={workflow.name}

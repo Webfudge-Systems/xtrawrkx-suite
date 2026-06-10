@@ -8,8 +8,6 @@ export const PM_SITE = {
   legalName: 'Xtrawrkx',
   name: 'Fudge Work',
   shortName: 'Work',
-  creatorName: 'Webfudge Systems',
-  creatorLine: 'by Webfudge Systems',
   description:
     'Fudge Work is the project management workspace for projects, tasks, teams, messages, and delivery across the Xtrawrkx suite.',
   tagline: 'Track projects, tasks, and your team in one place.',

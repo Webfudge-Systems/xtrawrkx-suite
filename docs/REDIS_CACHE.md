@@ -79,13 +79,13 @@ So creating/updating a contact, task, project, etc. refreshes list data on the n
 
 ```bash
 # Health
-curl -s https://api.webfudge.in/api/health/redis
+curl -s https://xtrawrkxsuits-production.up.railway.app/api/health/redis
 
 # First load (MISS) — needs Authorization + X-Organization-Id like your apps
 curl -s -D - -o /dev/null \
   -H "Authorization: Bearer <token>" \
   -H "X-Organization-Id: <orgId>" \
-  "https://api.webfudge.in/api/contacts?pagination[page]=1&pagination[pageSize]=25"
+  "https://xtrawrkxsuits-production.up.railway.app/api/contacts?pagination[page]=1&pagination[pageSize]=25"
 
 # Second identical request should show: X-Cache: HIT
 ```

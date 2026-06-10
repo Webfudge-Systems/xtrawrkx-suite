@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, LayoutGrid, LogOut, Plus, X } from 'lucide-react'
+import { ExternalLink, LayoutGrid, LogOut, PanelLeftClose, Plus, X } from 'lucide-react'
 import { useAuth } from '@webfudge/auth'
 import { ORG_MANAGER_SITE } from '../lib/site'
 
@@ -89,9 +89,9 @@ export default function PlatformSidebar({
               type="button"
               onClick={onToggle}
               className="p-2 rounded-lg hover:bg-gray-50 transition-colors shrink-0"
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label="Hide sidebar"
             >
-              {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+              <PanelLeftClose className="w-5 h-5" strokeWidth={1.75} />
             </button>
           )}
         </div>
@@ -118,6 +118,21 @@ export default function PlatformSidebar({
             </Link>
           )
         })}
+        {ORG_MANAGER_SITE.vendorManagerUrl ? (
+          <a
+            href={ORG_MANAGER_SITE.vendorManagerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleNavClick}
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+            title={!showExpanded ? ORG_MANAGER_SITE.linkedAppName : undefined}
+          >
+            <ExternalLink className="w-4 h-4 shrink-0" />
+            {showExpanded && (
+              <span className="text-sm font-medium truncate">{ORG_MANAGER_SITE.linkedAppName}</span>
+            )}
+          </a>
+        ) : null}
       </div>
 
       <div className="shrink-0 p-3 border-t border-gray-100">

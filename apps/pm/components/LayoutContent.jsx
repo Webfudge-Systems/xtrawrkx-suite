@@ -18,6 +18,12 @@ export default function LayoutContent({ children }) {
   return (
     <WorkspaceLayoutContent
       sidebar={PMSidebar}
+      sidebarBehavior="hide"
+      sidebarBranding={{
+        logoPath: PM_SITE.logoPath,
+        brandName: PM_SITE.name,
+        homeHref: '/',
+      }}
       appName={PM_SITE.name}
       pwaStorageKey="pm"
       canView={canView}

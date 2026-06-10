@@ -24,6 +24,8 @@ import { AccessDeniedPanel } from '../AccessDeniedPanel'
  *   deniedVariant?: 'centered' | 'card',
  *   deniedContent?: React.ReactNode,
  *   extras?: React.ReactNode,
+ *   sidebarBehavior?: 'collapse' | 'hide',
+ *   sidebarBranding?: { logoPath: string, brandName?: string, homeHref?: string },
  *   children: React.ReactNode,
  * }} props
  */
@@ -38,10 +40,16 @@ export function WorkspaceLayoutContent({
   deniedVariant = 'centered',
   deniedContent,
   extras,
+  sidebarBehavior = 'collapse',
+  sidebarBranding,
   children,
 }) {
   return (
-    <AppShell sidebar={sidebar}>
+    <AppShell
+      sidebar={sidebar}
+      sidebarBehavior={sidebarBehavior}
+      sidebarBranding={sidebarBranding}
+    >
       {showPwa && appName && pwaStorageKey && (
         <PwaInstallPrompt appName={appName} storageKey={pwaStorageKey} />
       )}

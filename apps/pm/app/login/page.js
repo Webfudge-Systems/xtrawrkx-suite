@@ -77,10 +77,7 @@ export default function LoginPage() {
           brandName={PM_SITE.brandName}
         />
         <div className="max-w-lg">
-          <LoginProductCredit
-            productName={PM_SITE.name}
-            creatorLine={PM_SITE.creatorLine}
-          />
+          <LoginProductCredit productName={PM_SITE.name} />
           <h1 className="text-5xl font-bold text-white mb-6">Welcome back</h1>
           <p className="text-xl text-white/90 mb-4">
             Project Management — track projects, tasks, and your team in one place.
@@ -110,7 +107,6 @@ export default function LoginPage() {
             brandIconPath={PM_SITE.logoPath}
             brandName={PM_SITE.brandName}
             productName={PM_SITE.name}
-            creatorLine={PM_SITE.creatorLine}
           />
           <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
           <p className="text-gray-600 mb-8">Enter your credentials to access the PM dashboard.</p>

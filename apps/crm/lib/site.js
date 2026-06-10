@@ -8,8 +8,6 @@ export const CRM_SITE = {
   legalName: 'Xtrawrkx',
   name: 'Fudge People',
   shortName: 'People',
-  creatorName: 'Webfudge Systems',
-  creatorLine: 'by Webfudge Systems',
   description:
     'Fudge People is the sales CRM workspace for leads, deals, contacts, client accounts, and pipeline management across the Xtrawrkx suite.',
   tagline: 'Manage leads, deals, contacts, and your pipeline in one place.',

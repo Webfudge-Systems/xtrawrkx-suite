@@ -1,7 +1,7 @@
 ﻿{
-  "name": "Webfudge Systems Platform Admin",
-  "short_name": "Admin",
-  "description": "Webfudge Systems Platform Admin — manage tenant organizations, teams, and platform access.",
+  "name": "Orbit",
+  "short_name": "Orbit",
+  "description": "Orbit — your central hub to manage multiple companies, teams, and access across Webfudge Systems.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

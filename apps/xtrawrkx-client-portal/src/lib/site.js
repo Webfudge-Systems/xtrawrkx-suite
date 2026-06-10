@@ -7,8 +7,6 @@ export const PORTAL_SITE = {
   brandShortName: "Xtrawrkx",
   name: "Client Portal",
   shortName: "Portal",
-  creatorName: "Webfudge Systems",
-  creatorLine: "by Webfudge Systems",
   description:
     "Xtrawrkx Client Portal — access projects, communities, and collaborate with your team.",
   tagline: "Sign in to access your projects and collaborate with your team.",

@@ -9,13 +9,15 @@ import {
 import { auth, isFirebaseAvailable } from '../config/firebase';
 
 // Check if user email is in admin list
-const isAdminUser = (email) => {
-    const adminEmails = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || [
+const getAdminEmails = () =>
+    (process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || [
         'admin@xtrawrkx.com',
-        // Add your test email here temporarily
-        'test@xtrawrkx.com'
-    ];
-    return adminEmails.includes(email);
+        'xtrawrkxadmin@xmc.com',
+    ]).map((entry) => entry.trim().toLowerCase()).filter(Boolean);
+
+const isAdminUser = (email) => {
+    if (!email) return false;
+    return getAdminEmails().includes(email.trim().toLowerCase());
 };
 
 // Authentication service

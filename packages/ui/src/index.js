@@ -32,6 +32,8 @@ export {
   LoginProductCredit,
   LoginMobileBrandHeader,
   WorkspaceHeader,
+  WorkspaceBackButton,
+  workspaceBackButtonClassName,
   TableCellCreated,
   TableCellDateOnly,
   TableCellOwner,
@@ -141,6 +143,7 @@ export {
   Section,
   PageHeader,
   AppShell,
+  WorkspaceTopBar,
 } from '../layouts';
 
 // FEEDBACK - Loading states and user feedback

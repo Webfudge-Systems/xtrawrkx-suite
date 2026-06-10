@@ -3,13 +3,13 @@
  *
  * Base URL resolution (same order as `@webfudge/auth` and CRM):
  * 1. `NEXT_PUBLIC_API_URL` from `.env.production` / `.env.local` / hosting env (inlined at build time)
- * 2. If unset: production → `https://api.webfudge.in`, development → `http://localhost:1337`
+ * 2. If unset: production → `https://xtrawrkxsuits-production.up.railway.app`, development → `http://localhost:1337`
  *
  * All `lib/api/*` services use this instance only — no hardcoded API hosts elsewhere.
  */
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === 'production' ? 'https://api.webfudge.in' : 'http://localhost:1337')
+  (process.env.NODE_ENV === 'production' ? 'https://xtrawrkxsuits-production.up.railway.app' : 'http://localhost:1337')
 
 class StrapiClient {
   constructor() {
@@ -89,8 +89,8 @@ class StrapiClient {
     return this.request(endpoint, { method: 'PATCH', body: data })
   }
 
-  delete(endpoint) {
-    return this.request(endpoint, { method: 'DELETE' })
+  delete(endpoint, data) {
+    return this.request(endpoint, { method: 'DELETE', ...(data ? { body: data } : {}) })
   }
 }
 

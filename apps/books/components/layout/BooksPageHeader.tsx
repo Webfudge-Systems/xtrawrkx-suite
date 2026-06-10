@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { WorkspaceHeader } from '@webfudge/ui'
 import notificationService from '@/lib/notificationService'
 
@@ -24,6 +25,9 @@ type BooksPageHeaderProps = {
   hasActiveFilters?: boolean
   actions?: any
   children?: ReactNode
+  showBack?: boolean
+  onBack?: () => void
+  backLabel?: string
 }
 
 export default function BooksPageHeader({
@@ -44,9 +48,18 @@ export default function BooksPageHeader({
   hasActiveFilters,
   actions,
   children,
+  showBack,
+  onBack,
+  backLabel,
 }: BooksPageHeaderProps) {
+  const pathname = usePathname()
+  const defaultShowBack = pathname !== '/home' && pathname !== '/'
+
   return (
     <WorkspaceHeader
+      showBack={showBack ?? defaultShowBack}
+      onBack={onBack}
+      backLabel={backLabel}
       title={title}
       subtitle={subtitle}
       breadcrumb={breadcrumb}

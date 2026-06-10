@@ -15,8 +15,8 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
-  ChevronLeft,
   ChevronUp,
+  PanelLeftClose,
   FileText,
   Calendar,
   Target,
@@ -240,7 +240,6 @@ export default function PMSidebar({ collapsed = false, onToggle }) {
                 <span className="block font-bold text-xl tracking-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(249,115,22,0.35)]">
                   {PM_SITE.name}
                 </span>
-                <span className="block text-[10px] text-gray-500">{PM_SITE.creatorLine}</span>
               </div>
             </Link>
           )}
@@ -248,13 +247,9 @@ export default function PMSidebar({ collapsed = false, onToggle }) {
             type="button"
             onClick={onToggle}
             className="shrink-0 p-2 rounded-lg hover:bg-gray-50 transition-colors"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label="Hide sidebar"
           >
-            {collapsed ? (
-              <ChevronRight className="w-5 h-5 text-brand-foreground" />
-            ) : (
-              <ChevronLeft className="w-5 h-5 text-brand-foreground" />
-            )}
+            <PanelLeftClose className="w-5 h-5 text-brand-foreground" strokeWidth={1.75} />
           </button>
         </div>
         {!collapsed ? (

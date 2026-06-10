@@ -67,6 +67,16 @@ module.exports = {
       }
     },
     {
+      method: 'DELETE',
+      path: '/organizations/:id/users/:membershipId',
+      handler: 'organization.deleteUserMembership',
+      config: {
+        auth: false, // Use custom JWT middleware
+        policies: [],
+        middlewares: [],
+      }
+    },
+    {
       method: 'POST',
       path: '/organizations/:id/add-app',
       handler: 'organization.addApp',

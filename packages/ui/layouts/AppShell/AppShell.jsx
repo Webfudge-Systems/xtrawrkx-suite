@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@webfudge/auth'
 import { Loader2 } from 'lucide-react'
+import { WorkspaceTopBar } from './WorkspaceTopBar'
 
 export function AppShell({
   children,
@@ -12,8 +13,14 @@ export function AppShell({
   unauthorizedPath = '/unauthorized',
   loadingMessage = 'Loading...',
   redirectingMessage = 'Redirecting to login...',
+  /** 'collapse' narrows the sidebar; 'hide' removes it entirely with a top bar to reopen. */
+  sidebarBehavior = 'collapse',
+  /** Shown in the top bar when sidebar is hidden (logo + label). */
+  sidebarBranding,
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarHidden, setSidebarHidden] = useState(false)
+  const isHideMode = sidebarBehavior === 'hide'
   const { isAuthenticated, loading } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
@@ -43,15 +50,31 @@ export function AppShell({
   }
 
   if (isAuthenticated) {
+    const showSidebar = Sidebar && (!isHideMode || !sidebarHidden)
+
     return (
-      <div className="flex h-screen overflow-hidden bg-white">
-        {Sidebar ? (
-          <Sidebar
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+      <div className="flex h-screen overflow-hidden bg-white flex-col">
+        {isHideMode && sidebarHidden ? (
+          <WorkspaceTopBar
+            onOpenSidebar={() => setSidebarHidden(false)}
+            branding={sidebarBranding}
           />
         ) : null}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-white">{children}</main>
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {showSidebar ? (
+            <Sidebar
+              collapsed={isHideMode ? false : sidebarCollapsed}
+              onToggle={
+                isHideMode
+                  ? () => setSidebarHidden(true)
+                  : () => setSidebarCollapsed((value) => !value)
+              }
+            />
+          ) : null}
+          <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-white">
+            {children}
+          </main>
+        </div>
       </div>
     )
   }

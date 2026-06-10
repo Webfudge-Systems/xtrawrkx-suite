@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from 'react';
-import { strapiAuthService } from '../services/strapiAuthService';
+import { authService } from '../services/authService';
 
 const AuthContext = createContext();
 
@@ -18,55 +18,24 @@ export const AuthProvider = ({ children }) => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Check if Strapi is available
-        if (!strapiAuthService.isStrapiAvailable()) {
+        if (!authService.isFirebaseAvailable()) {
             setLoading(false);
             return;
         }
 
-        // Check for existing token and verify it
-        const initAuth = async () => {
-            try {
-                const token = strapiAuthService.getToken();
-                if (token) {
-                    // Verify token with backend (clear auth on failure during init)
-                    const userData = await strapiAuthService.verifyToken(token, true);
-                    setUser(userData);
-                } else {
-                    // Check for stored user
-                    const storedUser = strapiAuthService.getCurrentUser();
-                    setUser(storedUser);
-                }
-            } catch (error) {
-                // Only clear user if it's an auth error (401), not network errors
-                if (error.message?.includes('Session expired') || error.message?.includes('Access denied')) {
-                    setUser(null);
-                } else {
-                    // For other errors, keep stored user (might be temporary network issue)
-                    const storedUser = strapiAuthService.getCurrentUser();
-                    setUser(storedUser);
-                }
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        initAuth();
-
-        // Set up auth state listener
-        const unsubscribe = strapiAuthService.onAuthStateChanged((user) => {
-            setUser(user);
-            if (loading) setLoading(false);
+        const unsubscribe = authService.onAuthStateChanged((userData) => {
+            setUser(userData);
+            setLoading(false);
         });
 
         return unsubscribe;
     }, []);
 
-    const signIn = async (identifier, password) => {
+    const signIn = async (email, password) => {
         try {
             setError(null);
             setLoading(true);
-            const userData = await strapiAuthService.signIn(identifier, password);
+            const userData = await authService.signIn(email, password);
             setUser(userData);
             return userData;
         } catch (error) {
@@ -80,7 +49,7 @@ export const AuthProvider = ({ children }) => {
     const signOut = async () => {
         try {
             setError(null);
-            await strapiAuthService.signOut();
+            await authService.signOut();
             setUser(null);
         } catch (error) {
             setError(error.message);
@@ -91,9 +60,7 @@ export const AuthProvider = ({ children }) => {
     const resetPassword = async (email) => {
         try {
             setError(null);
-            // Strapi password reset would need to be implemented
-            // For now, throw an error indicating it's not implemented
-            throw new Error('Password reset not yet implemented with Strapi');
+            await authService.resetPassword(email);
         } catch (error) {
             setError(error.message);
             throw error;
@@ -103,41 +70,31 @@ export const AuthProvider = ({ children }) => {
     const createUser = async (email, password, displayName) => {
         try {
             setError(null);
-            // Strapi user creation would need to be implemented
-            // For now, throw an error indicating it's not implemented
-            throw new Error('User creation not yet implemented with Strapi');
+            return await authService.createUser(email, password, displayName);
         } catch (error) {
             setError(error.message);
             throw error;
         }
     };
 
-    const clearError = () => {
-        setError(null);
-    };
-
     const refreshUser = async () => {
-        try {
-            const token = strapiAuthService.getToken();
-            if (!token) {
-                return null;
-            }
-
-            // Refresh user data without clearing auth on failure (only clear on 401)
-            const userData = await strapiAuthService.verifyToken(token, false);
-            setUser(userData);
-            return userData;
-        } catch (error) {
-            // Don't log out user on refresh failures - might be temporary network issues
-            // Only clear if it's an actual auth error
-            if (error.message?.includes('Session expired') || error.message?.includes('Access denied')) {
-                // Only clear on actual auth failures
-                setUser(null);
-            }
-            // For other errors, keep current user data
-            console.warn('Failed to refresh user data:', error.message);
+        const currentUser = authService.getCurrentUser();
+        if (!currentUser?.email || !authService.isAdmin({ email: currentUser.email })) {
             return null;
         }
+
+        const userData = {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            isAdmin: true,
+        };
+        setUser(userData);
+        return userData;
+    };
+
+    const clearError = () => {
+        setError(null);
     };
 
     const value = {
@@ -151,10 +108,7 @@ export const AuthProvider = ({ children }) => {
         clearError,
         refreshUser,
         isAdmin: user?.isAdmin || false,
-        isStrapiAvailable: strapiAuthService.isStrapiAvailable(),
-        // Keep isFirebaseAvailable for backward compatibility, but it will always be false
-        isFirebaseAvailable: false,
-        getToken: () => strapiAuthService.getToken(),
+        isFirebaseAvailable: authService.isFirebaseAvailable(),
     };
 
     return (
@@ -162,4 +116,4 @@ export const AuthProvider = ({ children }) => {
             {children}
         </AuthContext.Provider>
     );
-}; 
+};

@@ -27,6 +27,12 @@ export default function LayoutContent({ children }) {
   return (
     <WorkspaceLayoutContent
       sidebar={CRMSidebar}
+      sidebarBehavior="hide"
+      sidebarBranding={{
+        logoPath: CRM_SITE.logoPath,
+        brandName: CRM_SITE.name,
+        homeHref: '/',
+      }}
       appName={CRM_SITE.name}
       pwaStorageKey="crm"
       canView={canView}

@@ -67,10 +67,7 @@ export default function LoginPage() {
           brandName={ACCOUNTS_SITE.brandName}
         />
         <div className="max-w-lg">
-          <LoginProductCredit
-            productName={ACCOUNTS_SITE.name}
-            creatorLine={ACCOUNTS_SITE.creatorLine}
-          />
+          <LoginProductCredit productName={ACCOUNTS_SITE.name} />
           <h1 className="text-5xl font-bold text-white mb-6">Welcome back</h1>
           <p className="text-xl text-white/90 mb-4">
             Account Management — users, roles, departments, and access in one workspace.
@@ -100,7 +97,6 @@ export default function LoginPage() {
             brandIconPath={ACCOUNTS_SITE.logoPath}
             brandName={ACCOUNTS_SITE.brandName}
             productName={ACCOUNTS_SITE.name}
-            creatorLine={ACCOUNTS_SITE.creatorLine}
           />
           <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
           <p className="text-gray-600 mb-8">Enter your credentials to access Accounts.</p>

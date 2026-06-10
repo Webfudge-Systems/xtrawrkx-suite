@@ -30,6 +30,7 @@ export {
   LoginMobileBrandHeader,
 } from './LoginBrandCorner';
 export { WorkspaceHeader } from './WorkspaceHeader';
+export { WorkspaceBackButton, workspaceBackButtonClassName } from './WorkspaceBackButton';
 export {
   TableCellCreated,
   TableCellDateOnly,

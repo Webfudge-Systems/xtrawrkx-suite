@@ -116,6 +116,53 @@ export function getContactSortValue(row, key) {
   }
 }
 
+/** Client account row sort value. */
+export function getClientAccountSortValue(row, key) {
+  switch (key) {
+    case 'company':
+    case 'companyName':
+      return stringValue(row.companyName || row.name);
+    case 'primaryContact': {
+      const pc = row.primaryContact || row.contacts?.find((c) => c.isPrimaryContact) || row.contacts?.[0];
+      if (!pc) return null;
+      return stringValue(
+        [pc.firstName, pc.lastName].filter(Boolean).join(' ') || pc.name || pc.email
+      );
+    }
+    case 'healthScore':
+      return numValue(row.healthScore);
+    case 'dealValue':
+      return numValue(row.dealValue);
+    case 'contactsCount':
+      return Array.isArray(row.contacts) ? row.contacts.length : numValue(row.contactsCount) ?? 0;
+    case 'location': {
+      const parts = [row.city, row.state, row.country].filter(Boolean);
+      return parts.length ? parts.join(', ').toLowerCase() : null;
+    }
+    case 'industry':
+      return stringValue(row.industry);
+    case 'assignedTo':
+      return stringValue(
+        row.assignedTo?.name || row.assignedTo?.email ||
+        [row.assignedTo?.firstName, row.assignedTo?.lastName].filter(Boolean).join(' ')
+      );
+    case 'status':
+      return stringValue(row.status);
+    case 'createdAt':
+      return dateValue(row.createdAt);
+    case 'updatedAt':
+      return dateValue(row.updatedAt);
+    case 'accountType':
+      return stringValue(row.accountType);
+    case 'billingCycle':
+      return stringValue(row.billingCycle);
+    case 'website':
+      return stringValue(row.website);
+    default:
+      return row[key];
+  }
+}
+
 /** Deal row sort value. */
 export function getDealSortValue(row, key) {
   switch (key) {
@@ -150,13 +197,14 @@ export function getDealSortValue(row, key) {
 }
 
 const VALUE_GETTERS = {
-  leadCompany: getLeadCompanySortValue,
-  contact:     getContactSortValue,
-  deal:        getDealSortValue,
+  leadCompany:   getLeadCompanySortValue,
+  contact:       getContactSortValue,
+  deal:          getDealSortValue,
+  clientAccount: getClientAccountSortValue,
 };
 
 /**
- * @param {'leadCompany' | 'contact' | 'deal'} entity
+ * @param {'leadCompany' | 'contact' | 'deal' | 'clientAccount'} entity
  * @param {Record<string, unknown>} row
  * @param {string} key
  */

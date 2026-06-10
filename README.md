@@ -159,7 +159,7 @@ Production deploy:
 | **[ENV_FILES.md](./docs/ENV_FILES.md)** | `.env.example` / `.env.local` / `.env.production` per app |
 | **[XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md](./docs/XTRAWRKX_PRODUCTION_DEPLOYMENT_GUIDE.md)** | One-page quick reference |
 
-Repo: `https://github.com/Webfudge-Systems/xtrawrkx-suite` · API: `api.xtrawrkx.com` · Accounts: `base.xtrawrkx.com`
+Repo: `https://github.com/Webfudge-Systems/xtrawrkx-suite` · API: `xtrawrkxsuits-production.up.railway.app` · Accounts: `accounts.xtrawrkx.com` · Orbit: `orbit.10x1.webfudge.in`
 
 ---
 

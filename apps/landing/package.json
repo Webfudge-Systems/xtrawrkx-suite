@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "test": "vitest run",
+    "seed:firebase-admin": "node scripts/seed-firebase-admin.js",
     "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.7",
+    "firebase-admin": "^13.10.0",
     "tailwindcss": "^4.1.7",
     "vitest": "^2.1.8"
   }

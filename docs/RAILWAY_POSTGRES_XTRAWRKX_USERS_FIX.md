@@ -92,7 +92,7 @@ If **0** but `up_users` has 28 rows, use Strapi Admin to link users to organizat
 Redeploy **`xtrawrkx_suits`**. Verify:
 
 ```bash
-curl -s https://api.xtrawrkx.com/api/apps
+curl -s https://xtrawrkxsuits-production.up.railway.app/api/apps
 ```
 
 Log in on CRM; open an assignment dropdown — users should list via org endpoint.

@@ -13,7 +13,7 @@ import {
 import { Button, TableRowActionMenuPortal } from '@webfudge/ui'
 import platformService from '../lib/platformService'
 
-const ACCOUNTS_URL = process.env.NEXT_PUBLIC_ACCOUNTS_APP_URL || 'http://localhost:3001'
+const ACCOUNTS_URL = process.env.NEXT_PUBLIC_ACCOUNTS_APP_URL || 'http://localhost:3003'
 const PM_URL = process.env.NEXT_PUBLIC_PM_APP_URL || 'http://localhost:3002'
 
 export function openOrganizationApp(orgId, url) {

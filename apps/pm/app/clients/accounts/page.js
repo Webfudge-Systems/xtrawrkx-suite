@@ -51,6 +51,45 @@ const TABLE_SORT_STORAGE_KEY = 'pm.clientAccounts.tableSort';
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'pm.clientAccounts.tableColumnVisibility';
 const COLUMN_ORDER_STORAGE_KEY = 'pm.clientAccounts.tableColumnOrder';
+const COLUMN_WIDTHS_STORAGE_KEY = 'pm.clientAccounts.tableColumnWidths';
+
+const DEFAULT_COLUMN_WIDTHS = {
+  company: 280,
+  primaryContact: 260,
+  healthScore: 130,
+  dealValue: 120,
+  contactsCount: 110,
+  location: 160,
+  industry: 140,
+  assignedTo: 180,
+  status: 170,
+  createdAt: 150,
+  updatedAt: 130,
+  accountType: 140,
+  billingCycle: 140,
+  website: 160,
+  companyPhone: 140,
+  companyEmail: 180,
+  address: 200,
+  city: 120,
+  state: 120,
+  country: 120,
+  zipCode: 100,
+  employees: 120,
+  description: 200,
+  linkedIn: 100,
+  twitter: 120,
+  notes: 180,
+  contractStartDate: 140,
+  contractEndDate: 140,
+  actions: 200,
+};
+
+const MIN_COLUMN_WIDTHS = {
+  company: 220,
+  primaryContact: 200,
+  actions: 180,
+};
 
 const TOGGLEABLE_COLUMNS = [
   { key: 'primaryContact', label: 'Primary contact' },
@@ -137,6 +176,33 @@ function persistColumnOrder(order) {
   }
 }
 
+function loadColumnWidths() {
+  if (typeof window === 'undefined') return { ...DEFAULT_COLUMN_WIDTHS };
+  try {
+    const raw = window.localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_COLUMN_WIDTHS };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_COLUMN_WIDTHS };
+    const merged = { ...DEFAULT_COLUMN_WIDTHS, ...parsed };
+    for (const [key, min] of Object.entries(MIN_COLUMN_WIDTHS)) {
+      if (typeof merged[key] === 'number' && merged[key] < min) {
+        merged[key] = min;
+      }
+    }
+    return merged;
+  } catch {
+    return { ...DEFAULT_COLUMN_WIDTHS };
+  }
+}
+
+function persistColumnWidths(widths) {
+  try {
+    window.localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(widths));
+  } catch {
+    /* ignore */
+  }
+}
+
 const formatCurrency = (value) => {
   if (!value && value !== 0) return '₹0';
   return new Intl.NumberFormat('en-IN', {
@@ -192,6 +258,7 @@ export default function ClientAccountsPage() {
   const [sortPickerOpen, setSortPickerOpen] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
   const [columnOrder, setColumnOrder] = useState(() => [...REORDERABLE_COLUMN_KEYS]);
+  const [columnWidths, setColumnWidths] = useState(() => ({ ...DEFAULT_COLUMN_WIDTHS }));
   const [columnDropIndicator, setColumnDropIndicator] = useState(null);
   const [actionMenu, setActionMenu] = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -211,6 +278,13 @@ export default function ClientAccountsPage() {
   useEffect(() => {
     setColumnVisibility(loadColumnVisibility());
     setColumnOrder(loadColumnOrder());
+    const widths = loadColumnWidths();
+    setColumnWidths(widths);
+    persistColumnWidths(widths);
+  }, []);
+
+  const handleColumnResizeEnd = useCallback((next) => {
+    persistColumnWidths(next);
   }, []);
 
   useEffect(() => {
@@ -593,6 +667,7 @@ export default function ClientAccountsPage() {
         key: 'company',
         label: 'COMPANY',
         fixed: true,
+        defaultWidth: '280px',
         render: (_, account) => {
           const primaryContact = account.contacts?.find((c) => c.isPrimaryContact) || account.contacts?.[0];
           const contactName = primaryContact
@@ -622,6 +697,7 @@ export default function ClientAccountsPage() {
         key: 'primaryContact',
         visibilityKey: 'primaryContact',
         label: 'PRIMARY CONTACT',
+        defaultWidth: '260px',
         render: (_, account) => {
           const primaryContact = account.contacts?.find((c) => c.isPrimaryContact) || account.contacts?.[0];
           return (
@@ -894,6 +970,7 @@ export default function ClientAccountsPage() {
         key: 'actions',
         label: 'ACTIONS',
         fixed: true,
+        defaultWidth: '200px',
         render: (_, account) => {
           const canEditClientAccount = canWriteClientAccounts();
           const canDeleteClientAccount = canManageClientAccounts();
@@ -1164,6 +1241,10 @@ export default function ClientAccountsPage() {
               keyField="id"
               variant="modern"
               onRowClick={(row) => router.push(`/clients/accounts/${row.id}`)}
+              resizableColumns
+              columnWidths={columnWidths}
+              onColumnWidthsChange={setColumnWidths}
+              onColumnResizeEnd={handleColumnResizeEnd}
             />
             {paginatedAccounts.length === 0 && (
               <div className="p-12 text-center border-t border-gray-200">

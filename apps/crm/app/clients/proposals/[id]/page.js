@@ -34,7 +34,7 @@ const formatCurrency = (value, currency = 'INR') => {
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === 'production' ? 'https://api.xtrawrkx.com' : 'http://localhost:1337');
+  (process.env.NODE_ENV === 'production' ? 'https://xtrawrkxsuits-production.up.railway.app' : 'http://localhost:1337');
 
 function getProposalFileUrl(proposalFile) {
   const raw = proposalFile?.url;

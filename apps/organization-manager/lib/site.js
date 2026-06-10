@@ -7,16 +7,16 @@ const siteUrl = (
   'http://localhost:3004'
 ).replace(/\/$/, '');
 
-/** Site metadata, SEO, and PWA config — Webfudge Systems Platform Admin */
+/** Site metadata, SEO, and PWA config — Webfudge Systems Orbit */
 export const ORG_MANAGER_SITE = {
   brandName: 'Webfudge Systems',
   brandShortName: 'Webfudge',
   legalName: 'Webfudge Systems',
-  name: 'Platform Admin',
-  shortName: 'Admin',
+  name: 'Orbit',
+  shortName: 'Orbit',
   description:
-    'Webfudge Systems Platform Admin — create, configure, and manage tenant organizations, teams, and access across the Webfudge platform.',
-  tagline: 'Create and manage organizations, teams, and platform access.',
+    'Orbit — your central hub to manage multiple companies, teams, and access across Webfudge Systems.',
+  tagline: 'Your hub for all your companies.',
   url: siteUrl,
   ...FUDGE_SUITE_ASSETS.webfudge,
   brandLogoPath: FUDGE_SUITE_ASSETS.webfudge.brandLogoPath,
@@ -27,12 +27,11 @@ export const ORG_MANAGER_SITE = {
   backgroundColor: '#FFFAF7',
   keywords: [
     'Webfudge Systems',
-    'Platform Admin',
+    'Orbit',
     'organization management',
-    'team management',
-    'platform administration',
-    'multi-tenant',
-    'super admin',
+    'company management',
+    'multi-company',
+    'business hub',
   ],
 };
 

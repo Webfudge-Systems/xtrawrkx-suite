@@ -189,7 +189,6 @@ function SignInPanel({
         brandIconPath={PORTAL_SITE.logoPath}
         brandName={PORTAL_SITE.brandName}
         productName={PORTAL_SITE.name}
-        creatorLine={PORTAL_SITE.creatorLine}
       />
 
       <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
@@ -321,7 +320,6 @@ function ForgotPasswordPanel({ onBackToSignIn }) {
           brandIconPath={PORTAL_SITE.logoPath}
           brandName={PORTAL_SITE.brandName}
           productName={PORTAL_SITE.name}
-          creatorLine={PORTAL_SITE.creatorLine}
         />
         <h2 className="text-3xl font-semibold text-brand-dark mb-2">Check your email</h2>
         <p className="text-gray-600 mb-8">
@@ -341,7 +339,6 @@ function ForgotPasswordPanel({ onBackToSignIn }) {
         brandIconPath={PORTAL_SITE.logoPath}
         brandName={PORTAL_SITE.brandName}
         productName={PORTAL_SITE.name}
-        creatorLine={PORTAL_SITE.creatorLine}
       />
       <h2 className="text-3xl font-semibold text-brand-dark mb-2">Reset your password</h2>
       <p className="text-gray-600 mb-8">
