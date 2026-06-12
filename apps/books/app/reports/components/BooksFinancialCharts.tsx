@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Card } from '@webfudge/ui'
 import {
   Area,
@@ -17,8 +17,8 @@ import {
   YAxis,
 } from 'recharts'
 import { Banknote, Receipt, Wallet } from 'lucide-react'
-import { booksApi } from '@/lib/api'
 import type { Expense, Invoice } from '@/lib/types'
+import { MOCK_EXPENSES, MOCK_INVOICES } from '@/lib/mock-data'
 import { formatCurrency } from '@webfudge/utils'
 
 const PIE_COLORS = ['#f97316', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa']
@@ -48,41 +48,11 @@ function tooltipNumber(value: unknown) {
 export default function BooksFinancialCharts({ timeRange = 'this_fiscal_year' }: { timeRange?: string }) {
   // Backend analytics not connected yet: keep charts/legend in "0-data" placeholder mode.
   // (Dropdown remains for UI consistency + future wiring.)
-  const zeroMode = true
+  const zeroMode = false
 
   const cashFlowGradientId = useId().replace(/:/g, '')
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [expenses, setExpenses] = useState<Expense[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-
-    booksApi
-      .fetchInvoices()
-      .then((res) => {
-        if (cancelled) return
-        setInvoices(res.data ?? [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setInvoices([])
-      })
-
-    booksApi
-      .fetchExpenses()
-      .then((res) => {
-        if (cancelled) return
-        setExpenses(res.data ?? [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setExpenses([])
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const [invoices] = useState<Invoice[]>(MOCK_INVOICES)
+  const [expenses] = useState<Expense[]>(MOCK_EXPENSES)
 
   const incomeVsExpense = useMemo(() => {
     const map = new Map<string, { month: string; income: number; expense: number }>()

@@ -16,10 +16,9 @@ function isAdminRoleShape(role) {
   )
 }
 
-/** Organization Admin role in the active workspace (includes platform admins). */
+/** Organization Admin role in the active workspace. */
 export function isOrganizationAdmin() {
   if (typeof window === 'undefined') return false
-  if (authService.isPlatformAdmin()) return true
   const org = authService.getCurrentOrg()
   if (org && isAdminRoleShape({ code: org.roleCode, name: org.role })) return true
   return isAdminRoleShape(authService.getCurrentOrgRole())

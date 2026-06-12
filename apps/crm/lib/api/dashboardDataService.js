@@ -12,7 +12,7 @@ import taskService from './taskService';
 import strapiClient from '../strapiClient';
 import { paginateStrapiList } from '@webfudge/utils';
 import { fetchTeamPerformanceSummary } from './teamPerformanceService';
-import { isAssignedToCurrentUser } from '../rbac';
+import { currentStrapiUserId } from '../rbac';
 
 const LIST_PAGE_SIZE = 100;
 const TERMINAL_TASK = new Set(['COMPLETED', 'CANCELLED']);
@@ -57,7 +57,7 @@ export async function fetchPersonalKpis() {
     const dayStart = startOfLocalDay().toISOString();
     const dayEnd = endOfLocalDay().toISOString();
 
-    const [myWork, meetingsRes, leads] = await Promise.all([
+    const [myWork, meetingsRes, assignedLeadsRes] = await Promise.all([
       fetchMyWorkSummary(),
       meetingService.getAll({
         'pagination[pageSize]': 50,
@@ -66,20 +66,26 @@ export async function fetchPersonalKpis() {
           startTime: { $gte: dayStart, $lte: dayEnd },
         },
       }).catch(() => ({ data: [] })),
-      fetchAllPaged((page) =>
-        leadCompanyService.getAll({
-          'pagination[page]': page,
-          'pagination[pageSize]': LIST_PAGE_SIZE,
-          populate: ['assignedTo'],
-        })
-      ),
+      (async () => {
+        const userId = currentStrapiUserId();
+        if (!userId) return { data: [], meta: { pagination: { total: 0 } } };
+        try {
+          return await leadCompanyService.getAll({
+            'pagination[pageSize]': 1,
+            'filters[assignedTo][id][$eq]': userId,
+            populate: ['assignedTo'],
+          });
+        } catch {
+          return { data: [], meta: { pagination: { total: 0 } } };
+        }
+      })(),
     ]);
 
     const openTasks =
       (myWork?.overdue?.count ?? 0) + (myWork?.today?.count ?? 0) + (myWork?.upcoming?.count ?? 0);
     const overdueTasks = myWork?.overdue?.count ?? 0;
     const meetingsToday = Array.isArray(meetingsRes?.data) ? meetingsRes.data.length : 0;
-    const assignedLeads = leads.filter((l) => isAssignedToCurrentUser(l)).length;
+    const assignedLeads = assignedLeadsRes?.meta?.pagination?.total ?? 0;
 
     return { openTasks, overdueTasks, meetingsToday, assignedLeads };
   } catch (e) {

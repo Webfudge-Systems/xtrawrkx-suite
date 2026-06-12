@@ -30,6 +30,7 @@
  *   notificationService    – (REQUIRED) app-specific notification service instance
  *   renderGlobalSearchModal – ({ isOpen, onClose, initialQuery }) => ReactNode
  *   searchInputClassName   – Tailwind class override for the search input
+ *   titleClassName         – Tailwind class override for the page title
  */
 
 import { WorkspaceHeader } from '../WorkspaceHeader';
@@ -60,10 +61,12 @@ export function AppPageHeader({
   notificationService,
   renderGlobalSearchModal,
   searchInputClassName = DEFAULT_SEARCH_INPUT_CLASS,
+  titleClassName,
 }) {
   return (
     <WorkspaceHeader
       title={title}
+      titleClassName={titleClassName}
       subtitle={subtitle}
       breadcrumb={breadcrumb}
       showSearch={showSearch}

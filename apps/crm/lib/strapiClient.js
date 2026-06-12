@@ -2,8 +2,8 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === 'production'
-    ? 'https://xtrawrkxsuits-production.up.railway.app'
-    : 'http://localhost:1337');
+    ? 'https://api.webfudge.in'
+    : 'http://localhost:1338');
 
 class StrapiClient {
   constructor() {

@@ -22,7 +22,8 @@ import {
   Phone,
 } from 'lucide-react'
 import leadCompanyService from '../../lib/api/leadCompanyService'
-import { canEditCRMRecord, currentUserIds } from '../../lib/rbac'
+import { canEditCRMRecord, currentStrapiUserId, isAssignedToCurrentUser } from '../../lib/rbac'
+import { primaryContactForLeadCompany } from '../../lib/leadCompanyContacts'
 import { leadCompanyLabel, leadInitials } from './leadsMeetingsShared'
 
 const LEADS_LIMIT = 10
@@ -31,21 +32,16 @@ const COMPACT_HEADER = '!px-3 !py-2.5'
 const COMPACT_CELL = '!px-3 !py-2.5'
 
 function primaryContactName(company) {
-  const contact = company?.contacts?.[0]
-  if (contact) {
-    return `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || '—'
-  }
-  return 'No primary contact'
+  const { name } = primaryContactForLeadCompany(company)
+  return name || 'No primary contact'
 }
 
 function primaryEmail(company) {
-  const contact = company?.contacts?.[0]
-  return contact?.email || company?.email || ''
+  return primaryContactForLeadCompany(company).email
 }
 
 function primaryPhone(company) {
-  const contact = company?.contacts?.[0]
-  return contact?.phone || company?.phone || ''
+  return primaryContactForLeadCompany(company).phone
 }
 
 function AssignedLeadsTable({ rows, onStatusChange, savingByLeadId, router }) {
@@ -67,42 +63,44 @@ function AssignedLeadsTable({ rows, onStatusChange, savingByLeadId, router }) {
 
   return (
     <div className="w-full overflow-x-auto overflow-y-hidden rounded-xl border border-gray-100 bg-white">
-      <table className="w-full min-w-[720px] border-collapse text-sm">
-        <thead className="border-b border-gray-200 bg-gray-50">
-          <tr>
+      <table className="w-full table-fixed border-collapse text-sm">
+        <colgroup>
+          <col />
+          <col />
+          <col style={{ width: '158px' }} />
+          <col style={{ width: '112px' }} />
+          <col style={{ width: '116px' }} />
+          <col style={{ width: '132px' }} />
+        </colgroup>
+        <thead>
+          <tr className="border-b border-gray-200 bg-gray-50">
             <th
-              className={`text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
-              style={{ width: '28%' }}
+              className={`bg-gray-50 text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
             >
               Company
             </th>
             <th
-              className={`text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
-              style={{ width: '22%' }}
+              className={`bg-gray-50 text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
             >
               Contact
             </th>
             <th
-              className={`text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
-              style={{ width: '14%' }}
+              className={`bg-gray-50 text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
             >
               Status
             </th>
             <th
-              className={`text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
-              style={{ width: '14%' }}
+              className={`bg-gray-50 text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
             >
               Next connect
             </th>
             <th
-              className={`text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
-              style={{ width: '12%' }}
+              className={`bg-gray-50 text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
             >
               Updated
             </th>
             <th
-              className={`text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
-              style={{ width: '10%' }}
+              className={`bg-gray-50 text-left text-xs font-bold uppercase tracking-wide text-gray-700 ${COMPACT_HEADER}`}
             >
               Actions
             </th>
@@ -157,7 +155,7 @@ function AssignedLeadsTable({ rows, onStatusChange, savingByLeadId, router }) {
                     onStatusChange={onStatusChange}
                     saving={saving}
                     canEdit={canEdit}
-                    containerClassName="w-full min-w-0 max-w-full"
+                    containerClassName="w-full min-w-0"
                   />
                 </td>
                 <td className={COMPACT_CELL}>
@@ -171,7 +169,7 @@ function AssignedLeadsTable({ rows, onStatusChange, savingByLeadId, router }) {
                   />
                 </td>
                 <td className={COMPACT_CELL} onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-0.5">
+                  <div className="flex items-center justify-start gap-0.5">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -226,7 +224,7 @@ export default function LatestAssignedLeadsWidget({ className = '' }) {
   const [savingByLeadId, setSavingByLeadId] = useState({})
 
   const loadLeads = useCallback(async () => {
-    const userId = currentUserIds()[0]
+    const userId = currentStrapiUserId()
     if (!userId) {
       setLeads([])
       setLoading(false)
@@ -242,7 +240,7 @@ export default function LatestAssignedLeadsWidget({ className = '' }) {
         populate: ['assignedTo'],
       })
       const raw = Array.isArray(res?.data) ? res.data : []
-      setLeads(raw)
+      setLeads(raw.filter(isAssignedToCurrentUser))
     } catch (e) {
       console.error('LatestAssignedLeadsWidget:', e)
       setLeads([])

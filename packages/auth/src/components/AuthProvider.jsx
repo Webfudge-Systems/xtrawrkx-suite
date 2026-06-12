@@ -176,54 +176,17 @@ export const AuthProvider = ({ children }) => {
     return authService.isAdmin();
   };
 
-  const isPlatformAdmin = () => authService.isPlatformAdmin(user);
-
-  const platformLogin = async (email, password) => {
-    try {
-      const response = await authService.platformLogin(email, password);
-
-      if (response.user && response.token) {
-        if (!response.user.isPlatformAdmin) {
-          authService.logout();
-          return { success: false, error: 'Only platform administrators can sign in here.' };
-        }
-
-        setUser(response.user);
-        setIsAuthenticated(true);
-        setOrganizations([]);
-        setCurrentOrgState(null);
-
-        // Refresh profile in the background
-        authService.getCurrentUser().then((fresh) => {
-          if (fresh) setUser(fresh);
-        }).catch(() => {});
-
-        return { success: true, user: response.user };
-      }
-      throw new Error('Invalid response from server');
-    } catch (error) {
-      authService.logout();
-      setUser(null);
-      setIsAuthenticated(false);
-      setOrganizations([]);
-      setCurrentOrgState(null);
-      return { success: false, error: error.message || 'Login failed' };
-    }
-  };
-
   const value = {
     user,
     setUser,
     isAuthenticated,
     loading,
     login,
-    platformLogin,
     logout,
     hasPermission,
     canAccessAppModule,
     hasRole,
     isAdmin,
-    isPlatformAdmin,
     // Org / tenant
     organizations,
     currentOrg,

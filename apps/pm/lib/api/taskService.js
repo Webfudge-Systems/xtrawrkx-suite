@@ -174,7 +174,7 @@ class TaskService {
     );
   }
 
-  /** Paginate assignee + collaborator + reporter streams for dashboard "My tasks" widgets. */
+  /** Paginate assignee + collaborator streams for dashboard "My tasks" widgets. */
   async fetchPMTasksByAssignee(userId, options = {}) {
     const byId = new Map();
     const cacheBust = listCacheBust(options);
@@ -340,7 +340,7 @@ class TaskService {
     }
   }
 
-  // Gets tasks where the user is primary assignee, collaborator, or reporter; excludes CRM-scoped tasks
+  // Gets tasks where the user is primary assignee or in collaborators; excludes CRM-scoped tasks
   async getPMTasksByAssignee(userId, options = {}) {
     try {
       const items = await this.fetchPMTasksByAssignee(userId, options);

@@ -8,7 +8,8 @@
     ".": "./src/index.js",
     "./formatters": "./src/formatters/index.js",
     "./formatters/calendarDate": "./src/formatters/calendarDate.js",
-    "./crmShared": "./src/crmShared/index.js"
+    "./crmShared": "./src/crmShared/index.js",
+    "./api/paginateStrapiList": "./src/api/paginateStrapiList.js"
   },
   "scripts": {
     "lint": "eslint src",

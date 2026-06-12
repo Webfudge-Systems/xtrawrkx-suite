@@ -575,6 +575,7 @@ export interface ApiBillBill extends Struct.CollectionTypeSchema {
     organization: Schema.Attribute.Relation<'manyToOne', 'api::organization.organization'>
     paidAmount: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>
     publishedAt: Schema.Attribute.DateTime
+    purchaseOrder: Schema.Attribute.Relation<'manyToOne', 'api::purchase-order.purchase-order'>
     status: Schema.Attribute.Enumeration<
       ['draft', 'pending_approval', 'approved', 'partial', 'paid', 'overdue', 'void']
     > &
@@ -584,6 +585,7 @@ export interface ApiBillBill extends Struct.CollectionTypeSchema {
     total: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>
     updatedAt: Schema.Attribute.DateTime
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    vendor: Schema.Attribute.Relation<'manyToOne', 'api::vendor.vendor'>
     vendorBillNumber: Schema.Attribute.String
   }
 }
@@ -677,7 +679,6 @@ export interface ApiClientAccountClientAccount extends Struct.CollectionTypeSche
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::client-account.client-account'> &
       Schema.Attribute.Private
     notes: Schema.Attribute.Text
-    onboardingData: Schema.Attribute.JSON
     onboardingDate: Schema.Attribute.DateTime
     organization: Schema.Attribute.Relation<'manyToOne', 'api::organization.organization'>
     paymentTerms: Schema.Attribute.String & Schema.Attribute.DefaultTo<'NET_30'>
@@ -911,7 +912,7 @@ export interface ApiContactContact extends Struct.CollectionTypeSchema {
     creditLimit: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>
     currency: Schema.Attribute.String & Schema.Attribute.DefaultTo<'INR'>
     department: Schema.Attribute.String
-    email: Schema.Attribute.Email & Schema.Attribute.Required
+    email: Schema.Attribute.Email
     firstName: Schema.Attribute.String & Schema.Attribute.Required
     isCustomer: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
     isPrimaryContact: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
@@ -1459,6 +1460,7 @@ export interface ApiExpenseExpense extends Struct.CollectionTypeSchema {
     taxRate: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<0>
     updatedAt: Schema.Attribute.DateTime
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    vendor: Schema.Attribute.Relation<'manyToOne', 'api::vendor.vendor'>
   }
 }
 
@@ -2091,6 +2093,7 @@ export interface ApiPaymentMadePaymentMade extends Struct.CollectionTypeSchema {
     referenceNumber: Schema.Attribute.String
     updatedAt: Schema.Attribute.DateTime
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    vendor: Schema.Attribute.Relation<'manyToOne', 'api::vendor.vendor'>
   }
 }
 
@@ -2327,6 +2330,7 @@ export interface ApiPurchaseOrderPurchaseOrder extends Struct.CollectionTypeSche
     total: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>
     updatedAt: Schema.Attribute.DateTime
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    vendor: Schema.Attribute.Relation<'manyToOne', 'api::vendor.vendor'>
   }
 }
 
@@ -2382,6 +2386,7 @@ export interface ApiRecurringExpenseRecurringExpense extends Struct.CollectionTy
       Schema.Attribute.DefaultTo<'active'>
     updatedAt: Schema.Attribute.DateTime
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    vendor: Schema.Attribute.Relation<'manyToOne', 'api::vendor.vendor'>
   }
 }
 
@@ -2670,6 +2675,47 @@ export interface ApiTeamTeam extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime
     updatedAt: Schema.Attribute.DateTime
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+  }
+}
+
+export interface ApiVendorVendor extends Struct.CollectionTypeSchema {
+  collectionName: 'vendors'
+  info: {
+    description: 'Vendors / suppliers'
+    displayName: 'Vendor'
+    pluralName: 'vendors'
+    singularName: 'vendor'
+  }
+  options: {
+    draftAndPublish: false
+  }
+  attributes: {
+    bankDetails: Schema.Attribute.JSON
+    billingAddress: Schema.Attribute.JSON
+    companyName: Schema.Attribute.String
+    createdAt: Schema.Attribute.DateTime
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    createdByUser: Schema.Attribute.Relation<'manyToOne', 'plugin::users-permissions.user'>
+    currency: Schema.Attribute.String & Schema.Attribute.DefaultTo<'INR'>
+    displayName: Schema.Attribute.String & Schema.Attribute.Required
+    email: Schema.Attribute.Email
+    isActive: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>
+    locale: Schema.Attribute.String & Schema.Attribute.Private
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::vendor.vendor'> &
+      Schema.Attribute.Private
+    notes: Schema.Attribute.Text
+    organization: Schema.Attribute.Relation<'manyToOne', 'api::organization.organization'>
+    paymentTerms: Schema.Attribute.Enumeration<
+      ['net_15', 'net_30', 'net_45', 'net_60', 'due_on_receipt']
+    > &
+      Schema.Attribute.DefaultTo<'net_30'>
+    phone: Schema.Attribute.String
+    publishedAt: Schema.Attribute.DateTime
+    taxNumber: Schema.Attribute.String
+    unusedCredits: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>
+    updatedAt: Schema.Attribute.DateTime
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    vendorCode: Schema.Attribute.String
   }
 }
 
@@ -3071,7 +3117,6 @@ export interface PluginUsersPermissionsUser extends Struct.CollectionTypeSchema 
       Schema.Attribute.SetMinMaxLength<{
         maxLength: 80
       }>
-    isPlatformAdmin: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
     lastName: Schema.Attribute.String &
       Schema.Attribute.SetMinMaxLength<{
         maxLength: 80
@@ -3161,6 +3206,7 @@ declare module '@strapi/strapi' {
       'api::subscription.subscription': ApiSubscriptionSubscription
       'api::task.task': ApiTaskTask
       'api::team.team': ApiTeamTeam
+      'api::vendor.vendor': ApiVendorVendor
       'plugin::content-releases.release': PluginContentReleasesRelease
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction
       'plugin::i18n.locale': PluginI18NLocale

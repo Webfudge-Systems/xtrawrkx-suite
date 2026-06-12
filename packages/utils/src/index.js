@@ -16,4 +16,14 @@ export {
 
 export { listCacheBust, strapiRowId, paginateStrapiList } from './api/paginateStrapiList';
 
+export {
+  pickUploadedFile,
+  normalizeUploadedFile,
+  resolveMediaUrl,
+  isImageMime,
+  formatFileSize,
+  uploadFileToStrapi,
+  uploadFilesToStrapi,
+} from './media/upload';
+
 export { FUDGE_SUITE_ASSETS, xtrawrkxMetadataIcons, webfudgeMetadataIcons } from './siteBranding';

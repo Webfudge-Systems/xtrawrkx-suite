@@ -10,6 +10,8 @@ import {
   Modal,
   Table,
   TabsWithActions,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui'
 import AccountsPageHeader from '../../components/AccountsPageHeader'
 import RoleTableCell from '../../components/RoleTableCell'
@@ -17,6 +19,38 @@ import { rolesService } from '../../lib/api'
 import { ACCESS_OPTIONS, CRM_MODULES, PM_MODULES, emptyPermissionsDraft } from '../../lib/constants/rbacMatrix'
 
 const ACCESS_RANK = { none: 0, read: 1, write: 2, manage: 3 }
+
+const COLUMN_VISIBILITY_STORAGE_KEY = 'accounts.roles.tableColumnVisibility'
+const COLUMN_ORDER_STORAGE_KEY = 'accounts.roles.tableColumnOrder'
+const COLUMN_WIDTHS_STORAGE_KEY = 'accounts.roles.tableColumnWidths'
+
+const DEFAULT_COLUMN_WIDTHS = {
+  name: 240,
+  type: 140,
+  crm: 120,
+  pm: 120,
+  tier: 130,
+  actions: 140,
+}
+
+const MIN_COLUMN_WIDTHS = {
+  name: 200,
+  actions: 120,
+}
+
+const TOGGLEABLE_COLUMNS = [
+  { key: 'type', label: 'Type' },
+  { key: 'crm', label: 'CRM' },
+  { key: 'pm', label: 'PM' },
+  { key: 'tier', label: 'Access tier' },
+]
+
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key)
+
+const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
+  acc[key] = true
+  return acc
+}, {})
 
 function isUnauthorizedError(error) {
   const message = String(error?.message || '').toLowerCase()
@@ -121,6 +155,42 @@ export default function RolesPage() {
 
   const [deleteRole, setDeleteRole] = useState(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
+  })
+
+  useEffect(() => {
+    if (!columnPickerOpen) return
+    const onDocMouseDown = (e) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setColumnPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [columnPickerOpen, setColumnPickerOpen, toolbarRef])
 
   const fetchRoles = useCallback(async () => {
     try {
@@ -315,15 +385,8 @@ export default function RolesPage() {
       {
         key: 'actions',
         label: 'ACTIONS',
-        sortable: false,
-        width: 120,
-        headerClassName: 'text-right w-[1%] whitespace-nowrap',
-        className: 'text-right w-[1%] whitespace-nowrap align-middle',
         render: (_, role) => (
-          <div
-            className="inline-flex items-center justify-end gap-1 min-w-[5.5rem]"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
             {role.isSystem ? (
               <Button
                 variant="ghost"
@@ -372,6 +435,17 @@ export default function RolesPage() {
     []
   )
 
+  const visibleColumns = useMemo(() => {
+    const byKey = Object.fromEntries(columns.map((c) => [c.key, c]))
+    const out = []
+    if (byKey.name) out.push(byKey.name)
+    for (const key of columnOrder) {
+      if (columnVisibility[key] && byKey[key]) out.push(byKey[key])
+    }
+    if (byKey.actions) out.push(byKey.actions)
+    return out
+  }, [columns, columnVisibility, columnOrder])
+
   const readOnlyModal = Boolean(detailModal?.mode === 'view-system')
 
   return (
@@ -407,7 +481,7 @@ export default function RolesPage() {
         />
       </div>
 
-      <div className="relative">
+      <div className="relative" ref={toolbarRef}>
         <TabsWithActions
           tabs={tabItems.map((item) => ({
             key: item.key,
@@ -423,6 +497,24 @@ export default function RolesPage() {
           showAdd
           onAddClick={openCreate}
           addTitle="Add Custom Role"
+          showColumnVisibility
+          onColumnVisibilityClick={() => setColumnPickerOpen((open) => !open)}
+          columnVisibilityTitle="Show, hide, or reorder columns"
+        />
+        <TableColumnPicker
+          open={columnPickerOpen}
+          description="Role and actions stay visible. Drag column edges in the table to resize."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
         />
       </div>
 
@@ -438,7 +530,7 @@ export default function RolesPage() {
           </div>
         ) : (
           <>
-            <Table columns={columns} data={filteredRoles} keyField="id" variant="modern" />
+            <Table columns={visibleColumns} data={filteredRoles} keyField="id" variant="modern" {...tableResizeProps} />
             {filteredRoles.length === 0 && (
               <div className="p-12 text-center border-t border-gray-200">
                 <Shield className="w-10 h-10 mx-auto mb-3 text-gray-300" />

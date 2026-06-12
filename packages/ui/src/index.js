@@ -19,6 +19,7 @@ export {
   Badge,
   Avatar,
   Table,
+  TableColumnPicker,
   TableSortPanel,
   Pagination,
   EmptyState,
@@ -31,6 +32,7 @@ export {
   LoginBrandCorner,
   LoginProductCredit,
   LoginMobileBrandHeader,
+  SidebarProductBranding,
   WorkspaceHeader,
   WorkspaceBackButton,
   workspaceBackButtonClassName,
@@ -85,6 +87,7 @@ export {
   TableCellInvoiceStatusSelect,
   TableCellCrmRowActions,
   crmTableActionsColumn,
+  crmTableCellTheme,
   TableRowActionMenuPortal,
   // Navigation Components
   Tabs,
@@ -98,6 +101,8 @@ export {
   WorkflowStatusBadge,
   ActivitiesTimeline,
   EntityActivityPanel,
+  EntityFilesPanel,
+  ChatMessageAttachments,
   LinkifiedText,
   ChatMessageText,
   MentionComposer,
@@ -162,6 +167,7 @@ export {
 // HOOKS
 export { useMediaQuery } from '../hooks/useMediaQuery';
 export { useTableSort } from '../hooks/useTableSort';
+export { useTableColumnPreferences } from '../hooks/useTableColumnPreferences';
 export {
   useIndustrySelectOptions,
   collectDistinctIndustriesFromList,
@@ -176,6 +182,7 @@ export {
   readStoredSortRules,
   writeStoredSortRules,
 } from '../utils/tableSort';
+export { userSelectLabel, buildUserSelectOptions } from '../utils/userSelectOptions';
 
 // THEME - Design tokens and configuration
 export { theme, colors, spacing, borderRadius, shadows, typography } from '../themes';

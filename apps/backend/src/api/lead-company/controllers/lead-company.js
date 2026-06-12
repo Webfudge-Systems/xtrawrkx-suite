@@ -12,11 +12,17 @@ const { logCrmActivity, collectChangedKeys, actorDisplayName } = require('../../
 const { emitUpdateNotifications, assignedStakeholderIds } = require('../../../utils/notification-emitter');
 const {
   orgIdFromRelation,
+  extractQueryFilters,
   readListQuery,
   createPopulateSanitizer,
   safeCount,
 } = require('../../../utils/content-api-helpers');
 const { canAccess, requireModuleAccess, requireOwnerOrModuleManage } = require('../../../utils/rbac');
+const {
+  attachRelationsToLeadCompanies,
+  assignedToUserIdFromFilters,
+  leadCompanyIdsForAssignedUser,
+} = require('../../../utils/crm-relation-attach');
 
 const UID = 'api::lead-company.lead-company';
 const CONTACT_UID = 'api::contact.contact';
@@ -74,77 +80,35 @@ function buildLeadListFilters(orgId, extra) {
   return { $and: [orgFilter, merged] };
 }
 
-/**
- * Strapi 5 populate on inverse oneToMany (mappedBy) often omits `contacts` on findMany/findOne.
- * Load links via `contacts_lead_company_lnk` — entityService `leadCompany.id $in` is unreliable here.
- */
-async function attachContactsToLeadCompanies(strapi, orgId, leadCompanies) {
-  if (!leadCompanies?.length) return leadCompanies;
+/** Apply assignedTo filter via link table when present (Strapi 5 relation filter is unreliable). */
+async function buildLeadListFiltersResolved(strapi, orgId, extra) {
+  const assignedUserId = assignedToUserIdFromFilters(extra);
+  if (assignedUserId == null) return buildLeadListFilters(orgId, extra);
+
+  const { assignedTo, ...rest } = extra || {};
+  const uid = parseInt(assignedUserId, 10);
+
+  const [linkIds, entityRows] = await Promise.all([
+    leadCompanyIdsForAssignedUser(strapi, assignedUserId),
+    Number.isNaN(uid)
+      ? []
+      : strapi.entityService
+          .findMany(UID, {
+            filters: buildLeadListFilters(orgId, { assignedTo: { id: uid } }),
+            fields: ['id'],
+            limit: 5000,
+          })
+          .catch(() => []),
+  ]);
 
   const leadIds = [
-    ...new Set(
-      leadCompanies
-        .map((row) => row?.id)
-        .filter((id) => id != null)
-        .map((id) => parseInt(id, 10))
-        .filter((n) => !Number.isNaN(n))
-    ),
+    ...new Set([
+      ...linkIds,
+      ...(entityRows || []).map((row) => row.id).filter((id) => id != null),
+    ]),
   ];
-  if (!leadIds.length) return leadCompanies;
-
-  const byLead = new Map();
-
-  try {
-    const knex = strapi.db.connection;
-    const linkRows = await knex('contacts_lead_company_lnk')
-      .whereIn('lead_company_id', leadIds)
-      .select('contact_id', 'lead_company_id');
-
-    if (!linkRows.length) {
-      return leadCompanies.map((row) => ({ ...row, contacts: row.contacts ?? [] }));
-    }
-
-    const contactIds = [...new Set(linkRows.map((r) => r.contact_id))];
-    const contacts = await strapi.entityService.findMany(CONTACT_UID, {
-      filters: {
-        organization: orgId,
-        id: { $in: contactIds },
-      },
-      limit: Math.min(contactIds.length, 5000),
-    });
-
-    const contactById = new Map((contacts || []).map((c) => [c.id, c]));
-
-    for (const link of linkRows) {
-      const contact = contactById.get(link.contact_id);
-      if (!contact) continue;
-      const k = String(link.lead_company_id);
-      if (!byLead.has(k)) byLead.set(k, []);
-      byLead.get(k).push(contact);
-    }
-  } catch (err) {
-    strapi.log.warn(
-      'lead-company attachContactsToLeadCompanies: %s',
-      err?.message || String(err)
-    );
-    return leadCompanies;
-  }
-
-  for (const list of byLead.values()) {
-    list.sort((a, b) => Number(!!b.isPrimaryContact) - Number(!!a.isPrimaryContact));
-  }
-
-  return leadCompanies.map((row) => {
-    const list = byLead.get(String(row.id));
-    if (list?.length) return { ...row, contacts: list };
-    return { ...row, contacts: row.contacts ?? [] };
-  });
-}
-
-async function attachContactsToLeadCompany(strapi, orgId, entry) {
-  if (entry?.id == null && entry?.documentId == null) return entry;
-  const [withContacts] = await attachContactsToLeadCompanies(strapi, orgId, [entry]);
-  return withContacts;
+  const idFilter = leadIds.length ? { id: { $in: leadIds } } : { id: { $in: [-1] } };
+  return buildLeadListFilters(orgId, { ...rest, ...idFilter });
 }
 
 module.exports = createCoreController(UID, ({ strapi }) => ({
@@ -213,7 +177,11 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       defaultPageSize: 100,
     });
 
-    const filters = buildLeadListFilters(ctx.state.orgId, query.filters);
+    const filters = await buildLeadListFiltersResolved(
+      strapi,
+      ctx.state.orgId,
+      extractQueryFilters(query)
+    );
 
     const pop = sanitizePopulate(query.populate);
     let results = await strapi.entityService.findMany(UID, {
@@ -225,7 +193,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     });
 
     if (results.length > 0) {
-      results = await attachContactsToLeadCompanies(strapi, ctx.state.orgId, results);
+      results = await attachRelationsToLeadCompanies(strapi, ctx.state.orgId, results);
     }
 
     const total = await safeCount(strapi, UID, filters, results.length);
@@ -248,9 +216,9 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (orgIdFromRelation(entry.organization) !== ctx.state.orgId) {
       return ctx.forbidden('Access denied');
     }
-    if (pop.includes('contacts')) {
-      entry = await attachContactsToLeadCompany(strapi, ctx.state.orgId, entry);
-    }
+    entry = await attachRelationsToLeadCompanies(strapi, ctx.state.orgId, [entry]).then(
+      (rows) => rows[0]
+    );
     return { data: entry };
   },
 

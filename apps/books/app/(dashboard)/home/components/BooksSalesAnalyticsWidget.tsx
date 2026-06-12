@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@webfudge/ui'
-import { booksApi } from '@/lib/api'
 import type { Expense, Invoice, TimeEntry } from '@/lib/types'
+import { MOCK_EXPENSES, MOCK_INVOICES, MOCK_TIME_ENTRIES } from '@/lib/mock-data'
 import { BarChart3, Clock3, Receipt, Wallet } from 'lucide-react'
 import { formatCurrency } from '@webfudge/utils'
 
@@ -14,10 +14,10 @@ function parseDate(dateStr: string | undefined) {
 }
 
 export default function BooksSalesAnalyticsWidget() {
-  const [loading, setLoading] = useState(true)
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [expenses, setExpenses] = useState<Expense[]>([])
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([])
+  const [loading] = useState(false)
+  const [invoices] = useState<Invoice[]>(MOCK_INVOICES)
+  const [expenses] = useState<Expense[]>(MOCK_EXPENSES)
+  const [timeEntries] = useState<TimeEntry[]>(MOCK_TIME_ENTRIES)
 
   const defaultFeatures = useMemo(
     () => ({
@@ -34,52 +34,6 @@ export default function BooksSalesAnalyticsWidget() {
   )
 
   const [features, setFeatures] = useState(defaultFeatures)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    booksApi
-      .fetchInvoices()
-      .then((res) => {
-        if (cancelled) return
-        setInvoices(res.data ?? [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setInvoices([])
-      })
-
-    booksApi
-      .fetchExpenses()
-      .then((res) => {
-        if (cancelled) return
-        setExpenses(res.data ?? [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setExpenses([])
-      })
-
-    booksApi
-      .fetchTimeEntries()
-      .then((res) => {
-        if (cancelled) return
-        setTimeEntries(res.data ?? [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setTimeEntries([])
-      })
-
-    Promise.allSettled([booksApi.fetchInvoices(), booksApi.fetchExpenses(), booksApi.fetchTimeEntries()]).finally(() => {
-      if (cancelled) return
-      setLoading(false)
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     try {

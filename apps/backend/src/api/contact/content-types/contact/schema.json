@@ -21,8 +21,7 @@
       "required": true
     },
     "email": {
-      "type": "email",
-      "required": true
+      "type": "email"
     },
     "phone": {
       "type": "string"

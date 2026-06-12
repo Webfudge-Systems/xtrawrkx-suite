@@ -1,114 +1,140 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Badge } from '@webfudge/ui'
-import { booksApi } from '@/lib/api'
-import type { Invoice } from '@/lib/types'
+import { useCallback, useMemo, useState } from 'react'
 import { Calendar, FileText, Receipt, TrendingUp } from 'lucide-react'
-import { formatCurrency } from '@webfudge/utils'
-import BooksSalesListShell from '../_components/BooksSalesListShell'
+import BooksListPageShell from '@/app/_components/BooksListPageShell'
+import BooksDeleteItemModal from '@/app/_components/BooksDeleteItemModal'
+import { useBooksSalesInvoicesTableColumns } from '@/app/_components/booksSalesInvoicesTableColumns'
+import { formatSalesMoney } from '@/app/_components/booksSalesTableColumns'
+import { useBooksSalesInvoicesStore } from '@/lib/mock-data/sales/stores'
+import type { SalesInvoiceRow } from '@/lib/mock-data/sales/seeds'
+import { normStatus } from '@/lib/mock-data/helpers'
+import { salesDocStatusOptions } from '@/lib/sales/listHelpers'
 
-type InvoiceRow = {
-  id: number
-  date: string
-  number: string
-  customer: string
-  status: string
-  dueDate: string
-  amount: number
-  balance: number
+const BASE = '/sales/invoices'
+const STATUS_GROUPS = {
+  draft: ['draft'],
+  sent: ['sent', 'viewed', 'partial'],
+  paid: ['paid'],
+  overdue: ['overdue'],
 }
 
-const statusVariant: Record<string, 'gray' | 'primary' | 'info' | 'warning' | 'success' | 'danger'> = {
-  Draft: 'gray',
-  Sent: 'primary',
-  Viewed: 'info',
-  Partial: 'warning',
-  Paid: 'success',
-  Overdue: 'danger',
-  Void: 'gray',
+function matchesInvoiceTab(row: SalesInvoiceRow, tabKey: string) {
+  if (tabKey === 'all') return true
+  const allowed = STATUS_GROUPS[tabKey as keyof typeof STATUS_GROUPS]
+  if (!allowed) return true
+  return allowed.includes(normStatus(row.status))
+}
+
+function countInvoiceTab(rows: SalesInvoiceRow[], tabKey: string) {
+  return rows.filter((row) => matchesInvoiceTab(row, tabKey)).length
 }
 
 export default function InvoicesPage() {
-  const [rows, setRows] = useState<Invoice[]>([])
-  const [activeTab, setActiveTab] = useState<'all' | 'draft' | 'sent' | 'paid' | 'overdue'>('all')
+  const { invoices, deleteInvoice, getById } = useBooksSalesInvoicesStore()
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
-  useEffect(() => {
-    booksApi.fetchInvoices().then((res) => setRows(res.data ?? [])).catch(() => setRows([]))
-  }, [])
+  const summary = useMemo(() => {
+    const totalBilled = invoices.reduce((sum, row) => sum + (row.amount ?? 0), 0)
+    const outstanding = invoices.reduce((sum, row) => sum + (row.balance ?? 0), 0)
+    const overdueTotal = invoices
+      .filter((row) => matchesInvoiceTab(row, 'overdue'))
+      .reduce((sum, row) => sum + (row.balance ?? 0), 0)
+    const collected = invoices
+      .filter((row) => matchesInvoiceTab(row, 'paid'))
+      .reduce((sum, row) => sum + (row.amount ?? 0), 0)
+    return { totalBilled, outstanding, overdueTotal, collected }
+  }, [invoices])
 
-  const tableData: InvoiceRow[] = useMemo(
-    () =>
-      rows.map((item) => ({
-        id: item.id,
-        date: item.date,
-        number: item.number,
-        customer: String(item.customerId ?? ''),
-        status: item.status,
-        dueDate: item.dueDate,
-        amount: item.total ?? 0,
-        balance: item.balanceDue ?? item.total ?? 0,
-      })),
-    [rows]
+  const handleRequestDelete = useCallback((row: SalesInvoiceRow) => setDeleteId(row.id), [])
+  const columns = useBooksSalesInvoicesTableColumns({
+    basePath: BASE,
+    onRequestDelete: handleRequestDelete,
+    deletingId,
+  })
+
+  const confirmDelete = useCallback(async () => {
+    if (deleteId == null || deletingId) return
+    try {
+      setDeletingId(deleteId)
+      deleteInvoice(deleteId)
+      setDeleteId(null)
+    } finally {
+      setDeletingId(null)
+    }
+  }, [deleteId, deleteInvoice, deletingId])
+
+  const tabs = useMemo(
+    () => [
+      { key: 'all', label: 'All Invoices', count: invoices.length },
+      { key: 'draft', label: 'Draft', count: countInvoiceTab(invoices, 'draft') },
+      { key: 'sent', label: 'Sent', count: countInvoiceTab(invoices, 'sent') },
+      { key: 'paid', label: 'Paid', count: countInvoiceTab(invoices, 'paid') },
+      { key: 'overdue', label: 'Overdue', count: countInvoiceTab(invoices, 'overdue') },
+    ],
+    [invoices]
   )
 
-  const invoiceStats = useMemo(() => {
-    const norm = (s: string) => String(s || '').toLowerCase()
-    const draft = tableData.filter((i) => norm(i.status) === 'draft').length
-    const sent = tableData.filter((i) => norm(i.status) === 'sent' || norm(i.status) === 'viewed' || norm(i.status) === 'partial').length
-    const paid = tableData.filter((i) => norm(i.status) === 'paid').length
-    const overdue = tableData.filter((i) => norm(i.status) === 'overdue').length
-    return { all: tableData.length, draft, sent, paid, overdue }
-  }, [tableData])
-
-  const filtered = useMemo(() => {
-    const norm = (s: string) => String(s || '').toLowerCase()
-    if (activeTab === 'all') return tableData
-    if (activeTab === 'draft') return tableData.filter((i) => norm(i.status) === 'draft')
-    if (activeTab === 'paid') return tableData.filter((i) => norm(i.status) === 'paid')
-    if (activeTab === 'overdue') return tableData.filter((i) => norm(i.status) === 'overdue')
-    // sent
-    return tableData.filter((i) => ['sent', 'viewed', 'partial'].includes(norm(i.status)))
-  }, [activeTab, tableData])
-
   return (
-    <BooksSalesListShell
-      title="Invoices"
-      subtitle="Manage invoices and track payment status"
-      kpis={[
-        { title: 'All Invoices', value: invoiceStats.all, subtitle: invoiceStats.all === 0 ? 'No invoices' : 'Total invoices', icon: Receipt, colorScheme: 'orange' },
-        { title: 'Draft', value: invoiceStats.draft, subtitle: invoiceStats.draft === 0 ? 'No drafts' : 'Needs review', icon: FileText, colorScheme: 'orange' },
-        { title: 'Sent', value: invoiceStats.sent, subtitle: invoiceStats.sent === 0 ? 'No sent invoices' : 'Awaiting payment', icon: TrendingUp, colorScheme: 'orange' },
-        { title: 'Overdue', value: invoiceStats.overdue, subtitle: invoiceStats.overdue === 0 ? 'No overdue' : 'Needs attention', icon: Calendar, colorScheme: 'orange' },
-      ]}
-      tabs={[
-        { key: 'all', label: 'All Invoices', count: invoiceStats.all },
-        { key: 'draft', label: 'Draft', count: invoiceStats.draft },
-        { key: 'sent', label: 'Sent', count: invoiceStats.sent },
-        { key: 'paid', label: 'Paid', count: invoiceStats.paid },
-        { key: 'overdue', label: 'Overdue', count: invoiceStats.overdue },
-      ]}
-      activeTab={activeTab}
-      onTabChange={(t) => setActiveTab(t as any)}
-      columns={[
-        { key: 'date', label: 'DATE' },
-        { key: 'number', label: 'INVOICE#' },
-        { key: 'customer', label: 'CUSTOMER' },
-        {
-          key: 'status',
-          label: 'STATUS',
-          render: (value: string) => <Badge variant={statusVariant[value] ?? 'gray'}>{value}</Badge>,
-        },
-        { key: 'dueDate', label: 'DUE DATE' },
-        { key: 'amount', label: 'AMOUNT', render: (v: number) => formatCurrency(v ?? 0) },
-        { key: 'balance', label: 'BALANCE DUE', render: (v: number) => formatCurrency(v ?? 0) },
-      ]}
-      data={filtered}
-      emptyIcon={Receipt}
-      emptyTitle="No invoices found"
-      emptyDescription="Create your first invoice to get started"
-      addHref="/sales/invoices/new"
-      addLabel="Add Invoice"
-    />
+    <>
+      <BooksListPageShell
+        title="Invoices"
+        subtitle="Manage invoices and track payment status."
+        kpis={[
+          {
+            title: 'All Invoices',
+            value: invoices.length,
+            subtitle: `${invoices.length} invoice${invoices.length === 1 ? '' : 's'}`,
+            icon: Receipt,
+          },
+          {
+            title: 'Total Billed',
+            value: formatSalesMoney(summary.totalBilled),
+            subtitle: 'Invoice value',
+            icon: TrendingUp,
+          },
+          {
+            title: 'Outstanding',
+            value: formatSalesMoney(summary.outstanding),
+            subtitle: 'Open balance',
+            icon: FileText,
+          },
+          {
+            title: 'Overdue',
+            value: formatSalesMoney(summary.overdueTotal),
+            subtitle: 'Needs attention',
+            icon: Calendar,
+          },
+        ]}
+        tabs={tabs}
+        tabFilter={matchesInvoiceTab}
+        filterFields={[
+          { key: 'status', label: 'Status', options: salesDocStatusOptions(['Draft', 'Sent', 'Paid', 'Overdue']) },
+        ]}
+        columns={columns}
+        data={invoices}
+        onRowClickHref={(row) => `${BASE}/${row.id}`}
+        emptyIcon={Receipt}
+        emptyTitle="No invoices yet"
+        emptyDescription="Create your first invoice to get started."
+        addHref={`${BASE}/new`}
+        addLabel="New invoice"
+        searchPlaceholder="Search invoices..."
+        exportFilePrefix="books-sales-invoices"
+        sortEntity="salesInvoice"
+      />
+      <BooksDeleteItemModal
+        isOpen={deleteId != null}
+        itemName={getById(deleteId ?? 0)?.number}
+        entityLabel="Invoice"
+        deleting={deletingId != null}
+        onClose={() => {
+          if (deletingId) return
+          setDeleteId(null)
+        }}
+        onConfirm={confirmDelete}
+      />
+    </>
   )
 }

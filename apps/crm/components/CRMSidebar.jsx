@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { LoadingSpinner } from '@webfudge/ui'
+import { LoadingSpinner, SidebarProductBranding } from '@webfudge/ui'
 import {
   LayoutDashboard,
   FolderKanban,
@@ -367,11 +367,10 @@ export default function CRMSidebar({ collapsed = false, onToggle }) {
                   className="h-11 w-11 shrink-0 object-contain"
                   priority
                 />
-                <div className="min-w-0">
-                  <span className="block font-bold text-xl tracking-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(249,115,22,0.35)]">
-                    {CRM_SITE.name}
-                  </span>
-                </div>
+                <SidebarProductBranding
+                  productName={CRM_SITE.name}
+                  companyName={CRM_SITE.brandName}
+                />
               </Link>
             )}
             <button

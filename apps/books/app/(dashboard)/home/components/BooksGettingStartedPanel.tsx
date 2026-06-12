@@ -86,9 +86,9 @@ const setupTasks = [
 ] as const
 
 const booksQuickLinks = [
-  { label: 'Items & inventory', href: '/items', icon: Package },
-  { label: 'Sales hub', href: '/sales', icon: DollarSign },
-  { label: 'Purchases hub', href: '/purchases', icon: Briefcase },
+  { label: 'Items & inventory', href: '/items/all', icon: Package },
+  { label: 'Sales hub', href: '/sales/customers', icon: DollarSign },
+  { label: 'Purchases hub', href: '/purchases/vendors', icon: Briefcase },
   { label: 'System analytics', href: '/reports', icon: BarChart3 },
 ]
 

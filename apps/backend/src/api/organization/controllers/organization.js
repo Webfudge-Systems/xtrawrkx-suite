@@ -13,15 +13,10 @@ const {
   canManageOrganizationSecurity,
   relationId,
 } = require('../../../utils/rbac');
-const { validateInviteEmailsForSecurity } = require('../../../utils/org-security-settings');
 const {
-  DEPARTMENT_UID,
-  normalizeIdList,
-  applyMembershipDepartments,
-  departmentsPayload,
-  leadUserIdFromDepartment,
-  syncDepartmentLeadToMembership,
-} = require('../../../utils/department-context');
+  transferUserAssignments,
+  removeUserFromOrgStructure,
+} = require('../../../utils/user-assignment-transfer');
 const {
   resolveOrganizationRoleIdForOrg,
   validateOrganizationRoleId,
@@ -30,9 +25,10 @@ const {
 const { logAccountsActivity, actorDisplayName } = require('../../../utils/crm-activity-log');
 const { usernameExists } = require('../../../utils/user-username');
 const {
-  transferUserAssignments,
-  removeUserFromOrgStructure,
-} = require('../../../utils/user-assignment-transfer');
+  applyMembershipDepartments,
+  departmentsPayload,
+  normalizeIdList,
+} = require('../../../utils/department-membership');
 
 function getRolesAdminError(ctx, orgIdFromParams) {
   if (!ctx.state.user) return 'Missing or invalid credentials';
@@ -191,6 +187,7 @@ module.exports = createCoreController('api::organization.organization', ({ strap
 
       if (!organization) return ctx.notFound('Organization not found');
       const canEditOrganizationSettings = await resolveCanEditOrganizationSettings(strapi, ctx, orgId);
+      const canManageSecuritySettings = canManageOrganizationSecurity(ctx);
       return ctx.send({
         success: true,
         data: {
@@ -199,6 +196,7 @@ module.exports = createCoreController('api::organization.organization', ({ strap
           currentRoleCode: ctx.state.orgRoleCode || 'member',
           permissions: ctx.state.effectivePermissions || ctx.state.orgPermissions || rbac.normalizePermissions({}),
           canEditOrganizationSettings,
+          canManageSecuritySettings,
         },
       });
     } catch (error) {
@@ -375,40 +373,15 @@ module.exports = createCoreController('api::organization.organization', ({ strap
         return ctx.forbidden('You do not have access to this organization');
       }
 
-      const membershipQuery = {
+      const orgUsers = await strapi.entityService.findMany('api::organization-user.organization-user', {
         filters: { organization: id, isActive: true },
         populate: {
           user: true,
           role: true,
           departments: { fields: ['id', 'name', 'isActive'] },
           primaryDepartment: { fields: ['id', 'name'] },
-        },
-      };
-
-      let orgUsers = await strapi.entityService.findMany(
-        'api::organization-user.organization-user',
-        membershipQuery
-      );
-
-      const leadDepartments = await strapi.entityService.findMany(DEPARTMENT_UID, {
-        filters: { organization: id },
-        fields: ['id', 'name', 'isActive'],
-        populate: { lead: { fields: ['id'] }, organization: true },
+        }
       });
-
-      let membershipRefresh = false;
-      for (const dept of leadDepartments || []) {
-        if (!leadUserIdFromDepartment(dept)) continue;
-        const { updated } = await syncDepartmentLeadToMembership(strapi, dept);
-        if (updated) membershipRefresh = true;
-      }
-
-      if (membershipRefresh) {
-        orgUsers = await strapi.entityService.findMany(
-          'api::organization-user.organization-user',
-          membershipQuery
-        );
-      }
 
       const mappedUsers = orgUsers.map((membership) => {
         const member = membership;
@@ -470,15 +443,6 @@ module.exports = createCoreController('api::organization.organization', ({ strap
       const hasAccess = await strapi.service('api::organization.organization').checkUserAccess(id, user.id);
       if (!hasAccess) {
         return ctx.forbidden('You do not have access to this organization');
-      }
-
-      const org = await strapi.entityService.findOne('api::organization.organization', id, {
-        fields: ['securitySettings'],
-      });
-      const emailList = Array.isArray(emails) ? emails : emails ? [emails] : [];
-      const domainError = validateInviteEmailsForSecurity(emailList, org?.securitySettings);
-      if (domainError) {
-        return ctx.badRequest(domainError);
       }
 
       if (directAdd) {
@@ -657,10 +621,7 @@ module.exports = createCoreController('api::organization.organization', ({ strap
             return ctx.forbidden('Only organization admins can change user passwords');
           }
 
-          const org = await strapi.entityService.findOne('api::organization.organization', id, {
-            fields: ['securitySettings'],
-          });
-          const minLen = Number(org?.securitySettings?.passwordMinLength) || 8;
+          const minLen = 8;
           const normalizedPassword = String(password).trim();
           if (normalizedPassword.length < minLen) {
             return ctx.badRequest(`Password must be at least ${minLen} characters`);
@@ -1207,6 +1168,24 @@ module.exports = createCoreController('api::organization.organization', ({ strap
       });
       if (Object.keys(patch).length === 0) {
         return ctx.badRequest('No supported security settings were provided');
+      }
+
+      if (Object.prototype.hasOwnProperty.call(patch, 'passwordMinLength')) {
+        const minLen = Number(patch.passwordMinLength);
+        patch.passwordMinLength = Math.min(128, Math.max(6, Number.isFinite(minLen) ? minLen : 8));
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, 'sessionTimeoutMinutes')) {
+        const timeout = Number(patch.sessionTimeoutMinutes);
+        patch.sessionTimeoutMinutes = Number.isFinite(timeout) && timeout > 0 ? timeout : 480;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, 'allowedEmailDomains')) {
+        const raw = patch.allowedEmailDomains;
+        patch.allowedEmailDomains = Array.isArray(raw)
+          ? raw.map((d) => String(d).trim().toLowerCase()).filter(Boolean)
+          : String(raw || '')
+              .split(',')
+              .map((d) => d.trim().toLowerCase())
+              .filter(Boolean);
       }
 
       const org = await strapi.entityService.findOne('api::organization.organization', id, {

@@ -102,6 +102,16 @@
         "trialEndsAt": {
             "type": "datetime"
         },
+        "securitySettings": {
+            "type": "json",
+            "default": {
+                "requireMfa": false,
+                "sessionTimeoutMinutes": 480,
+                "passwordMinLength": 8,
+                "allowPasswordLogin": true,
+                "allowedEmailDomains": []
+            }
+        },
         "fiscalYearStart": {
             "type": "integer",
             "default": 4,
@@ -175,16 +185,6 @@
         "retainerSequence": {
             "type": "integer",
             "default": 0
-        },
-        "securitySettings": {
-            "type": "json",
-            "default": {
-                "requireMfa": false,
-                "sessionTimeoutMinutes": 480,
-                "passwordMinLength": 8,
-                "allowPasswordLogin": true,
-                "allowedEmailDomains": []
-            }
         }
     }
 }

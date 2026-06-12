@@ -9,7 +9,7 @@ function createOrgAdminController(strapi, uid, { requiredNameField = 'name', pop
       if (!ctx.state.user) return ctx.unauthorized('Missing or invalid credentials');
       if (!ctx.state.orgId) return ctx.forbidden('No active organization');
 
-      const { query, page, pageSize, sort } = readListQuery(ctx);
+      const { page, pageSize, sort } = readListQuery(ctx);
       const filters = { organization: ctx.state.orgId };
 
       const results = await strapi.entityService.findMany(uid, {
@@ -80,9 +80,9 @@ function createOrgAdminController(strapi, uid, { requiredNameField = 'name', pop
       delete data.organization;
 
       if (data[requiredNameField] != null) {
-        const name = String(data[requiredNameField]).trim();
-        if (!name) return ctx.badRequest(`${requiredNameField} is required`);
-        data[requiredNameField] = name;
+        const nextName = String(data[requiredNameField]).trim();
+        if (!nextName) return ctx.badRequest(`${requiredNameField} is required`);
+        data[requiredNameField] = nextName;
       }
 
       const entry = await strapi.entityService.update(uid, pk, { data, populate });

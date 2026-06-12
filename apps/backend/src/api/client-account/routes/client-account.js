@@ -11,18 +11,6 @@ const authFalse = { auth: false };
 module.exports = {
   type: 'content-api',
   routes: [
-    {
-      method: 'POST',
-      path: '/client-accounts/website-signup',
-      handler: `${UID}.websiteSignup`,
-      config: authFalse,
-    },
-    {
-      method: 'GET',
-      path: '/client-accounts/similar-companies',
-      handler: `${UID}.similarCompanies`,
-      config: authFalse,
-    },
     { method: 'GET', path: '/client-accounts', handler: `${UID}.find`, config: authFalse },
     { method: 'GET', path: '/client-accounts/:id', handler: `${UID}.findOne`, config: authFalse },
     { method: 'POST', path: '/client-accounts', handler: `${UID}.create`, config: authFalse },

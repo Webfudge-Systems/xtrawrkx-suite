@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card, Avatar, LoadingSpinner } from '@webfudge/ui'
 import {
@@ -15,7 +15,7 @@ import {
   Building2,
   Clock,
 } from 'lucide-react'
-import { fetchGlobalActivityFeed } from '../../../lib/api/crmActivityService'
+import { fetchCrmActivityFeed } from '../../../lib/api/crmActivityService'
 
 const LIMIT = 8
 
@@ -221,7 +221,7 @@ export default function TeamActivityFeedWidget({ className = '' }) {
     ;(async () => {
       setLoading(true)
       try {
-        const { data } = await fetchGlobalActivityFeed({ limit: 24, start: 0 })
+        const { data } = await fetchCrmActivityFeed({ limit: LIMIT, start: 0 })
         if (!cancelled) setItems(Array.isArray(data) ? data : [])
       } catch {
         if (!cancelled) setItems([])
@@ -234,7 +234,7 @@ export default function TeamActivityFeedWidget({ className = '' }) {
     }
   }, [])
 
-  const entries = useMemo(() => items.slice(0, LIMIT), [items])
+  const entries = items
 
   return (
     <Card className={`flex flex-col p-6 shadow-lg ${className}`}>
@@ -242,7 +242,7 @@ export default function TeamActivityFeedWidget({ className = '' }) {
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Team activity feed</h2>
           <p className="mt-0.5 text-sm text-gray-600">
-            Assignments, updates, completions, and meetings across the team
+            Leads, contacts, deals, meetings, and client account updates
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">

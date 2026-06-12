@@ -282,7 +282,7 @@ export function Table({
                       role="separator"
                       aria-orientation="vertical"
                       aria-label={`Resize ${title || 'column'}`}
-                      className="absolute right-0 top-0 z-10 h-full w-1.5 translate-x-1/2 cursor-col-resize touch-none before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-transparent hover:before:bg-orange-400 active:before:bg-orange-500"
+                      className="absolute right-0 top-0 z-10 h-full w-2 translate-x-1/2 cursor-col-resize touch-none before:absolute before:inset-y-1 before:left-1/2 before:w-0.5 before:-translate-x-1/2 before:rounded-full before:bg-gray-300/90 hover:before:bg-orange-400 active:before:bg-orange-500"
                       onMouseDown={(event) =>
                         startResize(event, column, index, event.currentTarget.parentElement)
                       }

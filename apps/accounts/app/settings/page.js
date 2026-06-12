@@ -12,7 +12,7 @@ import {
   Save,
   Settings,
 } from 'lucide-react'
-import { Button, FormSectionCard, Input, LoadingSpinner, Select } from '@webfudge/ui'
+import { Button, Card, Input, LoadingSpinner, Select } from '@webfudge/ui'
 import AccountsPageHeader from '../../components/AccountsPageHeader'
 import { organizationService } from '../../lib/api'
 import {
@@ -128,20 +128,20 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-full space-y-6 bg-white p-4 md:p-6">
+    <div className="min-h-full space-y-4 bg-white p-4">
       <AccountsPageHeader
         title="Organization Settings"
         subtitle="Workspace profile and app-level administration settings."
-        breadcrumb={[{ label: 'Settings', href: '/settings' }]}
+        breadcrumb={[{ label: 'Organization', href: '/settings' }]}
       />
 
       {loading ? (
-        <div className="flex items-center justify-center rounded-2xl border border-gray-200 p-12">
+        <div className="flex min-h-[200px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50/80 py-16">
           <LoadingSpinner size="lg" message="Loading organization..." />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <div className="space-y-4 xl:col-span-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
             {!canEdit ? (
               <StatusBanner variant="warning">
                 <p className="font-medium">View-only access</p>
@@ -155,14 +155,16 @@ export default function SettingsPage() {
             {error ? <StatusBanner variant="error">{error}</StatusBanner> : null}
             {message ? <StatusBanner variant="success">{message}</StatusBanner> : null}
 
-            <FormSectionCard
-              icon={Building2}
+            <Card
+              glass
               title="Workspace profile"
-              description="These fields are shared across Accounts, PM, and CRM."
-              cardClassName="border border-gray-200 shadow-sm"
-              iconContainerClassName="bg-orange-500"
+              subtitle="These fields are shared across Accounts, PM, and CRM."
+              actions={<Building2 className="h-5 w-5 text-gray-500" />}
             >
-              <fieldset disabled={!canEdit || saving} className="space-y-5 disabled:opacity-90">
+              <fieldset
+                disabled={!canEdit || saving}
+                className="space-y-5 rounded-xl border border-gray-200 bg-white p-4 disabled:opacity-90 md:p-5"
+              >
                 <Input
                   label="Organization name"
                   required
@@ -222,52 +224,74 @@ export default function SettingsPage() {
                   />
                 </div>
               </fieldset>
+            </Card>
 
-              {canEdit ? (
-                <div className="mt-6 flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-gray-500">
-                    {isDirty ? 'You have unsaved changes.' : 'All changes saved.'}
-                  </p>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Button variant="secondary" onClick={resetForm} disabled={!isDirty || saving}>
-                      Discard
-                    </Button>
-                    <Button variant="primary" onClick={save} disabled={saving || !isDirty}>
-                      <Save className="mr-2 h-4 w-4" />
-                      {saving ? 'Saving…' : 'Save settings'}
-                    </Button>
-                  </div>
+            {canEdit ? (
+              <Card
+                glass
+                title="Save changes"
+                subtitle={isDirty ? 'You have unsaved workspace profile changes.' : 'All changes are saved.'}
+                actions={<Save className="h-5 w-5 text-gray-500" />}
+              >
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                  <Button variant="secondary" onClick={resetForm} disabled={!isDirty || saving}>
+                    Discard
+                  </Button>
+                  <Button variant="primary" onClick={save} disabled={saving || !isDirty}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {saving ? 'Saving…' : 'Save settings'}
+                  </Button>
                 </div>
-              ) : null}
-            </FormSectionCard>
+              </Card>
+            ) : null}
           </div>
 
-          <aside className="space-y-4">
-            <div className="h-fit rounded-2xl border border-orange-100 bg-gradient-to-b from-orange-50/80 to-orange-50/30 p-5">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
-                <Settings className="h-5 w-5" />
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+            <div className="h-fit rounded-2xl border border-orange-100 bg-gradient-to-b from-orange-50/90 to-white p-5 shadow-[0_3px_16px_rgba(15,23,42,0.06)]">
+              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm ring-1 ring-orange-100">
+                <Settings className="h-5 w-5" aria-hidden />
               </div>
-              <h3 className="mb-2 font-semibold text-gray-900">Who can edit</h3>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-orange-700/90">
+                Workspace profile
+              </p>
+              <h3 className="mb-2 mt-1 text-base font-semibold text-gray-900">Who can edit</h3>
               <p className="text-sm leading-relaxed text-gray-600">
                 Organization Admins, workspace owners, and users with manage access to CRM or PM settings can update
                 this profile. Other members can use assigned apps without changing workspace details.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-5">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-800">
-                <Lock className="h-4 w-4 text-gray-500" />
-                Your access
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_3px_16px_rgba(15,23,42,0.06)]">
+              <div className="mb-4 flex items-center gap-3 border-b border-gray-100 pb-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-600">
+                  <Lock className="h-5 w-5" aria-hidden />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-900">Your access</h3>
+                  <p className="text-xs text-gray-500">Role and permissions for this workspace</p>
+                </div>
               </div>
-              <p className="text-sm text-gray-600">
-                Role: <span className="font-medium text-gray-900">{currentRole || '—'}</span>
-              </p>
-              <p className="mt-1 text-sm text-gray-600">
-                Profile editing:{' '}
-                <span className={canEdit ? 'font-medium text-emerald-700' : 'font-medium text-amber-700'}>
-                  {canEdit ? 'Allowed' : 'View only'}
-                </span>
-              </p>
+
+              <dl className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/90 px-3.5 py-3">
+                  <dt className="text-sm text-gray-600">Role</dt>
+                  <dd className="truncate text-sm font-semibold text-gray-900">{currentRole || '—'}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/90 px-3.5 py-3">
+                  <dt className="text-sm text-gray-600">Profile editing</dt>
+                  <dd>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                        canEdit
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-amber-200 bg-amber-50 text-amber-800'
+                      }`}
+                    >
+                      {canEdit ? 'Allowed' : 'View only'}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
             </div>
           </aside>
         </div>

@@ -11,6 +11,14 @@ export const ACCOUNTS_SITE = {
   description:
     'Fudge Base is the organization administration workspace for users, roles, departments, teams, security, billing, app access, and audit logs across the Xtrawrkx suite.',
   tagline: 'Manage your organization—users, roles, security, billing, and compliance.',
+  loginTagline: 'Your organization command center.',
+  loginDetail:
+    'Sign in to manage users, roles, teams, security settings, billing, and audit logs across your Xtrawrkx workspace.',
+  loginFeatures: [
+    { value: 'Manage', label: 'Users' },
+    { value: 'Control', label: 'Access' },
+    { value: 'Track', label: 'Audit' },
+  ],
   url: siteUrl,
   ...FUDGE_SUITE_ASSETS.xtrawrkx,
   brandLogoPath: FUDGE_SUITE_ASSETS.xtrawrkx.brandLogoPath,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -8,7 +8,6 @@ import {
   TrendingUp,
   Target,
   Users,
-  GripVertical,
   MessageSquarePlus,
   SendHorizontal,
   MoreHorizontal,
@@ -47,6 +46,8 @@ import {
   TableCellDealStageSelect,
   ViewToggleGroup,
   ViewToggleButton,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../components/CRMPageHeader';
 import { DealsKanbanBoard, DEAL_PIPELINE_STAGES } from '../../../components/DealsKanbanBoard';
@@ -61,6 +62,7 @@ import { useCrmTableSort } from '../../../hooks/useCrmTableSort';
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.deals.tableColumnVisibility';
 const COLUMN_ORDER_STORAGE_KEY = 'crm.deals.tableColumnOrder';
+const COLUMN_WIDTHS_STORAGE_KEY = 'crm.deals.tableColumnWidths';
 const DEAL_VIEW_STORAGE_KEY = 'crm.deals.viewMode';
 const TABLE_SORT_STORAGE_KEY = 'crm.deals.tableSort';
 
@@ -110,42 +112,6 @@ const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
   acc[key] = DEFAULT_ON_KEYS.has(key);
   return acc;
 }, {});
-
-function loadColumnVisibility() {
-  if (typeof window === 'undefined') return { ...DEFAULT_COLUMN_VISIBILITY };
-  try {
-    const raw = window.localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_COLUMN_VISIBILITY };
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_COLUMN_VISIBILITY, ...parsed };
-  } catch {
-    return { ...DEFAULT_COLUMN_VISIBILITY };
-  }
-}
-
-function loadColumnOrder() {
-  if (typeof window === 'undefined') return [...REORDERABLE_COLUMN_KEYS];
-  try {
-    const raw = window.localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
-    if (!raw) return [...REORDERABLE_COLUMN_KEYS];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...REORDERABLE_COLUMN_KEYS];
-    const valid = new Set(REORDERABLE_COLUMN_KEYS);
-    const ordered = parsed.filter((k) => valid.has(k));
-    const missing = REORDERABLE_COLUMN_KEYS.filter((k) => !ordered.includes(k));
-    return [...ordered, ...missing];
-  } catch {
-    return [...REORDERABLE_COLUMN_KEYS];
-  }
-}
-
-function persistColumnOrder(order) {
-  try {
-    window.localStorage.setItem(COLUMN_ORDER_STORAGE_KEY, JSON.stringify(order));
-  } catch {
-    /* ignore */
-  }
-}
 
 function truncateText(text, max = 72) {
   if (text == null || text === '') return '';
@@ -225,15 +191,30 @@ export default function DealsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
-  const [columnPickerOpen, setColumnPickerOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
-  const [columnOrder, setColumnOrder] = useState(() => [...REORDERABLE_COLUMN_KEYS]);
-  const [columnWidths, setColumnWidths] = useState({});
-  const [columnDropIndicator, setColumnDropIndicator] = useState(null);
-  const columnDragKeyRef = useRef(null);
-  const columnDropIndicatorRef = useRef(null);
-  const toolbarRef = useRef(null);
+
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+  });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [dealToDelete, setDealToDelete] = useState(null);
@@ -271,11 +252,6 @@ export default function DealsPage() {
   }, [persistDealView]);
 
   useEffect(() => {
-    setColumnVisibility(loadColumnVisibility());
-    setColumnOrder(loadColumnOrder());
-  }, []);
-
-  useEffect(() => {
     if (!columnPickerOpen && !sortOpen) return;
     const onDocMouseDown = (e) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
@@ -286,94 +262,6 @@ export default function DealsPage() {
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [columnPickerOpen, sortOpen]);
-
-  const setColumnVisible = useCallback((key, visible) => {
-    setColumnVisibility((prev) => {
-      const next = { ...prev, [key]: visible };
-      try {
-        window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  const handleColumnDragStart = useCallback((e, key) => {
-    columnDragKeyRef.current = key;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', key);
-    const row = e.currentTarget.closest('[data-column-row]');
-    if (row) row.classList.add('opacity-60');
-  }, []);
-
-  const handleColumnDragEnd = useCallback((e) => {
-    columnDragKeyRef.current = null;
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    const row = e.currentTarget.closest('[data-column-row]');
-    if (row) row.classList.remove('opacity-60');
-  }, []);
-
-  const handleColumnRowDragOver = useCallback((e, key) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const fromKey = columnDragKeyRef.current || e.dataTransfer.getData('text/plain');
-    if (!fromKey || fromKey === key) {
-      columnDropIndicatorRef.current = null;
-      setColumnDropIndicator(null);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const place = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-    const hint = { targetKey: key, place };
-    columnDropIndicatorRef.current = hint;
-    setColumnDropIndicator(hint);
-  }, []);
-
-  const handleColumnListDragLeave = useCallback((e) => {
-    const related = e.relatedTarget;
-    if (related && e.currentTarget.contains(related)) return;
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-  }, []);
-
-  const handleColumnDrop = useCallback((e, targetKey) => {
-    e.preventDefault();
-    const fromKey = columnDragKeyRef.current || e.dataTransfer.getData('text/plain');
-    const hint = columnDropIndicatorRef.current;
-    const place = hint?.targetKey === targetKey ? hint.place : 'before';
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    if (!fromKey || fromKey === targetKey) return;
-    setColumnOrder((prev) => {
-      const next = [...prev];
-      const fi = next.indexOf(fromKey);
-      const ti0 = next.indexOf(targetKey);
-      if (fi === -1 || ti0 === -1) return prev;
-      next.splice(fi, 1);
-      const ti = next.indexOf(targetKey);
-      const insertAt = place === 'after' ? ti + 1 : ti;
-      next.splice(insertAt, 0, fromKey);
-      persistColumnOrder(next);
-      return next;
-    });
-  }, []);
-
-  const resetColumnTablePreferences = useCallback(() => {
-    const vis = { ...DEFAULT_COLUMN_VISIBILITY };
-    const order = [...REORDERABLE_COLUMN_KEYS];
-    setColumnVisibility(vis);
-    setColumnOrder(order);
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    try {
-      window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(vis));
-      persistColumnOrder(order);
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   const fetchDeals = useCallback(async () => {
     try {
@@ -1008,97 +896,22 @@ export default function DealsPage() {
             onClear={clearSort}
           />
         )}
-        {dealViewMode === 'table' && columnPickerOpen && (
-          <div
-            className="absolute right-0 top-full z-40 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl"
-            role="dialog"
-            aria-label="Table columns"
-          >
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Columns</p>
-            <p className="mb-2 text-xs leading-snug text-gray-500">
-              Deal name and actions stay visible. Company stays first in the list. Drag the grip to reorder; an orange line
-              shows where the row will land.
-            </p>
-            <ul
-              className="max-h-[min(51vh,18.75rem)] space-y-0 overflow-y-auto pr-1"
-              onDragLeave={handleColumnListDragLeave}
-            >
-              <li data-column-row className="relative flex items-stretch rounded-lg border border-transparent">
-                <span className="flex w-8 shrink-0 items-center justify-center text-gray-300" aria-hidden title="Fixed order">
-                  —
-                </span>
-                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2 py-1 text-sm text-gray-800 hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 shrink-0 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                    checked={Boolean(columnVisibility.company)}
-                    onChange={(e) => setColumnVisible('company', e.target.checked)}
-                  />
-                  <span>Company</span>
-                </label>
-              </li>
-              {columnOrder.map((key) => {
-                const def = TOGGLEABLE_COLUMNS.find((c) => c.key === key);
-                if (!def || def.key === 'company') return null;
-                const showLineBefore =
-                  columnDropIndicator?.targetKey === key && columnDropIndicator.place === 'before';
-                const showLineAfter =
-                  columnDropIndicator?.targetKey === key && columnDropIndicator.place === 'after';
-                return (
-                  <li
-                    key={key}
-                    data-column-row
-                    className="relative flex items-stretch rounded-lg border border-transparent hover:border-gray-100"
-                    onDragOver={(e) => handleColumnRowDragOver(e, key)}
-                    onDrop={(e) => handleColumnDrop(e, key)}
-                  >
-                    {showLineBefore ? (
-                      <div
-                        className="pointer-events-none absolute left-1 right-2 top-0 z-10 h-[3px] -translate-y-1 rounded-full bg-orange-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
-                        aria-hidden
-                      />
-                    ) : null}
-                    <span
-                      draggable
-                      onDragStart={(e) => handleColumnDragStart(e, key)}
-                      onDragEnd={handleColumnDragEnd}
-                      className="flex w-8 shrink-0 cursor-grab items-center justify-center rounded-l-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing"
-                      aria-label={`Drag to reorder ${def.label}`}
-                    >
-                      <GripVertical className="h-4 w-4" strokeWidth={2} aria-hidden />
-                    </span>
-                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2 py-1 text-sm text-gray-800 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 shrink-0 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        checked={Boolean(columnVisibility[key])}
-                        onChange={(e) => setColumnVisible(key, e.target.checked)}
-                      />
-                      <span>{def.label}</span>
-                    </label>
-                    {showLineAfter ? (
-                      <div
-                        className="pointer-events-none absolute bottom-0 left-1 right-2 z-10 h-[3px] translate-y-1 rounded-full bg-orange-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
-                        aria-hidden
-                      />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-2 border-t border-gray-100 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full text-sm font-medium text-gray-700"
-                onClick={resetColumnTablePreferences}
-              >
-                Reset to default
-              </Button>
-            </div>
-          </div>
-        )}
+        <TableColumnPicker
+          open={dealViewMode === 'table' && columnPickerOpen}
+          description="Deal name and actions stay visible. Company stays first in the list. Drag column edges in the table to resize."
+          pinnedRows={[{ key: 'company', label: 'Company' }]}
+          reorderableRows={TOGGLEABLE_COLUMNS.filter((c) => c.key !== 'company')}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
+        />
       </div>
 
       <div className="text-sm text-gray-600">
@@ -1120,9 +933,7 @@ export default function DealsPage() {
               variant="modern"
               getRowClassName={() => 'group'}
               onRowClick={(row) => router.push(`/sales/deals/${row.id}`)}
-              resizableColumns
-              columnWidths={columnWidths}
-              onColumnWidthsChange={setColumnWidths}
+              {...tableResizeProps}
             />
             {paginatedDeals.length === 0 && (
               <div className="border-t border-gray-200 p-12 text-center">

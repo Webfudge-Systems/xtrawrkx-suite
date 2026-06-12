@@ -6,6 +6,8 @@
  */
 
 const USER_UID = 'plugin::users-permissions.user';
+const LEAD_UID = 'api::lead-company.lead-company';
+const CONTACT_UID = 'api::contact.contact';
 
 function numericIds(rows, key = 'id') {
   return [
@@ -49,6 +51,112 @@ function mapById(rows) {
 
 function mapUsersById(users) {
   return mapById(users);
+}
+
+function normalizeFilterScalar(value) {
+  if (value == null) return null;
+  if (Array.isArray(value)) return value.length ? normalizeFilterScalar(value[0]) : null;
+  if (typeof value === 'object') {
+    if (value.$eq != null) return normalizeFilterScalar(value.$eq);
+    if (value.id != null) return normalizeFilterScalar(value.id);
+    return null;
+  }
+  return value;
+}
+
+/** Extract assignee user id from Strapi relation filters. */
+function assignedToUserIdFromFilters(extra) {
+  const at = extra?.assignedTo;
+  if (at == null) return null;
+  if (typeof at === 'number' || typeof at === 'string') return at;
+  if (at.$eq != null) return normalizeFilterScalar(at.$eq);
+  if (at.id != null) return normalizeFilterScalar(at.id);
+  return null;
+}
+
+/**
+ * Resolve lead company ids assigned to a user via `_lnk` (entityService assignedTo filter is unreliable in Strapi 5).
+ * @returns {Promise<number[]>}
+ */
+async function leadCompanyIdsForAssignedUser(strapi, userId) {
+  const uid = parseInt(userId, 10);
+  if (Number.isNaN(uid)) return [];
+  try {
+    const knex = strapi.db.connection;
+    const rows = await knex('lead_companies_assigned_to_lnk')
+      .where('user_id', uid)
+      .select('lead_company_id');
+    return rows.map((r) => r.lead_company_id).filter((id) => id != null);
+  } catch (err) {
+    strapi.log.warn('leadCompanyIdsForAssignedUser: %s', err?.message || String(err));
+    return [];
+  }
+}
+
+/** lead company list — contacts[], assignedTo */
+async function attachRelationsToLeadCompanies(strapi, orgId, leadCompanies) {
+  if (!leadCompanies?.length) return leadCompanies;
+
+  const leadIds = numericIds(leadCompanies);
+  if (!leadIds.length) return leadCompanies;
+
+  const knex = strapi.db.connection;
+
+  try {
+    const [contactLinks, assignLinks] = await Promise.all([
+      loadLinkRows(knex, 'contacts_lead_company_lnk', 'lead_company_id', leadIds, [
+        'contact_id',
+        'lead_company_id',
+      ]),
+      loadLinkRows(knex, 'lead_companies_assigned_to_lnk', 'lead_company_id', leadIds, [
+        'lead_company_id',
+        'user_id',
+      ]),
+    ]);
+
+    const contactIds = [...new Set(contactLinks.map((l) => l.contact_id))];
+    const userIds = assignLinks.map((l) => l.user_id).filter(Boolean);
+
+    const [contacts, users] = await Promise.all([
+      contactIds.length
+        ? loadEntitiesByIds(strapi, CONTACT_UID, contactIds, orgId)
+        : [],
+      loadUsersByIds(strapi, userIds),
+    ]);
+
+    const contactById = mapById(contacts);
+    const userById = mapUsersById(users);
+
+    const contactsByLead = new Map();
+    for (const link of contactLinks) {
+      const contact = contactById.get(link.contact_id);
+      if (!contact) continue;
+      const k = String(link.lead_company_id);
+      if (!contactsByLead.has(k)) contactsByLead.set(k, []);
+      contactsByLead.get(k).push(contact);
+    }
+    for (const list of contactsByLead.values()) {
+      list.sort((a, b) => Number(!!b.isPrimaryContact) - Number(!!a.isPrimaryContact));
+    }
+
+    const userByLead = new Map(
+      assignLinks.map((l) => [String(l.lead_company_id), userById.get(l.user_id) ?? null])
+    );
+
+    return leadCompanies.map((row) => {
+      const key = String(row.id);
+      const linkedContacts = contactsByLead.get(key);
+      const linkedOwner = userByLead.get(key);
+      return {
+        ...row,
+        contacts: linkedContacts?.length ? linkedContacts : row.contacts ?? [],
+        assignedTo: linkedOwner ?? row.assignedTo ?? null,
+      };
+    });
+  } catch (err) {
+    strapi.log.warn('attachRelationsToLeadCompanies: %s', err?.message || String(err));
+    return leadCompanies;
+  }
 }
 
 /** contact list — leadCompany, clientAccount, assignedTo */
@@ -393,6 +501,9 @@ async function attachRelationsToTasks(strapi, orgId, tasks) {
 }
 
 module.exports = {
+  assignedToUserIdFromFilters,
+  leadCompanyIdsForAssignedUser,
+  attachRelationsToLeadCompanies,
   attachRelationsToContacts,
   attachRelationsToClientAccounts,
   attachRelationsToDeals,

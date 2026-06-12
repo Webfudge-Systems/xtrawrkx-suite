@@ -50,6 +50,8 @@ import {
   TableCellText,
   TableRowActionMenuPortal,
   formatTableDate,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../components/CRMPageHeader';
 import meetingService from '../../lib/api/meetingService';
@@ -89,6 +91,46 @@ const STATUS_LABELS = {
   cancelled: 'Cancelled',
   no_show: 'No-show',
 };
+
+const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.meetings.tableColumnVisibility';
+const COLUMN_ORDER_STORAGE_KEY = 'crm.meetings.tableColumnOrder';
+const COLUMN_WIDTHS_STORAGE_KEY = 'crm.meetings.tableColumnWidths';
+
+const DEFAULT_COLUMN_WIDTHS = {
+  title: 300,
+  startTime: 240,
+  endTime: 120,
+  meetingType: 130,
+  status: 130,
+  deal: 220,
+  contact: 180,
+  assignedTo: 160,
+  actions: 180,
+};
+
+const MIN_COLUMN_WIDTHS = {
+  title: 240,
+  actions: 168,
+};
+
+const TOGGLEABLE_COLUMNS = [
+  { key: 'startTime', label: 'Date & time' },
+  { key: 'endTime', label: 'Duration' },
+  { key: 'meetingType', label: 'Type' },
+  { key: 'status', label: 'Status' },
+  { key: 'deal', label: 'Linked record' },
+  { key: 'contact', label: 'Attendees' },
+  { key: 'assignedTo', label: 'Owner' },
+];
+
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key);
+
+const DEFAULT_ON_COLUMN_KEYS = new Set(TOGGLEABLE_COLUMNS.map((c) => c.key));
+
+const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
+  acc[key] = DEFAULT_ON_COLUMN_KEYS.has(key);
+  return acc;
+}, {});
 
 // Compute a meeting's duration string
 function computeDuration(startTime, endTime) {
@@ -663,6 +705,42 @@ export default function MeetingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [meetingActionMenu, setMeetingActionMenu] = useState(null);
 
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
+  });
+
+  useEffect(() => {
+    if (!columnPickerOpen) return;
+    const onDocMouseDown = (e) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setColumnPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [columnPickerOpen, setColumnPickerOpen, toolbarRef]);
+
   // Load all meetings (client-side filtering for responsiveness)
   const loadMeetings = useCallback(async () => {
     setLoading(true);
@@ -859,7 +937,7 @@ export default function MeetingsPage() {
 
   // ── Table columns (match CRM list tables: `label` for headers, @webfudge/ui cells) ──
 
-  const meetingTableColumns = useMemo(
+  const allMeetingTableColumns = useMemo(
     () => [
       {
         key: 'title',
@@ -1050,6 +1128,19 @@ export default function MeetingsPage() {
     [router]
   );
 
+  const meetingTableColumns = useMemo(() => {
+    const byKey = Object.fromEntries(allMeetingTableColumns.map((c) => [c.key, c]));
+    const out = [];
+    if (byKey.title) out.push(byKey.title);
+    for (const key of columnOrder) {
+      if (columnVisibility[key] && byKey[key]) out.push(byKey[key]);
+    }
+    if (byKey.actions) out.push(byKey.actions);
+    return out;
+  }, [allMeetingTableColumns, columnOrder, columnVisibility]);
+
+  const showTableColumnTools = activeTab !== 'analytics' && view === 'list';
+
   // ── Tabs config ───────────────────────────────────────────────────────────
 
   const tabsWithCounts = TABS.map((t) => ({
@@ -1104,31 +1195,51 @@ export default function MeetingsPage() {
       </div>
 
       {/* Tabs + toolbar */}
-      <TabsWithActions
-        tabs={tabsWithCounts}
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        showSearch={activeTab !== 'analytics'}
-        searchQuery={searchQuery}
-        onSearchChange={(v) => {
-          setSearchQuery(v);
-          setCurrentPage(1);
-        }}
-        searchPlaceholder="Search meetings…"
-        showAdd={activeTab !== 'analytics'}
-        onAddClick={() => router.push('/meetings/new')}
-        addTitle="New Meeting"
-        showFilter={activeTab !== 'analytics'}
-        onFilterClick={() => setShowFilter((v) => !v)}
-        filterTitle={hasActiveFilters ? 'Filters active' : 'Filter'}
-        showViewToggle={activeTab !== 'analytics'}
-        activeView={view}
-        onViewChange={setView}
-        viewOptions={['list', 'calendar']}
-        listViewTitle="List view"
-        calendarViewTitle="Calendar view"
-        variant="glass"
-      />
+      <div className="relative" ref={toolbarRef}>
+        <TabsWithActions
+          tabs={tabsWithCounts}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          showSearch={activeTab !== 'analytics'}
+          searchQuery={searchQuery}
+          onSearchChange={(v) => {
+            setSearchQuery(v);
+            setCurrentPage(1);
+          }}
+          searchPlaceholder="Search meetings…"
+          showAdd={activeTab !== 'analytics'}
+          onAddClick={() => router.push('/meetings/new')}
+          addTitle="New Meeting"
+          showFilter={activeTab !== 'analytics'}
+          onFilterClick={() => setShowFilter((v) => !v)}
+          filterTitle={hasActiveFilters ? 'Filters active' : 'Filter'}
+          showViewToggle={activeTab !== 'analytics'}
+          activeView={view}
+          onViewChange={setView}
+          viewOptions={['list', 'calendar']}
+          listViewTitle="List view"
+          calendarViewTitle="Calendar view"
+          showColumnVisibility={showTableColumnTools}
+          onColumnVisibilityClick={() => setColumnPickerOpen((o) => !o)}
+          columnVisibilityTitle="Show, hide, or reorder columns"
+          variant="glass"
+        />
+        <TableColumnPicker
+          open={showTableColumnTools && columnPickerOpen}
+          description="Meeting title and actions stay visible. Drag column edges in the table to resize."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
+        />
+      </div>
 
       {/* Filter panel */}
       {activeTab !== 'analytics' && (
@@ -1188,6 +1299,7 @@ export default function MeetingsPage() {
                   keyField="id"
                   variant="modern"
                   onRowClick={(row) => router.push(`/meetings/${row.id}`)}
+                  {...tableResizeProps}
                 />
                 {paginatedMeetings.length === 0 && (
                   <div className="border-t border-gray-200 p-12 text-center">

@@ -11,6 +11,14 @@ export const PM_SITE = {
   description:
     'Fudge Work is the project management workspace for projects, tasks, teams, messages, and delivery across the Xtrawrkx suite.',
   tagline: 'Track projects, tasks, and your team in one place.',
+  loginTagline: 'Plan, track, and deliver — together.',
+  loginDetail:
+    'Sign in to manage projects, assign tasks, collaborate with your team, and keep delivery on schedule.',
+  loginFeatures: [
+    { value: 'Plan', label: 'Projects' },
+    { value: 'Assign', label: 'Tasks' },
+    { value: 'Deliver', label: 'On time' },
+  ],
   url: siteUrl,
   ...FUDGE_SUITE_ASSETS.xtrawrkx,
   brandLogoPath: FUDGE_SUITE_ASSETS.xtrawrkx.brandLogoPath,

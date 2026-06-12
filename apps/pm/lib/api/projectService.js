@@ -9,15 +9,12 @@ class ProjectService {
         'sort': options.sort || 'updatedAt:desc',
         'populate[projectManager]': '*',
         'populate[teamMembers]': '*',
+        'populate[tasks][fields][0]': 'id',
+        'populate[tasks][fields][1]': 'status',
         'populate[clientAccount][fields][0]': 'id',
         'populate[clientAccount][fields][1]': 'companyName',
         'populate[clientAccount][fields][2]': 'status',
       };
-
-      if (options.includeTaskProgress) {
-        params['populate[tasks][fields][0]'] = 'id';
-        params['populate[tasks][fields][1]'] = 'status';
-      }
 
       if (options.status) {
         params['filters[status][$eq]'] = options.status;

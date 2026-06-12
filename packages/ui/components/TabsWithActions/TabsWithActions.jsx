@@ -1,8 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { clsx } from 'clsx'
 import { Search, Plus, List, LayoutGrid, CalendarDays, Eye, Filter, ListChecks, ArrowUpDown } from 'lucide-react'
-import { booksPillTrackClassName, booksPillTrackHugClassName } from '../../themes/booksSurface'
+import { booksPillTrackClassName, booksPillTrackHugClassName, booksModernToolbarClassName } from '../../themes/booksSurface'
 
 /**
  * Advanced Tabs component with integrated actions, search, and view toggles
@@ -26,6 +27,8 @@ export function TabsWithActions({
   // Actions props
   showAdd = false,
   onAddClick,
+  /** When set, renders the add control as a Next.js Link (preferred for app navigation). */
+  addHref,
   addTitle = 'Add New',
 
   showFilter = false,
@@ -77,7 +80,7 @@ export function TabsWithActions({
 
   const hasRightPanel =
     showSearch ||
-    (showAdd && onAddClick) ||
+    (showAdd && (addHref || onAddClick)) ||
     (showFilter && onFilterClick) ||
     (showBulkEdit && onBulkEditClick) ||
     (showColumnVisibility && onColumnVisibilityClick) ||
@@ -96,8 +99,7 @@ export function TabsWithActions({
       'flex items-center justify-between gap-3 bg-white/70 backdrop-blur-xl border border-white/40 rounded-lg shadow-xl p-3',
     modern:
       'flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg shadow-lg p-3',
-    booksModern:
-      'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[color:var(--books-border,rgba(255,255,255,0.08))] bg-[var(--books-bg-card,#1e2128)] p-2 shadow-[var(--books-shell-shadow,0_4px_28px_rgba(0,0,0,0.55))] md:flex-nowrap',
+    booksModern: booksModernToolbarClassName,
     default: 'flex items-center justify-between gap-3 bg-white border-b border-gray-200 pb-3',
   }
 
@@ -235,8 +237,8 @@ export function TabsWithActions({
   const rightPanel = (
     <div className="flex flex-shrink-0 items-center gap-2">
       {showSearch && (
-        <div className="hidden lg:flex items-center">
-          <div className="relative">
+        <div className={clsx('flex items-center', isBooksModern ? 'min-w-0 flex-1 sm:flex-none' : 'hidden lg:flex')}>
+          <div className="relative w-full sm:w-auto">
             <Search
               className={clsx(
                 'absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform',
@@ -248,20 +250,45 @@ export function TabsWithActions({
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              className={isBooksModern ? resolvedSearchClass : 'w-64 rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-800 shadow-md transition-colors duration-200 placeholder:text-gray-400 focus:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20'}
+              className={
+                isBooksModern
+                  ? clsx(resolvedSearchClass, 'w-full min-w-0 sm:min-w-[16rem]')
+                  : 'w-64 rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-800 shadow-md transition-colors duration-200 placeholder:text-gray-400 focus:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20'
+              }
             />
           </div>
         </div>
       )}
 
-      {showAdd && onAddClick && (
-        <button
-          onClick={onAddClick}
-          className={isBooksModern ? clsx(booksIconBtn, 'text-[var(--books-orange-text,#fb923c)]') : 'flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-orange-600 shadow-md transition-colors duration-200 hover:border-gray-400 hover:bg-orange-50'}
-          title={addTitle}
-        >
-          <Plus className="h-5 w-5" />
-        </button>
+      {showAdd && (addHref || onAddClick) && (
+        addHref ? (
+          <Link
+            href={addHref}
+            className={
+              isBooksModern
+                ? clsx(booksIconBtn, 'text-[var(--books-orange-text,#fb923c)]')
+                : 'flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-orange-600 shadow-md transition-colors duration-200 hover:border-gray-400 hover:bg-orange-50'
+            }
+            title={addTitle}
+            aria-label={addTitle}
+          >
+            <Plus className="h-5 w-5" />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={onAddClick}
+            className={
+              isBooksModern
+                ? clsx(booksIconBtn, 'text-[var(--books-orange-text,#fb923c)]')
+                : 'flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-orange-600 shadow-md transition-colors duration-200 hover:border-gray-400 hover:bg-orange-50'
+            }
+            title={addTitle}
+            aria-label={addTitle}
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        )
       )}
 
       {showViewToggle && (
@@ -354,9 +381,13 @@ export function TabsWithActions({
           onClick={onSortClick}
           className={clsx(
             'flex h-10 w-10 items-center justify-center rounded-full border shadow-md transition-colors duration-200',
-            hasActiveSort
-              ? 'border-orange-300 bg-orange-500 text-white hover:bg-orange-600'
-              : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+            isBooksModern
+              ? hasActiveSort
+                ? 'border-orange-400/60 bg-[var(--books-orange-text,#ea580c)] text-white shadow-sm hover:bg-orange-600'
+                : booksIconBtn
+              : hasActiveSort
+                ? 'border-orange-300 bg-orange-500 text-white hover:bg-orange-600'
+                : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50'
           )}
           title={sortTitle}
           aria-pressed={hasActiveSort}

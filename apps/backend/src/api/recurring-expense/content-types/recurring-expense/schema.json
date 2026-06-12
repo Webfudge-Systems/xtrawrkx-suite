@@ -20,6 +20,7 @@
     "category":          { "type": "enumeration", "enum": ["subcontractor","software_saas","travel","office","meals","training","marketing","utilities","rent","salaries","other"] },
     "billable":          { "type": "boolean", "default": false },
     "lastCreatedAt":     { "type": "datetime" },
+    "vendor":            { "type": "relation", "relation": "manyToOne", "target": "api::vendor.vendor" },
     "project":           { "type": "relation", "relation": "manyToOne", "target": "api::project.project" },
     "organization":      { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
     "createdByUser":     { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }

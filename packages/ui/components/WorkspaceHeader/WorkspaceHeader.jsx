@@ -54,6 +54,7 @@ export function WorkspaceHeader({
   showBack = false,
   onBack,
   backLabel = 'Back',
+  titleClassName,
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -234,8 +235,7 @@ export function WorkspaceHeader({
   const handleBack = onBack ?? (() => router.back())
 
   return (
-    <div className="relative z-[40]">
-      <Card glass>
+    <Card glass className="relative z-[40]">
       <div className="flex items-center justify-between">
         <div className="flex-1">
           {showBack ? (
@@ -264,7 +264,12 @@ export function WorkspaceHeader({
               ))}
             </div>
           )}
-          <h1 className="text-xl sm:text-4xl font-normal text-brand-foreground mb-0.5 tracking-tight leading-snug">
+          <h1
+            className={
+              titleClassName ||
+              'text-xl sm:text-4xl font-normal text-brand-foreground mb-0.5 tracking-tight leading-snug'
+            }
+          >
             {title}
           </h1>
           {subtitle ? <p className="text-brand-text-light leading-relaxed">{subtitle}</p> : null}
@@ -557,8 +562,7 @@ export function WorkspaceHeader({
             initialQuery: searchInputValue,
           })
         : null}
-      </Card>
-    </div>
+    </Card>
   )
 }
 

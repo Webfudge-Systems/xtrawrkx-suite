@@ -38,11 +38,10 @@ export async function fetchProjectComments({ projectId, limit = 80 } = {}) {
 /**
  * @param {{ projectId: string|number, comment: string }} opts
  */
-export async function addProjectComment({ projectId, comment } = {}) {
-  return strapiClient.post('/crm-activities/comments', {
-    projectId,
-    comment,
-  });
+export async function addProjectComment({ projectId, comment, attachments } = {}) {
+  const body = { projectId, comment };
+  if (Array.isArray(attachments) && attachments.length) body.attachments = attachments;
+  return strapiClient.post('/crm-activities/comments', body);
 }
 
 /**

@@ -16,6 +16,17 @@ function orgIdFromRelation(rel) {
  * @param {import('koa').Context} ctx
  * @param {{ maxPageSize?: number, defaultPageSize?: number, defaultSort?: string }} [opts]
  */
+/**
+ * Normalize Strapi REST filters from ctx.query (nested `filters` object or bracket keys).
+ * @param {Record<string, unknown>} query
+ */
+function extractQueryFilters(query = {}) {
+  if (query.filters && typeof query.filters === 'object' && !Array.isArray(query.filters)) {
+    return query.filters;
+  }
+  return {};
+}
+
 function readListQuery(ctx, opts = {}) {
   const query = ctx.query || {};
   const maxPageSize = opts.maxPageSize ?? 100;
@@ -125,6 +136,7 @@ async function resolveEntityPkForRouteParam(strapi, uid, param) {
 
 module.exports = {
   orgIdFromRelation,
+  extractQueryFilters,
   readListQuery,
   createPopulateSanitizer,
   safeCount,

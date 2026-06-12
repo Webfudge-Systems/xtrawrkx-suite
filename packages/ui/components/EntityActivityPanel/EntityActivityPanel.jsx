@@ -16,10 +16,12 @@ import {
   ChevronDown,
   Sparkles,
   Hash,
+  Paperclip,
 } from 'lucide-react';
 import { LoadingSpinner } from '../../feedback';
 import { EmptyState } from '../EmptyState';
 import { ActivitiesTimeline } from '../ActivitiesTimeline';
+import { ChatMessageAttachments } from '../ChatMessageAttachments';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,11 @@ const EMPTY_MENTION_USERS = [];
 function extractComment(msg) {
   if (msg?.meta?.comment) return msg.meta.comment;
   return '';
+}
+
+function extractAttachments(msg) {
+  const list = msg?.meta?.attachments;
+  return Array.isArray(list) ? list : [];
 }
 
 function isNextConnectReason(meta) {
@@ -165,11 +172,12 @@ function DateDivider({ label }) {
 
 // ── Single chat message ───────────────────────────────────────────────────────
 
-function ChatMessage({ msg, highlighted, onReact, onPin }) {
+function ChatMessage({ msg, highlighted, onReact, onPin, apiBase }) {
   const [showActions, setShowActions] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [reactions, setReactions] = useState({});
   const text = extractComment(msg);
+  const attachments = extractAttachments(msg);
   const actor = msg.actor;
   const gradient = actorGradient(actor);
   const nextConnectReason = isNextConnectReason(msg.meta);
@@ -220,9 +228,12 @@ function ChatMessage({ msg, highlighted, onReact, onPin }) {
             {formatMsgTime(msg.createdAt)}
           </span>
         </div>
-        <p className="mt-0.5 text-sm text-gray-700 leading-relaxed break-words whitespace-pre-wrap">
-          <ChatMessageText text={text} />
-        </p>
+        {text ? (
+          <p className="mt-0.5 text-sm text-gray-700 leading-relaxed break-words whitespace-pre-wrap">
+            <ChatMessageText text={text} />
+          </p>
+        ) : null}
+        <ChatMessageAttachments attachments={attachments} apiBase={apiBase} />
         {/* Reactions row */}
         {reactionEntries.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
@@ -330,7 +341,9 @@ function PinnedMessageBanner({ message, onDismiss }) {
  *  - entityHrefForRow?: (row) => string | null
  *  - activityCount?: number
  *  - fetchCommentsFn: async ({ entityId }) => { data: [] }   — fetches existing chat msgs
- *  - addCommentFn: async ({ entityId, comment }) => { data: msg }
+ *  - addCommentFn: async ({ entityId, comment, attachments? }) => { data: msg }
+ *  - uploadFilesFn?: async (File[]) => attachment[] — enables chat file attach
+ *  - apiBase?: string — resolve relative media URLs (S3/CDN or Strapi)
  *  - chatFooterBadgeText?: string — optional hint under empty chat (e.g. PM projects)
  *  - defaultSubTab?: 'activity' | 'chat' — which sub-tab opens first (e.g. task Comments tab → chat)
  *  - className?: string — merged onto root card
@@ -350,6 +363,8 @@ export function EntityActivityPanel({
   activityCount,
   fetchCommentsFn,
   addCommentFn,
+  uploadFilesFn,
+  apiBase = '',
   chatFooterBadgeText,
   mentionUsers: mentionUsersProp,
   fetchMentionUsers,
@@ -378,10 +393,12 @@ export function EntityActivityPanel({
   const [highlightedMsgId, setHighlightedMsgId] = useState(null);
   const [pinnedMessage, setPinnedMessage] = useState(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState([]);
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const staticMentionUsers = mentionUsersProp ?? EMPTY_MENTION_USERS;
 
@@ -460,24 +477,46 @@ export function EntityActivityPanel({
 
   const handleSend = useCallback(async () => {
     const text = draft.trim();
-    if (!text || !entityId || !canSendMessages || sending) return;
+    const hasFiles = pendingFiles.length > 0;
+    if ((!text && !hasFiles) || !entityId || !canSendMessages || sending) return;
     setSending(true);
     setSendError('');
     try {
-      const res = await addCommentFn({ entityId, comment: text });
+      let attachments = [];
+      if (hasFiles && uploadFilesFn) {
+        attachments = await uploadFilesFn(pendingFiles);
+      }
+      const res = await addCommentFn({
+        entityId,
+        comment: text,
+        attachments,
+      });
       const newMsg = res?.data;
       if (newMsg) {
         setChatMessages((prev) => [...prev, newMsg]);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
       }
       setDraft('');
+      setPendingFiles([]);
     } catch (e) {
       setSendError(e?.message || 'Could not send message');
     } finally {
       setSending(false);
       textareaRef.current?.focus();
     }
-  }, [draft, entityId, addCommentFn, canSendMessages, sending]);
+  }, [draft, pendingFiles, entityId, addCommentFn, uploadFilesFn, canSendMessages, sending]);
+
+  const handlePickFiles = () => {
+    if (!uploadFilesFn || sending) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileInput = (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!picked.length) return;
+    setPendingFiles((prev) => [...prev, ...picked].slice(0, 5));
+  };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -691,6 +730,7 @@ export function EntityActivityPanel({
                       key={msg.id ?? `m-${i}`}
                       msg={msg}
                       highlighted={highlightedMsgId === (msg.id ?? `m-${i}`)}
+                      apiBase={apiBase}
                       onReact={(m, emoji) => {}}
                       onPin={(m) => setPinnedMessage(m)}
                     />
@@ -731,7 +771,50 @@ export function EntityActivityPanel({
             )}
             {canSendMessages ? (
               <>
+                {pendingFiles.length > 0 ? (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {pendingFiles.map((file, idx) => (
+                      <span
+                        key={`${file.name}-${idx}`}
+                        className="inline-flex max-w-full items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700"
+                      >
+                        <Paperclip className="w-3 h-3 shrink-0 text-gray-400" />
+                        <span className="truncate max-w-[140px]">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingFiles((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="text-gray-400 hover:text-red-500"
+                          aria-label="Remove file"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="flex items-end gap-2 rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2.5 transition-all duration-150 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-100/80 focus-within:shadow-sm">
+                  {uploadFilesFn ? (
+                    <>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileInput}
+                      />
+                      <button
+                        type="button"
+                        onClick={handlePickFiles}
+                        disabled={sending || pendingFiles.length >= 5}
+                        className="shrink-0 mb-0.5 flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-orange-600 disabled:opacity-40"
+                        title="Attach file"
+                      >
+                        <Paperclip className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : null}
                   {/* Avatar of sender (decorative) */}
                   <div className="shrink-0 mb-0.5">
                     <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center text-white text-[9px] font-bold shadow-sm">
@@ -751,7 +834,7 @@ export function EntityActivityPanel({
                   <button
                     type="button"
                     onClick={handleSend}
-                    disabled={!draft.trim() || sending}
+                    disabled={(!draft.trim() && !pendingFiles.length) || sending}
                     className="shrink-0 mb-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Send (Ctrl+Enter)"
                   >

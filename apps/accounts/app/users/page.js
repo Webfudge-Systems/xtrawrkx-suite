@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Clock3, Eye, EyeOff, Mail, MoreHorizontal, Pencil, ShieldBan, ShieldCheck, Trash2, UserCheck, UserPlus, Users, UserX } from 'lucide-react'
 import {
   Avatar,
+  Badge,
   Button,
   Input,
   KPICard,
@@ -15,6 +16,8 @@ import {
   TableCellRole,
   TableRowActionMenuPortal,
   TabsWithActions,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui'
 import AccountsPageHeader from '../../components/AccountsPageHeader'
 import DepartmentPillMultiSelect from '../../components/DepartmentPillMultiSelect'
@@ -57,6 +60,45 @@ function formatDepartmentLabels(user, departmentCatalog = []) {
 
 const ITEMS_PER_PAGE = 15
 
+const COLUMN_VISIBILITY_STORAGE_KEY = 'accounts.users.tableColumnVisibility'
+const COLUMN_ORDER_STORAGE_KEY = 'accounts.users.tableColumnOrder'
+const COLUMN_WIDTHS_STORAGE_KEY = 'accounts.users.tableColumnWidths'
+
+const DEFAULT_COLUMN_WIDTHS = {
+  user: 260,
+  email: 240,
+  role: 140,
+  departments: 180,
+  status: 120,
+  createdAt: 140,
+  updatedAt: 140,
+  actions: 180,
+}
+
+const MIN_COLUMN_WIDTHS = {
+  user: 220,
+  email: 200,
+  actions: 160,
+}
+
+const TOGGLEABLE_COLUMNS = [
+  { key: 'email', label: 'Email' },
+  { key: 'role', label: 'Role' },
+  { key: 'departments', label: 'Departments' },
+  { key: 'status', label: 'Status' },
+  { key: 'createdAt', label: 'Created' },
+  { key: 'updatedAt', label: 'Last updated' },
+]
+
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key)
+
+const DEFAULT_ON_COLUMN_KEYS = new Set(['email', 'role', 'departments', 'status', 'createdAt'])
+
+const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
+  acc[key] = DEFAULT_ON_COLUMN_KEYS.has(key)
+  return acc
+}, {})
+
 function getUserDisplayName(user) {
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
   if (fullName) return fullName
@@ -71,10 +113,10 @@ function getUserStatus(user) {
   return 'active'
 }
 
-function getStatusClasses(status) {
-  if (status === 'active') return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-  if (status === 'invited') return 'bg-orange-100 text-orange-700 border-orange-200'
-  return 'bg-red-100 text-red-700 border-red-200'
+function getUserStatusVariant(status) {
+  if (status === 'active') return 'success'
+  if (status === 'invited') return 'warning'
+  return 'danger'
 }
 
 function roleOptionValue(role) {
@@ -145,6 +187,42 @@ export default function UsersPage() {
     return editStatus === 'suspended' && getUserStatus(editUser) !== 'suspended'
   }, [editStatus, editUser])
 
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
+  })
+
+  useEffect(() => {
+    if (!columnPickerOpen) return
+    const onDocMouseDown = (e) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setColumnPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [columnPickerOpen, setColumnPickerOpen, toolbarRef])
+
   const toggleInviteDepartment = useCallback((deptId) => {
     setInviteDepartmentIds((prev) => {
       const next = prev.includes(deptId) ? prev.filter((id) => id !== deptId) : [...prev, deptId]
@@ -178,27 +256,6 @@ export default function UsersPage() {
     setShowInviteModal(true)
   }, [roles])
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const rows = await departmentsService.list()
-        if (!cancelled) {
-          setAllDepartments(
-            (rows || [])
-              .map((d) => ({ id: d.id, name: d.name || '', isActive: d.isActive !== false }))
-              .filter((d) => d.isActive)
-          )
-        }
-      } catch {
-        if (!cancelled) setAllDepartments([])
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true)
@@ -228,34 +285,55 @@ export default function UsersPage() {
     let cancelled = false
     ;(async () => {
       try {
-        const list = await rolesService.listForOrg()
+        const rows = await departmentsService.list()
         if (!cancelled) {
-          const finalRoles = list.length
-            ? list
-            : [
+          setAllDepartments(
+            (rows || [])
+              .map((d) => ({ id: d.id, name: d.name || '', isActive: d.isActive !== false }))
+              .filter((d) => d.isActive)
+          )
+        }
+      } catch {
+        if (!cancelled) setAllDepartments([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+      ; (async () => {
+        try {
+          const list = await rolesService.listForOrg()
+          if (!cancelled) {
+            const finalRoles = list.length
+              ? list
+              : [
                 { code: 'admin', name: 'Admin' },
                 { code: 'manager', name: 'Manager' },
                 { code: 'member', name: 'Member' },
               ]
-          setRoles(finalRoles)
+            setRoles(finalRoles)
+          }
+        } catch (error) {
+          if (isUnauthorizedError(error) && typeof window !== 'undefined') {
+            localStorage.removeItem('auth-token')
+            localStorage.removeItem('current-org-id')
+            localStorage.removeItem('auth-user')
+            window.location.href = '/login'
+            return
+          }
+          if (!cancelled) {
+            setRoles([
+              { code: 'admin', name: 'Admin' },
+              { code: 'manager', name: 'Manager' },
+              { code: 'member', name: 'Member' },
+            ])
+          }
         }
-      } catch (error) {
-        if (isUnauthorizedError(error) && typeof window !== 'undefined') {
-          localStorage.removeItem('auth-token')
-          localStorage.removeItem('current-org-id')
-          localStorage.removeItem('auth-user')
-          window.location.href = '/login'
-          return
-        }
-        if (!cancelled) {
-          setRoles([
-            { code: 'admin', name: 'Admin' },
-            { code: 'manager', name: 'Manager' },
-            { code: 'member', name: 'Member' },
-          ])
-        }
-      }
-    })()
+      })()
 
     return () => {
       cancelled = true
@@ -461,18 +539,14 @@ export default function UsersPage() {
   const toggleUserStatus = useCallback(
     async (user, nextStatus, transferToUserId) => {
       if (!user?.membershipId) return
-      try {
-        await usersService.updateMembership({
-          membershipId: user.membershipId,
-          roleId: user?.roleId ?? undefined,
-          roleCode: String(user?.roleCode || user?.role || 'member').toLowerCase(),
-          status: nextStatus,
-          transferToUserId: nextStatus === 'suspended' ? transferToUserId : undefined,
-        })
-        await fetchUsers()
-      } catch (error) {
-        throw error
-      }
+      await usersService.updateMembership({
+        membershipId: user.membershipId,
+        roleId: user?.roleId ?? undefined,
+        roleCode: String(user?.roleCode || user?.role || 'member').toLowerCase(),
+        status: nextStatus,
+        transferToUserId: nextStatus === 'suspended' ? transferToUserId : undefined,
+      })
+      await fetchUsers()
     },
     [fetchUsers]
   )
@@ -576,7 +650,7 @@ export default function UsersPage() {
         key: 'departments',
         label: 'DEPARTMENTS',
         render: (_, user) => (
-          <span className="text-sm text-gray-700 min-w-[140px]">{formatDepartmentLabels(user, allDepartments)}</span>
+          <span className="min-w-[140px] text-sm text-gray-700">{formatDepartmentLabels(user, allDepartments)}</span>
         ),
       },
       {
@@ -584,13 +658,7 @@ export default function UsersPage() {
         label: 'STATUS',
         render: (_, user) => {
           const status = getUserStatus(user)
-          return (
-            <span
-              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${getStatusClasses(status)}`}
-            >
-              {status}
-            </span>
-          )
+          return <Badge variant={getUserStatusVariant(status)} className="capitalize">{status}</Badge>
         },
       },
       {
@@ -673,23 +741,34 @@ export default function UsersPage() {
     [allDepartments, openEditModal, requestUserStatusChange]
   )
 
+  const visibleColumns = useMemo(() => {
+    const byKey = Object.fromEntries(columns.map((c) => [c.key, c]))
+    const out = []
+    if (byKey.user) out.push(byKey.user)
+    for (const key of columnOrder) {
+      if (columnVisibility[key] && byKey[key]) out.push(byKey[key])
+    }
+    if (byKey.actions) out.push(byKey.actions)
+    return out
+  }, [columns, columnVisibility, columnOrder])
+
   return (
     <div className="p-4 md:p-6 space-y-6 bg-white min-h-full">
       <AccountsPageHeader
-        title="Users"
+        title="Organization's Users"
         subtitle="Manage organization users, invitations, access, and lifecycle."
         breadcrumb={[{ label: 'Users', href: '/users' }]}
         showSearch
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KPICard title="Total Users" value={stats.total} icon={Users} colorScheme="orange" />
-        <KPICard title="Active Users" value={stats.active} icon={UserCheck} colorScheme="orange" />
-        <KPICard title="Invited Users" value={stats.invited} icon={Clock3} colorScheme="orange" />
-        <KPICard title="Suspended Users" value={stats.suspended} icon={UserX} colorScheme="orange" />
+        <KPICard title="Total Users" value={stats.total} subtitle="Organization members" icon={Users} colorScheme="orange" />
+        <KPICard title="Active Users" value={stats.active} subtitle="Confirmed and active access" icon={UserCheck} colorScheme="orange" />
+        <KPICard title="Invited Users" value={stats.invited} subtitle="Pending account confirmation" icon={Clock3} colorScheme="orange" />
+        <KPICard title="Suspended Users" value={stats.suspended} subtitle="Blocked from accessing apps" icon={UserX} colorScheme="orange" />
       </div>
 
-      <div className="relative">
+      <div className="relative" ref={toolbarRef}>
         <TabsWithActions
           tabs={tabItems.map((item) => ({
             key: item.key,
@@ -705,6 +784,24 @@ export default function UsersPage() {
           showAdd
           onAddClick={handleInviteUser}
           addTitle="Invite User"
+          showColumnVisibility
+          onColumnVisibilityClick={() => setColumnPickerOpen((open) => !open)}
+          columnVisibilityTitle="Show, hide, or reorder columns"
+        />
+        <TableColumnPicker
+          open={columnPickerOpen}
+          description="User and actions stay visible. Drag column edges in the table to resize."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
         />
       </div>
 
@@ -720,7 +817,7 @@ export default function UsersPage() {
           </div>
         ) : (
           <>
-            <Table columns={columns} data={paginatedUsers} keyField="id" variant="modern" />
+            <Table columns={visibleColumns} data={paginatedUsers} keyField="id" variant="modern" {...tableResizeProps} />
             {paginatedUsers.length === 0 && (
               <div className="p-12 text-center border-t border-gray-200">
                 <Users className="w-10 h-10 mx-auto mb-3 text-gray-300" />
@@ -777,7 +874,7 @@ export default function UsersPage() {
               {roles.map((role) => (
                 <option key={roleOptionValue(role)} value={roleOptionValue(role)}>
                   {role.name}
-                  {role?.isSystem === false ? ' Â· Custom' : ''}
+                  {role?.isSystem === false ? ' · Custom' : ''}
                 </option>
               ))}
             </select>
@@ -911,7 +1008,7 @@ export default function UsersPage() {
               {roles.map((role) => (
                 <option key={roleOptionValue(role)} value={roleOptionValue(role)}>
                   {role.name}
-                  {role?.isSystem === false ? ' Â· Custom' : ''}
+                  {role?.isSystem === false ? ' · Custom' : ''}
                 </option>
               ))}
             </select>

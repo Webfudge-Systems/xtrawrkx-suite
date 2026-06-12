@@ -248,7 +248,7 @@ export default {
     return {};
   },
 
-  /** Paginate through every contact page (list views). */
+  /** Paginate through every contact page (dashboard widgets, exports). */
   async fetchAll(params = {}) {
     const pageSize = 100;
     let page = 1;

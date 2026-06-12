@@ -1,5 +1,5 @@
 /**
- * Books API client ΓÇö wired to real Strapi backend endpoints.
+ * Books API client — wired to real Strapi backend endpoints.
  * All monetary values in paise/cents (integer). Display layer converts.
  */
 
@@ -8,7 +8,7 @@ import { listCacheBust, paginateStrapiList } from '@webfudge/utils'
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_STRAPI_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:1337'
+  'http://localhost:1338'
 
 type ListParams = Record<string, string | number | boolean | undefined>
 

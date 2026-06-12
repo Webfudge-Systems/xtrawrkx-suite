@@ -11,6 +11,14 @@ export const BOOKS_SITE = {
   description:
     'Fudge Books is the finance and accounting workspace for receivables, payables, projects, time tracking, and documents across the Xtrawrkx suite.',
   tagline: 'Finance and accounting for service agencies and modern teams.',
+  loginTagline: 'Finance and accounting in one place.',
+  loginDetail:
+    'Sign in to manage invoices, expenses, projects, time tracking, and financial documents.',
+  loginFeatures: [
+    { value: 'Invoice', label: 'Clients' },
+    { value: 'Track', label: 'Expenses' },
+    { value: 'Report', label: 'Finances' },
+  ],
   url: siteUrl,
   ...FUDGE_SUITE_ASSETS.xtrawrkx,
   brandLogoPath: FUDGE_SUITE_ASSETS.xtrawrkx.brandLogoPath,

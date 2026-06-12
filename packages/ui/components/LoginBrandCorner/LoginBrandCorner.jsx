@@ -56,20 +56,38 @@ export function LoginProductCredit({
   )
 }
 
-/** Mobile login form column — Xtrawrkx icon + name, then product credit (text only). */
+/** Product name + company line — workspace sidebars. */
+export function SidebarProductBranding({
+  productName,
+  companyName = 'Xtrawrkx',
+  className = '',
+}) {
+  return (
+    <div className={`min-w-0 ${className}`.trim()}>
+      <span className="block font-bold text-xl tracking-tight leading-tight bg-gradient-to-r from-orange-700 via-orange-500 to-amber-400 bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(249,115,22,0.35)]">
+        {productName}
+      </span>
+      <span className="block text-xs font-medium text-gray-500 tracking-tight mt-0.5">
+        {companyName}
+      </span>
+    </div>
+  )
+}
+
+/** Mobile login form column — product mark + product / company names. */
 export function LoginMobileBrandHeader({
   brandIconPath,
   brandLogoPath,
-  brandName = 'Xtrawrkx',
+  logoPath,
   productName,
-  creatorLine,
+  creatorLine = 'Xtrawrkx',
 }) {
-  const iconSrc = brandIconPath || brandLogoPath
+  const iconSrc = brandIconPath || brandLogoPath || logoPath
 
   return (
     <div className="mb-8 lg:hidden">
-      {iconSrc ? (
-        <div className="flex items-center gap-2.5 mb-4">
+      {iconSrc && productName ? (
+        <div className="flex items-center gap-2.5">
           <Image
             src={iconSrc}
             alt=""
@@ -78,16 +96,8 @@ export function LoginMobileBrandHeader({
             className="h-8 w-8 shrink-0 rounded-lg object-contain"
             priority
           />
-          <span className="font-bold text-lg text-brand-foreground tracking-tight">{brandName}</span>
+          <SidebarProductBranding productName={productName} companyName={creatorLine} />
         </div>
-      ) : null}
-      {productName ? (
-        <LoginProductCredit
-          productName={productName}
-          creatorLine={creatorLine}
-          tone="light"
-          className="mb-0"
-        />
       ) : null}
     </div>
   )

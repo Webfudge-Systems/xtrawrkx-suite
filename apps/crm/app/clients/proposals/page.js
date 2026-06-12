@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -27,6 +27,8 @@ import {
   TableCellCreated,
   TableCellDateOnly,
   TableCellText,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../components/CRMPageHeader';
 import proposalService from '../../../lib/api/proposalService';
@@ -43,6 +45,43 @@ const STATUS_CONFIG = {
   REJECTED: { variant: 'danger', label: 'Rejected' },
   EXPIRED: { variant: 'warning', label: 'Expired' },
 };
+
+const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.proposals.tableColumnVisibility';
+const COLUMN_ORDER_STORAGE_KEY = 'crm.proposals.tableColumnOrder';
+const COLUMN_WIDTHS_STORAGE_KEY = 'crm.proposals.tableColumnWidths';
+
+const DEFAULT_COLUMN_WIDTHS = {
+  proposal: 300,
+  client: 260,
+  value: 120,
+  status: 130,
+  date: 140,
+  validUntil: 130,
+  actions: 200,
+};
+
+const MIN_COLUMN_WIDTHS = {
+  proposal: 240,
+  client: 220,
+  actions: 180,
+};
+
+const TOGGLEABLE_COLUMNS = [
+  { key: 'client', label: 'Client' },
+  { key: 'value', label: 'Value' },
+  { key: 'status', label: 'Status' },
+  { key: 'date', label: 'Created' },
+  { key: 'validUntil', label: 'Valid until' },
+];
+
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key);
+
+const DEFAULT_ON_COLUMN_KEYS = new Set(['client', 'value', 'status', 'date', 'validUntil']);
+
+const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
+  acc[key] = DEFAULT_ON_COLUMN_KEYS.has(key);
+  return acc;
+}, {});
 
 function openClientEmailAboutProposal(p) {
   const email = (p.clientEmail || '').trim();
@@ -80,6 +119,42 @@ export default function ProposalsPage() {
 
   const [deleteProposalId, setDeleteProposalId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
+  });
+
+  useEffect(() => {
+    if (!columnPickerOpen) return;
+    const onDocMouseDown = (e) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setColumnPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [columnPickerOpen, setColumnPickerOpen, toolbarRef]);
 
   const fetchProposals = useCallback(async () => {
     setLoading(true);
@@ -145,7 +220,7 @@ export default function ProposalsPage() {
     }
   };
 
-  const columns = [
+  const allColumns = useMemo(() => [
     {
       key: 'proposal',
       label: 'PROPOSAL',
@@ -293,7 +368,18 @@ export default function ProposalsPage() {
         );
       },
     },
-  ];
+  ], [router]);
+
+  const columns = useMemo(() => {
+    const byKey = Object.fromEntries(allColumns.map((c) => [c.key, c]));
+    const out = [];
+    if (byKey.proposal) out.push(byKey.proposal);
+    for (const key of columnOrder) {
+      if (columnVisibility[key] && byKey[key]) out.push(byKey[key]);
+    }
+    if (byKey.actions) out.push(byKey.actions);
+    return out;
+  }, [allColumns, columnOrder, columnVisibility]);
 
   const tabItems = [
     { key: 'all', label: 'All Proposals', count: stats.all },
@@ -342,7 +428,7 @@ export default function ProposalsPage() {
       </div>
 
       {/* Tabs + toolbar actions (aligned with lead companies list) */}
-      <div className="relative">
+      <div className="relative" ref={toolbarRef}>
         <TabsWithActions
           tabs={tabItems.map((item) => ({
             key: item.key,
@@ -361,9 +447,27 @@ export default function ProposalsPage() {
           showFilter={true}
           onFilterClick={() => {}}
           filterTitle="Filter"
+          showColumnVisibility={true}
+          onColumnVisibilityClick={() => setColumnPickerOpen((o) => !o)}
+          columnVisibilityTitle="Show, hide, or reorder columns"
           showExport={true}
           onExportClick={() => {}}
           exportTitle="Export"
+        />
+        <TableColumnPicker
+          open={columnPickerOpen}
+          description="Proposal title and actions stay visible. Drag column edges in the table to resize."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
         />
       </div>
 
@@ -395,6 +499,7 @@ export default function ProposalsPage() {
               onRowClick={(row) =>
                 router.push(`/clients/proposals/${row.documentId ?? row.id}`)
               }
+              {...tableResizeProps}
             />
             {filtered.length === 0 && (
               <div className="p-12 text-center border-t border-gray-200">

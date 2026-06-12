@@ -1,86 +1,76 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@webfudge/auth';
-import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@webfudge/auth'
+import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 import {
   Button,
   Input,
   LoginBrandCorner,
   LoginProductCredit,
   LoginMobileBrandHeader,
-} from '@webfudge/ui';
-import { ACCOUNTS_SITE } from '../../lib/site';
+} from '@webfudge/ui'
+import { ACCOUNTS_SITE } from '../../lib/site'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loginError, setLoginError] = useState('');
-
-  const { login, isAuthenticated, loading } = useAuth();
-  const router = useRouter();
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [errors, setErrors] = useState({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const { login, isAuthenticated, loading } = useAuth()
+  const router = useRouter()
 
   useEffect(() => {
-    if (!loading && isAuthenticated) router.push('/');
-  }, [isAuthenticated, loading, router]);
+    if (!loading && isAuthenticated) router.push('/')
+  }, [isAuthenticated, loading, router])
 
   const validate = () => {
-    const next = {};
-    if (!email) next.email = 'Email is required';
-    if (!password) next.password = 'Password is required';
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
+    const next = {}
+    if (!email) next.email = 'Email is required'
+    if (!password) next.password = 'Password is required'
+    setErrors(next)
+    return Object.keys(next).length === 0
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoginError('');
-    if (!validate()) return;
-    setIsSubmitting(true);
+    e.preventDefault()
+    setLoginError('')
+    if (!validate()) return
+    setIsSubmitting(true)
     try {
-      const result = await login(email, password);
-      if (result?.success) router.replace('/');
-      else setLoginError(result?.error || 'Login failed');
+      const result = await login(email, password)
+      if (result?.success) router.replace('/')
+      else setLoginError(result?.error || 'Login failed')
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   if (loading && !isSubmitting) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
       </div>
-    );
+    )
   }
 
   return (
     <div className="min-h-screen flex">
-      {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-primary to-orange-600 relative flex-col justify-center px-16 py-20">
         <LoginBrandCorner
-          brandIconPath={ACCOUNTS_SITE.logoPath}
+          brandIconPath={ACCOUNTS_SITE.brandIconPath}
           brandName={ACCOUNTS_SITE.brandName}
         />
         <div className="max-w-lg">
-          <LoginProductCredit productName={ACCOUNTS_SITE.name} />
+          <LoginProductCredit productName={ACCOUNTS_SITE.name} creatorLine={ACCOUNTS_SITE.brandName} />
           <h1 className="text-5xl font-bold text-white mb-6">Welcome back</h1>
-          <p className="text-xl text-white/90 mb-4">
-            Account Management — users, roles, departments, and access in one workspace.
-          </p>
-          <p className="text-white/80 leading-relaxed">
-            Sign in to manage your organization, control access, and keep your team secure.
-          </p>
+          <p className="text-xl text-white/90 mb-4">{ACCOUNTS_SITE.loginTagline}</p>
+          <p className="text-white/80 leading-relaxed">{ACCOUNTS_SITE.loginDetail}</p>
           <div className="mt-12 grid grid-cols-3 gap-6">
-            {[
-              { label: 'Users', value: 'Manage' },
-              { label: 'Roles', value: 'Control' },
-              { label: 'Departments', value: 'Organize' },
-            ].map((item) => (
+            {ACCOUNTS_SITE.loginFeatures.map((item) => (
               <div key={item.label} className="bg-white/10 rounded-xl p-4 text-center">
                 <p className="text-white font-semibold text-sm">{item.value}</p>
                 <p className="text-white/70 text-xs mt-1">{item.label}</p>
@@ -90,13 +80,12 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right form panel */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center p-8 lg:p-16">
         <div className="w-full max-w-md mx-auto">
           <LoginMobileBrandHeader
-            brandIconPath={ACCOUNTS_SITE.logoPath}
-            brandName={ACCOUNTS_SITE.brandName}
+            logoPath={ACCOUNTS_SITE.logoPath}
             productName={ACCOUNTS_SITE.name}
+            creatorLine={ACCOUNTS_SITE.brandName}
           />
           <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
           <p className="text-gray-600 mb-8">Enter your credentials to access Accounts.</p>
@@ -132,5 +121,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

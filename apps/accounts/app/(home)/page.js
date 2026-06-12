@@ -253,7 +253,7 @@ export default function AccountsHome() {
 
   const appAccessDescription = useMemo(() => {
     if (subscriptionsSummary.length === 0) {
-      return 'No app subscriptions loaded yet. Subscribed apps appear here when billing is connected.'
+      return 'No app subscriptions loaded yet. Subscribed apps appear here when connected.'
     }
     const joined = subscriptionsSummary.join(', ')
     return `${joined} ${subscriptionsSummary.length === 1 ? 'is' : 'are'} assigned to this organization.`
@@ -264,7 +264,7 @@ export default function AccountsHome() {
       { label: 'Add User', href: '/users', hint: 'Invite or add members' },
       { label: 'Manage Roles', href: '/roles', hint: 'CRM & PM permissions' },
       { label: 'Review Audit Logs', href: '/audit-logs', hint: 'Workspace timeline' },
-      { label: 'Update Billing', href: '/billing', hint: 'Plans and seats' },
+      { label: 'Manage Departments', href: '/departments', hint: 'Organize users' },
     ],
     []
   )
@@ -388,9 +388,6 @@ export default function AccountsHome() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button as={Link} href="/app-access" variant="outline" size="sm">
                   View app access
-                </Button>
-                <Button as={Link} href="/billing" variant="muted" size="sm">
-                  Billing & seats
                 </Button>
               </div>
             </Card>

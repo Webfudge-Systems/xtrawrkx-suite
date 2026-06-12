@@ -16,6 +16,8 @@ export function Modal({
   showCloseButton = true,
   closeOnBackdrop = true,
   variant = 'default',
+  /** `books` — dark surface aligned with Books app `--books-*` tokens. */
+  theme = 'default',
   onBack,
   ...props
 }) {
@@ -42,6 +44,7 @@ export function Modal({
   if (!isOpen) return null
 
   const handleBack = onBack ?? onClose
+  const isBooks = theme === 'books'
 
   if (variant === 'navPanel') {
     return (
@@ -133,9 +136,10 @@ export function Modal({
       {/* Panel */}
       <div
         className={clsx(
-          'relative flex w-full max-h-[calc(100vh-2rem)] flex-col overflow-hidden bg-[#F1F1F1] rounded-3xl',
-          'shadow-[0_24px_64px_-16px_rgba(15,23,42,0.22),0_0_0_1px_rgba(15,23,42,0.06)]',
-          'transform transition-all',
+          'relative flex w-full max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-3xl transform transition-all',
+          isBooks
+            ? 'border border-[color:var(--books-border,rgba(255,255,255,0.08))] bg-[var(--books-bg-elevated,#111827)] shadow-[var(--books-shell-shadow,0_4px_28px_rgba(0,0,0,0.55))]'
+            : 'bg-[#F1F1F1] shadow-[0_24px_64px_-16px_rgba(15,23,42,0.22),0_0_0_1px_rgba(15,23,42,0.06)]',
           sizes[size],
           className
         )}
@@ -144,7 +148,8 @@ export function Modal({
         {(title || showCloseButton) && (
           <div
             className={clsx(
-              'flex shrink-0 items-start gap-4 px-8 pt-8 pb-5 border-b border-gray-300',
+              'flex shrink-0 items-start gap-4 px-8 pt-8 pb-5 border-b',
+              isBooks ? 'border-[color:var(--books-border,rgba(255,255,255,0.08))]' : 'border-gray-300',
               title ? 'justify-between' : 'justify-end'
             )}
           >
@@ -152,12 +157,22 @@ export function Modal({
               <div className="min-w-0 pr-2">
                 <h3
                   id="modal-title"
-                  className="text-3xl font-bold tracking-tight text-slate-900 leading-tight"
+                  className={clsx(
+                    'text-3xl font-bold tracking-tight leading-tight',
+                    isBooks ? 'text-[var(--books-text-primary,#f8fafc)]' : 'text-slate-900'
+                  )}
                 >
                   {title}
                 </h3>
                 {subtitle ? (
-                  <p className="mt-1.5 text-base text-gray-600">{subtitle}</p>
+                  <p
+                    className={clsx(
+                      'mt-1.5 text-base',
+                      isBooks ? 'text-[var(--books-text-secondary,#9ca3af)]' : 'text-gray-600'
+                    )}
+                  >
+                    {subtitle}
+                  </p>
                 ) : null}
               </div>
             )}
@@ -166,7 +181,10 @@ export function Modal({
                 type="button"
                 onClick={onClose}
                 className={clsx(
-                  'shrink-0 p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors',
+                  'shrink-0 p-2 rounded-full transition-colors',
+                  isBooks
+                    ? 'text-[var(--books-text-secondary,#9ca3af)] hover:bg-[var(--books-bg-card,#1f2937)] hover:text-[var(--books-text-primary,#f8fafc)]'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100',
                   title ? '-mr-1 -mt-0.5' : '-mr-1'
                 )}
                 aria-label="Close dialog"
@@ -180,6 +198,7 @@ export function Modal({
         <div
           className={clsx(
             'min-h-0 flex-1 overflow-y-auto px-8 pb-8 pt-6',
+            isBooks && 'text-[var(--books-text-primary,#f8fafc)]',
             contentClassName
           )}
         >

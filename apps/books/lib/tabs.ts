@@ -53,14 +53,44 @@ export function getTabsForRoute(pathname: string): TabItem[] {
   return match ? ROUTE_TABS[match] ?? [] : []
 }
 
+/** True when `pathname` is the tab route or a child of it (e.g. /items/all/5 → All Items tab). */
+export function isBooksTabActive(
+  pathname: string,
+  href: string,
+  searchParams?: { get: (key: string) => string | null } | null
+): boolean {
+  const normalizedPath = pathname.replace(/\/$/, '') || '/'
+  const [pathOnly, queryPart] = href.split('?')
+  const normalizedHref = pathOnly.replace(/\/$/, '') || '/'
+
+  if (queryPart) {
+    if (normalizedPath !== normalizedHref) return false
+    const q = new URLSearchParams(queryPart)
+    return Array.from(q.entries()).every(([k, v]) => searchParams?.get(k) === v)
+  }
+
+  if (normalizedHref === '/home') {
+    return normalizedPath === '/home' || normalizedPath === '/'
+  }
+
+  if (normalizedPath === normalizedHref) return true
+  return normalizedPath.startsWith(`${normalizedHref}/`)
+}
+
+/** Module roots that only exist to redirect into their first tab (no standalone hub UI). */
+export const MODULE_TAB_ROOTS = ['/sales', '/purchases', '/items', '/time-tracking', '/accountant'] as const
+
+export function getDefaultTabForModule(prefix: string): string | null {
+  const tabs = ROUTE_TABS[prefix]
+  if (!tabs?.length) return null
+  const first = tabs[0].href.replace(/\/$/, '') || '/'
+  const normalizedPrefix = prefix.replace(/\/$/, '') || '/'
+  if (first === normalizedPrefix) return null
+  return tabs[0].href
+}
+
 /** If the route is exactly a module root (e.g. /sales), return its first child tab href. */
 export function getDefaultTabHref(pathname: string): string | null {
-  const exact = Object.keys(ROUTE_TABS).find((prefix) => pathname === prefix)
-  if (!exact) return null
-  const first = ROUTE_TABS[exact]?.[0]?.href
-  if (!first) return null
-  const a = pathname.replace(/\/$/, '') || '/'
-  const b = first.replace(/\/$/, '') || '/'
-  if (a === b) return null
-  return first
+  const normalized = pathname.replace(/\/$/, '') || '/'
+  return getDefaultTabForModule(normalized)
 }

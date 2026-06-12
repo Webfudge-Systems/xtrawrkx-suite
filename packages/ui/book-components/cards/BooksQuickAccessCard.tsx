@@ -8,7 +8,10 @@ import { Card } from '@webfudge/ui'
 export type BooksQuickAccessShortcut = {
   id: string
   title: string
-  count: number
+  /** Record count for list shortcuts; omit for action shortcuts (e.g. create new). */
+  count?: number
+  /** Footer label under the count or action glyph. */
+  caption?: string
   icon: LucideIcon
   onClick: () => void
   disabled?: boolean
@@ -90,14 +93,24 @@ export function BooksQuickAccessCard({
                   </span>
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin text-[var(--books-orange-text,#ea580c)] sm:h-5 sm:w-5" aria-hidden />
-                  ) : (
+                  ) : shortcut.count != null ? (
                     <>
                       <span className="text-xl font-bold tracking-tight text-[var(--books-text-primary,#111827)] sm:text-2xl">
                         {shortcut.count.toLocaleString()}
                       </span>
                       <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--books-text-tertiary,#9ca3af)]">
                         <span className="h-1.5 w-1.5 rounded-full bg-[var(--books-orange-text,#ea580c)]" aria-hidden />
-                        Total items
+                        {shortcut.caption ?? 'Total records'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-2xl font-bold tracking-tight text-[var(--books-orange-text,#ea580c)] sm:text-3xl">
+                        +
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--books-text-tertiary,#9ca3af)]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--books-orange-text,#ea580c)]" aria-hidden />
+                        {shortcut.caption ?? 'Open'}
                       </span>
                     </>
                   )}

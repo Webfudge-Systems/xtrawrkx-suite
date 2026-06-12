@@ -1,0 +1,41 @@
+{
+  "kind": "collectionType",
+  "collectionName": "vendors",
+  "info": {
+    "singularName": "vendor",
+    "pluralName": "vendors",
+    "displayName": "Vendor",
+    "description": "Vendors / suppliers"
+  },
+  "options": { "draftAndPublish": false },
+  "pluginOptions": {},
+  "attributes": {
+    "displayName": { "type": "string", "required": true },
+    "companyName": { "type": "string" },
+    "vendorCode": { "type": "string" },
+    "email": { "type": "email" },
+    "phone": { "type": "string" },
+    "currency": { "type": "string", "default": "INR" },
+    "paymentTerms": {
+      "type": "enumeration",
+      "enum": ["net_15", "net_30", "net_45", "net_60", "due_on_receipt"],
+      "default": "net_30"
+    },
+    "taxNumber": { "type": "string" },
+    "billingAddress": { "type": "json" },
+    "bankDetails": { "type": "json" },
+    "notes": { "type": "text" },
+    "unusedCredits": { "type": "integer", "default": 0 },
+    "isActive": { "type": "boolean", "default": true },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    },
+    "createdByUser": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -20,7 +20,6 @@ import {
   Video,
   ClipboardList,
   Link2,
-  GripVertical,
   UserPlus,
 } from 'lucide-react';
 import {
@@ -39,56 +38,17 @@ import {
   formatTableDate,
   TableRowActionMenuPortal,
   Modal,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../components/CRMPageHeader';
-import { TableSortDropdown as CrmTableSortDropdown } from '@webfudge/ui';
-import { useCrmTableSort } from '../../../hooks/useCrmTableSort';
 import clientAccountService from '../../../lib/api/clientAccountService';
+import contactService from '../../../lib/api/contactService';
 import { canManageCRM, canWriteCRM } from '../../../lib/rbac';
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.clientAccounts.tableColumnVisibility';
 const COLUMN_ORDER_STORAGE_KEY = 'crm.clientAccounts.tableColumnOrder';
 const COLUMN_WIDTHS_STORAGE_KEY = 'crm.clientAccounts.tableColumnWidths';
-const TABLE_SORT_STORAGE_KEY = 'crm.clientAccounts.tableSort';
-
-/** Default pixel widths for resizable table columns (keyed by column `key`). */
-const DEFAULT_COLUMN_WIDTHS = {
-  company: 280,
-  primaryContact: 260,
-  healthScore: 130,
-  dealValue: 120,
-  contactsCount: 110,
-  location: 160,
-  industry: 140,
-  assignedTo: 180,
-  status: 170,
-  createdAt: 150,
-  updatedAt: 130,
-  accountType: 140,
-  billingCycle: 140,
-  website: 160,
-  companyPhone: 140,
-  companyEmail: 180,
-  address: 200,
-  city: 120,
-  state: 120,
-  country: 120,
-  zipCode: 100,
-  employees: 120,
-  description: 200,
-  linkedIn: 100,
-  twitter: 120,
-  notes: 180,
-  contractStartDate: 140,
-  contractEndDate: 140,
-  actions: 200,
-};
-
-const MIN_COLUMN_WIDTHS = {
-  company: 220,
-  primaryContact: 200,
-  actions: 180,
-};
 
 const TOGGLEABLE_COLUMNS = [
   { key: 'primaryContact', label: 'Primary contact' },
@@ -138,69 +98,6 @@ const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
   acc[key] = DEFAULT_ON_KEYS.has(key);
   return acc;
 }, {});
-
-function loadColumnVisibility() {
-  if (typeof window === 'undefined') return { ...DEFAULT_COLUMN_VISIBILITY };
-  try {
-    const raw = window.localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_COLUMN_VISIBILITY };
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_COLUMN_VISIBILITY, ...parsed };
-  } catch {
-    return { ...DEFAULT_COLUMN_VISIBILITY };
-  }
-}
-
-function loadColumnOrder() {
-  if (typeof window === 'undefined') return [...REORDERABLE_COLUMN_KEYS];
-  try {
-    const raw = window.localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
-    if (!raw) return [...REORDERABLE_COLUMN_KEYS];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...REORDERABLE_COLUMN_KEYS];
-    const valid = new Set(REORDERABLE_COLUMN_KEYS);
-    const ordered = parsed.filter((k) => valid.has(k));
-    const missing = REORDERABLE_COLUMN_KEYS.filter((k) => !ordered.includes(k));
-    return [...ordered, ...missing];
-  } catch {
-    return [...REORDERABLE_COLUMN_KEYS];
-  }
-}
-
-function persistColumnOrder(order) {
-  try {
-    window.localStorage.setItem(COLUMN_ORDER_STORAGE_KEY, JSON.stringify(order));
-  } catch {
-    /* ignore */
-  }
-}
-
-function loadColumnWidths() {
-  if (typeof window === 'undefined') return { ...DEFAULT_COLUMN_WIDTHS };
-  try {
-    const raw = window.localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_COLUMN_WIDTHS };
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_COLUMN_WIDTHS };
-    const merged = { ...DEFAULT_COLUMN_WIDTHS, ...parsed };
-    for (const [key, min] of Object.entries(MIN_COLUMN_WIDTHS)) {
-      if (typeof merged[key] === 'number' && merged[key] < min) {
-        merged[key] = min;
-      }
-    }
-    return merged;
-  } catch {
-    return { ...DEFAULT_COLUMN_WIDTHS };
-  }
-}
-
-function persistColumnWidths(widths) {
-  try {
-    window.localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(widths));
-  } catch {
-    /* ignore */
-  }
-}
 
 const formatCurrency = (value) => {
   if (!value && value !== 0) return '₹0';
@@ -253,154 +150,98 @@ export default function ClientAccountsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [columnPickerOpen, setColumnPickerOpen] = useState(false);
-  const [sortOpen, setSortOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
-  const [columnOrder, setColumnOrder] = useState(() => [...REORDERABLE_COLUMN_KEYS]);
-  const [columnWidths, setColumnWidths] = useState(() => ({ ...DEFAULT_COLUMN_WIDTHS }));
-  const [columnDropIndicator, setColumnDropIndicator] = useState(null);
   const [actionMenu, setActionMenu] = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [draftFilters, setDraftFilters] = useState(initialFilters);
   const [loadingActions, setLoadingActions] = useState({});
   const canCreateClientAccounts = canWriteCRM('client_accounts');
-  const columnDragKeyRef = useRef(null);
-  const columnDropIndicatorRef = useRef(null);
-  const toolbarRef = useRef(null);
   const itemsPerPage = 15;
 
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+  });
+
   useEffect(() => {
-    setColumnVisibility(loadColumnVisibility());
-    setColumnOrder(loadColumnOrder());
-    const widths = loadColumnWidths();
-    setColumnWidths(widths);
-    persistColumnWidths(widths);
+    fetchAccounts();
   }, []);
 
-  const handleColumnResizeEnd = useCallback((next) => {
-    persistColumnWidths(next);
-  }, []);
-
   useEffect(() => {
-    if (!columnPickerOpen && !sortOpen) return;
+    if (!columnPickerOpen) return;
     const onDocMouseDown = (e) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
         setColumnPickerOpen(false);
-        setSortOpen(false);
       }
     };
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [columnPickerOpen, sortOpen]);
+  }, [columnPickerOpen]);
 
-  const setColumnVisible = useCallback((key, visible) => {
-    setColumnVisibility((prev) => {
-      const next = { ...prev, [key]: visible };
-      try {
-        window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  const handleColumnDragStart = useCallback((e, key) => {
-    columnDragKeyRef.current = key;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', key);
-    const row = e.currentTarget.closest('[data-column-row]');
-    if (row) row.classList.add('opacity-60');
-  }, []);
-
-  const handleColumnDragEnd = useCallback((e) => {
-    columnDragKeyRef.current = null;
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    const row = e.currentTarget.closest('[data-column-row]');
-    if (row) row.classList.remove('opacity-60');
-  }, []);
-
-  const handleColumnRowDragOver = useCallback((e, key) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const fromKey = columnDragKeyRef.current || e.dataTransfer.getData('text/plain');
-    if (!fromKey || fromKey === key) {
-      columnDropIndicatorRef.current = null;
-      setColumnDropIndicator(null);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const place = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-    const hint = { targetKey: key, place };
-    columnDropIndicatorRef.current = hint;
-    setColumnDropIndicator(hint);
-  }, []);
-
-  const handleColumnListDragLeave = useCallback((e) => {
-    const related = e.relatedTarget;
-    if (related && e.currentTarget.contains(related)) return;
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-  }, []);
-
-  const handleColumnDrop = useCallback((e, targetKey) => {
-    e.preventDefault();
-    const fromKey = columnDragKeyRef.current || e.dataTransfer.getData('text/plain');
-    const hint = columnDropIndicatorRef.current;
-    const place = hint?.targetKey === targetKey ? hint.place : 'before';
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    if (!fromKey || fromKey === targetKey) return;
-    setColumnOrder((prev) => {
-      const next = [...prev];
-      const fi = next.indexOf(fromKey);
-      const ti0 = next.indexOf(targetKey);
-      if (fi === -1 || ti0 === -1) return prev;
-      next.splice(fi, 1);
-      const ti = next.indexOf(targetKey);
-      const insertAt = place === 'after' ? ti + 1 : ti;
-      next.splice(insertAt, 0, fromKey);
-      persistColumnOrder(next);
-      return next;
-    });
-  }, []);
-
-  const resetColumnTablePreferences = useCallback(() => {
-    const vis = { ...DEFAULT_COLUMN_VISIBILITY };
-    const order = [...REORDERABLE_COLUMN_KEYS];
-    setColumnVisibility(vis);
-    setColumnOrder(order);
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    try {
-      window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(vis));
-      persistColumnOrder(order);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const fetchAccounts = useCallback(async () => {
+  const fetchAccounts = async () => {
     try {
       setLoading(true);
-      const res = await clientAccountService.getAll({
-        sort: 'createdAt:desc',
-        'pagination[pageSize]': 100,
-        populate: ['assignedTo', 'contacts'],
-      });
-      setAccounts(Array.isArray(res.data) ? res.data : []);
+      const [accountsRes, contactsRes] = await Promise.all([
+        clientAccountService.getAll({
+          sort: 'createdAt:desc',
+          'pagination[pageSize]': 100,
+          populate: ['assignedTo'],
+        }),
+        contactService.getAll({
+          sort: 'createdAt:desc',
+          'pagination[pageSize]': 1000,
+          populate: ['clientAccount'],
+        }),
+      ]);
+
+      const accountList = Array.isArray(accountsRes.data) ? accountsRes.data : [];
+      const contactList = Array.isArray(contactsRes.data) ? contactsRes.data : [];
+
+      const contactsByAccountId = new Map();
+      for (const contact of contactList) {
+        const ca = contact?.clientAccount;
+        const accountId =
+          ca && typeof ca === 'object' ? ca.id ?? ca.documentId ?? null : ca ?? null;
+        if (accountId == null) continue;
+        const key = String(accountId);
+        if (!contactsByAccountId.has(key)) contactsByAccountId.set(key, []);
+        contactsByAccountId.get(key).push(contact);
+      }
+
+      for (const list of contactsByAccountId.values()) {
+        list.sort((a, b) => Number(!!b.isPrimaryContact) - Number(!!a.isPrimaryContact));
+      }
+
+      const hydratedAccounts = accountList.map((account) => ({
+        ...account,
+        contacts: contactsByAccountId.get(String(account.id)) || [],
+      }));
+
+      setAccounts(hydratedAccounts);
     } catch (err) {
       console.error('Error fetching client accounts:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
+  };
 
   const handleDeleteAccount = useCallback(
     async (e, accountId) => {
@@ -578,27 +419,9 @@ export default function ClientAccountsPage() {
     return matchesSearch && matchesTab && matchesAdvanced;
   });
 
-  const {
-    sortedData: sortedFilteredAccounts,
-    bindSortableColumns,
-    hasActiveSort,
-    sortRules,
-    columnOptions: sortColumnOptions,
-    addSortRule,
-    removeSortRule,
-    setRuleDirection,
-    moveSortRule,
-    clearSort,
-    maxRules: sortMaxRules,
-  } = useCrmTableSort({
-    entity: 'clientAccount',
-    storageKey: TABLE_SORT_STORAGE_KEY,
-    data: filteredAccounts,
-  });
-
   // Pagination
-  const totalPages = Math.ceil(sortedFilteredAccounts.length / itemsPerPage);
-  const paginatedAccounts = sortedFilteredAccounts.slice(
+  const totalPages = Math.ceil(filteredAccounts.length / itemsPerPage);
+  const paginatedAccounts = filteredAccounts.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -635,7 +458,6 @@ export default function ClientAccountsPage() {
         key: 'company',
         label: 'COMPANY',
         fixed: true,
-        defaultWidth: '280px',
         render: (_, account) => {
           const primaryContact = account.contacts?.find((c) => c.isPrimaryContact) || account.contacts?.[0];
           const contactName = primaryContact
@@ -665,7 +487,6 @@ export default function ClientAccountsPage() {
         key: 'primaryContact',
         visibilityKey: 'primaryContact',
         label: 'PRIMARY CONTACT',
-        defaultWidth: '260px',
         render: (_, account) => {
           const primaryContact = account.contacts?.find((c) => c.isPrimaryContact) || account.contacts?.[0];
           return (
@@ -690,7 +511,6 @@ export default function ClientAccountsPage() {
         key: 'healthScore',
         visibilityKey: 'healthScore',
         label: 'HEALTH SCORE',
-        defaultWidth: '130px',
         render: (_, account) => {
           const score = account.healthScore ?? 0;
           const colorClass =
@@ -713,7 +533,6 @@ export default function ClientAccountsPage() {
         key: 'dealValue',
         visibilityKey: 'dealValue',
         label: 'DEAL VALUE',
-        defaultWidth: '120px',
         render: (_, account) => (
           <span className="font-semibold text-gray-900 whitespace-nowrap">
             {formatCurrency(account.dealValue || 0)}
@@ -724,7 +543,6 @@ export default function ClientAccountsPage() {
         key: 'contactsCount',
         visibilityKey: 'contactsCount',
         label: 'CONTACTS',
-        defaultWidth: '110px',
         render: (_, account) => (
           <div className="flex items-center gap-2 min-w-[80px]">
             <UserPlus className="w-4 h-4 text-gray-400" />
@@ -738,7 +556,6 @@ export default function ClientAccountsPage() {
         key: 'location',
         visibilityKey: 'location',
         label: 'LOCATION',
-        defaultWidth: '160px',
         render: (_, account) => {
           const parts = [account.city, account.state, account.country].filter(Boolean);
           return (
@@ -759,7 +576,6 @@ export default function ClientAccountsPage() {
         key: 'industry',
         visibilityKey: 'industry',
         label: 'INDUSTRY',
-        defaultWidth: '140px',
         render: (_, account) => {
           const industry = account.industry ? String(account.industry).replace(/_/g, ' ') : '';
           return industry ? (
@@ -775,14 +591,12 @@ export default function ClientAccountsPage() {
         key: 'assignedTo',
         visibilityKey: 'assignedTo',
         label: 'ACCOUNT MANAGER',
-        defaultWidth: '180px',
         render: (_, account) => <TableCellOwner user={account.assignedTo} />,
       },
       {
         key: 'status',
         visibilityKey: 'status',
         label: 'STATUS',
-        defaultWidth: '170px',
         render: (_, account) => {
           const saving = Object.entries(loadingActions).some(
             ([key, active]) => active && key.startsWith(`${account.id}-`)
@@ -945,7 +759,6 @@ export default function ClientAccountsPage() {
         key: 'actions',
         label: 'ACTIONS',
         fixed: true,
-        defaultWidth: '200px',
         render: (_, account) => {
           const canEditClientAccount = canWriteCRM('client_accounts');
           const canDeleteClientAccount = canManageCRM('client_accounts');
@@ -1025,8 +838,8 @@ export default function ClientAccountsPage() {
       if (columnVisibility[key] && byKey[key]) out.push(byKey[key]);
     }
     if (byKey.actions) out.push(byKey.actions);
-    return bindSortableColumns(out);
-  }, [allTableColumns, columnVisibility, columnOrder, bindSortableColumns]);
+    return out;
+  }, [allTableColumns, columnVisibility, columnOrder]);
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -1090,116 +903,33 @@ export default function ClientAccountsPage() {
           showFilter={true}
           onFilterClick={openFilterModal}
           showColumnVisibility={true}
-          onColumnVisibilityClick={() => {
-            setSortOpen(false);
-            setColumnPickerOpen((o) => !o);
-          }}
+          onColumnVisibilityClick={() => setColumnPickerOpen((o) => !o)}
           columnVisibilityTitle="Show or hide columns"
-          showSort={true}
-          onSortClick={() => {
-            setColumnPickerOpen(false);
-            setSortOpen((o) => !o);
-          }}
-          hasActiveSort={hasActiveSort}
-          sortTitle="Sort accounts (Shift+click headers for multi-sort)"
           showExport={true}
           onExportClick={() => console.log('Export clicked')}
           exportTitle="Export"
         />
-        <CrmTableSortDropdown
-          open={sortOpen}
-          sortRules={sortRules}
-          columnOptions={sortColumnOptions}
-          onAddRule={addSortRule}
-          onRemoveRule={removeSortRule}
-          onSetDirection={setRuleDirection}
-          onMoveRule={moveSortRule}
-          onClear={clearSort}
-          maxRules={sortMaxRules}
+        <TableColumnPicker
+          open={columnPickerOpen}
+          description="Company and actions stay visible. Toggle other fields; drag column edges in the table to resize."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
         />
-        {columnPickerOpen && (
-          <div
-            className="absolute right-0 top-full z-40 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl"
-            role="dialog"
-            aria-label="Table columns"
-          >
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Columns</p>
-            <p className="mb-2 text-xs leading-snug text-gray-500">
-              Company stays visible. Actions stay visible. Toggle other fields; drag the grip to reorder.
-              An orange line shows where the row will land.
-            </p>
-            <ul
-              className="max-h-[min(51vh,18.75rem)] space-y-0 overflow-y-auto pr-1"
-              onDragLeave={handleColumnListDragLeave}
-            >
-              {columnOrder.map((key) => {
-                const def = TOGGLEABLE_COLUMNS.find((c) => c.key === key);
-                if (!def) return null;
-                const showLineBefore =
-                  columnDropIndicator?.targetKey === key && columnDropIndicator.place === 'before';
-                const showLineAfter =
-                  columnDropIndicator?.targetKey === key && columnDropIndicator.place === 'after';
-                return (
-                  <li
-                    key={key}
-                    data-column-row
-                    className="relative flex items-stretch rounded-lg border border-transparent hover:border-gray-100"
-                    onDragOver={(e) => handleColumnRowDragOver(e, key)}
-                    onDrop={(e) => handleColumnDrop(e, key)}
-                  >
-                    {showLineBefore ? (
-                      <div
-                        className="pointer-events-none absolute left-1 right-2 top-0 z-10 h-[3px] -translate-y-1 rounded-full bg-orange-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
-                        aria-hidden
-                      />
-                    ) : null}
-                    <span
-                      draggable
-                      onDragStart={(e) => handleColumnDragStart(e, key)}
-                      onDragEnd={handleColumnDragEnd}
-                      className="flex w-8 shrink-0 cursor-grab items-center justify-center rounded-l-lg text-gray-400 active:cursor-grabbing hover:bg-gray-100 hover:text-gray-600"
-                      aria-label={`Drag to reorder ${def.label}`}
-                    >
-                      <GripVertical className="h-4 w-4" strokeWidth={2} aria-hidden />
-                    </span>
-                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2 py-1 text-sm text-gray-800 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 shrink-0 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        checked={Boolean(columnVisibility[key])}
-                        onChange={(e) => setColumnVisible(key, e.target.checked)}
-                      />
-                      <span>{def.label}</span>
-                    </label>
-                    {showLineAfter ? (
-                      <div
-                        className="pointer-events-none absolute bottom-0 left-1 right-2 z-10 h-[3px] translate-y-1 rounded-full bg-orange-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
-                        aria-hidden
-                      />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-2 border-t border-gray-100 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full text-sm font-medium text-gray-700"
-                onClick={resetColumnTablePreferences}
-              >
-                Reset to default
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Results Count */}
       <div className="text-sm text-gray-600">
-        Showing <span className="font-semibold text-gray-900">{sortedFilteredAccounts.length}</span> result
-        {sortedFilteredAccounts.length !== 1 ? 's' : ''}
+        Showing <span className="font-semibold text-gray-900">{filteredAccounts.length}</span> result
+        {filteredAccounts.length !== 1 ? 's' : ''}
       </div>
 
       {/* Table */}
@@ -1216,10 +946,7 @@ export default function ClientAccountsPage() {
               keyField="id"
               variant="modern"
               onRowClick={(row) => router.push(`/clients/accounts/${row.id}`)}
-              resizableColumns
-              columnWidths={columnWidths}
-              onColumnWidthsChange={setColumnWidths}
-              onColumnResizeEnd={handleColumnResizeEnd}
+              {...tableResizeProps}
             />
             {paginatedAccounts.length === 0 && (
               <div className="p-12 text-center border-t border-gray-200">

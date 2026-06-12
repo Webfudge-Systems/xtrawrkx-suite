@@ -15,7 +15,7 @@ const redis = require('../src/utils/redis');
 const cache = require('../src/utils/cache');
 
 function loadEnvFile() {
-  if (process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL) return;
+  if (process.env.REDIS_URL) return;
   const envPath = path.join(__dirname, '..', '.env');
   if (!fs.existsSync(envPath)) return;
   for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {

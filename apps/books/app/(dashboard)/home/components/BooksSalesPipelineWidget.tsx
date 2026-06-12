@@ -1,39 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card } from '@webfudge/ui'
 import { ArrowRight } from 'lucide-react'
-import { booksApi } from '@/lib/api'
 import type { Invoice } from '@/lib/types'
+import { MOCK_INVOICES } from '@/lib/mock-data'
 
 export default function BooksSalesPipelineWidget() {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    booksApi
-      .fetchInvoices()
-      .then((res) => {
-        if (cancelled) return
-        setInvoices(res.data ?? [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setInvoices([])
-      })
-      .finally(() => {
-        if (cancelled) return
-        setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const [loading] = useState(false)
+  const [invoices] = useState<Invoice[]>(MOCK_INVOICES)
 
   const stages = useMemo(() => {
     const countBy = (status: Invoice['status'] | Invoice['status'][]) => {

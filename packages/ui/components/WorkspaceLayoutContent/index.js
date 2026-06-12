@@ -25,7 +25,13 @@ import { AccessDeniedPanel } from '../AccessDeniedPanel'
  *   deniedContent?: React.ReactNode,
  *   extras?: React.ReactNode,
  *   sidebarBehavior?: 'collapse' | 'hide',
- *   sidebarBranding?: { logoPath: string, brandName?: string, homeHref?: string },
+ *   sidebarBranding?: {
+ *     logoPath: string,
+ *     productName?: string,
+ *     companyName?: string,
+ *     brandName?: string,
+ *     homeHref?: string,
+ *   },
  *   children: React.ReactNode,
  * }} props
  */

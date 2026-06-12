@@ -205,7 +205,7 @@ export function RecentActivitiesTable({
             <div className="flex h-full min-h-[120px] items-center justify-center rounded-xl bg-[var(--books-bg-elevated,#f9fafb)] px-4 py-8 text-center dark:bg-[var(--books-bg-elevated,#252830)]">
               <p className="text-sm text-[var(--books-text-secondary,#6b7280)]">
                 {rows.length === 0
-                  ? 'No recent activity. Invoices and expenses will appear here.'
+                  ? 'No recent activity yet. Creates, updates, and deletes across Books will show here.'
                   : 'No activities match your search.'}
               </p>
             </div>

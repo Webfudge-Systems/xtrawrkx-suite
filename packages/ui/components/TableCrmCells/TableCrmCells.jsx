@@ -41,45 +41,15 @@ function truncateClamped(text, max = 100) {
 
 /**
  * Default truncated text cell (lead companies, client accounts, deals).
- * Supports `value` (single line) or `primary` / `secondary` (stacked label + caption).
  */
 export function TableCellText({
   value,
-  primary,
-  secondary,
   emphasized = false,
   nowrap = false,
   capitalize = false,
   maxWidthClass = 'max-w-[200px]',
   className,
 }) {
-  const stacked = primary != null || secondary != null;
-
-  if (stacked) {
-    const primaryContent = primary != null && primary !== '' ? primary : null;
-    const secondaryText =
-      secondary != null && String(secondary).trim() !== '' ? String(secondary).trim() : null;
-
-    return (
-      <div className={clsx('min-w-0', maxWidthClass, className)}>
-        <div
-          className={clsx(
-            'truncate text-sm',
-            emphasized ? 'font-semibold text-gray-900' : 'font-medium text-gray-900'
-          )}
-          title={typeof primaryContent === 'string' ? primaryContent : undefined}
-        >
-          {primaryContent ?? '—'}
-        </div>
-        {secondaryText ? (
-          <div className="truncate text-sm text-gray-500" title={secondaryText}>
-            {secondaryText}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
   const display = value != null && value !== '' ? String(value) : null;
   return (
     <span

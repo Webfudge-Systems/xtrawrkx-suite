@@ -1,6 +1,5 @@
 import './globals.css'
 import { AuthProvider } from '@webfudge/auth'
-import { xtrawrkxMetadataIcons } from '@webfudge/utils'
 import LayoutContent from '@/components/layout/LayoutContent'
 import { BooksThemeProvider } from '@/components/theme/BooksThemeProvider'
 import { BOOKS_SITE } from '@/lib/site'
@@ -12,8 +11,6 @@ export const metadata = {
   },
   description: BOOKS_SITE.description,
   applicationName: BOOKS_SITE.name,
-  icons: xtrawrkxMetadataIcons(),
-  manifest: BOOKS_SITE.manifestPath,
 }
 
 const BOOKS_THEME_BOOT_SCRIPT = `

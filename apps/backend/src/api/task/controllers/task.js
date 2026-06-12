@@ -31,7 +31,6 @@ const {
   userCanAccessProjectRow,
   userCanViewProjectRow,
 } = require('../../../utils/rbac');
-const { attachRelationsToTasks } = require('../../../utils/crm-relation-attach');
 const {
   computeNextOccurrence,
   ensureRecurrenceGroupId,
@@ -496,8 +495,6 @@ const ALLOWED_POPULATE = new Set([
   'assignee',
   'assigner',
   'collaborators',
-  'pendingCollaborators',
-  'assignmentRequestedBy',
   'projects',
   'parent',
   'subtasks',
@@ -672,17 +669,13 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       Object.assign(filters, extraFilters);
     }
 
-    let results = await strapi.entityService.findMany(UID, {
+    const results = await strapi.entityService.findMany(UID, {
       filters,
       start: (page - 1) * pageSize,
       limit: pageSize,
       sort,
       populate: buildTaskPopulateConfig(query.populate),
     });
-
-    if (results.length > 0) {
-      results = await attachRelationsToTasks(strapi, ctx.state.orgId, results);
-    }
 
     const total = await safeCount(strapi, UID, filters, results.length);
     const pageCount = Math.ceil(Math.max(total, 1) / pageSize);
@@ -701,7 +694,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
 
     const populate = buildTaskPopulateConfig(ctx.query?.populate);
     populate.organization = true;
-    let entry = await strapi.entityService.findOne(UID, pk, {
+    const entry = await strapi.entityService.findOne(UID, pk, {
       populate,
     });
     if (!entry) return ctx.notFound();
@@ -712,7 +705,6 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       const ok = await userMayViewTask(strapi, ctx, ctx.state.orgId, ctx.state.user.id, entry);
       if (!ok) return ctx.forbidden('Access denied');
     }
-    [entry] = await attachRelationsToTasks(strapi, ctx.state.orgId, [entry]);
     ctx.set('Cache-Control', 'no-store');
     return { data: entry };
   },

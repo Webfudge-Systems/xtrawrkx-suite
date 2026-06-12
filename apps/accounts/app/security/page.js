@@ -90,17 +90,25 @@ export default function SecurityPage() {
           router.replace('/unauthorized')
           return
         }
-        setCanManage(org?.canManageSecuritySettings !== false)
+        setCanManage(Boolean(org?.canManageSecuritySettings ?? clientAdmin))
       } catch (orgErr) {
         if (!clientAdmin) throw orgErr
         setCanManage(true)
       }
 
-      const securityPayload = await organizationService.getSecuritySettings()
-      const settings = securityPayload?.data ?? securityPayload ?? {}
-      const nextForm = securitySettingsToForm(settings)
-      setForm(nextForm)
-      setSavedForm(nextForm)
+      try {
+        const securityPayload = await organizationService.getSecuritySettings()
+        const settings = securityPayload?.data ?? securityPayload ?? {}
+        const nextForm = securitySettingsToForm(settings)
+        setForm(nextForm)
+        setSavedForm(nextForm)
+      } catch (settingsErr) {
+        if (!clientAdmin) throw settingsErr
+        const defaults = securitySettingsToForm({})
+        setForm(defaults)
+        setSavedForm(defaults)
+        setError(settingsErr?.message || 'Failed to load security settings')
+      }
     } catch (err) {
       setCanManage(clientAdmin)
       setError(err?.message || 'Failed to load security settings')
@@ -243,7 +251,7 @@ export default function SecurityPage() {
                   </Button>
                   <Button variant="primary" onClick={save} disabled={saving || !isDirty}>
                     <Save className="mr-2 h-4 w-4" />
-                    {saving ? 'Savingâ€¦' : 'Save security settings'}
+                    {saving ? 'Saving…' : 'Save security settings'}
                   </Button>
                 </div>
               </Card>
@@ -279,7 +287,7 @@ export default function SecurityPage() {
               <dl className="space-y-2.5">
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/90 px-3.5 py-3">
                   <dt className="text-sm text-gray-600">Role</dt>
-                  <dd className="truncate text-sm font-semibold text-gray-900">{currentRole || 'â€”'}</dd>
+                  <dd className="truncate text-sm font-semibold text-gray-900">{currentRole || '—'}</dd>
                 </div>
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/90 px-3.5 py-3">
                   <dt className="text-sm text-gray-600">Security settings</dt>

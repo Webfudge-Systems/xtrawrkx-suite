@@ -1,12 +1,11 @@
 import './globals.css'
 import { AuthProvider } from '@webfudge/auth'
-import { xtrawrkxMetadataIcons } from '@webfudge/utils'
 import LayoutContent from '../components/LayoutContent'
 import { ACCOUNTS_SITE } from '../lib/site'
 
-const siteUrl = ACCOUNTS_SITE.url
+const siteUrl = (process.env.NEXT_PUBLIC_ACCOUNTS_APP_URL || 'http://localhost:3003').replace(/\/$/, '')
 const shareDescription =
-  'A modern workspace for managing your organization—users, roles, security, billing, and compliance.'
+  'A modern workspace for managing your organization—users, roles, departments, security, and compliance.'
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
@@ -16,7 +15,16 @@ export const metadata = {
   },
   description: ACCOUNTS_SITE.description,
   applicationName: ACCOUNTS_SITE.name,
-  keywords: ACCOUNTS_SITE.keywords,
+  keywords: [
+    'accounts',
+    'organization admin',
+    'user management',
+    'roles and permissions',
+    'RBAC',
+    'teams',
+    'departments',
+    'audit logs',
+  ],
   alternates: {
     canonical: '/',
   },
@@ -26,7 +34,7 @@ export const metadata = {
     type: 'website',
     images: [
       {
-        url: ACCOUNTS_SITE.ogImagePath,
+        url: '/favicon/web-app-manifest-512x512.png',
         width: 512,
         height: 512,
         alt: ACCOUNTS_SITE.name,
@@ -37,7 +45,7 @@ export const metadata = {
     card: 'summary',
     title: ACCOUNTS_SITE.name,
     description: shareDescription,
-    images: [ACCOUNTS_SITE.ogImagePath],
+    images: ['/favicon/web-app-manifest-512x512.png'],
   },
   robots: {
     index: false,
@@ -49,8 +57,15 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: xtrawrkxMetadataIcons(),
-  manifest: ACCOUNTS_SITE.manifestPath,
+  icons: {
+    icon: [
+      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+    ],
+    apple: [{ url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: ['/favicon/favicon.svg'],
+  },
+  manifest: '/favicon/site.webmanifest',
 }
 
 export default function RootLayout({ children }) {

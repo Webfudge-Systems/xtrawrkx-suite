@@ -42,7 +42,8 @@ export default function LayoutContent({ children }) {
       sidebarBehavior="hide"
       sidebarBranding={{
         logoPath: ORG_MANAGER_SITE.logoPath,
-        brandName: ORG_MANAGER_SITE.brandName,
+        productName: ORG_MANAGER_SITE.name,
+        companyName: ORG_MANAGER_SITE.brandName,
         homeHref: '/organizations',
       }}
     >

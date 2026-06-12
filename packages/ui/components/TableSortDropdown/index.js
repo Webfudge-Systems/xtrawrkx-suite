@@ -20,6 +20,7 @@ import { TableSortPanel } from '../TableSortPanel'
  *   onClear: () => void,
  *   maxRules?: number,
  *   className?: string,
+ *   theme?: 'light' | 'books',
  * }} props
  */
 export function TableSortDropdown({
@@ -33,12 +34,14 @@ export function TableSortDropdown({
   onClear,
   maxRules = 5,
   className = 'absolute right-0 top-full z-40 mt-2',
+  theme = 'light',
 }) {
   if (!open) return null
 
   return (
     <TableSortPanel
       className={className}
+      theme={theme}
       sortRules={sortRules}
       columnOptions={columnOptions}
       onAddRule={onAddRule}

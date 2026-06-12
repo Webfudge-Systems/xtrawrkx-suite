@@ -17,6 +17,7 @@
     "referenceNumber": { "type": "string" },
     "currency":        { "type": "string", "default": "INR" },
     "notes":           { "type": "text" },
+    "vendor":          { "type": "relation", "relation": "manyToOne", "target": "api::vendor.vendor" },
     "bill":            { "type": "relation", "relation": "manyToOne", "target": "api::bill.bill" },
     "bankAccount":     { "type": "relation", "relation": "manyToOne", "target": "api::bank-account.bank-account" },
     "organization":    { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },

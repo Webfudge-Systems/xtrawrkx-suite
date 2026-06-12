@@ -169,23 +169,33 @@ async function transferUserAssignments(strapi, { organizationId, fromUserId, toU
     toId
   );
 
-  counts.departmentsAsLead = await transferManyToOne(
-    strapi,
-    DEPARTMENT_UID,
-    organizationId,
-    'lead',
-    fromId,
-    toId
-  );
-  counts.teamsAsLeader = await transferManyToOne(strapi, TEAM_UID, organizationId, 'leader', fromId, toId);
-  counts.teamMemberships = await transferManyToManyUserField(
-    strapi,
-    TEAM_UID,
-    organizationId,
-    'members',
-    fromId,
-    toId
-  );
+  try {
+    counts.departmentsAsLead = await transferManyToOne(
+      strapi,
+      DEPARTMENT_UID,
+      organizationId,
+      'lead',
+      fromId,
+      toId
+    );
+  } catch (_) {
+    counts.departmentsAsLead = 0;
+  }
+
+  try {
+    counts.teamsAsLeader = await transferManyToOne(strapi, TEAM_UID, organizationId, 'leader', fromId, toId);
+    counts.teamMemberships = await transferManyToManyUserField(
+      strapi,
+      TEAM_UID,
+      organizationId,
+      'members',
+      fromId,
+      toId
+    );
+  } catch (_) {
+    counts.teamsAsLeader = 0;
+    counts.teamMemberships = 0;
+  }
 
   const org = await strapi.entityService.findOne(ORG_UID, organizationId, {
     fields: ['id'],
@@ -211,37 +221,49 @@ async function removeUserFromOrgStructure(strapi, { organizationId, userId }) {
   if (!Number.isFinite(uid)) return {};
 
   const counts = {};
-  counts.teamMemberships = await removeUserFromManyToMany(
-    strapi,
-    TEAM_UID,
-    organizationId,
-    'members',
-    uid
-  );
-
-  const leadDepartments = await strapi.entityService.findMany(DEPARTMENT_UID, {
-    filters: { organization: organizationId, lead: uid },
-    fields: ['id'],
-    limit: 1000,
-  });
-  for (const dept of leadDepartments) {
-    await strapi.entityService.update(DEPARTMENT_UID, dept.id, {
-      data: { lead: null },
-    });
+  try {
+    counts.teamMemberships = await removeUserFromManyToMany(
+      strapi,
+      TEAM_UID,
+      organizationId,
+      'members',
+      uid
+    );
+  } catch (_) {
+    counts.teamMemberships = 0;
   }
-  counts.departmentsClearedLead = leadDepartments.length;
 
-  const leadTeams = await strapi.entityService.findMany(TEAM_UID, {
-    filters: { organization: organizationId, leader: uid },
-    fields: ['id'],
-    limit: 1000,
-  });
-  for (const team of leadTeams) {
-    await strapi.entityService.update(TEAM_UID, team.id, {
-      data: { leader: null },
+  try {
+    const leadDepartments = await strapi.entityService.findMany(DEPARTMENT_UID, {
+      filters: { organization: organizationId, lead: uid },
+      fields: ['id'],
+      limit: 1000,
     });
+    for (const dept of leadDepartments) {
+      await strapi.entityService.update(DEPARTMENT_UID, dept.id, {
+        data: { lead: null },
+      });
+    }
+    counts.departmentsClearedLead = leadDepartments.length;
+  } catch (_) {
+    counts.departmentsClearedLead = 0;
   }
-  counts.teamsClearedLeader = leadTeams.length;
+
+  try {
+    const leadTeams = await strapi.entityService.findMany(TEAM_UID, {
+      filters: { organization: organizationId, leader: uid },
+      fields: ['id'],
+      limit: 1000,
+    });
+    for (const team of leadTeams) {
+      await strapi.entityService.update(TEAM_UID, team.id, {
+        data: { leader: null },
+      });
+    }
+    counts.teamsClearedLeader = leadTeams.length;
+  } catch (_) {
+    counts.teamsClearedLeader = 0;
+  }
 
   return counts;
 }

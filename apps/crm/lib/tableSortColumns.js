@@ -44,28 +44,10 @@ export const DEAL_SORT_COLUMNS = [
   { key: 'updatedAt',         label: 'Last updated' },
 ];
 
-export const CLIENT_ACCOUNT_SORT_COLUMNS = [
-  { key: 'company',         label: 'Company' },
-  { key: 'primaryContact',  label: 'Primary contact' },
-  { key: 'healthScore',     label: 'Health score' },
-  { key: 'dealValue',       label: 'Deal value' },
-  { key: 'contactsCount',   label: 'Contacts' },
-  { key: 'location',        label: 'Location' },
-  { key: 'industry',        label: 'Industry' },
-  { key: 'assignedTo',      label: 'Account manager' },
-  { key: 'status',          label: 'Status' },
-  { key: 'createdAt',       label: 'Created' },
-  { key: 'updatedAt',       label: 'Updated' },
-  { key: 'accountType',     label: 'Account type' },
-  { key: 'billingCycle',    label: 'Billing cycle' },
-  { key: 'website',         label: 'Website' },
-];
-
 export const SORT_COLUMNS_BY_ENTITY = {
-  leadCompany:   LEAD_COMPANY_SORT_COLUMNS,
-  contact:       CONTACT_SORT_COLUMNS,
-  deal:          DEAL_SORT_COLUMNS,
-  clientAccount: CLIENT_ACCOUNT_SORT_COLUMNS,
+  leadCompany: LEAD_COMPANY_SORT_COLUMNS,
+  contact:     CONTACT_SORT_COLUMNS,
+  deal:        DEAL_SORT_COLUMNS,
 };
 
 export function sortableKeysForEntity(entity) {

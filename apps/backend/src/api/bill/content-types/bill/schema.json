@@ -24,6 +24,8 @@
     "paidAmount":       { "type": "integer", "default": 0 },
     "notes":            { "type": "text" },
     "billType":         { "type": "enumeration", "enum": ["regular","subcontractor","software_saas","travel","other"], "default": "regular" },
+    "vendor":           { "type": "relation", "relation": "manyToOne", "target": "api::vendor.vendor" },
+    "purchaseOrder":    { "type": "relation", "relation": "manyToOne", "target": "api::purchase-order.purchase-order" },
     "organization":     { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
     "createdByUser":    { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
   }

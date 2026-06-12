@@ -1,14 +1,24 @@
-﻿{
-  "name": "Webfudge Systems",
-  "short_name": "Webfudge",
-  "description": "Webfudge Systems — creator of the Fudge Suite for Xtrawrkx.",
+{
+  "name": "Fudge Base",
+  "short_name": "Base",
+  "description": "Fudge Base for users, roles, departments, teams, security, app access, and audit logs.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#F5630F",
-  "background_color": "#000000",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
   "icons": [
-    { "src": "/favicon/web-app-manifest-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/favicon/web-app-manifest-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    {
+      "src": "/favicon/web-app-manifest-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon/web-app-manifest-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

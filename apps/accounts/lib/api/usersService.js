@@ -19,8 +19,8 @@ class UsersService {
     directAdd = false,
     directPassword,
     sendWelcomeEmail = true,
-    departmentIds = [],
-    primaryDepartmentId = null,
+    departmentIds,
+    primaryDepartmentId,
   }) {
     if (typeof window === 'undefined') throw new Error('Invite is only available in browser')
 
@@ -30,16 +30,19 @@ class UsersService {
     const rolePayload =
       roleId != null && String(roleId).trim() !== '' ? String(roleId).trim() : String(roleCode || 'member')
 
-    return strapiClient.post(`/organizations/${orgId}/invite-users`, {
+    const body = {
       emails: [email],
       role: rolePayload,
       permissions: {},
       directAdd,
       directPassword,
       sendWelcomeEmail,
-      departmentIds,
-      primaryDepartmentId,
-    })
+    }
+    if (departmentIds != null) body.departmentIds = departmentIds
+    if (primaryDepartmentId != null && primaryDepartmentId !== '') {
+      body.primaryDepartmentId = primaryDepartmentId
+    }
+    return strapiClient.post(`/organizations/${orgId}/invite-users`, body)
   }
 
   async updateMembership({
@@ -82,12 +85,8 @@ class UsersService {
     if (transferToUserId != null && String(transferToUserId).trim() !== '') {
       body.transferToUserId = transferToUserId
     }
-    if (departmentIds !== undefined) {
-      body.departmentIds = departmentIds
-    }
-    if (primaryDepartmentId !== undefined && primaryDepartmentId !== null && primaryDepartmentId !== '') {
-      body.primaryDepartmentId = primaryDepartmentId
-    }
+    if (departmentIds !== undefined) body.departmentIds = departmentIds
+    if (primaryDepartmentId !== undefined) body.primaryDepartmentId = primaryDepartmentId
 
     return strapiClient.patch(`/organizations/${orgId}/users/${membershipId}`, body)
   }

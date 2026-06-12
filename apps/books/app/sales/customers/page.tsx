@@ -1,20 +1,25 @@
-// @ts-nocheck
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { booksApi } from '@/lib/api'
-import type { Customer } from '@/lib/types'
+import { useCallback, useMemo, useState } from 'react'
 import { Building2, Receipt, Users, Wallet } from 'lucide-react'
-import { formatCurrency } from '@webfudge/utils'
-import BooksSalesListShell from '../_components/BooksSalesListShell'
+import BooksListPageShell from '@/app/_components/BooksListPageShell'
+import BooksDeleteItemModal from '@/app/_components/BooksDeleteItemModal'
+import { useBooksCustomersTableColumns, formatSalesMoney } from '@/app/_components/booksSalesTableColumns'
+import { useBooksCustomersStore } from '@/lib/mock-data/sales/stores'
+import type { CustomerRow } from '@/lib/mock-data/sales/seeds'
+
+function matchesCustomerTab(row: CustomerRow, tabKey: string) {
+  if (tabKey === 'all') return true
+  if (tabKey === 'receivables') return (row.receivables ?? 0) > 0
+  if (tabKey === 'credits') return (row.unusedCredits ?? 0) > 0
+  if (tabKey === 'no_receivables') return (row.receivables ?? 0) <= 0
+  return true
+}
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [activeTab, setActiveTab] = useState<'all' | 'receivables' | 'credits' | 'no_receivables'>('all')
-
-  useEffect(() => {
-    booksApi.fetchCustomers().then((res) => setCustomers(res.data ?? [])).catch(() => setCustomers([]))
-  }, [])
+  const { customers, deleteCustomer, getById } = useBooksCustomersStore()
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const summary = useMemo(() => {
     const totalBilled = customers.reduce((sum, item) => sum + (item.lifetimeBilled ?? 0), 0)
@@ -23,82 +28,115 @@ export default function CustomersPage() {
     return { totalBilled, outstanding, unusedCredits }
   }, [customers])
 
-  const tabStats = useMemo(() => {
-    const receivables = customers.filter((c) => (c.receivables ?? 0) > 0).length
-    const credits = customers.filter((c) => (c.unusedCredits ?? 0) > 0).length
-    const no_receivables = customers.filter((c) => (c.receivables ?? 0) <= 0).length
-    return {
-      all: customers.length,
-      receivables,
-      credits,
-      no_receivables,
-    }
-  }, [customers])
+  const handleRequestDelete = useCallback((row: CustomerRow) => {
+    setDeleteId(row.id)
+  }, [])
 
-  const tabFilteredCustomers = useMemo(() => {
-    if (activeTab === 'all') return customers
-    if (activeTab === 'receivables') return customers.filter((c) => (c.receivables ?? 0) > 0)
-    if (activeTab === 'credits') return customers.filter((c) => (c.unusedCredits ?? 0) > 0)
-    if (activeTab === 'no_receivables') return customers.filter((c) => (c.receivables ?? 0) <= 0)
-    return customers
-  }, [activeTab, customers])
+  const columns = useBooksCustomersTableColumns({ onRequestDelete: handleRequestDelete, deletingId })
+
+  const deleteTarget = deleteId != null ? getById(deleteId) : null
+
+  const confirmDelete = useCallback(async () => {
+    if (deleteId == null || deletingId) return
+    try {
+      setDeletingId(deleteId)
+      deleteCustomer(deleteId)
+      setDeleteId(null)
+    } finally {
+      setDeletingId(null)
+    }
+  }, [deleteCustomer, deleteId, deletingId])
+
+  const tabs = useMemo(
+    () => [
+      { key: 'all', label: 'All Customers', count: customers.length },
+      {
+        key: 'receivables',
+        label: 'With Receivables',
+        count: customers.filter((c) => (c.receivables ?? 0) > 0).length,
+      },
+      {
+        key: 'credits',
+        label: 'With Unused Credits',
+        count: customers.filter((c) => (c.unusedCredits ?? 0) > 0).length,
+      },
+      {
+        key: 'no_receivables',
+        label: 'No Receivables',
+        count: customers.filter((c) => (c.receivables ?? 0) <= 0).length,
+      },
+    ],
+    [customers]
+  )
 
   return (
-    <BooksSalesListShell
-      title="Customers"
-      subtitle="View and manage your customer list"
-      kpis={[
-        {
-          title: 'Total Customers',
-          value: customers.length,
-          subtitle: customers.length === 0 ? 'No customers' : `${customers.length} customer${customers.length === 1 ? '' : 's'}`,
-          icon: Users,
-          colorScheme: 'orange',
-        },
-        {
-          title: 'Lifetime Billed',
-          value: formatCurrency(summary.totalBilled),
-          subtitle: 'Total billed',
-          icon: Wallet,
-          colorScheme: 'orange',
-        },
-        {
-          title: 'Receivables',
-          value: formatCurrency(summary.outstanding),
-          subtitle: 'Open receivables',
-          icon: Receipt,
-          colorScheme: 'orange',
-        },
-        {
-          title: 'Unused Credits',
-          value: formatCurrency(summary.unusedCredits),
-          subtitle: 'Available credits',
-          icon: Wallet,
-          colorScheme: 'orange',
-        },
-      ]}
-      columns={[
-        { key: 'name', label: 'NAME' },
-        { key: 'company', label: 'COMPANY NAME' },
-        { key: 'email', label: 'EMAIL' },
-        { key: 'phone', label: 'WORK PHONE' },
-        { key: 'receivables', label: 'RECEIVABLES', render: (v: number) => formatCurrency(v ?? 0) },
-        { key: 'unusedCredits', label: 'UNUSED CREDITS', render: (v: number) => formatCurrency(v ?? 0) },
-      ]}
-      tabs={[
-        { key: 'all', label: 'All Customers', count: tabStats.all },
-        { key: 'receivables', label: 'With Receivables', count: tabStats.receivables },
-        { key: 'credits', label: 'With Unused Credits', count: tabStats.credits },
-        { key: 'no_receivables', label: 'No Receivables', count: tabStats.no_receivables },
-      ]}
-      activeTab={activeTab}
-      onTabChange={(t) => setActiveTab(t as typeof activeTab)}
-      data={tabFilteredCustomers}
-      emptyIcon={Building2}
-      emptyTitle="No customers found"
-      emptyDescription="Add your first customer to get started"
-      addHref="/sales/customers/new"
-      addLabel="Add Customer"
-    />
+    <>
+      <BooksListPageShell
+        title="Customers"
+        subtitle="View and manage your customer list."
+        kpis={[
+          {
+            title: 'Total Customers',
+            value: customers.length,
+            subtitle: `${customers.length} customer${customers.length === 1 ? '' : 's'}`,
+            icon: Users,
+          },
+          {
+            title: 'Lifetime Billed',
+            value: formatSalesMoney(summary.totalBilled),
+            subtitle: 'Total billed',
+            icon: Wallet,
+          },
+          {
+            title: 'Receivables',
+            value: formatSalesMoney(summary.outstanding),
+            subtitle: 'Open receivables',
+            icon: Receipt,
+          },
+          {
+            title: 'Unused Credits',
+            value: formatSalesMoney(summary.unusedCredits),
+            subtitle: 'Available credits',
+            icon: Wallet,
+          },
+        ]}
+        tabs={tabs}
+        tabFilter={matchesCustomerTab}
+        filterFields={[
+          {
+            key: 'type',
+            label: 'Client Type',
+            options: [
+              { value: 'AgencyClient', label: 'Agency Client' },
+              { value: 'DirectClient', label: 'Direct Client' },
+              { value: 'Partner', label: 'Partner' },
+            ],
+          },
+        ]}
+        columns={columns}
+        data={customers}
+        onRowClickHref={(row) => `/sales/customers/${row.id}`}
+        emptyIcon={Building2}
+        emptyTitle="No customers yet"
+        emptyDescription="Add your first customer to get started."
+        addHref="/sales/customers/new"
+        addLabel="Add customer"
+        searchPlaceholder="Search customers..."
+        exportFilePrefix="books-customers"
+        sortEntity="customer"
+      />
+
+      <BooksDeleteItemModal
+        isOpen={deleteId != null}
+        itemName={deleteTarget?.name}
+        entityLabel="Customer"
+        deleting={deletingId != null}
+        onClose={() => {
+          if (deletingId) return
+          setDeleteId(null)
+        }}
+        onConfirm={confirmDelete}
+      />
+    </>
   )
 }

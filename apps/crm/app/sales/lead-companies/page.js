@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
   Mail,
   Phone,
   PhoneCall,
+  PhoneOff,
   Building2,
   CheckCircle,
   XCircle,
@@ -21,8 +22,10 @@ import {
   SendHorizontal,
   Globe,
   MapPin,
-  GripVertical,
   Calendar,
+  Table2,
+  Kanban,
+  Users,
 } from 'lucide-react';
 import {
   Button,
@@ -46,22 +49,41 @@ import {
   TableCellMultiline,
   TableRowActionMenuPortal,
   toDateInputValue,
+  ViewToggleGroup,
+  ViewToggleButton,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../components/CRMPageHeader';
+import { LeadsKanbanBoard, LEAD_PIPELINE_STAGES } from '../../../components/LeadsKanbanBoard';
+import { LeadsByMembersView } from '../../../components/LeadsByMembersView';
 import { TableCellLeadStatusSelect } from '@webfudge/ui';
 import { LeadNextConnectCell } from '../../../components/LeadNextConnectCell';
 import { TableSortDropdown as CrmTableSortDropdown } from '@webfudge/ui';
 import { useCrmTableSort } from '../../../hooks/useCrmTableSort';
 import leadCompanyService from '../../../lib/api/leadCompanyService';
-import crmActivityService from '../../../lib/api/crmActivityService';
 import strapiClient from '../../../lib/strapiClient';
-import { canEditCRMRecord, canManageCRM } from '../../../lib/rbac';
+import crmActivityService from '../../../lib/api/crmActivityService';
+import { canEditCRMRecord, canManageCRM, currentStrapiUserId, isCrmManagerOrAdmin } from '../../../lib/rbac';
 import { commentTextFromMeta } from '../../../lib/leadCompanyComments';
+import { primaryContactForLeadCompany } from '../../../lib/leadCompanyContacts';
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.leadCompanies.tableColumnVisibility';
 const COLUMN_ORDER_STORAGE_KEY = 'crm.leadCompanies.tableColumnOrder';
 const COLUMN_WIDTHS_STORAGE_KEY = 'crm.leadCompanies.tableColumnWidths';
 const TABLE_SORT_STORAGE_KEY = 'crm.leadCompanies.tableSort';
+const LEAD_VIEW_STORAGE_KEY = 'crm.leadCompanies.viewMode';
+
+function readStoredLeadView() {
+  if (typeof window === 'undefined') return 'table';
+  try {
+    const v = window.localStorage.getItem(LEAD_VIEW_STORAGE_KEY);
+    if (v === 'table' || v === 'kanban' || v === 'members') return v;
+  } catch {
+    /* ignore */
+  }
+  return 'table';
+}
 
 /** Default pixel widths for resizable table columns (keyed by column `key`). */
 const DEFAULT_COLUMN_WIDTHS = {
@@ -157,69 +179,6 @@ const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
   return acc;
 }, {});
 
-function loadColumnVisibility() {
-  if (typeof window === 'undefined') return { ...DEFAULT_COLUMN_VISIBILITY };
-  try {
-    const raw = window.localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_COLUMN_VISIBILITY };
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_COLUMN_VISIBILITY, ...parsed };
-  } catch {
-    return { ...DEFAULT_COLUMN_VISIBILITY };
-  }
-}
-
-function loadColumnOrder() {
-  if (typeof window === 'undefined') return [...REORDERABLE_COLUMN_KEYS];
-  try {
-    const raw = window.localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
-    if (!raw) return [...REORDERABLE_COLUMN_KEYS];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...REORDERABLE_COLUMN_KEYS];
-    const valid = new Set(REORDERABLE_COLUMN_KEYS);
-    const ordered = parsed.filter((k) => valid.has(k));
-    const missing = REORDERABLE_COLUMN_KEYS.filter((k) => !ordered.includes(k));
-    return [...ordered, ...missing];
-  } catch {
-    return [...REORDERABLE_COLUMN_KEYS];
-  }
-}
-
-function persistColumnOrder(order) {
-  try {
-    window.localStorage.setItem(COLUMN_ORDER_STORAGE_KEY, JSON.stringify(order));
-  } catch {
-    /* ignore */
-  }
-}
-
-function loadColumnWidths() {
-  if (typeof window === 'undefined') return { ...DEFAULT_COLUMN_WIDTHS };
-  try {
-    const raw = window.localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_COLUMN_WIDTHS };
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_COLUMN_WIDTHS };
-    const merged = { ...DEFAULT_COLUMN_WIDTHS, ...parsed };
-    for (const [key, min] of Object.entries(MIN_COLUMN_WIDTHS)) {
-      if (typeof merged[key] === 'number' && merged[key] < min) {
-        merged[key] = min;
-      }
-    }
-    return merged;
-  } catch {
-    return { ...DEFAULT_COLUMN_WIDTHS };
-  }
-}
-
-function persistColumnWidths(widths) {
-  try {
-    window.localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(widths));
-  } catch {
-    /* ignore */
-  }
-}
-
 function orgDisplayName(org) {
   if (!org) return '—';
   if (typeof org === 'object') {
@@ -275,6 +234,7 @@ export default function LeadCompaniesPage() {
   const [leadCompanies, setLeadCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statsByStatus, setStatsByStatus] = useState({});
+  const [myLeadsCount, setMyLeadsCount] = useState(0);
   const [filterFacets, setFilterFacets] = useState({ sources: [], types: [] });
   const [orgUsers, setOrgUsers] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -290,12 +250,7 @@ export default function LeadCompaniesPage() {
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState('');
   const [loadingActions, setLoadingActions] = useState({});
-  const [columnPickerOpen, setColumnPickerOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
-  const [columnOrder, setColumnOrder] = useState(() => [...REORDERABLE_COLUMN_KEYS]);
-  const [columnWidths, setColumnWidths] = useState(() => ({ ...DEFAULT_COLUMN_WIDTHS }));
-  const [columnDropIndicator, setColumnDropIndicator] = useState(null);
   const [moreActionMenu, setMoreActionMenu] = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
@@ -311,18 +266,36 @@ export default function LeadCompaniesPage() {
   const [commentError, setCommentError] = useState('');
   const [nextConnectDraft, setNextConnectDraft] = useState('');
   const [nextConnectSaving, setNextConnectSaving] = useState(false);
-  const columnDragKeyRef = useRef(null);
-  const columnDropIndicatorRef = useRef(null);
-  const toolbarRef = useRef(null);
+  const [leadViewMode, setLeadViewMode] = useState(() =>
+    typeof window === 'undefined' ? 'table' : readStoredLeadView()
+  );
+  const canShowMembersView = isCrmManagerOrAdmin();
   const itemsPerPage = 15;
 
-  useEffect(() => {
-    setColumnVisibility(loadColumnVisibility());
-    setColumnOrder(loadColumnOrder());
-    const widths = loadColumnWidths();
-    setColumnWidths(widths);
-    persistColumnWidths(widths);
-  }, []);
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -344,10 +317,6 @@ export default function LeadCompaniesPage() {
     };
   }, []);
 
-  const handleColumnResizeEnd = useCallback((next) => {
-    persistColumnWidths(next);
-  }, []);
-
   useEffect(() => {
     if (!columnPickerOpen && !sortOpen) return;
     const onDocMouseDown = (e) => {
@@ -360,102 +329,25 @@ export default function LeadCompaniesPage() {
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [columnPickerOpen, sortOpen]);
 
-  const setColumnVisible = useCallback((key, visible) => {
-    setColumnVisibility((prev) => {
-      const next = { ...prev, [key]: visible };
-      try {
-        window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  const handleColumnDragStart = useCallback((e, key) => {
-    columnDragKeyRef.current = key;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', key);
-    const row = e.currentTarget.closest('[data-column-row]');
-    if (row) row.classList.add('opacity-60');
-  }, []);
-
-  const handleColumnDragEnd = useCallback((e) => {
-    columnDragKeyRef.current = null;
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    const row = e.currentTarget.closest('[data-column-row]');
-    if (row) row.classList.remove('opacity-60');
-  }, []);
-
-  const handleColumnRowDragOver = useCallback((e, key) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const fromKey =
-      columnDragKeyRef.current || e.dataTransfer.getData('text/plain');
-    if (!fromKey || fromKey === key) {
-      columnDropIndicatorRef.current = null;
-      setColumnDropIndicator(null);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const place = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-    const hint = { targetKey: key, place };
-    columnDropIndicatorRef.current = hint;
-    setColumnDropIndicator(hint);
-  }, []);
-
-  const handleColumnListDragLeave = useCallback((e) => {
-    const related = e.relatedTarget;
-    if (related && e.currentTarget.contains(related)) return;
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-  }, []);
-
-  const handleColumnDrop = useCallback((e, targetKey) => {
-    e.preventDefault();
-    const fromKey =
-      columnDragKeyRef.current || e.dataTransfer.getData('text/plain');
-    const hint = columnDropIndicatorRef.current;
-    const place =
-      hint?.targetKey === targetKey ? hint.place : 'before';
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    if (!fromKey || fromKey === targetKey) return;
-    setColumnOrder((prev) => {
-      const next = [...prev];
-      const fi = next.indexOf(fromKey);
-      const ti0 = next.indexOf(targetKey);
-      if (fi === -1 || ti0 === -1) return prev;
-      next.splice(fi, 1);
-      const ti = next.indexOf(targetKey);
-      const insertAt = place === 'after' ? ti + 1 : ti;
-      next.splice(insertAt, 0, fromKey);
-      persistColumnOrder(next);
-      return next;
-    });
-  }, []);
-
-  const resetColumnTablePreferences = useCallback(() => {
-    const vis = { ...DEFAULT_COLUMN_VISIBILITY };
-    const order = [...REORDERABLE_COLUMN_KEYS];
-    setColumnVisibility(vis);
-    setColumnOrder(order);
-    columnDropIndicatorRef.current = null;
-    setColumnDropIndicator(null);
-    try {
-      window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(vis));
-      persistColumnOrder(order);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const showTableColumnTools = leadViewMode === 'table' || leadViewMode === 'members';
 
   const fetchStats = useCallback(async () => {
     try {
       const statsData = await leadCompanyService.getStats();
       setStatsByStatus(statsData.byStatus || {});
       setFilterFacets(statsData.facets || { sources: [], types: [] });
+
+      const userId = currentStrapiUserId();
+      if (userId) {
+        const res = await leadCompanyService.getAll({
+          'pagination[page]': 1,
+          'pagination[pageSize]': 1,
+          'filters[assignedTo][id][$eq]': userId,
+        });
+        setMyLeadsCount(res?.meta?.pagination?.total ?? 0);
+      } else {
+        setMyLeadsCount(0);
+      }
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
@@ -479,28 +371,59 @@ export default function LeadCompaniesPage() {
     return `${rule.key}:${rule.direction}`;
   }, [sortRules]);
 
+  const persistLeadView = useCallback((mode) => {
+    try {
+      window.localStorage.setItem(LEAD_VIEW_STORAGE_KEY, mode);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleLeadViewChange = useCallback(
+    (mode) => {
+      if (mode === 'members' && !canShowMembersView) return;
+      setLeadViewMode(mode);
+      persistLeadView(mode);
+      if (mode === 'kanban' || mode === 'members') {
+        setColumnPickerOpen(false);
+        setSortOpen(false);
+        setCurrentPage(1);
+      }
+    },
+    [canShowMembersView, persistLeadView]
+  );
+
+  useEffect(() => {
+    if (leadViewMode === 'members' && !canShowMembersView) {
+      handleLeadViewChange('table');
+    }
+  }, [canShowMembersView, leadViewMode, handleLeadViewChange]);
+
   const fetchLeadCompanies = useCallback(async () => {
     try {
       setLoading(true);
+      const isBulkView = leadViewMode === 'kanban' || leadViewMode === 'members';
       const params = leadCompanyService.buildListParams({
-        page: currentPage,
-        pageSize: itemsPerPage,
+        page: isBulkView ? 1 : currentPage,
+        pageSize: isBulkView ? 500 : itemsPerPage,
         activeTab,
         searchQuery: debouncedSearch,
         appliedFilters,
         sort: sortApiParam,
+        assignedToUserId: activeTab === 'my' ? currentStrapiUserId() : null,
       });
       const res = await leadCompanyService.getAll(params);
-      setLeadCompanies(Array.isArray(res.data) ? res.data : []);
+      const rows = Array.isArray(res.data) ? res.data : [];
+      setLeadCompanies(rows);
       const pag = res?.meta?.pagination;
-      setTotalItems(pag?.total ?? 0);
-      setTotalPages(Math.max(pag?.pageCount ?? 1, 1));
+      setTotalItems(isBulkView ? rows.length : (pag?.total ?? 0));
+      setTotalPages(isBulkView ? 1 : Math.max(pag?.pageCount ?? 1, 1));
     } catch (err) {
       console.error('Error fetching lead companies:', err);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, activeTab, debouncedSearch, appliedFilters, sortApiParam, itemsPerPage]);
+  }, [currentPage, activeTab, debouncedSearch, appliedFilters, sortApiParam, itemsPerPage, leadViewMode]);
 
   useEffect(() => {
     fetchStats();
@@ -510,7 +433,6 @@ export default function LeadCompaniesPage() {
     fetchLeadCompanies();
   }, [fetchLeadCompanies]);
 
-  // KPI / tab counts from lightweight stats endpoint (not full list scan).
   const leadStats = useMemo(
     () => ({
       new: statsByStatus.NEW ?? 0,
@@ -598,10 +520,17 @@ export default function LeadCompaniesPage() {
     };
   }, [paginatedCompanies]);
 
-  // Reset to page 1 when sort changes (tab/search/filters reset page in their handlers).
   useEffect(() => {
     setCurrentPage(1);
   }, [sortApiParam]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, appliedFilters]);
 
   const hasActiveFilters = useMemo(
     () =>
@@ -615,10 +544,6 @@ export default function LeadCompaniesPage() {
     setDraftFilters(appliedFilters);
     setShowFilterModal(true);
   }, [appliedFilters]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch]);
 
   const applyFilters = useCallback(() => {
     setCurrentPage(1);
@@ -636,6 +561,7 @@ export default function LeadCompaniesPage() {
   // Tab items
   const tabItems = [
     { key: 'all', label: 'All Companies', count: statsByStatus.total ?? totalItems },
+    { key: 'my', label: 'My Leads', count: myLeadsCount },
     { key: 'new', label: 'New', count: leadStats.new },
     { key: 'contacted', label: 'Contacted', count: leadStats.contacted },
     { key: 'qualified', label: 'Qualified', count: leadStats.qualified },
@@ -671,6 +597,65 @@ export default function LeadCompaniesPage() {
       }
     },
     [fetchStats, leadCompanies]
+  );
+
+  const kanbanStatusColumns = useMemo(() => {
+    const by = {};
+    LEAD_PIPELINE_STAGES.forEach(({ key }) => {
+      by[key] = [];
+    });
+    leadCompanies.forEach((c) => {
+      const k = (c.status || 'new').toLowerCase();
+      if (!by[k]) by[k] = [];
+      by[k].push(c);
+    });
+    const cols = LEAD_PIPELINE_STAGES.map(({ key, label }) => ({
+      key,
+      label,
+      companies: by[key] || [],
+    }));
+    if (activeTab === 'all' || activeTab === 'my') return cols;
+    if (['new', 'contacted', 'qualified', 'lost', 'converted', 'client'].includes(activeTab)) {
+      return cols.filter((c) => c.key === activeTab);
+    }
+    return cols;
+  }, [leadCompanies, activeTab]);
+
+  const handleKanbanLeadMove = useCallback(
+    async (leadIdStr, newStatus) => {
+      const row = leadCompanies.find((c) => String(c.id) === String(leadIdStr));
+      if (!row) return;
+      await handleStatusUpdate(row.id, newStatus);
+    },
+    [leadCompanies, handleStatusUpdate]
+  );
+
+  const leadsViewSwitcher = (
+    <ViewToggleGroup aria-label="Lead companies layout">
+      <ViewToggleButton
+        active={leadViewMode === 'table'}
+        title="Table view"
+        onClick={() => handleLeadViewChange('table')}
+      >
+        <Table2 className="h-[18px] w-[18px]" strokeWidth={2} />
+      </ViewToggleButton>
+      <ViewToggleButton
+        active={leadViewMode === 'kanban'}
+        title="Kanban view"
+        onClick={() => handleLeadViewChange('kanban')}
+      >
+        <Kanban className="h-[18px] w-[18px]" strokeWidth={2} />
+      </ViewToggleButton>
+      {canShowMembersView ? (
+        <ViewToggleButton
+          active={leadViewMode === 'members'}
+          title="By members"
+          onClick={() => handleLeadViewChange('members')}
+        >
+          <Users className="h-[18px] w-[18px]" strokeWidth={2} />
+        </ViewToggleButton>
+      ) : null}
+    </ViewToggleGroup>
   );
 
   const handleDeleteCompany = async () => {
@@ -876,9 +861,10 @@ export default function LeadCompaniesPage() {
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-gray-900 truncate">{company.companyName || 'Unnamed'}</div>
                   <div className="text-sm text-gray-500 truncate">
-                    {company.contacts && company.contacts.length > 0
-                      ? `${company.contacts[0].firstName || ''} ${company.contacts[0].lastName || ''}`.trim()
-                      : 'No primary contact'}
+                    {(() => {
+                      const { name } = primaryContactForLeadCompany(company);
+                      return name || 'No primary contact';
+                    })()}
                   </div>
                 </div>
                 <button
@@ -937,26 +923,21 @@ export default function LeadCompaniesPage() {
         visibilityKey: 'primaryContact',
         label: 'PRIMARY CONTACT',
         defaultWidth: '260px',
-        render: (_, company) => (
+        render: (_, company) => {
+          const { email, phone } = primaryContactForLeadCompany(company);
+          return (
           <div className="space-y-1 min-w-[200px]">
             <div className="flex items-center gap-2 text-sm text-gray-900">
               <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <span className="truncate">
-                {company.contacts && company.contacts.length > 0
-                  ? company.contacts[0].email
-                  : company.email || 'No email'}
-              </span>
+              <span className="truncate">{email || 'No email'}</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <span className="truncate">
-                {company.contacts && company.contacts.length > 0
-                  ? company.contacts[0].phone || 'No contact'
-                  : company.phone || 'No contact'}
-              </span>
+              <span className="truncate">{phone || 'No phone'}</span>
             </div>
           </div>
-        ),
+          );
+        },
       },
       {
         key: 'status',
@@ -1315,6 +1296,21 @@ export default function LeadCompaniesPage() {
     return bindSortableColumns(out);
   }, [allTableColumns, columnVisibility, columnOrder, bindSortableColumns]);
 
+  const membersViewColumns = useMemo(
+    () => visibleTableColumns.filter((c) => c.key !== 'assignedTo'),
+    [visibleTableColumns]
+  );
+
+  const membersEmptyMessage = useMemo(() => {
+    if (activeTab === 'my' && !searchQuery && !hasActiveFilters) {
+      return 'No leads are assigned to you yet';
+    }
+    if (searchQuery || activeTab !== 'all' || hasActiveFilters) {
+      return 'Try adjusting your filters';
+    }
+    return 'Add your first lead company to get started';
+  }, [activeTab, hasActiveFilters, searchQuery]);
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Page Header */}
@@ -1336,9 +1332,9 @@ export default function LeadCompaniesPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          title="New Leads"
-          value={leadStats.new}
-          subtitle={leadStats.new === 0 ? 'No leads' : `${leadStats.new} ${leadStats.new === 1 ? 'lead' : 'leads'}`}
+          title="Total Leads"
+          value={leadStats.total}
+          subtitle={leadStats.total === 0 ? 'No leads' : `${leadStats.total} ${leadStats.total === 1 ? 'lead' : 'leads'}`}
           icon={Building2}
           colorScheme="orange"
         />
@@ -1350,10 +1346,14 @@ export default function LeadCompaniesPage() {
           colorScheme="orange"
         />
         <KPICard
-          title="Qualified Leads"
-          value={leadStats.qualified}
-          subtitle={leadStats.qualified === 0 ? 'No leads' : `${leadStats.qualified} ${leadStats.qualified === 1 ? 'lead' : 'leads'}`}
-          icon={CheckCircle}
+          title="Non contacted Leads"
+          value={leadStats.nonContacted}
+          subtitle={
+            leadStats.nonContacted === 0
+              ? 'No leads'
+              : `${leadStats.nonContacted} ${leadStats.nonContacted === 1 ? 'lead' : 'leads'}`
+          }
+          icon={PhoneOff}
           colorScheme="orange"
         />
         <KPICard
@@ -1374,10 +1374,8 @@ export default function LeadCompaniesPage() {
             badge: item.count.toString(),
           }))}
           activeTab={activeTab}
-          onTabChange={(tab) => {
-            setCurrentPage(1);
-            setActiveTab(tab);
-          }}
+          onTabChange={setActiveTab}
+          afterTabs={leadsViewSwitcher}
           showSearch={true}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -1387,10 +1385,10 @@ export default function LeadCompaniesPage() {
           addTitle="Add Lead Company"
           showFilter={true}
           onFilterClick={openFilterModal}
-          showColumnVisibility={true}
+          showColumnVisibility={showTableColumnTools}
           onColumnVisibilityClick={() => { setColumnPickerOpen((o) => !o); setSortOpen(false); }}
-          columnVisibilityTitle="Show or hide columns"
-          showSort={true}
+          columnVisibilityTitle="Show, hide, or reorder columns"
+          showSort={leadViewMode === 'table'}
           onSortClick={() => { setSortOpen((o) => !o); setColumnPickerOpen(false); }}
           hasActiveSort={hasActiveSort}
           sortTitle="Sort columns"
@@ -1398,115 +1396,34 @@ export default function LeadCompaniesPage() {
           onExportClick={() => console.log('Export clicked')}
           exportTitle="Export"
         />
-        <CrmTableSortDropdown
-          open={sortOpen}
-          sortRules={sortRules}
-          columnOptions={sortColumnOptions}
-          onAddRule={addSortRule}
-          onRemoveRule={removeSortRule}
-          onSetDirection={setRuleDirection}
-          onMoveRule={moveSortRule}
-          onClear={clearSort}
-        />
-        {columnPickerOpen && (
-          <div
-            className="absolute right-0 top-full z-40 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl"
-            role="dialog"
-            aria-label="Table columns"
-          >
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Columns</p>
-            <p className="mb-2 text-xs leading-snug text-gray-500">
-              Company and actions stay visible. Primary contact stays first. Drag the grip to reorder; an orange line shows where the row will land.
-            </p>
-            <ul
-              className="max-h-[min(51vh,18.75rem)] space-y-0 overflow-y-auto pr-1"
-              onDragLeave={handleColumnListDragLeave}
-            >
-              <li
-                data-column-row
-                className="relative flex items-stretch rounded-lg border border-transparent"
-              >
-                <span
-                  className="flex w-8 shrink-0 items-center justify-center text-gray-300"
-                  aria-hidden
-                  title="Fixed order"
-                >
-                  —
-                </span>
-                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2 py-1 text-sm text-gray-800 hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 shrink-0 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                    checked={Boolean(columnVisibility.primaryContact)}
-                    onChange={(e) => setColumnVisible('primaryContact', e.target.checked)}
-                  />
-                  <span>Primary contact</span>
-                </label>
-              </li>
-              {columnOrder.map((key) => {
-                const def = TOGGLEABLE_COLUMNS.find((c) => c.key === key);
-                if (!def) return null;
-                const showLineBefore =
-                  columnDropIndicator?.targetKey === key &&
-                  columnDropIndicator.place === 'before';
-                const showLineAfter =
-                  columnDropIndicator?.targetKey === key &&
-                  columnDropIndicator.place === 'after';
-                return (
-                  <li
-                    key={key}
-                    data-column-row
-                    className="relative flex items-stretch rounded-lg border border-transparent hover:border-gray-100"
-                    onDragOver={(e) => handleColumnRowDragOver(e, key)}
-                    onDrop={(e) => handleColumnDrop(e, key)}
-                  >
-                    {showLineBefore ? (
-                      <div
-                        className="pointer-events-none absolute left-1 right-2 top-0 z-10 h-[3px] -translate-y-1 rounded-full bg-orange-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
-                        aria-hidden
-                      />
-                    ) : null}
-                    <span
-                      draggable
-                      onDragStart={(e) => handleColumnDragStart(e, key)}
-                      onDragEnd={handleColumnDragEnd}
-                      className="flex w-8 shrink-0 cursor-grab items-center justify-center rounded-l-lg text-gray-400 active:cursor-grabbing hover:bg-gray-100 hover:text-gray-600"
-                      aria-label={`Drag to reorder ${def.label}`}
-                    >
-                      <GripVertical className="h-4 w-4" strokeWidth={2} aria-hidden />
-                    </span>
-                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2 py-1 text-sm text-gray-800 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 shrink-0 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        checked={Boolean(columnVisibility[key])}
-                        onChange={(e) => setColumnVisible(key, e.target.checked)}
-                      />
-                      <span>{def.label}</span>
-                    </label>
-                    {showLineAfter ? (
-                      <div
-                        className="pointer-events-none absolute bottom-0 left-1 right-2 z-10 h-[3px] translate-y-1 rounded-full bg-orange-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
-                        aria-hidden
-                      />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-2 border-t border-gray-100 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full text-sm font-medium text-gray-700"
-                onClick={resetColumnTablePreferences}
-              >
-                Reset to default
-              </Button>
-            </div>
-          </div>
+        {leadViewMode === 'table' && (
+          <CrmTableSortDropdown
+            open={sortOpen}
+            sortRules={sortRules}
+            columnOptions={sortColumnOptions}
+            onAddRule={addSortRule}
+            onRemoveRule={removeSortRule}
+            onSetDirection={setRuleDirection}
+            onMoveRule={moveSortRule}
+            onClear={clearSort}
+          />
         )}
+        <TableColumnPicker
+          open={showTableColumnTools && columnPickerOpen}
+          description="Company and actions stay visible. Primary contact stays first. Drag column edges in the table to resize."
+          pinnedRows={[{ key: 'primaryContact', label: 'Primary contact' }]}
+          reorderableRows={TOGGLEABLE_COLUMNS.filter((c) => c.key !== 'primaryContact')}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
+        />
       </div>
 
       {/* Results Count */}
@@ -1521,7 +1438,7 @@ export default function LeadCompaniesPage() {
           <div className="p-12 flex flex-col items-center justify-center">
             <LoadingSpinner size="lg" message="Loading lead companies..." />
           </div>
-        ) : (
+        ) : leadViewMode === 'table' ? (
           <>
             <Table
               columns={visibleTableColumns}
@@ -1529,10 +1446,7 @@ export default function LeadCompaniesPage() {
               keyField="id"
               variant="modern"
               onRowClick={(row) => router.push(`/sales/lead-companies/${row.id}`)}
-              resizableColumns
-              columnWidths={columnWidths}
-              onColumnWidthsChange={setColumnWidths}
-              onColumnResizeEnd={handleColumnResizeEnd}
+              {...tableResizeProps}
             />
             {paginatedCompanies.length === 0 && (
               <div className="p-12 text-center border-t border-gray-200">
@@ -1541,13 +1455,22 @@ export default function LeadCompaniesPage() {
                 </div>
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">No lead companies found</h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  {searchQuery || activeTab !== 'all' ? 'Try adjusting your filters' : 'Add your first lead company to get started'}
+                  {activeTab === 'my' && !searchQuery && !hasActiveFilters
+                    ? 'No leads are assigned to you yet'
+                    : searchQuery || activeTab !== 'all' || hasActiveFilters
+                      ? 'Try adjusting your filters'
+                      : 'Add your first lead company to get started'}
                 </p>
-                {!searchQuery && activeTab === 'all' && (
-                  <Button variant="primary" onClick={() => router.push('/sales/lead-companies/new')}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Lead Company
-                  </Button>
+                {!searchQuery && activeTab === 'all' && !hasActiveFilters && (
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <Button variant="primary" onClick={() => router.push('/sales/lead-companies/new')}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Lead Company
+                    </Button>
+                    <Button variant="outline" onClick={() => handleLeadViewChange('kanban')}>
+                      Board view
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
@@ -1563,7 +1486,41 @@ export default function LeadCompaniesPage() {
               </div>
             )}
           </>
-        )}
+        ) : leadViewMode === 'members' ? (
+          <LeadsByMembersView
+            leads={paginatedCompanies}
+            orgUsers={orgUsers}
+            columns={membersViewColumns}
+            onRowClick={(row) => router.push(`/sales/lead-companies/${row.id}`)}
+            emptyMessage={membersEmptyMessage}
+            tableResizeProps={tableResizeProps}
+          />
+        ) : leadViewMode === 'kanban' && paginatedCompanies.length === 0 ? (
+          <div className="p-12 text-center">
+            <Building2 className="mx-auto mb-3 h-12 w-12 text-gray-400 opacity-50" />
+            <h3 className="mb-2 text-lg font-semibold text-gray-700">No lead companies found</h3>
+            <p className="mb-4 text-sm text-gray-500">{membersEmptyMessage}</p>
+            {!searchQuery && activeTab === 'all' && !hasActiveFilters && (
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button variant="primary" onClick={() => router.push('/sales/lead-companies/new')}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Lead Company
+                </Button>
+                <Button variant="outline" onClick={() => handleLeadViewChange('table')}>
+                  Table view
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : leadViewMode === 'kanban' ? (
+          <LeadsKanbanBoard
+            statusColumns={kanbanStatusColumns}
+            leadsLookup={leadCompanies}
+            onMoveLead={handleKanbanLeadMove}
+            getLeadHref={(id) => `/sales/lead-companies/${id}`}
+            canMoveLead={(company) => canEditCRMRecord('leads', company)}
+          />
+        ) : null}
       </div>
 
       {/* Delete Confirmation Modal */}

@@ -1,6 +1,5 @@
 import './globals.css';
 import { AuthProvider } from '@webfudge/auth';
-import { xtrawrkxMetadataIcons } from '@webfudge/utils';
 import LayoutContent from '../components/LayoutContent';
 import { PM_SITE } from '../lib/site';
 
@@ -10,7 +9,7 @@ export const viewport = {
   initialScale: 1,
 };
 
-const siteUrl = PM_SITE.url;
+const siteUrl = (process.env.NEXT_PUBLIC_PM_APP_URL || 'http://localhost:3006').replace(/\/$/, '');
 const shareDescription =
   'A modern workspace for projects, tasks, team collaboration, and delivery.';
 
@@ -25,12 +24,19 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: PM_SITE.shortName,
+    title: PM_SITE.name,
   },
   formatDetection: {
     telephone: false,
   },
-  keywords: PM_SITE.keywords,
+  keywords: [
+    'project management',
+    'tasks',
+    'team collaboration',
+    'delivery',
+    'productivity',
+    'Webfudge',
+  ],
   alternates: {
     canonical: '/',
   },
@@ -40,7 +46,7 @@ export const metadata = {
     type: 'website',
     images: [
       {
-        url: PM_SITE.ogImagePath,
+        url: '/favicon/web-app-manifest-512x512.png',
         width: 512,
         height: 512,
         alt: PM_SITE.name,
@@ -51,7 +57,7 @@ export const metadata = {
     card: 'summary',
     title: PM_SITE.name,
     description: shareDescription,
-    images: [PM_SITE.ogImagePath],
+    images: ['/favicon/web-app-manifest-512x512.png'],
   },
   robots: {
     index: false,
@@ -63,8 +69,15 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: xtrawrkxMetadataIcons(),
-  manifest: PM_SITE.manifestPath,
+  icons: {
+    icon: [
+      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+    ],
+    apple: [{ url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: ['/favicon/favicon.svg'],
+  },
+  manifest: '/favicon/site.webmanifest',
 };
 
 export default function RootLayout({ children }) {

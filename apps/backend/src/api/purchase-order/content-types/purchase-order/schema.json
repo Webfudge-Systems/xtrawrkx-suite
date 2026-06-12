@@ -20,6 +20,7 @@
     "total":              { "type": "integer", "default": 0 },
     "notes":              { "type": "text" },
     "deliveryAddress":    { "type": "json" },
+    "vendor":             { "type": "relation", "relation": "manyToOne", "target": "api::vendor.vendor" },
     "organization":       { "type": "relation", "relation": "manyToOne", "target": "api::organization.organization" },
     "createdByUser":      { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" }
   }

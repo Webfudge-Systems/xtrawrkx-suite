@@ -9,12 +9,10 @@ module.exports = (plugin) => {
   const user = plugin.contentTypes?.user;
   if (!user?.schema?.attributes) return plugin;
 
-  user.schema.attributes = {
-    ...user.schema.attributes,
+  Object.assign(user.schema.attributes, {
     firstName: { type: 'string', maxLength: 80 },
     lastName: { type: 'string', maxLength: 80 },
-    isPlatformAdmin: { type: 'boolean', default: false },
-  };
+  });
 
   return plugin;
 };

@@ -55,6 +55,7 @@ export function buildLeadCompanyListParams({
   appliedFilters = {},
   sort = 'createdAt:desc',
   populate = ['assignedTo', 'convertedAccount', 'contacts'],
+  assignedToUserId = null,
 } = {}) {
   const params = {
     'pagination[page]': page,
@@ -64,7 +65,13 @@ export function buildLeadCompanyListParams({
   };
 
   const tab = String(activeTab || 'all').toLowerCase();
-  if (tab !== 'all') {
+  if (tab === 'my') {
+    if (assignedToUserId != null) {
+      params['filters[assignedTo][id][$eq]'] = assignedToUserId;
+    } else {
+      params['filters[id][$eq]'] = -1;
+    }
+  } else if (tab !== 'all') {
     params['filters[status][$eq]'] = tab.toUpperCase();
   }
 
@@ -78,7 +85,7 @@ export function buildLeadCompanyListParams({
   if (f.status) params['filters[status][$eq]'] = String(f.status).toUpperCase();
   if (f.source) params['filters[source][$eq]'] = String(f.source).toUpperCase();
   if (f.type) params['filters[type][$eq]'] = f.type;
-  if (f.assignedToId) params['filters[assignedTo][id][$eq]'] = f.assignedToId;
+  if (tab !== 'my' && f.assignedToId) params['filters[assignedTo][id][$eq]'] = f.assignedToId;
   if (f.companyQuery?.trim()) {
     params['filters[companyName][$containsi]'] = f.companyQuery.trim();
   }
@@ -169,7 +176,20 @@ async function mergeContactsOntoLeadCompanies(companies) {
     if (cid == null) return co;
     const merged = byLead.get(String(cid));
     if (!merged?.length) return co;
-    return { ...co, contacts: merged };
+    const existingById = new Map((co.contacts || []).map((c) => [String(c.id), c]));
+    const enriched = merged.map((c) => {
+      const ex = existingById.get(String(c.id));
+      if (!ex) return c;
+      return {
+        ...ex,
+        ...c,
+        email: c.email || ex.email,
+        phone: c.phone || ex.phone,
+        firstName: c.firstName || ex.firstName,
+        lastName: c.lastName || ex.lastName,
+      };
+    });
+    return { ...co, contacts: enriched };
   });
 }
 

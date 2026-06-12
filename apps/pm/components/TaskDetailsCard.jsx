@@ -178,6 +178,7 @@ export default function TaskDetailsCard({
   onViewProject,
   onViewFiles,
   onViewSubtasks,
+  attachmentCount = 0,
   formatDate,
 }) {
   const showEdit = canEdit && onOpenSectionEdit
@@ -617,7 +618,7 @@ export default function TaskDetailsCard({
           <div className="flex items-center gap-2.5">
             <Paperclip className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
             <div>
-              <p className="text-base font-semibold leading-snug text-gray-900">0</p>
+              <p className="text-base font-semibold leading-snug text-gray-900">{attachmentCount ?? 0}</p>
               <button
                 type="button"
                 onClick={onViewFiles}

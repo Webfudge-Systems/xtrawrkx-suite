@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight, CreditCard, Plus } from 'lucide-react'
 import { Button, Card } from '@webfudge/ui'
@@ -19,7 +19,11 @@ export type StackedBankCardsProps = {
   className?: string
   showCardIcon?: boolean
   addNewLabel?: string
+  /** When set, carousel scrolls to this card id (e.g. after adding a bank). */
+  activeCardId?: string | null
   onAddNew?: () => void
+  /** Fired when the front (active) card is clicked. */
+  onCardSelect?: (card: BankCardDisplay) => void
 }
 
 const DEFAULT_CARDS: BankCardDisplay[] = [
@@ -81,17 +85,35 @@ export function StackedBankCards({
   className,
   showCardIcon = false,
   addNewLabel = 'Add new',
+  activeCardId,
   onAddNew,
+  onCardSelect,
 }: StackedBankCardsProps) {
   const [activeIndex, setActiveIndex] = useState(0)
+  const hasCards = cards.length > 0
+  const canNavigate = cards.length > 1
+
+  useEffect(() => {
+    if (!activeCardId || !hasCards) return
+    const idx = cards.findIndex((card) => card.id === activeCardId)
+    if (idx >= 0) setActiveIndex(idx)
+  }, [activeCardId, cards, hasCards])
+
+  useEffect(() => {
+    if (activeIndex >= cards.length) {
+      setActiveIndex(Math.max(0, cards.length - 1))
+    }
+  }, [activeIndex, cards.length])
 
   const goPrev = useCallback(() => {
+    if (!canNavigate) return
     setActiveIndex((i) => (i - 1 + cards.length) % cards.length)
-  }, [cards.length])
+  }, [canNavigate, cards.length])
 
   const goNext = useCallback(() => {
+    if (!canNavigate) return
     setActiveIndex((i) => (i + 1) % cards.length)
-  }, [cards.length])
+  }, [canNavigate, cards.length])
 
   const ordered = useMemo(() => {
     return cards.map((card, i) => {
@@ -138,10 +160,22 @@ export function StackedBankCards({
               {addNewLabel}
             </Button>
           ) : null}
-          <button type="button" className={NAV_BTN_CLASS} onClick={goPrev} aria-label="Previous card">
+          <button
+            type="button"
+            className={clsx(NAV_BTN_CLASS, !canNavigate && 'pointer-events-none opacity-40')}
+            onClick={goPrev}
+            disabled={!canNavigate}
+            aria-label="Previous card"
+          >
             <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
           </button>
-          <button type="button" className={NAV_BTN_CLASS} onClick={goNext} aria-label="Next card">
+          <button
+            type="button"
+            className={clsx(NAV_BTN_CLASS, !canNavigate && 'pointer-events-none opacity-40')}
+            onClick={goNext}
+            disabled={!canNavigate}
+            aria-label="Next card"
+          >
             <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
           </button>
         </div>
@@ -149,12 +183,39 @@ export function StackedBankCards({
 
       <div className="flex min-h-0 flex-1 flex-col px-4 py-3 pb-5 md:px-5">
         <div className="flex min-h-0 flex-1 items-center justify-center">
+          {!hasCards ? (
+            <button
+              type="button"
+              onClick={onAddNew}
+              className={clsx(
+                'flex aspect-[1.586/1] w-full max-w-[340px] max-h-[228px] min-h-[168px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed',
+                'border-[color:var(--books-border-em,rgba(0,0,0,0.15))] bg-[var(--books-bg-elevated,#f9fafb)]',
+                'text-[var(--books-text-secondary,#6b7280)] transition-colors',
+                'hover:border-orange-300 hover:bg-[var(--books-orange-bg,rgba(234,88,12,0.08))] hover:text-[var(--books-orange-text,#ea580c)]',
+                'dark:bg-[var(--books-bg-elevated,#252830)]',
+                onAddNew ? 'cursor-pointer' : 'cursor-default'
+              )}
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--books-orange-bg,rgba(234,88,12,0.12))] text-[var(--books-orange-text,#ea580c)]">
+                <Plus className="h-6 w-6" aria-hidden />
+              </span>
+              <span className="text-sm font-semibold text-[var(--books-text-primary,#111827)]">No banks yet</span>
+              <span className="text-xs">Tap to add your first account</span>
+            </button>
+          ) : (
           <div className="relative h-full w-full max-w-[340px]" style={{ maxHeight: '248px', minHeight: '200px' }}>
             {ordered.map(({ card, position }) => (
               <button
                 key={card.id}
                 type="button"
-                onClick={() => setActiveIndex(cards.findIndex((c) => c.id === card.id))}
+                onClick={() => {
+                  const idx = cards.findIndex((c) => c.id === card.id)
+                  if (position === 0 && onCardSelect) {
+                    onCardSelect(card)
+                    return
+                  }
+                  if (idx >= 0) setActiveIndex(idx)
+                }}
                 className={clsx(
                   'absolute top-1/2 origin-center -translate-y-1/2 text-left outline-none transition-all duration-300 ease-out',
                   'focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2',
@@ -197,8 +258,10 @@ export function StackedBankCards({
               </button>
             ))}
           </div>
+          )}
         </div>
 
+        {hasCards ? (
         <div className="mt-2 flex shrink-0 justify-center gap-1.5">
           {cards.map((c, i) => (
             <button
@@ -216,6 +279,7 @@ export function StackedBankCards({
             />
           ))}
         </div>
+        ) : null}
       </div>
     </Card>
   )

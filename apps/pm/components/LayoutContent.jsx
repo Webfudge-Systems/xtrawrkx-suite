@@ -3,9 +3,9 @@
 import { WorkspaceLayoutContent } from '@webfudge/ui'
 import { usePathname } from 'next/navigation'
 import PMSidebar from './PMSidebar'
-import { PM_SITE } from '../lib/site'
 import PMQuickActionsFab from './PMQuickActionsFab'
 import { canReadCurrentPMPath } from '../lib/rbac'
+import { PM_SITE } from '../lib/site'
 
 const PUBLIC_PATHS = ['/login', '/unauthorized', '/coming-soon']
 
@@ -21,7 +21,8 @@ export default function LayoutContent({ children }) {
       sidebarBehavior="hide"
       sidebarBranding={{
         logoPath: PM_SITE.logoPath,
-        brandName: PM_SITE.name,
+        productName: PM_SITE.name,
+        companyName: PM_SITE.brandName,
         homeHref: '/',
       }}
       appName={PM_SITE.name}

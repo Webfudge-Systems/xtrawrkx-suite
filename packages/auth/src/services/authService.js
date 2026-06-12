@@ -5,8 +5,8 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_STRAPI_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === 'production'
-    ? 'https://xtrawrkxsuits-production.up.railway.app'
-    : 'http://localhost:1337');
+    ? 'https://api.webfudge.in'
+    : 'http://localhost:1338');
 
 const ACCESS_RANK = { none: 0, read: 1, write: 2, manage: 3 };
 
@@ -114,56 +114,6 @@ class AuthService {
       console.error('Login error:', error);
       throw error;
     }
-  }
-
-  /**
-   * Login for platform super-admins only — calls /api/auth/platform-login
-   */
-  async platformLogin(email, password) {
-    try {
-      const response = await fetch(`${this.baseURL}/api/auth/platform-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: email, password }),
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch {
-        throw new Error(`Server error (${response.status})`);
-      }
-
-      if (!response.ok) {
-        const errorMessage =
-          data?.error?.message ||
-          data?.message ||
-          (typeof data?.error === 'string' ? data.error : 'Login failed');
-        throw new Error(errorMessage);
-      }
-
-      const token = data.jwt || data.token;
-      if (token) {
-        localStorage.setItem('auth-token', token);
-        localStorage.setItem('strapi_token', token);
-        localStorage.setItem('auth-user', JSON.stringify(data.user));
-        // Clear org state — platform admin has no tenant org
-        localStorage.removeItem('auth-organizations');
-        localStorage.removeItem('current-org-id');
-        document.cookie = `auth-token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-      }
-
-      return { ...data, token, user: data.user, organizations: [] };
-    } catch (error) {
-      console.error('Platform login error:', error);
-      throw error;
-    }
-  }
-
-  /** Returns true if the given user (or stored user) is a platform admin */
-  isPlatformAdmin(user = null) {
-    const u = user || this.getStoredUser();
-    return Boolean(u?.isPlatformAdmin);
   }
 
   /**

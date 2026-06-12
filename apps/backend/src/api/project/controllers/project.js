@@ -25,7 +25,6 @@ const {
   userCanAccessProjectRow,
   userCanViewProjectRow,
 } = require('../../../utils/rbac');
-const { attachRelationsToProjects } = require('../../../utils/crm-relation-attach');
 
 const { relId } = require('../../../utils/books-crud');
 
@@ -136,17 +135,13 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       if (extra.sourceDeal) filters.sourceDeal = extra.sourceDeal;
     }
 
-    let results = await strapi.entityService.findMany(UID, {
+    const results = await strapi.entityService.findMany(UID, {
       filters,
       start: (page - 1) * pageSize,
       limit: pageSize,
       sort,
       populate: sanitizePopulate(query.populate),
     });
-
-    if (results.length > 0) {
-      results = await attachRelationsToProjects(strapi, ctx.state.orgId, results);
-    }
 
     const total = await safeCount(strapi, UID, filters, results.length);
     const pageCount = Math.ceil(Math.max(total, 1) / pageSize);
@@ -164,7 +159,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
 
     const sanitized = sanitizePopulate(ctx.query?.populate);
     const populate = [...new Set([...(Array.isArray(sanitized) ? sanitized : []), 'organization'])];
-    let entry = await strapi.entityService.findOne(UID, pk, {
+    const entry = await strapi.entityService.findOne(UID, pk, {
       populate,
     });
     if (!entry) return ctx.notFound();
@@ -180,7 +175,6 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
         return ctx.forbidden('Access denied');
       }
     }
-    [entry] = await attachRelationsToProjects(strapi, ctx.state.orgId, [entry]);
     return { data: entry };
   },
 

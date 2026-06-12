@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus, Receipt,
@@ -10,6 +10,8 @@ import {
   Button, Table, Pagination, Avatar, Badge, LoadingSpinner,
   TabsWithActions, KPICard, Modal,
   TableCellCreated, TableCellDateOnly, TableCellText, TableCellTitleSubtitle, TableRowActionMenuPortal,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../components/CRMPageHeader';
 import invoiceService from '../../../lib/api/invoiceService';
@@ -28,9 +30,27 @@ const STATUS_CONFIG = {
   PARTIAL:  { variant: 'warning',  label: 'Partial' },
 };
 
+const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.invoices.tableColumnVisibility';
+const COLUMN_ORDER_STORAGE_KEY = 'crm.invoices.tableColumnOrder';
+const COLUMN_WIDTHS_STORAGE_KEY = 'crm.invoices.tableColumnWidths';
+
+const TOGGLEABLE_COLUMNS = [
+  { key: 'client', label: 'Bill to' },
+  { key: 'total', label: 'Amount' },
+  { key: 'status', label: 'Status' },
+  { key: 'invoiceDate', label: 'Date' },
+  { key: 'dueDate', label: 'Due date' },
+];
+
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key);
+
+const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
+  acc[key] = true;
+  return acc;
+}, {});
+
 export default function InvoicesPage() {
   const router = useRouter();
-  const toolbarRef = useRef(null);
   const [invoices, setInvoices]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
@@ -45,23 +65,41 @@ export default function InvoicesPage() {
   const [deletingId, setDeletingId] = useState(null);
   const [actionMenu, setActionMenu]       = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [columnPickerOpen, setColumnPickerOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState({
-    client: true,
-    total: true,
-    status: true,
-    invoiceDate: true,
-    dueDate: true,
+  const itemsPerPage = 15;
+
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
   });
 
   useEffect(() => {
+    if (!columnPickerOpen) return undefined;
     const onOutside = (e) => {
-      if (!toolbarRef.current) return;
-      if (!toolbarRef.current.contains(e.target)) setColumnPickerOpen(false);
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setColumnPickerOpen(false);
+      }
     };
     document.addEventListener('mousedown', onOutside);
     return () => document.removeEventListener('mousedown', onOutside);
-  }, []);
+  }, [columnPickerOpen, setColumnPickerOpen, toolbarRef]);
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -127,120 +165,143 @@ export default function InvoicesPage() {
     }
   };
 
-  const columns = [
-    {
-      key: 'invoice', label: 'INVOICE',
-      render: (_, inv) => (
-        <div className="flex items-center gap-3 min-w-[200px]">
-          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Receipt className="w-5 h-5 text-blue-600" />
+  const columns = useMemo(
+    () => [
+      {
+        key: 'invoice',
+        label: 'INVOICE',
+        fixed: true,
+        render: (_, inv) => (
+          <div className="flex items-center gap-3 min-w-[200px]">
+            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Receipt className="w-5 h-5 text-blue-600" />
+            </div>
+            <TableCellTitleSubtitle title={inv.invoiceNumber} subtitle={inv.documentType || 'INVOICE'} />
           </div>
-          <TableCellTitleSubtitle title={inv.invoiceNumber} subtitle={inv.documentType || 'INVOICE'} />
-        </div>
-      ),
-    },
-    {
-      key: 'client', label: 'BILL TO',
-      render: (_, inv) => (
-        <div className="flex items-center gap-2 min-w-[140px]">
-          <Avatar fallback={(inv.billToCompany || inv.billToName || 'C')[0]} size="sm" className="flex-shrink-0" />
-          <TableCellTitleSubtitle
-            title={inv.billToName || '—'}
-            subtitle={inv.billToCompany || inv.billToEmail || '—'}
-          />
-        </div>
-      ),
-    },
-    {
-      key: 'total', label: 'AMOUNT',
-      render: (_, inv) => (
-        <TableCellText value={formatCurrency(inv.total || 0)} emphasized />
-      ),
-    },
-    {
-      key: 'status', label: 'STATUS',
-      render: (_, inv) => {
-        const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.DRAFT;
-        return <Badge variant={cfg.variant}>{cfg.label.toUpperCase()}</Badge>;
+        ),
       },
-    },
-    {
-      key: 'invoiceDate', label: 'DATE',
-      render: (_, inv) => <TableCellCreated dateString={inv.invoiceDate || inv.createdAt} />,
-    },
-    {
-      key: 'dueDate', label: 'DUE DATE',
-      render: (_, inv) => <TableCellDateOnly dateString={inv.dueDate} />,
-    },
-    {
-      key: 'actions', label: 'ACTIONS',
-      render: (_, inv) => (
-        <div className="flex min-w-[148px] items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-          <div className="relative">
+      {
+        key: 'client',
+        visibilityKey: 'client',
+        label: 'BILL TO',
+        render: (_, inv) => (
+          <div className="flex items-center gap-2 min-w-[140px]">
+            <Avatar fallback={(inv.billToCompany || inv.billToName || 'C')[0]} size="sm" className="flex-shrink-0" />
+            <TableCellTitleSubtitle
+              title={inv.billToName || '—'}
+              subtitle={inv.billToCompany || inv.billToEmail || '—'}
+            />
+          </div>
+        ),
+      },
+      {
+        key: 'total',
+        visibilityKey: 'total',
+        label: 'AMOUNT',
+        render: (_, inv) => (
+          <TableCellText value={formatCurrency(inv.total || 0)} emphasized />
+        ),
+      },
+      {
+        key: 'status',
+        visibilityKey: 'status',
+        label: 'STATUS',
+        render: (_, inv) => {
+          const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.DRAFT;
+          return <Badge variant={cfg.variant}>{cfg.label.toUpperCase()}</Badge>;
+        },
+      },
+      {
+        key: 'invoiceDate',
+        visibilityKey: 'invoiceDate',
+        label: 'DATE',
+        render: (_, inv) => <TableCellCreated dateString={inv.invoiceDate || inv.createdAt} />,
+      },
+      {
+        key: 'dueDate',
+        visibilityKey: 'dueDate',
+        label: 'DUE DATE',
+        render: (_, inv) => <TableCellDateOnly dateString={inv.dueDate} />,
+      },
+      {
+        key: 'actions',
+        label: 'ACTIONS',
+        fixed: true,
+        render: (_, inv) => (
+          <div className="flex min-w-[148px] items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-2 text-teal-600 hover:bg-teal-50"
+                title="More options"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setActionMenu((prev) =>
+                    prev?.id === inv.id
+                      ? null
+                      : { id: inv.id, top: r.bottom + 4, left: r.left, triggerEl: e.currentTarget }
+                  );
+                }}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </div>
             <Button
               variant="ghost"
               size="sm"
-              className="p-2 text-teal-600 hover:bg-teal-50"
-              title="More options"
+              className="p-2 text-emerald-600 hover:bg-emerald-50"
+              title="Edit invoice"
               onClick={(e) => {
                 e.stopPropagation();
-                const r = e.currentTarget.getBoundingClientRect();
-                setActionMenu((prev) =>
-                  prev?.id === inv.id
-                    ? null
-                    : { id: inv.id, top: r.bottom + 4, left: r.left, triggerEl: e.currentTarget }
-                );
+                router.push(`/clients/invoices/${inv.id}/edit`);
               }}
             >
-              <MoreHorizontal className="h-4 w-4" />
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2 text-orange-600 hover:bg-orange-50 disabled:opacity-40"
+              title="Send mail"
+              disabled={!inv.billToEmail}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (inv.billToEmail) window.location.href = `mailto:${inv.billToEmail}`;
+              }}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2 text-red-600 hover:bg-red-50"
+              title="Delete invoice"
+              onClick={(e) => {
+                e.stopPropagation();
+                openDeleteInvoice(inv);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-2 text-emerald-600 hover:bg-emerald-50"
-            title="Edit invoice"
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/clients/invoices/${inv.id}/edit`);
-            }}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-2 text-orange-600 hover:bg-orange-50 disabled:opacity-40"
-            title="Send mail"
-            disabled={!inv.billToEmail}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (inv.billToEmail) window.location.href = `mailto:${inv.billToEmail}`;
-            }}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-2 text-red-600 hover:bg-red-50"
-            title="Delete invoice"
-            onClick={(e) => {
-              e.stopPropagation();
-              openDeleteInvoice(inv);
-            }}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
+        ),
+      },
+    ],
+    [router]
+  );
 
-  const visibleColumns = columns.filter((col) => {
-    if (col.key === 'invoice' || col.key === 'actions') return true;
-    return columnVisibility[col.key] !== false;
-  });
+  const visibleColumns = useMemo(() => {
+    const byKey = Object.fromEntries(columns.map((c) => [c.key, c]));
+    const out = [];
+    if (byKey.invoice) out.push(byKey.invoice);
+    for (const key of columnOrder) {
+      if (columnVisibility[key] && byKey[key]) out.push(byKey[key]);
+    }
+    if (byKey.actions) out.push(byKey.actions);
+    return out;
+  }, [columns, columnVisibility, columnOrder]);
 
   const tabItems = [
     { key: 'all',       label: 'All invoices', count: stats.all },
@@ -312,32 +373,21 @@ export default function InvoicesPage() {
           showExport={true}
           onExportClick={() => {}}
         />
-        {columnPickerOpen && (
-          <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">View Columns</p>
-            <div className="space-y-2">
-              {[
-                ['client', 'Bill To'],
-                ['total', 'Amount'],
-                ['status', 'Status'],
-                ['invoiceDate', 'Date'],
-                ['dueDate', 'Due Date'],
-              ].map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                    checked={Boolean(columnVisibility[key])}
-                    onChange={(e) =>
-                      setColumnVisibility((prev) => ({ ...prev, [key]: e.target.checked }))
-                    }
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
+        <TableColumnPicker
+          open={columnPickerOpen}
+          description="Invoice and actions stay visible. Drag column edges in the table to resize."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
+        />
       </div>
 
       <div className="text-sm text-gray-600">
@@ -361,7 +411,8 @@ export default function InvoicesPage() {
         ) : (
           <>
             <Table columns={visibleColumns} data={filtered} keyField="id" variant="modern"
-              onRowClick={(row) => router.push(`/clients/invoices/${row.id}`)} />
+              onRowClick={(row) => router.push(`/clients/invoices/${row.id}`)}
+              {...tableResizeProps} />
             {filtered.length === 0 && (
               <div className="p-12 text-center border-t border-gray-200">
                 <Receipt className="w-12 h-12 mx-auto mb-3 text-gray-300" />

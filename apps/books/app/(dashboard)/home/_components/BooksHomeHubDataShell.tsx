@@ -2,7 +2,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   Button,
   Card,
@@ -13,6 +13,7 @@ import {
   TabsWithActions,
 } from '@webfudge/ui'
 import { booksToolbarSearchInputClassName, type BooksDataColumn } from '@webfudge/ui/book-components'
+import { useRegisterBooksShellActions } from '@/context/BooksShellActionsContext'
 
 export type BooksHomeHubTab = {
   id: string
@@ -76,7 +77,7 @@ export default function BooksHomeHubDataShell({
 }: BooksHomeHubDataShellProps) {
   const [filterOpen, setFilterOpen] = useState(false)
 
-  const exportCsv = () => {
+  const exportCsv = useCallback(() => {
     const blob = new Blob([`Books export\nRows: ${resultCount}\n`], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -86,7 +87,14 @@ export default function BooksHomeHubDataShell({
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-  }
+  }, [exportFileName, resultCount])
+
+  const openFilterModal = useCallback(() => setFilterOpen(true), [])
+
+  useRegisterBooksShellActions({
+    onFilter: openFilterModal,
+    onExport: exportCsv,
+  })
 
   return (
     <div className="min-h-full space-y-6 pb-4 pt-2">
@@ -164,14 +172,18 @@ export default function BooksHomeHubDataShell({
         ) : null}
       </Card>
 
-      <Modal isOpen={filterOpen} onClose={() => setFilterOpen(false)} title={filterModalTitle} size="lg">
+      <Modal isOpen={filterOpen} onClose={() => setFilterOpen(false)} title={filterModalTitle} size="lg" theme="books">
         <div className="space-y-4">
           <p className="text-sm text-[var(--books-text-secondary,#6b7280)]">
             Filter controls will connect to your data when backend wiring is added. This matches the CRM list filter
             pattern.
           </p>
           <div className="flex justify-end gap-2 border-t border-[color:var(--books-border)] pt-4">
-            <Button variant="muted" onClick={() => setFilterOpen(false)}>
+            <Button
+              variant="muted"
+              className="!border-0 !bg-[var(--books-bg-card,#1f2937)] !text-[var(--books-text-secondary,#9ca3af)] !shadow-none hover:!bg-[var(--books-surface-muted,#2a2e38)] hover:!text-[var(--books-text-primary,#f8fafc)]"
+              onClick={() => setFilterOpen(false)}
+            >
               Close
             </Button>
           </div>

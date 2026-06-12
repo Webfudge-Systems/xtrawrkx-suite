@@ -1,0 +1,1 @@
+export { WorkspaceSidebarBranding } from './WorkspaceSidebarBranding'

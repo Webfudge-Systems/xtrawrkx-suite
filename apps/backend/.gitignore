@@ -122,7 +122,6 @@ coverage
 ############################
 
 .env
-.env.local
 .env.production
 license.txt
 exports

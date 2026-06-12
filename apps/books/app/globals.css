@@ -45,6 +45,25 @@
    */
   --books-shell-radius: 0.75rem;
   --books-shell-shadow: 0 3px 16px rgba(15, 23, 42, 0.1), 0 2px 5px rgba(15, 23, 42, 0.06);
+  /** PM-style list table cells (light) */
+  --books-pm-table-body: #4b5563;
+  --books-pm-avatar-bg: #4b5563;
+  --books-pm-avatar-text: #ffffff;
+  --books-pm-badge-orange-bg: #fff7ed;
+  --books-pm-badge-orange-border: #fed7aa;
+  --books-pm-badge-orange-text: #9a3412;
+  --books-pm-badge-active-bg: #ecfdf5;
+  --books-pm-badge-active-border: #10b981;
+  --books-pm-badge-active-text: #047857;
+  --books-pm-badge-neutral-bg: #f9fafb;
+  --books-pm-badge-neutral-border: #d1d5db;
+  --books-pm-badge-neutral-text: #374151;
+  --books-pm-action-view: #ea580c;
+  --books-pm-action-view-hover: rgba(234, 88, 12, 0.08);
+  --books-pm-action-edit: #059669;
+  --books-pm-action-edit-hover: rgba(5, 150, 105, 0.08);
+  --books-pm-action-delete: #dc2626;
+  --books-pm-action-delete-hover: rgba(220, 38, 38, 0.08);
 }
 
 .dark {
@@ -81,10 +100,120 @@
   --books-scroll-thumb: #3a3d45;
   --books-surface-muted: #252830;
   --books-shell-shadow: 0 4px 28px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.38);
+  /** PM-style list table cells (dark) */
+  --books-pm-table-body: #b8bcc6;
+  --books-pm-avatar-bg: #3f4450;
+  --books-pm-avatar-text: #f3f4f6;
+  --books-pm-badge-orange-bg: rgba(234, 88, 12, 0.2);
+  --books-pm-badge-orange-border: rgba(251, 146, 60, 0.5);
+  --books-pm-badge-orange-text: #fdba74;
+  --books-pm-badge-active-bg: rgba(16, 185, 129, 0.18);
+  --books-pm-badge-active-border: rgba(52, 211, 153, 0.45);
+  --books-pm-badge-active-text: #6ee7b7;
+  --books-pm-badge-neutral-bg: #2a2e38;
+  --books-pm-badge-neutral-border: rgba(255, 255, 255, 0.12);
+  --books-pm-badge-neutral-text: #c4c8d0;
+  --books-pm-action-view: #fb923c;
+  --books-pm-action-view-hover: rgba(251, 146, 60, 0.12);
+  --books-pm-action-edit: #34d399;
+  --books-pm-action-edit-hover: rgba(52, 211, 153, 0.12);
+  --books-pm-action-delete: #f87171;
+  --books-pm-action-delete-hover: rgba(248, 113, 113, 0.12);
   color-scheme: dark;
 }
 
 @layer components {
+  /**
+   * PM-style list data table shell for Books — `modernEmbedded` table inside theme-aware card.
+   * Light matches PM production; dark remaps gray/white hardcoded table tokens to `--books-*`.
+   */
+  .books-pm-data-table {
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    border: 1px solid var(--books-border);
+    background-color: var(--books-bg-card);
+    box-shadow: var(--books-shell-shadow);
+  }
+
+  .books-pm-data-table table thead tr {
+    background-color: var(--books-surface-muted) !important;
+    border-bottom: 1px solid var(--books-border) !important;
+  }
+
+  .books-pm-data-table table thead th {
+    color: var(--books-text-secondary) !important;
+  }
+
+  .books-pm-data-table table tbody {
+    background-color: var(--books-bg-card) !important;
+  }
+
+  .books-pm-data-table table tbody tr {
+    border-color: var(--books-border) !important;
+  }
+
+  /* Remove PM `divide-gray-100` bright row lines */
+  .books-pm-data-table .divide-y > :not([hidden]) ~ :not([hidden]) {
+    border-top-width: 0 !important;
+  }
+
+  .books-pm-data-table table thead tr {
+    border-bottom-color: var(--books-border) !important;
+  }
+
+  .books-pm-data-table table tbody tr:hover {
+    background-color: var(--books-bg-elevated) !important;
+  }
+
+  .books-pm-data-table table tbody td {
+    color: var(--books-text-primary);
+  }
+
+  /* Override PM table hardcoded gray cell text in dark mode */
+  .dark .books-pm-data-table table tbody td {
+    color: var(--books-text-primary) !important;
+  }
+
+  .dark .books-pm-data-table table tbody td .text-gray-600,
+  .dark .books-pm-data-table table tbody td .text-gray-700,
+  .dark .books-pm-data-table table tbody td .text-gray-900 {
+    color: inherit;
+  }
+
+  .books-pm-data-table table thead th:first-child,
+  .books-pm-data-table table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: var(--books-bg-card);
+    box-shadow: none;
+  }
+
+  .books-pm-data-table table thead th:first-child {
+    background-color: var(--books-surface-muted);
+  }
+
+  .books-pm-data-table table tbody tr:hover td:first-child {
+    background-color: var(--books-bg-elevated);
+  }
+
+  .books-pm-data-table table thead th:last-child,
+  .books-pm-data-table table tbody td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background-color: var(--books-bg-card);
+    box-shadow: none;
+  }
+
+  .books-pm-data-table table thead th:last-child {
+    background-color: var(--books-surface-muted);
+  }
+
+  .books-pm-data-table table tbody tr:hover td:last-child {
+    background-color: var(--books-bg-elevated);
+  }
+
   /** Books-only: same surface recipe as dashboard `Card` elevated + Total Balance tile */
   .books-shell-surface {
     background-color: var(--books-bg-card);

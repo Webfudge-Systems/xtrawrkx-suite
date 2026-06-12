@@ -16,6 +16,7 @@ export { Card } from './Card';
 export { Badge } from './Badge';
 export { Avatar } from './Avatar';
 export { Table } from './Table';
+export { TableColumnPicker } from './TableColumnPicker';
 export { TableSortPanel } from './TableSortPanel';
 export { Pagination } from './Pagination';
 export { EmptyState } from './EmptyState';
@@ -24,12 +25,13 @@ export { KPICard } from './KPICard';
 export { FormSectionCard } from './FormSectionCard';
 export { SidebarTrialUpsell } from './SidebarTrialUpsell';
 export { PwaInstallPrompt } from './PwaInstallPrompt';
+export { WorkspaceHeader } from './WorkspaceHeader';
 export {
   LoginBrandCorner,
   LoginProductCredit,
   LoginMobileBrandHeader,
+  SidebarProductBranding,
 } from './LoginBrandCorner';
-export { WorkspaceHeader } from './WorkspaceHeader';
 export { WorkspaceBackButton, workspaceBackButtonClassName } from './WorkspaceBackButton';
 export {
   TableCellCreated,
@@ -80,6 +82,7 @@ export {
   TableCellCrmRowActions,
   crmTableActionsColumn,
 } from './TableCrmCells';
+export { crmTableCellTheme } from '../utils/crmTableCellTheme';
 export {
   NextConnectFlag,
   getNextConnectFlagVariant,
@@ -117,6 +120,8 @@ export {
 // CRM / entity activity (timeline + chats panel)
 export { ActivitiesTimeline } from './ActivitiesTimeline';
 export { EntityActivityPanel } from './EntityActivityPanel';
+export { EntityFilesPanel } from './EntityFilesPanel';
+export { ChatMessageAttachments } from './ChatMessageAttachments';
 export { LinkifiedText } from './LinkifiedText';
 export { ChatMessageText } from './ChatMessageText';
 export { MentionComposer } from './MentionComposer';

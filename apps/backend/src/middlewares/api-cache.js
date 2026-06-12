@@ -11,6 +11,7 @@ const SKIP_PREFIXES = [
   '/api/health',
   '/api/connect',
   '/api/upload',
+  '/api/entity-attachments',
   '/admin',
   '/_health',
 ];

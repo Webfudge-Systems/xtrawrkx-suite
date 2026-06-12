@@ -1,5 +1,5 @@
-import ModulePage from '@/app/_components/ModulePage'
+import BooksProjectNewPage from '@/app/_components/BooksProjectNewPage'
 
 export default function NewProjectPage() {
-  return <ModulePage title="New Project" />
+  return <BooksProjectNewPage />
 }

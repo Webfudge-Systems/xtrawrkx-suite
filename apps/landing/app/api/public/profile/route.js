@@ -23,7 +23,10 @@ const profileSyncPaths = () => [
   "/users/sync-profile",
 ];
 
-const websiteSignupPath = "/client-accounts/website-signup";
+const websiteSignupPaths = [
+  "/client-accounts/website-signup",
+  "/auth/website/signup",
+];
 
 const landingSignupSecret = () =>
   process.env.LANDING_SIGNUP_SECRET ||
@@ -123,19 +126,27 @@ const ensureClientAccount = async (body) => {
     headers["x-landing-signup-secret"] = secret;
   }
 
-  const response = await fetch(`${baseUrl}${websiteSignupPath}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
+  let response = null;
+  let data = null;
+  let lastStatus = 500;
 
-  const data = await response.json().catch(() => null);
+  for (const path of websiteSignupPaths) {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    data = await response.json().catch(() => null);
+    lastStatus = response.status;
+    if (response.status !== 404) break;
+  }
+
   if (!response.ok) {
     return {
       attempted: true,
       ok: false,
-      status: response.status,
+      status: lastStatus,
       error:
         data?.error ||
         data?.clientAccountSync?.error ||
@@ -152,7 +163,7 @@ const ensureClientAccount = async (body) => {
   return {
     attempted: true,
     ok: true,
-    status: response.status,
+    status: lastStatus,
     error: null,
     primaryContactSync: data?.primaryContactSync || null,
     defaultProjectSync: data?.defaultProjectSync || null,

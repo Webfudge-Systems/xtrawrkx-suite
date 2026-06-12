@@ -35,9 +35,8 @@ export async function fetchTaskComments({ taskId, limit = 80 } = {}) {
 /**
  * @param {{ taskId: string|number, comment: string }} opts
  */
-export async function addTaskComment({ taskId, comment } = {}) {
-  return strapiClient.post('/crm-activities/comments', {
-    taskId,
-    comment,
-  });
+export async function addTaskComment({ taskId, comment, attachments } = {}) {
+  const body = { taskId, comment };
+  if (Array.isArray(attachments) && attachments.length) body.attachments = attachments;
+  return strapiClient.post('/crm-activities/comments', body);
 }

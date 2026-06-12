@@ -17,7 +17,7 @@ import { TableCellLeadStatusSelect } from '@webfudge/ui'
 import { leadCompanyLabel, leadInitials } from '../leadsMeetingsShared'
 
 const PAGE_SIZE = 100
-const TABLE_LIMIT = 25
+const TABLE_LIMIT = 10
 
 const COMPACT_HEADER = '!px-3 !py-2.5'
 const COMPACT_CELL = '!px-3 !py-2.5'
@@ -59,7 +59,7 @@ async function fetchAllLeads() {
   return all
 }
 
-function LeadsAssignedTable({ rows, onStatusChange, savingByLeadId }) {
+function LeadsAssignedTable({ rows, hasMore, onStatusChange, savingByLeadId }) {
   if (!rows.length) {
     return (
       <EmptyState
@@ -129,9 +129,9 @@ function LeadsAssignedTable({ rows, onStatusChange, savingByLeadId }) {
           ))}
         </tbody>
       </table>
-      {rows.length >= TABLE_LIMIT ? (
+      {hasMore ? (
         <p className="border-t border-gray-100 bg-gray-50/80 px-4 py-2 text-center text-xs text-gray-500">
-          Showing first {TABLE_LIMIT} leads.{' '}
+          Showing latest {TABLE_LIMIT} leads.{' '}
           <Link
             href="/sales/lead-companies"
             className="font-semibold text-orange-600 hover:text-orange-700"
@@ -224,22 +224,23 @@ export default function LeadsAssignedWidget({ className = '' }) {
     [users]
   )
 
-  const filteredRows = useMemo(() => {
-    if (!selectedUserId) return []
-    return leads
-      .filter((lead) => String(assigneeId(lead) ?? '') === selectedUserId)
-      .slice(0, TABLE_LIMIT)
-      .map((lead) => {
-        const id = lead?.id ?? lead?.documentId
-        return {
-          id: id ?? leadCompanyLabel(lead),
-          lead,
-          company: leadCompanyLabel(lead),
-          initials: leadInitials(lead),
-          updatedAt: lead.updatedAt || lead.createdAt,
-          href: id != null ? `/sales/lead-companies/${id}` : '/sales/lead-companies',
-        }
-      })
+  const { memberLeadCount, filteredRows } = useMemo(() => {
+    if (!selectedUserId) return { memberLeadCount: 0, filteredRows: [] }
+    const memberLeads = leads.filter(
+      (lead) => String(assigneeId(lead) ?? '') === selectedUserId
+    )
+    const rows = memberLeads.slice(0, TABLE_LIMIT).map((lead) => {
+      const id = lead?.id ?? lead?.documentId
+      return {
+        id: id ?? leadCompanyLabel(lead),
+        lead,
+        company: leadCompanyLabel(lead),
+        initials: leadInitials(lead),
+        updatedAt: lead.updatedAt || lead.createdAt,
+        href: id != null ? `/sales/lead-companies/${id}` : '/sales/lead-companies',
+      }
+    })
+    return { memberLeadCount: memberLeads.length, filteredRows: rows }
   }, [leads, selectedUserId])
 
   const selectedUser = users.find((u) => String(u.id) === selectedUserId)
@@ -303,12 +304,16 @@ export default function LeadsAssignedWidget({ className = '' }) {
         ) : (
           <>
             <p className="mb-3 text-xs text-gray-500">
-              <span className="font-semibold text-gray-700">{filteredRows.length}</span>
-              {filteredRows.length === 1 ? ' lead' : ' leads'} for{' '}
+              <span className="font-semibold text-gray-700">{memberLeadCount}</span>
+              {memberLeadCount === 1 ? ' lead' : ' leads'} for{' '}
               <span className="font-semibold text-gray-700">{selectedLabel}</span>
+              {memberLeadCount > TABLE_LIMIT ? (
+                <span className="text-gray-400"> · showing latest {TABLE_LIMIT}</span>
+              ) : null}
             </p>
             <LeadsAssignedTable
               rows={filteredRows}
+              hasMore={memberLeadCount > TABLE_LIMIT}
               onStatusChange={handleStatusChange}
               savingByLeadId={savingByLeadId}
             />

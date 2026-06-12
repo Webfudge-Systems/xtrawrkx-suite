@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { KPICard } from '@webfudge/ui'
 import { Banknote, Clock3, Receipt, Wallet } from 'lucide-react'
-import { booksApi } from '@/lib/api'
 import type { Expense, Invoice, TimeEntry } from '@/lib/types'
+import { MOCK_EXPENSES, MOCK_INVOICES, MOCK_TIME_ENTRIES } from '@/lib/mock-data'
 import { formatCurrency } from '@webfudge/utils'
 import BooksSalesAnalyticsWidget from './BooksSalesAnalyticsWidget'
 import BooksSalesPipelineWidget from './BooksSalesPipelineWidget'
@@ -61,29 +61,9 @@ function KpiCards({
 }
 
 export default function DashboardTab({ hideKpis = false }: { hideKpis?: boolean }) {
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [expenses, setExpenses] = useState<Expense[]>([])
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([])
-
-  useEffect(() => {
-    if (hideKpis) return
-
-    let cancelled = false
-    Promise.all([
-      booksApi.fetchInvoices().catch(() => ({ data: [] as Invoice[] })),
-      booksApi.fetchExpenses().catch(() => ({ data: [] as Expense[] })),
-      booksApi.fetchTimeEntries().catch(() => ({ data: [] as TimeEntry[] })),
-    ]).then(([invoicesRes, expensesRes, timeRes]) => {
-      if (cancelled) return
-      setInvoices(invoicesRes.data ?? [])
-      setExpenses(expensesRes.data ?? [])
-      setTimeEntries(timeRes.data ?? [])
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [hideKpis])
+  const [invoices] = useState<Invoice[]>(hideKpis ? [] : MOCK_INVOICES)
+  const [expenses] = useState<Expense[]>(hideKpis ? [] : MOCK_EXPENSES)
+  const [timeEntries] = useState<TimeEntry[]>(hideKpis ? [] : MOCK_TIME_ENTRIES)
 
   const metrics = useMemo(() => {
     const totalReceivables = invoices.reduce((sum, invoice) => sum + (invoice.balanceDue ?? invoice.total ?? 0), 0)

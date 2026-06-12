@@ -128,7 +128,7 @@ export default function DashboardPage() {
               );
             setAssigneeTasks(mine);
           } catch {
-            setAssigneeTasks([])
+            setAssigneeTasks([]);
           }
         } else {
           setAssigneeTasks([])

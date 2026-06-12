@@ -10,7 +10,7 @@ const { createCoreService } = require('@strapi/strapi').factories;
 const crypto = require('crypto');
 const { ORG_ROLE_UID, resolveOrganizationRoleIdForOrg } = require('../../../utils/organization-role');
 const { logAccountsActivity, actorDisplayName } = require('../../../utils/crm-activity-log');
-const { applyMembershipDepartments } = require('../../../utils/department-context');
+const { applyMembershipDepartments } = require('../../../utils/department-membership');
 
 module.exports = createCoreService('api::invitation.invitation', ({ strapi }) => ({
   async sendEmailSafe({ to, subject, text, html }) {

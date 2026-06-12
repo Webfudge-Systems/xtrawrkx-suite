@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Checkbox, Modal } from '@webfudge/ui'
-import { getSupabaseClient } from '@/lib/supabase'
 
 type ConfigureFeaturesModalProps = {
   isOpen: boolean
   onClose: () => void
-  userId?: string
 }
 
 const FEATURES = [
@@ -34,7 +32,7 @@ const defaultState: FeaturesState = {
   inventory: false,
 }
 
-export default function ConfigureFeaturesModal({ isOpen, onClose, userId }: ConfigureFeaturesModalProps) {
+export default function ConfigureFeaturesModal({ isOpen, onClose }: ConfigureFeaturesModalProps) {
   const [state, setState] = useState<FeaturesState>(defaultState)
   const [saving, setSaving] = useState(false)
 
@@ -48,24 +46,15 @@ export default function ConfigureFeaturesModal({ isOpen, onClose, userId }: Conf
     setState((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const onSave = async () => {
+  const onSave = () => {
     setSaving(true)
     localStorage.setItem('books-features', JSON.stringify(state))
-    try {
-      const supabase = getSupabaseClient()
-      if (supabase && userId) {
-        await supabase.from('books_features').upsert({ user_id: userId, preferences: state })
-      }
-    } catch (_error) {
-      // Local persistence remains fallback for missing backend table.
-    } finally {
-      setSaving(false)
-      onClose()
-    }
+    setSaving(false)
+    onClose()
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Configure Features" subtitle="Enable modules for your business." size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Configure Features" subtitle="Enable modules for your business." size="lg" theme="books">
       <div className="space-y-4">
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
           Invoices, Credit Notes, Expenses, Bills, Recurring Invoices and more are available by default.

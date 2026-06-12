@@ -5,7 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GripVertical } from 'lucide-react'
 import { Button } from '@webfudge/ui'
 
-type Col = { key: string; label?: string; title?: string }
+type Col = { key: string; label?: string; title?: string; fixed?: boolean | 'start' | 'end' }
+
+function isEndFixedCol(c: Col) {
+  return c.key === 'actions' || c.fixed === 'end'
+}
 
 function colLabel(c: Col) {
   const raw = c.label ?? c.title ?? c.key
@@ -67,7 +71,17 @@ function persistOrder(storageKey: string, order: string[]) {
 export function useBooksTableColumnPicker({ columns, storageKey }: { columns: Col[]; storageKey: string }) {
   const keys = useMemo(() => (columns || []).map((c) => c?.key).filter(Boolean) as string[], [columns])
   const pinnedKey = keys[0]
-  const reorderableKeys = useMemo(() => keys.slice(1), [keys])
+  const endPinnedKeys = useMemo(
+    () => keys.filter((k) => {
+      const col = columns.find((c) => c.key === k)
+      return col ? isEndFixedCol(col) : k === 'actions'
+    }),
+    [columns, keys]
+  )
+  const reorderableKeys = useMemo(
+    () => keys.filter((k) => k !== pinnedKey && !endPinnedKeys.includes(k)),
+    [endPinnedKeys, keys, pinnedKey]
+  )
 
   const [columnPickerOpen, setColumnPickerOpen] = useState(false)
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => defaultVisibility(keys))
@@ -96,6 +110,8 @@ export function useBooksTableColumnPicker({ columns, storageKey }: { columns: Co
     return () => document.removeEventListener('mousedown', onDocMouseDown)
   }, [columnPickerOpen])
 
+  const closeColumnPicker = useCallback(() => setColumnPickerOpen(false), [])
+
   const byKey = useMemo(() => {
     const m: Record<string, Col> = {}
     for (const c of columns || []) {
@@ -108,11 +124,14 @@ export function useBooksTableColumnPicker({ columns, storageKey }: { columns: Co
     const out: Col[] = []
     if (pinnedKey && visibility[pinnedKey] !== false && byKey[pinnedKey]) out.push(byKey[pinnedKey])
     for (const k of order) {
-      if (k === pinnedKey) continue
+      if (k === pinnedKey || endPinnedKeys.includes(k)) continue
       if (visibility[k] !== false && byKey[k]) out.push(byKey[k])
     }
+    for (const k of endPinnedKeys) {
+      if (byKey[k]) out.push(byKey[k])
+    }
     return out
-  }, [byKey, order, pinnedKey, visibility])
+  }, [byKey, endPinnedKeys, order, pinnedKey, visibility])
 
   const setColumnVisible = useCallback(
     (key: string, visible: boolean) => {
@@ -176,6 +195,7 @@ export function useBooksTableColumnPicker({ columns, storageKey }: { columns: Co
       columnDropIndicatorRef.current = null
       setColumnDropIndicator(null)
       if (!fromKey || fromKey === targetKey || fromKey === pinnedKey || targetKey === pinnedKey) return
+      if (endPinnedKeys.includes(fromKey) || endPinnedKeys.includes(targetKey)) return
       setOrder((prev) => {
         const next = [...prev]
         const fi = next.indexOf(fromKey)
@@ -189,7 +209,7 @@ export function useBooksTableColumnPicker({ columns, storageKey }: { columns: Co
         return next
       })
     },
-    [pinnedKey, storageKey]
+    [endPinnedKeys, pinnedKey, storageKey]
   )
 
   const resetColumnTablePreferences = useCallback(() => {
@@ -210,7 +230,7 @@ export function useBooksTableColumnPicker({ columns, storageKey }: { columns: Co
   const dropdown =
     columnPickerOpen && keys.length > 0 ? (
       <div
-        className="absolute right-0 top-full z-40 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-[color:var(--books-border)] bg-[var(--books-bg-elevated)] p-2.5 shadow-[var(--books-shell-shadow)]"
+        className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-[color:var(--books-border)] bg-[var(--books-bg-elevated)] p-2.5 shadow-[var(--books-shell-shadow)]"
         role="dialog"
         aria-label="Table columns"
       >
@@ -311,6 +331,7 @@ export function useBooksTableColumnPicker({ columns, storageKey }: { columns: Co
     toolbarRef,
     columnPickerOpen,
     setColumnPickerOpen,
+    closeColumnPicker,
     onColumnVisibilityClick: toggleColumnPicker,
     columnPickerDropdown: dropdown,
   }

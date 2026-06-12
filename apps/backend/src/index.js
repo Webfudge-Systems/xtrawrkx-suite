@@ -1,5 +1,4 @@
 const { seed } = require('../database/seeds/apps-and-modules');
-const { seedPlatformAdmin } = require('../database/seeds/platform-admin');
 const rbac = require('./constants/rbac-app-matrix');
 const {
   resolveOrganizationRoleId,
@@ -56,15 +55,8 @@ module.exports = {
       try {
         await seed(strapi);
       } catch (error) {
-        console.error('❌ Apps/modules seeding failed:', error);
+        console.error('❌ Seeding failed:', error);
       }
-    }
-
-    // Always ensure platform admin exists (idempotent)
-    try {
-      await seedPlatformAdmin(strapi);
-    } catch (error) {
-      console.error('❌ Platform admin seeding failed:', error);
     }
 
     // Seed default organization roles for membership templates

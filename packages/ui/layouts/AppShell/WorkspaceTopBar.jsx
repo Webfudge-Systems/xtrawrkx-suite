@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { PanelLeftOpen } from 'lucide-react'
+import { SidebarProductBranding } from '../../components/LoginBrandCorner'
 
 /**
  * Slim top bar shown only when the sidebar is fully hidden.
@@ -23,16 +24,28 @@ export function WorkspaceTopBar({ onOpenSidebar, branding }) {
         <Link
           href={branding.homeHref || '/'}
           className="flex items-center gap-2 ml-1 min-w-0"
-          aria-label={branding.brandName ? `${branding.brandName} home` : 'Home'}
+          aria-label={
+            branding.productName || branding.brandName
+              ? `${branding.productName || branding.brandName} home`
+              : 'Home'
+          }
         >
           <Image
             src={branding.logoPath}
-            alt={branding.brandName || 'Logo'}
+            alt={branding.productName || branding.brandName || 'Logo'}
             width={32}
             height={32}
             className="h-8 w-8 shrink-0 object-contain"
           />
-          {branding.brandName ? (
+          {branding.productName ? (
+            <div className="hidden sm:block min-w-0">
+              <SidebarProductBranding
+                productName={branding.productName}
+                companyName={branding.companyName}
+                className="scale-[0.85] origin-left"
+              />
+            </div>
+          ) : branding.brandName ? (
             <span className="text-sm font-semibold text-gray-900 truncate hidden sm:block">
               {branding.brandName}
             </span>

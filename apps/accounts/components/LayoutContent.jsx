@@ -11,7 +11,8 @@ export default function LayoutContent({ children }) {
       sidebarBehavior="hide"
       sidebarBranding={{
         logoPath: ACCOUNTS_SITE.logoPath,
-        brandName: ACCOUNTS_SITE.name,
+        productName: ACCOUNTS_SITE.name,
+        companyName: ACCOUNTS_SITE.brandName,
         homeHref: '/',
       }}
       showPwa={false}

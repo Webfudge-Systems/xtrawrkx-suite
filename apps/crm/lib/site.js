@@ -11,6 +11,14 @@ export const CRM_SITE = {
   description:
     'Fudge People is the sales CRM workspace for leads, deals, contacts, client accounts, and pipeline management across the Xtrawrkx suite.',
   tagline: 'Manage leads, deals, contacts, and your pipeline in one place.',
+  loginTagline: 'Close more deals, faster.',
+  loginDetail:
+    'Sign in to manage leads, contacts, deals, and your sales pipeline from one workspace.',
+  loginFeatures: [
+    { value: 'Capture', label: 'Leads' },
+    { value: 'Close', label: 'Deals' },
+    { value: 'Grow', label: 'Pipeline' },
+  ],
   url: siteUrl,
   ...FUDGE_SUITE_ASSETS.xtrawrkx,
   brandLogoPath: FUDGE_SUITE_ASSETS.xtrawrkx.brandLogoPath,

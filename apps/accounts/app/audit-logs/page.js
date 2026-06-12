@@ -17,6 +17,7 @@ import {
   Table2,
   Trash2,
   X,
+  Eye,
 } from 'lucide-react'
 import {
   ActivitiesTimeline,
@@ -34,6 +35,8 @@ import {
   ViewToggleGroup,
   formatTableDate,
   ownerDisplayFromUser,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui'
 import AccountsPageHeader from '../../components/AccountsPageHeader'
 import { auditService } from '../../lib/api'
@@ -502,6 +505,44 @@ const selectClassName =
 const AUDIT_VIEW_STORAGE_KEY = 'accounts.auditLogs.viewMode'
 const AUDIT_VIEW_MODES = ['table', 'timeline']
 
+const COLUMN_VISIBILITY_STORAGE_KEY = 'accounts.auditLogs.tableColumnVisibility'
+const COLUMN_ORDER_STORAGE_KEY = 'accounts.auditLogs.tableColumnOrder'
+const COLUMN_WIDTHS_STORAGE_KEY = 'accounts.auditLogs.tableColumnWidths'
+
+const DEFAULT_COLUMN_WIDTHS = {
+  createdAt: 180,
+  actor: 200,
+  action: 160,
+  module: 110,
+  entityName: 220,
+  severity: 120,
+  category: 120,
+}
+
+const MIN_COLUMN_WIDTHS = {
+  createdAt: 140,
+  actor: 160,
+  entityName: 160,
+}
+
+const TOGGLEABLE_COLUMNS = [
+  { key: 'actor', label: 'User' },
+  { key: 'action', label: 'Action' },
+  { key: 'module', label: 'Module' },
+  { key: 'entityName', label: 'Entity' },
+  { key: 'severity', label: 'Severity' },
+  { key: 'category', label: 'Type' },
+]
+
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key)
+
+const DEFAULT_ON_COLUMN_KEYS = new Set(['actor', 'action', 'module', 'entityName'])
+
+const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
+  acc[key] = DEFAULT_ON_COLUMN_KEYS.has(key)
+  return acc
+}, {})
+
 function readStoredAuditView() {
   if (typeof window === 'undefined') return 'table'
   try {
@@ -561,6 +602,42 @@ export default function AuditLogsPage() {
   const [actorFilter, setActorFilter] = useState('all')
   const [dateRange, setDateRange] = useState('30d')
   const [viewMode, setViewMode] = useState(() => readStoredAuditView())
+
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
+  })
+
+  useEffect(() => {
+    if (!columnPickerOpen) return
+    const onDocMouseDown = (e) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setColumnPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [columnPickerOpen, setColumnPickerOpen, toolbarRef])
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -866,6 +943,16 @@ export default function AuditLogsPage() {
     [openEntityDrawer]
   )
 
+  const visibleColumns = useMemo(() => {
+    const byKey = Object.fromEntries(columns.map((c) => [c.key, c]))
+    const out = []
+    if (byKey.createdAt) out.push(byKey.createdAt)
+    for (const key of columnOrder) {
+      if (columnVisibility[key] && byKey[key]) out.push(byKey[key])
+    }
+    return out
+  }, [columns, columnVisibility, columnOrder])
+
   return (
     <div className="p-4 md:p-6 space-y-6 bg-white min-h-full">
       <AccountsPageHeader
@@ -978,7 +1065,7 @@ export default function AuditLogsPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-gray-600">
+      <div className="relative flex items-center justify-between text-sm text-gray-600" ref={toolbarRef}>
         <p>
           Showing <span className="font-semibold text-gray-900">{filteredLogs.length}</span> event
           {filteredLogs.length !== 1 ? 's' : ''}
@@ -992,11 +1079,36 @@ export default function AuditLogsPage() {
               <GanttChart className="h-[18px] w-[18px]" strokeWidth={2} />
             </ViewToggleButton>
           </ViewToggleGroup>
+          {viewMode === 'table' ? (
+            <button
+              type="button"
+              onClick={() => setColumnPickerOpen((open) => !open)}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 shadow-md transition-colors duration-200 hover:border-gray-400 hover:bg-gray-50"
+              title="Show, hide, or reorder columns"
+            >
+              <Eye className="h-[18px] w-[18px]" strokeWidth={2} />
+            </button>
+          ) : null}
           <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
+        <TableColumnPicker
+          open={viewMode === 'table' && columnPickerOpen}
+          description="Time stays visible. Drag column edges in the table to resize."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
+        />
       </div>
 
       {loadError ? (
@@ -1014,7 +1126,14 @@ export default function AuditLogsPage() {
           <>
             {viewMode === 'table' ? (
               <>
-                <Table columns={columns} data={paginatedLogs} keyField="id" variant="modern" onRowClick={setSelectedLog} />
+                <Table
+                  columns={visibleColumns}
+                  data={paginatedLogs}
+                  keyField="id"
+                  variant="modern"
+                  onRowClick={setSelectedLog}
+                  {...tableResizeProps}
+                />
                 {paginatedLogs.length === 0 && (
                   <div className="p-12 text-center border-t border-gray-200">
                     <Activity className="w-10 h-10 mx-auto mb-3 text-gray-300" />

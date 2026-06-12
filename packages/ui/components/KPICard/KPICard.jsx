@@ -21,10 +21,12 @@ import { booksKpiCardClassName } from '../../themes/booksSurface'
  * @param {function} onClick - Optional click handler for the card
  * @param {string} className - Optional additional CSS classes
  * @param {boolean} compact - Same layout as default with less top/bottom padding and no subtitle/trend footer
+ * @param {string} valueTitle - Optional native tooltip (e.g. full amount when value is compact)
  */
 const KPICard = ({
   title,
   value,
+  valueTitle,
   subtitle,
   change,
   changeType = 'increase',
@@ -100,10 +102,13 @@ const KPICard = ({
     : 'mb-2 text-sm font-medium text-gray-600'
   const valueClass = isBooks
     ? clsx(
-        'text-4xl font-bold tracking-tight text-[var(--books-text-primary,#111827)]',
+        'max-w-full truncate text-3xl font-bold tracking-tight text-[var(--books-text-primary,#111827)] sm:text-4xl',
         showFooter && 'mb-2'
       )
-    : clsx('text-4xl font-bold text-gray-900', showFooter && 'mb-2')
+    : clsx(
+        'max-w-full truncate text-3xl font-bold sm:text-4xl text-gray-900',
+        showFooter && 'mb-2'
+      )
   const footerClass = isBooks
     ? 'flex items-center gap-1.5 text-sm text-[var(--books-text-secondary,#6b7280)]'
     : 'flex items-center gap-1.5 text-sm text-gray-500'
@@ -120,7 +125,9 @@ const KPICard = ({
   return (
     <Card
       variant="elevated"
+      surface={isBooks ? 'books' : undefined}
       className={clsx(
+        isBooks && booksKpiCardClassName,
         paddingClass,
         onClick &&
           'cursor-pointer hover:shadow-[0_6px_26px_rgba(15,23,42,0.13),0_3px_8px_rgba(15,23,42,0.07)] transition-shadow',
@@ -131,7 +138,9 @@ const KPICard = ({
       <div className="flex justify-between items-start">
         <div className="min-w-0 flex-1 pr-2">
           <p className={titleClass}>{title}</p>
-          <p className={valueClass}>{value}</p>
+          <p className={valueClass} title={valueTitle || undefined}>
+            {value}
+          </p>
           {showFooter && change && (
             <div className={footerClass}>
               <span className={isBooks ? booksDot : `h-2 w-2 rounded-full ${colors.dotColor}`} aria-hidden />

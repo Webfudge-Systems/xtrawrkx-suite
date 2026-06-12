@@ -570,6 +570,7 @@ export default function NewClientAccountPage() {
                   placeholder="Select industry"
                   icon={Building2}
                   allowCustom
+                  onCustomAdd={onIndustrySaved}
                   searchable
                 />
               </div>

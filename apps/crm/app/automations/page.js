@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -31,6 +31,8 @@ import {
   TableCellCreated,
   TableCellDateOnly,
   TableRowActionMenuPortal,
+  useTableColumnPreferences,
+  TableColumnPicker,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../components/CRMPageHeader';
 import { getWorkflows, deleteWorkflow, publishWorkflow, pauseWorkflow } from './services/automationService';
@@ -38,6 +40,8 @@ import { getWorkflows, deleteWorkflow, publishWorkflow, pauseWorkflow } from './
 // ─── Column visibility (localStorage) ───────────────────────────────────────
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.automations.tableColumnVisibility';
+const COLUMN_ORDER_STORAGE_KEY = 'crm.automations.tableColumnOrder';
+const COLUMN_WIDTHS_STORAGE_KEY = 'crm.automations.tableColumnWidths';
 
 const TOGGLEABLE_COLUMNS = [
   { key: 'status', label: 'Status' },
@@ -48,24 +52,14 @@ const TOGGLEABLE_COLUMNS = [
   { key: 'runStats', label: 'Runs / last run' },
 ];
 
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key);
+
 const DEFAULT_ON_KEYS = new Set(['status', 'trigger', 'version', 'updatedAt', 'createdAt']);
 
 const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
   acc[key] = DEFAULT_ON_KEYS.has(key);
   return acc;
 }, {});
-
-function loadColumnVisibility() {
-  if (typeof window === 'undefined') return { ...DEFAULT_COLUMN_VISIBILITY };
-  try {
-    const raw = window.localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_COLUMN_VISIBILITY };
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_COLUMN_VISIBILITY, ...parsed };
-  } catch {
-    return { ...DEFAULT_COLUMN_VISIBILITY };
-  }
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -117,12 +111,32 @@ export default function AutomationsPage() {
   const [deleting, setDeleting] = useState(false);
   const [moreActionMenu, setMoreActionMenu] = useState(null);
 
-  const [columnPickerOpen, setColumnPickerOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState(() => ({ ...DEFAULT_COLUMN_VISIBILITY }));
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+  });
+
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [draftFilters, setDraftFilters] = useState(initialFilters);
-  const toolbarRef = useRef(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -137,10 +151,6 @@ export default function AutomationsPage() {
   }, [load]);
 
   useEffect(() => {
-    setColumnVisibility(loadColumnVisibility());
-  }, []);
-
-  useEffect(() => {
     if (!columnPickerOpen) return undefined;
     const onDocMouseDown = (e) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
@@ -149,29 +159,7 @@ export default function AutomationsPage() {
     };
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [columnPickerOpen]);
-
-  const setColumnVisible = useCallback((key, visible) => {
-    setColumnVisibility((prev) => {
-      const next = { ...prev, [key]: visible };
-      try {
-        window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  const resetColumnTablePreferences = useCallback(() => {
-    const vis = { ...DEFAULT_COLUMN_VISIBILITY };
-    setColumnVisibility(vis);
-    try {
-      window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(vis));
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  }, [columnPickerOpen, setColumnPickerOpen, toolbarRef]);
 
   const counts = useMemo(
     () => ({
@@ -472,12 +460,12 @@ export default function AutomationsPage() {
     const byKey = Object.fromEntries(allTableColumns.map((c) => [c.key, c]));
     const out = [];
     if (byKey.name) out.push(byKey.name);
-    for (const { key } of TOGGLEABLE_COLUMNS) {
+    for (const key of columnOrder) {
       if (columnVisibility[key] && byKey[key]) out.push(byKey[key]);
     }
     if (byKey.actions) out.push(byKey.actions);
     return out;
-  }, [allTableColumns, columnVisibility]);
+  }, [allTableColumns, columnVisibility, columnOrder]);
 
   const breadcrumb = [
     { label: 'Home', href: '/' },
@@ -571,49 +559,21 @@ export default function AutomationsPage() {
           onExportClick={handleExportFiltered}
           exportTitle="Export"
         />
-        {columnPickerOpen ? (
-          <div
-            className="absolute right-0 top-full z-40 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl"
-            role="dialog"
-            aria-label="Table columns"
-          >
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Columns
-            </p>
-            <p className="mb-2 text-xs leading-snug text-gray-500">
-              Workflow name and actions stay visible. Toggle optional columns below.
-            </p>
-            <ul className="max-h-[min(51vh,18.75rem)] space-y-0 overflow-y-auto pr-1">
-              {TOGGLEABLE_COLUMNS.map(({ key, label }) => (
-                <li
-                  key={key}
-                  className="flex items-stretch rounded-lg border border-transparent hover:border-gray-100"
-                >
-                  <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2 py-1.5 text-sm text-gray-800 hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 shrink-0 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                      checked={Boolean(columnVisibility[key])}
-                      onChange={(e) => setColumnVisible(key, e.target.checked)}
-                    />
-                    <span>{label}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-2 border-t border-gray-100 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full text-sm font-medium text-gray-700"
-                onClick={resetColumnTablePreferences}
-              >
-                Reset to default
-              </Button>
-            </div>
-          </div>
-        ) : null}
+        <TableColumnPicker
+          open={columnPickerOpen}
+          description="Workflow name and actions stay visible. Drag column edges in the table to resize."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
+        />
       </div>
 
       <div className="text-sm text-gray-600">
@@ -634,6 +594,7 @@ export default function AutomationsPage() {
               keyField="id"
               variant="modern"
               onRowClick={(row) => handleEdit(row)}
+              {...tableResizeProps}
             />
             {paginatedWorkflows.length === 0 ? (
               <div className="border-t border-gray-200 p-12 text-center">

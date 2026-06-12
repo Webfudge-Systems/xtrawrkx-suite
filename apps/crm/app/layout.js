@@ -1,6 +1,5 @@
 import './globals.css';
 import { AuthProvider } from '@webfudge/auth';
-import { xtrawrkxMetadataIcons } from '@webfudge/utils';
 import LayoutContent from '../components/LayoutContent';
 import { CRM_SITE } from '../lib/site';
 
@@ -10,7 +9,7 @@ export const viewport = {
   initialScale: 1,
 };
 
-const siteUrl = CRM_SITE.url;
+const siteUrl = (process.env.NEXT_PUBLIC_CRM_APP_URL || 'http://localhost:3007').replace(/\/$/, '');
 const shareDescription =
   'A modern CRM workspace for leads, deals, client accounts, projects, and communication workflows.';
 
@@ -25,12 +24,12 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: CRM_SITE.shortName,
+    title: CRM_SITE.name,
   },
   formatDetection: {
     telephone: false,
   },
-  keywords: CRM_SITE.keywords,
+  keywords: ['CRM', 'sales CRM', 'lead management', 'deal pipeline', 'client accounts'],
   alternates: {
     canonical: '/',
   },
@@ -40,7 +39,7 @@ export const metadata = {
     type: 'website',
     images: [
       {
-        url: CRM_SITE.ogImagePath,
+        url: '/favicon/web-app-manifest-512x512.png',
         width: 512,
         height: 512,
         alt: CRM_SITE.name,
@@ -51,7 +50,7 @@ export const metadata = {
     card: 'summary',
     title: CRM_SITE.name,
     description: shareDescription,
-    images: [CRM_SITE.ogImagePath],
+    images: ['/favicon/web-app-manifest-512x512.png'],
   },
   robots: {
     index: false,
@@ -63,8 +62,15 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: xtrawrkxMetadataIcons(),
-  manifest: CRM_SITE.manifestPath,
+  icons: {
+    icon: [
+      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+    ],
+    apple: [{ url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: ['/favicon/favicon.svg'],
+  },
+  manifest: '/favicon/site.webmanifest',
 };
 
 export default function RootLayout({ children }) {

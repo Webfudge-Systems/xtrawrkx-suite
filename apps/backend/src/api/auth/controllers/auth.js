@@ -14,7 +14,10 @@ const {
   mapPortalSignupBody,
   JWT_SECRET,
 } = require('../../../utils/client-auth');
-const { ensureWebsiteClientAccount } = require('../../../utils/website-signup');
+const {
+  verifyLandingSignupSecret,
+  ensureWebsiteClientAccount,
+} = require('../../../utils/website-signup');
 const { handleSimilarCompaniesRequest } = require('../../../utils/similar-companies-handler');
 
 const ORG_MEMBERSHIP_UID = 'api::organization-user.organization-user';
@@ -114,17 +117,6 @@ function organizationPayload(membership) {
   };
 }
 
-function userPayload(user) {
-  return {
-    id: user.id,
-    email: user.email,
-    username: user.username,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    isPlatformAdmin: Boolean(user.isPlatformAdmin),
-  };
-}
-
 module.exports = {
   async signup(ctx) {
     const { email, password, firstName, lastName } = ctx.request.body;
@@ -172,49 +164,12 @@ module.exports = {
           email: user.email,
           username: user.username,
           firstName: user.firstName,
-          lastName: user.lastName,
-          isPlatformAdmin: Boolean(user.isPlatformAdmin),
+          lastName: user.lastName
         },
         organizations: organizations.map(organizationPayload)
       });
     } catch (error) {
       console.error('Signup error:', error);
-      ctx.badRequest(error.message);
-    }
-  },
-
-  async platformLogin(ctx) {
-    const { identifier, password } = ctx.request.body;
-
-    if (!identifier || !password) {
-      return ctx.badRequest('Identifier and password are required');
-    }
-
-    try {
-      let user = await strapi.query('plugin::users-permissions.user').findOne({
-        where: {
-          $or: [{ email: identifier.toLowerCase() }, { username: identifier }],
-        },
-      });
-
-      if (!user) return ctx.badRequest('Invalid credentials');
-
-      const validPassword = await strapi.plugins['users-permissions'].services.user.validatePassword(
-        password,
-        user.password
-      );
-
-      if (!validPassword) return ctx.badRequest('Invalid credentials');
-      if (user.blocked) return ctx.badRequest('Your account has been blocked');
-      if (!user.isPlatformAdmin) return ctx.forbidden('Only platform administrators can sign in here');
-
-      user = await normalizeUserUsername(strapi, user);
-
-      const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
-      ctx.send({ jwt: token, user: userPayload(user), organizations: [] });
-    } catch (error) {
-      console.error('Platform login error:', error);
       ctx.badRequest(error.message);
     }
   },
@@ -263,101 +218,21 @@ module.exports = {
         { expiresIn: '7d' }
       );
 
-      const organizations = user.isPlatformAdmin
-        ? []
-        : await ensureActiveOrganizationMembership(user);
+      const organizations = await ensureActiveOrganizationMembership(user);
 
       ctx.send({
         jwt: token,
-        user: userPayload(user),
-        organizations: organizations.map(organizationPayload),
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName
+        },
+        organizations: organizations.map(organizationPayload)
       });
     } catch (error) {
       console.error('Login error:', error);
-      ctx.badRequest(error.message);
-    }
-  },
-
-  async clientSignup(ctx) {
-    const body = ctx.request.body || {};
-    const email = normalizeString(body.email).toLowerCase();
-    const password = body.password;
-    const companyName = normalizeString(body.companyName);
-
-    if (!email || !password) {
-      return ctx.badRequest('Email and password are required');
-    }
-    if (!companyName) {
-      return ctx.badRequest('Company name is required');
-    }
-    if (String(password).length < 8) {
-      return ctx.badRequest('Password must be at least 8 characters');
-    }
-
-    try {
-      if (await emailHasPortalAccess(strapi, email)) {
-        return ctx.badRequest('An account with this email already exists');
-      }
-
-      const result = await ensureWebsiteClientAccount(strapi, mapPortalSignupBody(body));
-      if (!result.ok) {
-        return ctx.send({ error: { message: result.error || 'Signup failed' } }, result.status || 400);
-      }
-
-      const login = await authenticateClientCredentials(strapi, email, password);
-      if (login.ok) {
-        return ctx.send({
-          success: true,
-          message: 'Account created successfully',
-          jwt: login.jwt,
-          token: login.token,
-          account: login.account,
-          contacts: login.contacts,
-        });
-      }
-
-      return ctx.send({
-        success: true,
-        message: 'Account created. Please sign in with your email and password.',
-      });
-    } catch (error) {
-      console.error('Client signup error:', error);
-      ctx.badRequest(error.message);
-    }
-  },
-
-  async clientVerifyOtp(ctx) {
-    const { email, password } = ctx.request.body || {};
-
-    if (!email) {
-      return ctx.badRequest('Email is required');
-    }
-
-    try {
-      if (password) {
-        const login = await authenticateClientCredentials(strapi, email, password);
-        if (login.ok) {
-          return ctx.send({
-            token: login.token,
-            jwt: login.jwt,
-            account: login.account,
-            contacts: login.contacts,
-          });
-        }
-        return ctx.send({ error: { message: login.message } }, login.status || 401);
-      }
-
-      const hasAccess = await emailHasPortalAccess(strapi, email);
-      if (!hasAccess) {
-        return ctx.badRequest('No portal account found for this email');
-      }
-
-      return ctx.send({
-        success: true,
-        message: 'Account is ready. Sign in with your email and password.',
-      });
-    } catch (error) {
-      console.error('Client verify-otp error:', error);
       ctx.badRequest(error.message);
     }
   },
@@ -385,6 +260,85 @@ module.exports = {
       });
     } catch (error) {
       console.error('Client login error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async clientSignup(ctx) {
+    const body = ctx.request.body || {};
+    const email = normalizeString(body.email);
+    const password = normalizeString(body.password);
+
+    if (!email || !password) {
+      return ctx.badRequest('Email and password are required');
+    }
+    if (password.length < 6) {
+      return ctx.badRequest('Password must be at least 6 characters');
+    }
+
+    try {
+      const mapped = mapPortalSignupBody(body);
+      const provision = await ensureWebsiteClientAccount(strapi, mapped);
+      if (!provision.ok) {
+        return ctx.send(
+          { error: { message: provision.error || 'Signup failed' } },
+          provision.status || 400
+        );
+      }
+
+      const loginResult = await authenticateClientCredentials(strapi, email, password);
+      if (!loginResult.ok) {
+        return ctx.send(
+          { error: { message: loginResult.message || 'Account created but login failed' } },
+          loginResult.status || 401
+        );
+      }
+
+      ctx.send({
+        success: true,
+        jwt: loginResult.jwt,
+        token: loginResult.token,
+        account: loginResult.account,
+        contacts: loginResult.contacts,
+        contact: loginResult.contact,
+        type: 'client',
+      });
+    } catch (error) {
+      console.error('Client signup error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async clientVerifyOtp(ctx) {
+    const { email, password } = ctx.request.body || {};
+    if (!email) {
+      return ctx.badRequest('Email is required');
+    }
+
+    try {
+      const hasAccess = await emailHasPortalAccess(strapi, String(email));
+      if (!hasAccess) {
+        return ctx.send({ error: { message: 'Account not found' } }, 404);
+      }
+
+      if (password) {
+        const loginResult = await authenticateClientCredentials(strapi, email, password);
+        if (loginResult.ok) {
+          return ctx.send({
+            success: true,
+            jwt: loginResult.jwt,
+            token: loginResult.token,
+            account: loginResult.account,
+            contacts: loginResult.contacts,
+            contact: loginResult.contact,
+            type: 'client',
+          });
+        }
+      }
+
+      ctx.send({ success: true, message: 'Account verified' });
+    } catch (error) {
+      console.error('Client verify-otp error:', error);
       ctx.badRequest(error.message);
     }
   },
@@ -438,6 +392,47 @@ module.exports = {
     }
   },
 
+  async websiteSignup(ctx) {
+    if (!verifyLandingSignupSecret(ctx)) {
+      return ctx.forbidden('Invalid or missing website signup secret.');
+    }
+
+    try {
+      const result = await ensureWebsiteClientAccount(strapi, ctx.request.body || {});
+      if (!result.ok) {
+        return ctx.send(
+          {
+            error: result.error,
+            primaryContactSync: result.primaryContactSync || null,
+            defaultProjectSync: result.defaultProjectSync || null,
+            clientPasswordSync: result.clientPasswordSync || null,
+            companyNameSync: result.companyNameSync || null,
+          },
+          result.status || 400
+        );
+      }
+
+      ctx.send(
+        {
+          clientAccount: result.data,
+          data: result.data,
+          primaryContactSync: result.primaryContactSync || null,
+          defaultProjectSync: result.defaultProjectSync || null,
+          clientPasswordSync: result.clientPasswordSync || null,
+          companyNameSync: result.companyNameSync || null,
+        },
+        result.status || 200
+      );
+    } catch (error) {
+      console.error('Website signup error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async websiteSimilarCompanies(ctx) {
+    return handleSimilarCompaniesRequest(strapi, ctx);
+  },
+
   async me(ctx) {
     try {
       const token = readBearerToken(ctx);
@@ -477,25 +472,21 @@ module.exports = {
       }
       user = await normalizeUserUsername(strapi, user);
 
-      const organizations = user.isPlatformAdmin
-        ? []
-        : await ensureActiveOrganizationMembership(user);
+      const organizations = await ensureActiveOrganizationMembership(user);
 
       ctx.send({
-        user: userPayload(user),
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
         organizations: organizations.map(organizationPayload),
       });
     } catch (error) {
       console.error('Me error:', error);
       ctx.badRequest(error.message);
     }
-  },
-
-  /**
-   * GET /api/auth/website/similar-companies?name=...
-   * Landing signup — no route conflict with client-accounts/:id
-   */
-  async websiteSimilarCompanies(ctx) {
-    return handleSimilarCompaniesRequest(strapi, ctx);
   },
 };

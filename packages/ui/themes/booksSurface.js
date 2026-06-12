@@ -19,6 +19,10 @@ export const booksElevatedCardClassName =
 const booksPillTrackShell =
   'flex min-h-[48px] items-center gap-1 overflow-x-auto rounded-full border border-[color:var(--books-border,rgba(255,255,255,0.12))] bg-[var(--books-bg-elevated,#252830)] px-2 py-1.5 shadow-[var(--books-shell-shadow,0_4px_28px_rgba(0,0,0,0.35))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
+/** List toolbars — full-width pill shell wrapping tabs + search + actions. */
+export const booksModernToolbarClassName =
+  'flex flex-wrap items-center justify-between gap-3 rounded-full border border-[color:var(--books-border,rgba(255,255,255,0.08))] bg-[var(--books-bg-card,#1e2128)] px-3 py-2 shadow-[var(--books-shell-shadow,0_4px_28px_rgba(0,0,0,0.55))] md:flex-nowrap'
+
 /** List toolbars — track grows with the row. */
 export const booksPillTrackClassName = `${booksPillTrackShell} min-w-0 flex-1`
 

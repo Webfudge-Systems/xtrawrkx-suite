@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   Modal,
   FormSectionCard,
   useIndustrySelectOptions,
+  buildUserSelectOptions,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
 import leadCompanyService from '../../../../lib/api/leadCompanyService';
@@ -34,6 +35,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Layers,
+  Linkedin,
 } from 'lucide-react';
 import { companyTypes } from '@webfudge/utils';
 import { fetchStoredIndustriesForCrm } from '../../../../lib/industryOptionsLoader';
@@ -86,6 +88,7 @@ export default function AddLeadCompanyPage() {
       phone: '',
       jobTitle: '',
       department: '',
+      linkedinUrl: '',
       role: 'PRIMARY_CONTACT',
       isPrimary: true,
     },
@@ -116,6 +119,11 @@ export default function AddLeadCompanyPage() {
     { value: 'CONTACT', label: 'Contact' },
     { value: 'GATEKEEPER', label: 'Gatekeeper' },
   ];
+
+  const userSelectOptions = useMemo(
+    () => buildUserSelectOptions(users),
+    [users]
+  );
 
   const employeeSizeOptions = [
     { value: 'SIZE_1_10', label: '1-10 employees' },
@@ -208,6 +216,7 @@ export default function AddLeadCompanyPage() {
         phone: '',
         jobTitle: '',
         department: '',
+        linkedinUrl: '',
         role: 'CONTACT',
         isPrimary: false,
       },
@@ -234,9 +243,7 @@ export default function AddLeadCompanyPage() {
     if (!companyData.industry) {
       newErrors.industry = 'Industry is required';
     }
-    if (!companyData.email.trim()) {
-      newErrors.email = 'Company email is required';
-    } else if (!/\S+@\S+\.\S+/.test(companyData.email)) {
+    if (companyData.email.trim() && !/\S+@\S+\.\S+/.test(companyData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
     contacts.forEach((contact) => {
@@ -246,9 +253,7 @@ export default function AddLeadCompanyPage() {
       if (!contact.lastName.trim()) {
         newErrors[`contact_${contact.id}_lastName`] = 'Last name is required';
       }
-      if (!contact.email.trim()) {
-        newErrors[`contact_${contact.id}_email`] = 'Email is required';
-      } else if (!/\S+@\S+\.\S+/.test(contact.email)) {
+      if (contact.email.trim() && !/\S+@\S+\.\S+/.test(contact.email)) {
         newErrors[`contact_${contact.id}_email`] = 'Please enter a valid email';
       }
     });
@@ -304,16 +309,12 @@ export default function AddLeadCompanyPage() {
 
       if (companyId && contacts.length > 0 && contactService?.create) {
         const validContacts = contacts.filter(
-          (c) =>
-            c.firstName?.trim() &&
-            c.lastName?.trim() &&
-            c.email?.trim()
+          (c) => c.firstName?.trim() && c.lastName?.trim()
         );
         for (const contact of validContacts) {
           const contactData = {
             firstName: contact.firstName.trim(),
             lastName: contact.lastName.trim(),
-            email: contact.email.trim(),
             phone: contact.phone?.trim(),
             jobTitle: contact.jobTitle?.trim(),
             department: contact.department?.trim(),
@@ -324,6 +325,12 @@ export default function AddLeadCompanyPage() {
             isPrimaryContact: !!contact.isPrimary,
             companyName: companyData.companyName.trim(),
           };
+          if (contact.email?.trim()) {
+            contactData.email = contact.email.trim();
+          }
+          if (contact.linkedinUrl?.trim()) {
+            contactData.linkedinUrl = contact.linkedinUrl.trim();
+          }
           if (companyData.assignedTo) {
             contactData.assignedTo = parseInt(companyData.assignedTo, 10);
           }
@@ -392,7 +399,7 @@ export default function AddLeadCompanyPage() {
                 )}
                 {Object.keys(errors).filter((k) => k.includes('contact_')).length > 0 && (
                   <li className="font-medium text-red-700">
-                    Contact Information (First Name, Last Name, and valid Email for each contact)
+                    Contact Information (First Name and Last Name for each contact)
                   </li>
                 )}
               </ul>
@@ -446,7 +453,7 @@ export default function AddLeadCompanyPage() {
                     {errors.email && <li className="font-medium">{errors.email}</li>}
                     {Object.keys(errors).filter((k) => k.includes('contact_')).length > 0 && (
                       <li className="font-medium">
-                        Contact information: First Name, Last Name, and valid Email for each contact
+                        Contact information: First Name and Last Name for each contact
                       </li>
                     )}
                   </ul>
@@ -483,6 +490,7 @@ export default function AddLeadCompanyPage() {
                   placeholder="Select industry"
                   icon={Building2}
                   allowCustom
+                  onCustomAdd={onIndustrySaved}
                   searchable
                 />
               </div>
@@ -520,7 +528,7 @@ export default function AddLeadCompanyPage() {
               </div>
               <div>
                 <Input
-                  label="Company Email *"
+                  label="Company Email"
                   type="email"
                   value={companyData.email}
                   onChange={(e) => handleCompanyChange('email', e.target.value)}
@@ -634,15 +642,9 @@ export default function AddLeadCompanyPage() {
                   label="Assigned To"
                   value={companyData.assignedTo}
                   onChange={(value) => handleCompanyChange('assignedTo', value)}
-                  options={[
-                    { value: '', label: 'Unassigned' },
-                    ...users.map((u) => ({
-                      value: String(u.id),
-                      label:
-                        `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-                    })),
-                  ]}
+                  options={userSelectOptions}
                   disabled={loadingUsers}
+                  placeholder="Unassigned"
                 />
               </div>
 
@@ -751,7 +753,7 @@ export default function AddLeadCompanyPage() {
                     </div>
                     <div>
                       <Input
-                        label="Email *"
+                        label="Email"
                         type="email"
                         value={contact.email}
                         onChange={(e) =>
@@ -792,6 +794,18 @@ export default function AddLeadCompanyPage() {
                           handleContactChange(contact.id, 'department', e.target.value)
                         }
                         placeholder="Sales, Marketing, IT, etc."
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        label="LinkedIn URL"
+                        type="url"
+                        value={contact.linkedinUrl}
+                        onChange={(e) =>
+                          handleContactChange(contact.id, 'linkedinUrl', e.target.value)
+                        }
+                        placeholder="https://www.linkedin.com/in/..."
+                        icon={Linkedin}
                       />
                     </div>
                     <div className="md:col-span-2 lg:col-span-1">

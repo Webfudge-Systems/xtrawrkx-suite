@@ -27,7 +27,6 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useBooksTheme } from '@/components/theme/BooksThemeProvider'
-import { BOOKS_SITE } from '@/lib/site'
 
 type SidebarProps = {
   onConfigureFeatures: () => void
@@ -132,14 +131,14 @@ export default function Sidebar({ onConfigureFeatures }: SidebarProps) {
     },
     {
       type: 'link',
-      href: '/sales',
+      href: '/sales/customers',
       icon: Receipt,
       label: 'Sales',
       isActive: (p) => p.startsWith('/sales'),
     },
     {
       type: 'link',
-      href: '/purchases',
+      href: '/purchases/vendors',
       icon: Briefcase,
       label: 'Purchases',
       isActive: (p) => p.startsWith('/purchases'),
@@ -153,7 +152,7 @@ export default function Sidebar({ onConfigureFeatures }: SidebarProps) {
     },
     {
       type: 'link',
-      href: '/accountant',
+      href: '/accountant/manual-journals',
       icon: Calculator,
       label: 'Accountant',
       isActive: (p) => p.startsWith('/accountant'),
@@ -198,7 +197,7 @@ export default function Sidebar({ onConfigureFeatures }: SidebarProps) {
   const railPillInnerClass = 'flex w-full flex-col items-center gap-2 p-2'
 
   const sidebarWidth = 'w-16'
-  const booksLogoSrc = BOOKS_SITE.logoPath
+  const booksLogoSrc = '/Vertical logo 1 bg removed.png'
 
   const quickMenu =
     quickOpen && typeof document !== 'undefined'
@@ -248,12 +247,12 @@ export default function Sidebar({ onConfigureFeatures }: SidebarProps) {
       <Link
         href="/home"
         className="flex w-full shrink-0 items-center justify-center"
-        title={`${BOOKS_SITE.name} home`}
-        aria-label={`${BOOKS_SITE.name} home`}
+        title="Fudge Books home"
+        aria-label="Fudge Books home"
       >
         <Image
           src={booksLogoSrc}
-          alt={BOOKS_SITE.brandName}
+          alt="Fudge Books"
           width={40}
           height={32}
           className="h-8 w-auto max-w-[2.5rem] object-contain"
