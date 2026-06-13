@@ -850,7 +850,7 @@ export default function Navbar() {
               whileTap={{ scale: 0.95 }}
             >
               <Image
-                src="/logo.png"
+                src="/logo/xtrawrkx_logo_full.png"
                 alt="xtrawrkx"
                 fill
                 className="rounded-none object-cover"
@@ -920,7 +920,7 @@ export default function Navbar() {
                     whileTap={{ scale: 0.95 }}
                   >
                     <Image
-                      src="/logo.png"
+                      src="/logo/xtrawrkx_logo_full.png"
                       alt="xtrawrkx"
                       fill
                       className="rounded-none object-cover"

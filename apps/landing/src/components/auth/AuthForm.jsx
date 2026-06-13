@@ -333,7 +333,7 @@ export default function AuthForm({
           className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 backdrop-blur-sm transition hover:bg-white/15"
         >
           <Image
-            src="/logo.png"
+            src="/logo/xtrawrkx_logo_full.png"
             alt="xtrawrkx"
             width={36}
             height={36}
@@ -683,7 +683,7 @@ export default function AuthForm({
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 lg:hidden">
               <Link href="/" className="inline-flex items-center gap-2">
                 <Image
-                  src="/logo.png"
+                  src="/logo/xtrawrkx_logo_full.png"
                   alt="xtrawrkx"
                   width={32}
                   height={32}

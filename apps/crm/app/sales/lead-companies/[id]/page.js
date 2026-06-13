@@ -65,6 +65,7 @@ import {
   companyTypeSelectOptions,
   canonicalIndustryValue,
   canonicalCompanyTypeValue,
+  getLeadSubTypeSelectOptions,
 } from '@webfudge/utils';
 import { fetchStoredIndustriesForCrm } from '../../../../lib/industryOptionsLoader';
 import { canEditCRMRecord, canManageCRM } from '../../../../lib/rbac';
@@ -794,6 +795,7 @@ export default function LeadCompanyDetailPage() {
     setCompanyInfoDraft({
       industry: canonicalIndustryValue(lead.industry ?? ''),
       type: canonicalCompanyTypeValue(lead.type ?? ''),
+      subType: lead.subType ?? '',
       employees: lead.employees != null ? String(lead.employees) : '',
       founded: lead.founded != null ? String(lead.founded) : '',
       city: lead.city ?? '',
@@ -812,7 +814,13 @@ export default function LeadCompanyDetailPage() {
   };
 
   const setDraftField = (field, value) => {
-    setCompanyInfoDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setCompanyInfoDraft((prev) => {
+      if (!prev) return prev;
+      if (field === 'type') {
+        return { ...prev, type: value, subType: '' };
+      }
+      return { ...prev, [field]: value };
+    });
   };
 
   const typeSelectOptions = useMemo(() => {
@@ -821,6 +829,15 @@ export default function LeadCompanyDetailPage() {
     if (companyTypeSelectOptions.some((o) => o.value === v)) return companyTypeSelectOptions;
     return [{ value: v, label: humanizeSource(v) }, ...companyTypeSelectOptions];
   }, [companyInfoDraft?.type]);
+
+  const subTypeSelectOptions = useMemo(
+    () =>
+      getLeadSubTypeSelectOptions(
+        companyInfoDraft?.type,
+        companyInfoDraft?.subType
+      ),
+    [companyInfoDraft?.type, companyInfoDraft?.subType]
+  );
 
   const saveCompanyInfo = async () => {
     if (!id || !companyInfoDraft) return;
@@ -831,6 +848,7 @@ export default function LeadCompanyDetailPage() {
       const payload = {
         industry: companyInfoDraft.industry.trim(),
         type: companyInfoDraft.type.trim(),
+        subType: companyInfoDraft.subType.trim(),
         employees: companyInfoDraft.employees.trim(),
         founded: companyInfoDraft.founded.trim(),
         city: companyInfoDraft.city.trim(),
@@ -1592,6 +1610,19 @@ export default function LeadCompanyDetailPage() {
                             placeholder="Select company type"
                             icon={Layers}
                           />
+                          <Select
+                            label="Sub-type"
+                            value={companyInfoDraft.subType}
+                            onChange={(value) => setDraftField('subType', value)}
+                            options={subTypeSelectOptions}
+                            placeholder={
+                              companyInfoDraft.type
+                                ? 'Select sub-type'
+                                : 'Select company type first'
+                            }
+                            disabled={!companyInfoDraft.type}
+                            searchable
+                          />
                           <Input
                             label="Employees"
                             value={companyInfoDraft.employees}
@@ -1681,6 +1712,11 @@ export default function LeadCompanyDetailPage() {
                           {
                             label: 'Company type',
                             value: lead.type ? humanizeSource(lead.type) : '',
+                            icon: Layers,
+                          },
+                          {
+                            label: 'Sub-type',
+                            value: lead.subType ? String(lead.subType) : '',
                             icon: Layers,
                           },
                           {

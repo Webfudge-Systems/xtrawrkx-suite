@@ -12,6 +12,7 @@
     "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
+    "@webfudge/utils": "*",
     "@babel/runtime": "^7.28.2",
     "@iconify/react": "^6.0.0",
     "cloudinary": "^2.7.0",

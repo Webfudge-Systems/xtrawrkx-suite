@@ -2,7 +2,7 @@
 
 ## Summary
 
-Aligned workspace apps to **Option A — Fudge Suite** branding: each app is a named Xtrawrkx internal product with a subtle **by Webfudge Systems** credit. Landing (`apps/landing`) was not changed.
+Aligned workspace apps to **Option A — Fudge Suite** branding: each app is a named Xtrawrkx internal product with a subtle **by Webfudge Systems** credit. Shared **Xtrawrkx favicons** (`public/favicon_io/`) and **full logo** (`public/logo/xtrawrkx_logo_full.png`) are used across all suite apps except Organization Manager.
 
 ## Scope
 
@@ -11,8 +11,22 @@ Aligned workspace apps to **Option A — Fudge Suite** branding: each app is a n
 | CRM | Fudge Grow | `apps/crm/lib/site.js` |
 | PM | Fudge Work | `apps/pm/lib/site.js` |
 | Accounts | Fudge Base | `apps/accounts/lib/site.js` |
-| Organization Manager | ~~Fudge Orbit~~ → **Webfudge Systems Platform Admin** | `apps/organization-manager/lib/site.js` — see [ORBIT_WEBFUDGE_BRANDING.md](./ORBIT_WEBFUDGE_BRANDING.md) |
 | Books | Fudge Books | `apps/books/lib/site.ts` |
+| Client portal | Xtrawrkx Client Portal | `apps/xtrawrkx-client-portal/src/lib/site.js` |
+| Landing | xtrawrkx | `apps/landing/app/layout.jsx` |
+
+## Shared assets (xtrawrkx apps)
+
+All suite apps except **Organization Manager** use the same public asset layout:
+
+| Asset | Path |
+|-------|------|
+| Favicon set | `public/favicon_io/` (source: `apps/crm/public/favicon_io`) |
+| Full logo | `public/logo/xtrawrkx_logo_full.png` |
+| App Router tab icon | `app/favicon.ico` + `app/apple-icon.png` (copied from `favicon_io/`) |
+| Metadata helper | `xtrawrkxMetadataIcons()` + `FUDGE_SUITE_ASSETS.xtrawrkx` from `@webfudge/utils` |
+
+**Organization Manager** keeps Webfudge branding — see [ORBIT_WEBFUDGE_BRANDING.md](./ORBIT_WEBFUDGE_BRANDING.md).
 
 ## Visual pattern
 
@@ -36,5 +50,5 @@ Shared paths live in `packages/utils/src/siteBranding.js` (`FUDGE_SUITE_ASSETS`)
 
 ## Not changed
 
-- `apps/landing` — marketing site branding unchanged
+- **Organization Manager** — Webfudge Systems branding unchanged (`apps/organization-manager`)
 - Client-facing proposal/invoice defaults that reference Webfudge Systems as preparer company

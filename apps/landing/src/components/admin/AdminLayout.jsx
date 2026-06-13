@@ -268,7 +268,7 @@ const SidebarContent = ({ navigation }) => {
             <div className=" flex items-center">
               <div className="w-10 h-10 relative mr-2">
                 <Image
-                  src="/logo.png"
+                  src="/logo/xtrawrkx_logo_full.png"
                   alt="xtrawrkx"
                   fill
                   className="object-cover"

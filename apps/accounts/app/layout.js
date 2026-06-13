@@ -1,7 +1,10 @@
 import './globals.css'
 import { AuthProvider } from '@webfudge/auth'
+import { xtrawrkxMetadataIcons, FUDGE_SUITE_ASSETS } from '@webfudge/utils'
 import LayoutContent from '../components/LayoutContent'
 import { ACCOUNTS_SITE } from '../lib/site'
+
+const xAssets = FUDGE_SUITE_ASSETS.xtrawrkx
 
 const siteUrl = (process.env.NEXT_PUBLIC_ACCOUNTS_APP_URL || 'http://localhost:3003').replace(/\/$/, '')
 const shareDescription =
@@ -34,7 +37,7 @@ export const metadata = {
     type: 'website',
     images: [
       {
-        url: '/favicon/web-app-manifest-512x512.png',
+        url: xAssets.brandLogoPath,
         width: 512,
         height: 512,
         alt: ACCOUNTS_SITE.name,
@@ -45,7 +48,7 @@ export const metadata = {
     card: 'summary',
     title: ACCOUNTS_SITE.name,
     description: shareDescription,
-    images: ['/favicon/web-app-manifest-512x512.png'],
+    images: [xAssets.brandLogoPath],
   },
   robots: {
     index: false,
@@ -57,15 +60,8 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
-    ],
-    apple: [{ url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-    shortcut: ['/favicon/favicon.svg'],
-  },
-  manifest: '/favicon/site.webmanifest',
+  icons: xtrawrkxMetadataIcons(),
+  manifest: xAssets.manifestPath,
 }
 
 export default function RootLayout({ children }) {

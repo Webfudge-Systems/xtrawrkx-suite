@@ -2,6 +2,7 @@
 export const FUDGE_SUITE_ASSETS = {
   xtrawrkx: {
     logoPath: '/favicon_io/android-chrome-512x512.png',
+    brandIconPath: '/favicon_io/android-chrome-512x512.png',
     brandLogoPath: '/logo/xtrawrkx_logo_full.png',
     manifestPath: '/favicon_io/site.webmanifest',
     faviconIco: '/favicon_io/favicon.ico',

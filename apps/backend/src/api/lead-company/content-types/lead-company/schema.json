@@ -22,6 +22,9 @@
     "type": {
       "type": "string"
     },
+    "subType": {
+      "type": "string"
+    },
     "website": {
       "type": "string"
     },

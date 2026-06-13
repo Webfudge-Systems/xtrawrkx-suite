@@ -25,6 +25,7 @@ import {
   canonicalCompanyTypeValue,
   canonicalIndustryValue,
   companyTypeSelectOptions,
+  getLeadSubTypeSelectOptions,
 } from '@webfudge/utils';
 import { fetchStoredIndustriesForCrm } from '../../../../../lib/industryOptionsLoader';
 import { canEditCRMRecord } from '../../../../../lib/rbac';
@@ -63,6 +64,7 @@ export default function EditLeadCompanyPage() {
     companyName: '',
     industry: '',
     type: '',
+    subType: '',
     website: '',
     phone: '',
     email: '',
@@ -147,6 +149,11 @@ export default function EditLeadCompanyPage() {
     return [{ value: v, label: v }, ...companyTypeSelectOptions];
   }, [draft.type]);
 
+  const subTypeSelectOptions = useMemo(
+    () => getLeadSubTypeSelectOptions(draft.type, draft.subType),
+    [draft.type, draft.subType]
+  );
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -161,6 +168,7 @@ export default function EditLeadCompanyPage() {
             companyName: d.companyName ?? d.name ?? '',
             industry: canonicalIndustryValue(d.industry ?? ''),
             type: canonicalCompanyTypeValue(d.type ?? ''),
+            subType: d.subType ?? '',
             website: d.website ?? '',
             phone: d.phone ?? '',
             email: d.email ?? '',
@@ -233,7 +241,12 @@ export default function EditLeadCompanyPage() {
   }, [id, reloadLinkedContacts]);
 
   const setDraftField = (field, value) => {
-    setDraft((prev) => ({ ...prev, [field]: value }));
+    setDraft((prev) => {
+      if (field === 'type') {
+        return { ...prev, type: value, subType: '' };
+      }
+      return { ...prev, [field]: value };
+    });
   };
 
   const validateAddContact = () => {
@@ -350,6 +363,7 @@ export default function EditLeadCompanyPage() {
         companyName: draft.companyName.trim(),
         industry: draft.industry.trim(),
         type: draft.type.trim(),
+        subType: draft.subType.trim(),
         website: draft.website.trim(),
         phone: draft.phone.trim(),
         email: draft.email.trim(),
@@ -374,6 +388,7 @@ export default function EditLeadCompanyPage() {
       }
 
       if (payload.type === '') delete payload.type;
+      if (payload.subType === '') delete payload.subType;
       if (payload.website === '') delete payload.website;
       if (payload.phone === '') delete payload.phone;
       if (payload.address === '') delete payload.address;
@@ -662,6 +677,17 @@ export default function EditLeadCompanyPage() {
                     options={typeSelectOptions}
                     placeholder="Select company type"
                     icon={Layers}
+                  />
+                </div>
+                <div>
+                  <Select
+                    label="Sub-type"
+                    value={draft.subType}
+                    onChange={(v) => setDraftField('subType', v)}
+                    options={subTypeSelectOptions}
+                    placeholder={draft.type ? 'Select sub-type' : 'Select company type first'}
+                    disabled={!draft.type}
+                    searchable
                   />
                 </div>
                 <div>

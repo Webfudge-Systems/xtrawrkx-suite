@@ -65,7 +65,6 @@ export default function InvoicesPage() {
   const [deletingId, setDeletingId] = useState(null);
   const [actionMenu, setActionMenu]       = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const itemsPerPage = 15;
 
   const {
     columnVisibility,

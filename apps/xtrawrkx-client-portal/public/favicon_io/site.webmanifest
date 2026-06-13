@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "xtrawrkx",
-  "short_name": "xtrawrkx",
-  "description": "Professional development platform offering events, resources, networking, and community engagement.",
+  "name": "Xtrawrkx Client Portal",
+  "short_name": "Portal",
+  "description": "Xtrawrkx client portal for projects, communities, events, and team collaboration.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

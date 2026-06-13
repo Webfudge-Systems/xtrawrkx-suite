@@ -1,8 +1,11 @@
 import './globals.css'
 import { AuthProvider } from '@webfudge/auth'
+import { xtrawrkxMetadataIcons, FUDGE_SUITE_ASSETS } from '@webfudge/utils'
 import LayoutContent from '@/components/layout/LayoutContent'
 import { BooksThemeProvider } from '@/components/theme/BooksThemeProvider'
 import { BOOKS_SITE } from '@/lib/site'
+
+const xAssets = FUDGE_SUITE_ASSETS.xtrawrkx
 
 export const metadata = {
   title: {
@@ -11,6 +14,27 @@ export const metadata = {
   },
   description: BOOKS_SITE.description,
   applicationName: BOOKS_SITE.name,
+  openGraph: {
+    title: BOOKS_SITE.name,
+    description: BOOKS_SITE.description,
+    type: 'website',
+    images: [
+      {
+        url: xAssets.brandLogoPath,
+        width: 512,
+        height: 512,
+        alt: BOOKS_SITE.name,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary',
+    title: BOOKS_SITE.name,
+    description: BOOKS_SITE.description,
+    images: [xAssets.brandLogoPath],
+  },
+  icons: xtrawrkxMetadataIcons(),
+  manifest: xAssets.manifestPath,
 }
 
 const BOOKS_THEME_BOOT_SCRIPT = `

@@ -159,3 +159,99 @@ export function canonicalCompanyTypeValue(stored) {
   const hit = companyTypes.find((t) => t.name.toLowerCase() === v.toLowerCase());
   return hit ? hit.id : v;
 }
+
+/** Sub-types per lead company type — matches landing signup / event registration. */
+export const LEAD_COMPANY_SUB_TYPES = {
+  'startup-corporate': [
+    'EV 2W',
+    'EV 3W',
+    'EV OEM',
+    'EV 4W',
+    'Motor OEM',
+    'Motor Controller OEM',
+    'Batteries',
+    'Charging Infra',
+    'Drones',
+    'AGVs',
+    'Consumer electronics',
+    'Incubator / accelerator',
+    'Power electronics',
+    'Other OE',
+    'Group',
+    'EV Fleet',
+    'E-commerce companies',
+    '3rd party logistics',
+    'Vehicle Smarts',
+    'Swapping',
+    'EV Leasing',
+    'EV Rentals',
+    'EV NBFC',
+    'Power electronics+Vechicle smart',
+    'Electronics Components',
+    '1DL/MDL',
+    'Franchisee',
+    'Smart Battery',
+    'Dealer',
+    'Motor Parts',
+    'Spare Part',
+    'Traditional Auto',
+    'Smart Electronic',
+    'Mech Parts',
+    'Energy Storing',
+    'Automotive Parts_ EV manufacturers',
+    'IOT',
+    'Inverter',
+    'Aggregator',
+  ],
+  investor: [
+    'Future Founder',
+    'Private Lender P2P',
+    'Angel',
+    'Angel Network',
+    'Micro VC',
+    'VC',
+    'Family Office',
+    'Private Equity PE',
+    'Debt',
+    'WC Working Capital',
+    'NBFC',
+    'Bill discounting',
+    'Investment Bank',
+    'Banks',
+    'Asset Investor',
+    'Asset Financier',
+    'Asset Leasing',
+    'Op Franchisee',
+    'Franchise Network',
+    'Incubation Center',
+    'Accelerator',
+    'Industry body',
+    'Gov Body',
+    'Gov Policy',
+    'Alternative Investment Platform',
+    'Strategic investor',
+    'CVC',
+    'HNI',
+  ],
+  'enablers-academia': [
+    'Incubator',
+    'Accelerator',
+    'Venture Studio',
+    'Academia',
+    'Government Office',
+    'Mentor',
+    'Investment Banker',
+  ],
+};
+
+export function getLeadSubTypeSelectOptions(companyTypeId, storedValue = '') {
+  const options = (LEAD_COMPANY_SUB_TYPES[companyTypeId] || []).map((label) => ({
+    value: label,
+    label,
+  }));
+  const v = (storedValue || '').trim();
+  if (v && !options.some((o) => o.value === v)) {
+    return [{ value: v, label: v }, ...options];
+  }
+  return options;
+}

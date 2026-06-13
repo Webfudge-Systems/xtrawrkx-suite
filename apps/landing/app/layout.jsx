@@ -1,6 +1,9 @@
 import { Poppins, Newsreader } from "next/font/google"; // add imports
+import { xtrawrkxMetadataIcons, FUDGE_SUITE_ASSETS } from "@webfudge/utils";
 import "./globals.css";
 import ToastProvider from "@/src/components/common/ToastProvider";
+
+const xAssets = FUDGE_SUITE_ASSETS.xtrawrkx;
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -45,14 +48,8 @@ export const metadata = {
   alternates: {
     canonical: "/",
   },
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/logo.png", sizes: "32x32", type: "image/png" }, // Fallback to logo
-    ],
-    apple: [{ url: "/logo.png", sizes: "180x180", type: "image/png" }],
-  },
-  manifest: "/site.webmanifest",
+  icons: xtrawrkxMetadataIcons(),
+  manifest: xAssets.manifestPath,
   // other: {
   //   "google-site-verification": "your-google-verification-code", // Add your actual verification code when available
   // },
@@ -120,13 +117,9 @@ export default function RootLayout({ children }) {
         />
         <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
         <link rel="canonical" href="https://xtrawrkx.com" />
-        {/* Favicon links with fallbacks */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/logo.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/logo.png" />
-        <meta name="theme-color" content="#2563eb" />
-        <meta name="msapplication-TileColor" content="#2563eb" />
-        <meta name="msapplication-TileImage" content="/logo.png" />
+        <meta name="theme-color" content="#F5630F" />
+        <meta name="msapplication-TileColor" content="#F5630F" />
+        <meta name="msapplication-TileImage" content={xAssets.pwaIcon512} />
       </head>
       <body
         className={`${poppins.variable} ${newsreader.variable} antialiased`}

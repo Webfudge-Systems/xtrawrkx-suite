@@ -1689,6 +1689,7 @@ export interface ApiLeadCompanyLeadCompany extends Struct.CollectionTypeSchema {
     source: Schema.Attribute.String & Schema.Attribute.DefaultTo<'WEBSITE'>
     state: Schema.Attribute.String
     status: Schema.Attribute.String & Schema.Attribute.DefaultTo<'NEW'>
+    subType: Schema.Attribute.String
     twitter: Schema.Attribute.String
     type: Schema.Attribute.String
     updatedAt: Schema.Attribute.DateTime

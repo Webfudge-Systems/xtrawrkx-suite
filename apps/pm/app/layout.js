@@ -1,7 +1,10 @@
 import './globals.css';
 import { AuthProvider } from '@webfudge/auth';
+import { xtrawrkxMetadataIcons, FUDGE_SUITE_ASSETS } from '@webfudge/utils';
 import LayoutContent from '../components/LayoutContent';
 import { PM_SITE } from '../lib/site';
+
+const xAssets = FUDGE_SUITE_ASSETS.xtrawrkx;
 
 export const viewport = {
   themeColor: '#F5630F',
@@ -46,7 +49,7 @@ export const metadata = {
     type: 'website',
     images: [
       {
-        url: '/favicon/web-app-manifest-512x512.png',
+        url: xAssets.brandLogoPath,
         width: 512,
         height: 512,
         alt: PM_SITE.name,
@@ -57,7 +60,7 @@ export const metadata = {
     card: 'summary',
     title: PM_SITE.name,
     description: shareDescription,
-    images: ['/favicon/web-app-manifest-512x512.png'],
+    images: [xAssets.brandLogoPath],
   },
   robots: {
     index: false,
@@ -69,15 +72,8 @@ export const metadata = {
       noimageindex: true,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
-    ],
-    apple: [{ url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-    shortcut: ['/favicon/favicon.svg'],
-  },
-  manifest: '/favicon/site.webmanifest',
+  icons: xtrawrkxMetadataIcons(),
+  manifest: xAssets.manifestPath,
 };
 
 export default function RootLayout({ children }) {

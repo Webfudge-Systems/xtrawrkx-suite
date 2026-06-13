@@ -37,7 +37,7 @@ import {
   Layers,
   Linkedin,
 } from 'lucide-react';
-import { companyTypes } from '@webfudge/utils';
+import { companyTypes, getLeadSubTypeSelectOptions } from '@webfudge/utils';
 import { fetchStoredIndustriesForCrm } from '../../../../lib/industryOptionsLoader';
 
 export default function AddLeadCompanyPage() {
@@ -58,6 +58,7 @@ export default function AddLeadCompanyPage() {
     companyName: '',
     industry: '',
     type: '',
+    subType: '',
     website: '',
     phone: '',
     email: '',
@@ -125,6 +126,11 @@ export default function AddLeadCompanyPage() {
     [users]
   );
 
+  const companySubTypeOptions = useMemo(
+    () => getLeadSubTypeSelectOptions(companyData.type, companyData.subType),
+    [companyData.type, companyData.subType]
+  );
+
   const employeeSizeOptions = [
     { value: 'SIZE_1_10', label: '1-10 employees' },
     { value: 'SIZE_11_50', label: '11-50 employees' },
@@ -188,9 +194,17 @@ export default function AddLeadCompanyPage() {
   };
 
   const handleCompanyChange = (field, value) => {
-    setCompanyData((prev) => ({ ...prev, [field]: value }));
+    setCompanyData((prev) => {
+      if (field === 'type') {
+        return { ...prev, type: value, subType: '' };
+      }
+      return { ...prev, [field]: value };
+    });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: null }));
+    }
+    if (field === 'type' && errors.subType) {
+      setErrors((prev) => ({ ...prev, subType: null }));
     }
   };
 
@@ -282,6 +296,7 @@ export default function AddLeadCompanyPage() {
         dealValue: companyData.dealValue ? parseFloat(companyData.dealValue) : 0,
       };
       if (companyData.type) leadCompanyPayload.type = companyData.type;
+      if (companyData.subType) leadCompanyPayload.subType = companyData.subType;
       if (companyData.website?.trim()) leadCompanyPayload.website = companyData.website.trim();
       if (companyData.phone?.trim()) leadCompanyPayload.phone = companyData.phone.trim();
       if (companyData.email?.trim()) leadCompanyPayload.email = companyData.email.trim();
@@ -503,6 +518,20 @@ export default function AddLeadCompanyPage() {
                   options={companyTypes.map((t) => ({ value: t.id, label: t.name }))}
                   placeholder="Select company type"
                   icon={Layers}
+                />
+              </div>
+
+              <div>
+                <Select
+                  label="Sub-Type"
+                  value={companyData.subType}
+                  onChange={(value) => handleCompanyChange('subType', value)}
+                  options={companySubTypeOptions}
+                  placeholder={
+                    companyData.type ? 'Select sub-type' : 'Select company type first'
+                  }
+                  disabled={!companyData.type}
+                  searchable
                 />
               </div>
 

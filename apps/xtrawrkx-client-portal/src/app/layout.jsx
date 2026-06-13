@@ -1,8 +1,11 @@
 import "../styles/globals.css";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AuthProvider } from "@/lib/auth";
+import { xtrawrkxMetadataIcons, FUDGE_SUITE_ASSETS } from "@webfudge/utils";
+import { PORTAL_SITE } from "@/lib/site";
 
-const SITE_URL = "https://client.xtrawrkx.com";
+const xAssets = FUDGE_SUITE_ASSETS.xtrawrkx;
+const SITE_URL = PORTAL_SITE.url;
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
@@ -62,7 +65,7 @@ export const metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/favicon/android-chrome-512x512.png",
+        url: xAssets.brandLogoPath,
         width: 512,
         height: 512,
         alt: "Xtrawrkx Client Portal",
@@ -74,42 +77,10 @@ export const metadata = {
     title: "Xtrawrkx Client Portal - Manage Projects, Teams & Communities",
     description:
       "Modern client portal for managing projects, communities, events, services, and team collaboration.",
-    images: ["/favicon/android-chrome-512x512.png"],
+    images: [xAssets.brandLogoPath],
   },
-  icons: {
-    icon: [
-      { url: "/favicon/favicon.ico", sizes: "any" },
-      {
-        url: "/favicon/favicon-16x16.png",
-        type: "image/png",
-        sizes: "16x16",
-      },
-      {
-        url: "/favicon/favicon-32x32.png",
-        type: "image/png",
-        sizes: "32x32",
-      },
-      {
-        url: "/favicon/android-chrome-192x192.png",
-        type: "image/png",
-        sizes: "192x192",
-      },
-      {
-        url: "/favicon/android-chrome-512x512.png",
-        type: "image/png",
-        sizes: "512x512",
-      },
-    ],
-    apple: [
-      {
-        url: "/favicon/apple-touch-icon.png",
-        sizes: "180x180",
-        type: "image/png",
-      },
-    ],
-    shortcut: ["/favicon/favicon.ico"],
-  },
-  manifest: "/manifest.json",
+  icons: xtrawrkxMetadataIcons(),
+  manifest: xAssets.manifestPath,
   appleWebApp: {
     capable: true,
     title: "Xtrawrkx Client",
