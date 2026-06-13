@@ -13,7 +13,7 @@
 3. [Getting started](#3-getting-started)
 4. [Orbit — Platform admin (steps done)](#4-orbit--platform-admin-steps-done)
 5. [Fudge Base — Organization administration](#5-fudge-base--organization-administration)
-6. [Fudge People — Sales CRM](#6-fudge-people--sales-crm)
+6. [Fudge Grow — Sales CRM](#6-fudge-grow--sales-crm)
 7. [Fudge Work — Project management](#7-fudge-work--project-management)
 8. [Xtrawrkx Landing — Public website & CMS](#8-xtrawrkx-landing--public-website--cms)
 9. [Client Portal](#9-client-portal)
@@ -36,7 +36,7 @@ Xtrawrkx is a connected business platform by **Webfudge Systems**. Instead of ju
 | --- | --- | --- | --- |
 | **Orbit** | Orbit (by Webfudge Systems) | Platform operators only | `orbit.10x1.webfudge.in` |
 | **Fudge Base** | Fudge Base | Org admins, HR, IT | `accounts.xtrawrkx.com` |
-| **Fudge People** | Fudge People | Sales, account managers | `crm.xtrawrkx.com` |
+| **Fudge Grow** | Fudge Grow | Sales, account managers | `crm.xtrawrkx.com` |
 | **Fudge Work** | Fudge Work | Project managers, delivery teams | `pm.xtrawrkx.com` |
 | **Landing** | xtrawrkx.com | Public visitors, community members | `xtrawrkx.com` |
 | **Client Portal** | Xtrawrkx Client Portal | Your clients and their teams | `portal.xtrawrkx.com` |
@@ -50,7 +50,7 @@ Orbit (platform admin)
     └── Creates organizations + owner accounts
             │
             ├── Fudge Base  → users, roles, security, billing
-            ├── Fudge People → leads, deals, clients, proposals
+            ├── Fudge Grow → leads, deals, clients, proposals
             ├── Fudge Work   → projects, tasks, delivery
             └── Client Portal → client-facing projects & communities
 
@@ -70,7 +70,7 @@ Landing (public) → signup, events, communities → hands off to Client Portal
 | **API (Strapi)** | `https://xtrawrkxsuits-production.up.railway.app` | `/admin` (Strapi super-admin panel) |
 | **Orbit** | `https://orbit.10x1.webfudge.in` | `/login` |
 | **Fudge Base** | `https://accounts.xtrawrkx.com` | `/login` |
-| **Fudge People** | `https://crm.xtrawrkx.com` | `/login` |
+| **Fudge Grow** | `https://crm.xtrawrkx.com` | `/login` |
 | **Fudge Work** | `https://pm.xtrawrkx.com` | `/login` |
 | **Landing** | `https://xtrawrkx.com` | `/auth` (public) · `/admin/login` (CMS) |
 | **Client Portal** | `https://portal.xtrawrkx.com` | `/auth` |
@@ -84,8 +84,8 @@ Landing (public) → signup, events, communities → hands off to Client Portal
 | **Orbit** | Platform super-admin | `admin@xtrawrkx.com` | `XtrawrkxAdmin@2025` | Strapi `platform-login` |
 | **Landing CMS** | Content admin | `admin@xtrawrkx.com` | `password1234` | Firebase Auth |
 | **Landing CMS** | Content admin (alt) | `xtrawrkxadmin@xmc.com` | *(set in Firebase)* | Firebase Auth |
-| **Fudge People / Work / Base** | Org owner (new org) | Set when creating org in Orbit | Set in Orbit create form | Strapi org login |
-| **Fudge People / Work / Base** | Team members (XMC bulk) | User’s work email | `Xtr@<FirstName>#XWK` | Strapi org login |
+| **Fudge Grow / Work / Base** | Org owner (new org) | Set when creating org in Orbit | Set in Orbit create form | Strapi org login |
+| **Fudge Grow / Work / Base** | Team members (XMC bulk) | User’s work email | `Xtr@<FirstName>#XWK` | Strapi org login |
 | **Landing public** | Website member | Self-registered at `/auth` | Chosen at signup | Strapi `internal/login` |
 | **Client Portal** | Client contact | CRM contact email | Set via website signup or CRM | Strapi `client/login` |
 | **Strapi admin panel** | API super-admin | Created on first visit to `/admin` | Set during first-time setup | Strapi admin JWT |
@@ -140,7 +140,7 @@ All three workspace apps share the **same Strapi user account** per organization
 
 | App | Production URL |
 | --- | --- |
-| Fudge People (CRM) | `https://crm.xtrawrkx.com/login` |
+| Fudge Grow (CRM) | `https://crm.xtrawrkx.com/login` |
 | Fudge Work (PM) | `https://pm.xtrawrkx.com/login` |
 | Fudge Base (Accounts) | `https://accounts.xtrawrkx.com/login` |
 
@@ -233,7 +233,7 @@ From **Fudge Base → App Access**, you can see which apps your role can open. U
 
 ### 3.4 Install as an app (PWA)
 
-**Fudge People** and **Fudge Work** support installable Progressive Web Apps:
+**Fudge Grow** and **Fudge Work** support installable Progressive Web Apps:
 
 1. Open the app in Chrome or Edge.
 2. Use the browser’s **Install app** prompt (or the in-app install banner).
@@ -482,9 +482,9 @@ Users without edit permission see a read-only view.
 
 ---
 
-## 6. Fudge People — Sales CRM
+## 6. Fudge Grow — Sales CRM
 
-**Fudge People** (`crm.xtrawrkx.com`) is the sales workspace for leads, pipeline, clients, proposals, invoices, meetings, and automations.
+**Fudge Grow** (`crm.xtrawrkx.com`) is the sales workspace for leads, pipeline, clients, proposals, invoices, meetings, and automations.
 
 ### 6.1 Navigation overview
 
@@ -1143,10 +1143,10 @@ Sign in at /admin/login
 | --- | --- | --- |
 | 1 | **Orbit** | Platform admin creates organization + owner account ✅ |
 | 2 | **Fudge Base** | Owner signs in, invites team, assigns roles |
-| 3 | **Fudge People** | Sales team adds leads, runs pipeline |
-| 4 | **Fudge People** | Win deal → create delivery project |
+| 3 | **Fudge Grow** | Sales team adds leads, runs pipeline |
+| 4 | **Fudge Grow** | Win deal → create delivery project |
 | 5 | **Fudge Work** | Delivery team executes project and tasks |
-| 6 | **Fudge People** | Send proposal and invoice |
+| 6 | **Fudge Grow** | Send proposal and invoice |
 | 7 | **Client Portal** | Client views projects, tasks, and files |
 
 ### 10.2 Website signup → CRM client
@@ -1160,14 +1160,14 @@ When someone registers on the landing site:
 
 ### 10.3 Won deal → delivery project
 
-1. In **Fudge People**, mark deal **Won**.
+1. In **Fudge Grow**, mark deal **Won**.
 2. Confirm **Create delivery project**.
 3. Project appears in CRM `/clients/projects` and **Fudge Work** `/projects`.
 4. PM team manages tasks, timeline, and delivery.
 
 ### 10.4 Lead → client conversion
 
-1. Qualify lead in **Fudge People**.
+1. Qualify lead in **Fudge Grow**.
 2. Click **Convert to Client Account**.
 3. Client account created; lead status = **CONVERTED**.
 4. All deals, proposals, and invoices link to the client account going forward.
@@ -1242,7 +1242,7 @@ Triggered by:
 - Record updates assigned to you
 
 **Where to find them:**
-- **Fudge People:** Sidebar activity feed; Inbox in PM
+- **Fudge Grow:** Sidebar activity feed; Inbox in PM
 - **Fudge Work:** Inbox → Notifications tab; bell dropdown
 - **Fudge Base:** Audit Logs for admin actions
 
@@ -1250,7 +1250,7 @@ Triggered by:
 
 | App | Searches |
 | --- | --- |
-| Fudge People | Leads, deals, contacts, client accounts |
+| Fudge Grow | Leads, deals, contacts, client accounts |
 | Fudge Work | Projects, tasks |
 
 Use keyboard navigation in the search modal to jump directly to a record.
@@ -1326,7 +1326,7 @@ Type `@` followed by a name to notify a teammate.
 
 ### PWA / offline message
 
-- Fudge People and Fudge Work require an internet connection for live data.
+- Fudge Grow and Fudge Work require an internet connection for live data.
 - Reload the page after reconnecting.
 
 ### Where do I manage users and billing?
@@ -1349,12 +1349,12 @@ Type `@` followed by a name to notify a teammate.
 | Manage landing events/content | **Landing CMS** → `/admin/dashboard` |
 | Invite a team member | **Fudge Base** → Users → Invite |
 | Set what a role can access | **Fudge Base** → Roles & Permissions |
-| Add a sales lead | **Fudge People** → Sales → Lead Companies → New |
-| Move a deal through pipeline | **Fudge People** → Deals or Pipeline Board |
+| Add a sales lead | **Fudge Grow** → Sales → Lead Companies → New |
+| Move a deal through pipeline | **Fudge Grow** → Deals or Pipeline Board |
 | Convert lead to client | Lead detail → Convert to Client |
-| Send a proposal | **Fudge People** → Workspace → Proposals → New |
-| Create an invoice | **Fudge People** → Clients → Invoices → New |
-| Schedule a meeting | **Fudge People** → Meetings → New |
+| Send a proposal | **Fudge Grow** → Workspace → Proposals → New |
+| Create an invoice | **Fudge Grow** → Clients → Invoices → New |
+| Schedule a meeting | **Fudge Grow** → Meetings → New |
 | Start a delivery project | **Fudge Work** → Projects → Add (or from Won deal) |
 | Manage my tasks | **Fudge Work** → My Tasks |
 | Message a colleague | **Fudge Work** → Message |
@@ -1368,7 +1368,7 @@ Type `@` followed by a name to notify a teammate.
 
 | Field | Value |
 | --- | --- |
-| Covers | Orbit ✅, Fudge Base, Fudge People, Fudge Work, Landing (public + Firebase CMS), Client Portal |
+| Covers | Orbit ✅, Fudge Base, Fudge Grow, Fudge Work, Landing (public + Firebase CMS), Client Portal |
 | Excludes | Fudge Books |
 | Login credentials | §2 — Orbit, workspace, CMS admin, public auth, client portal, bulk XMC pattern |
 | Orbit status | All core steps documented as **done** (sign in, list, create, detail, open apps, delete, sign out) |

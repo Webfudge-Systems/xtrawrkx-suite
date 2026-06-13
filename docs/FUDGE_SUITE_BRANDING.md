@@ -8,7 +8,7 @@ Aligned workspace apps to **Option A — Fudge Suite** branding: each app is a n
 
 | App | Product name | Config |
 |-----|--------------|--------|
-| CRM | Fudge People | `apps/crm/lib/site.js` |
+| CRM | Fudge Grow | `apps/crm/lib/site.js` |
 | PM | Fudge Work | `apps/pm/lib/site.js` |
 | Accounts | Fudge Base | `apps/accounts/lib/site.js` |
 | Organization Manager | ~~Fudge Orbit~~ → **Webfudge Systems Platform Admin** | `apps/organization-manager/lib/site.js` — see [ORBIT_WEBFUDGE_BRANDING.md](./ORBIT_WEBFUDGE_BRANDING.md) |
@@ -21,7 +21,7 @@ Aligned workspace apps to **Option A — Fudge Suite** branding: each app is a n
 - **Creator logo:** `public/logo/Vertical logo 1 bg removed.png` (Webfudge Systems)
 - **Browser tab / PWA:** `public/favicon_io/` (Xtrawrkx)
 - **Webfudge favicon set:** `public/favicon/` (Webfudge Systems — vendor assets)
-- **Primary title:** Product name (e.g. Fudge People)
+- **Primary title:** Product name (e.g. Fudge Grow)
 - **Secondary line:** `by Webfudge Systems` (small, muted)
 
 Shared paths live in `packages/utils/src/siteBranding.js` (`FUDGE_SUITE_ASSETS`).

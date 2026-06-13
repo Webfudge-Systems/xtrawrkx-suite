@@ -1,8 +1,8 @@
 ﻿{
   "id": "/",
-  "name": "Fudge People",
-  "short_name": "People",
-  "description": "Fudge People for leads, deals, contacts, client accounts, and pipeline management.",
+  "name": "Fudge Grow",
+  "short_name": "Grow",
+  "description": "Fudge Grow for leads, deals, contacts, client accounts, and pipeline management.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

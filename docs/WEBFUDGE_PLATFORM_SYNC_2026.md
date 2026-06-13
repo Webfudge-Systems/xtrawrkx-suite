@@ -19,7 +19,7 @@ Synced `xtrawrkx-suite` with the latest upstream changes from `webfudge-platform
 
 | App | Files synced | Preserved |
 |-----|--------------|-----------|
-| CRM | 64 | `lib/site.js` (Fudge People / Xtrawrkx branding) |
+| CRM | 64 | `lib/site.js` (Fudge Grow / Xtrawrkx branding) |
 | PM | 21 | `lib/site.js` |
 | Accounts | 20 | `lib/site.js` |
 | Books | 67 updated + 166 new | `lib/site.ts`, `package.json` |

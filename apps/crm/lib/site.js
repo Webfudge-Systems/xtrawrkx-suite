@@ -6,10 +6,10 @@ export const CRM_SITE = {
   brandName: 'Xtrawrkx',
   brandShortName: 'Xtrawrkx',
   legalName: 'Xtrawrkx',
-  name: 'Fudge People',
-  shortName: 'People',
+  name: 'Fudge Grow',
+  shortName: 'Grow',
   description:
-    'Fudge People is the sales CRM workspace for leads, deals, contacts, client accounts, and pipeline management across the Xtrawrkx suite.',
+    'Fudge Grow is the sales CRM workspace for leads, deals, contacts, client accounts, and pipeline management across the Xtrawrkx suite.',
   tagline: 'Manage leads, deals, contacts, and your pipeline in one place.',
   loginTagline: 'Close more deals, faster.',
   loginDetail:
@@ -29,5 +29,5 @@ export const CRM_SITE = {
   themeColor: '#F5630F',
   backgroundColor: '#FFFAF7',
   twitterHandle: '@xtrawrkx',
-  keywords: ['Fudge People', 'CRM', 'sales CRM', 'lead management', 'deal pipeline', 'Xtrawrkx'],
+  keywords: ['Fudge Grow', 'CRM', 'sales CRM', 'lead management', 'deal pipeline', 'Xtrawrkx'],
 }
