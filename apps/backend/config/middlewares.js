@@ -1,11 +1,22 @@
-const allowedOrigins = [
+const xtrawrkxOrigins = [
   'http://localhost:3000', // Landing
   'http://localhost:3001', // CRM
   'http://localhost:3002', // Client portal
   'http://localhost:3003', // Accounts
   'http://localhost:3004', // Organization manager
   'http://localhost:3005', // PM
+  'http://localhost:3006', // PM
   'http://localhost:3008', // Books
+  'https://xtrawrkx.com',
+  'https://www.xtrawrkx.com',
+  'https://crm.xtrawrkx.com',
+  'https://pm.xtrawrkx.com',
+  'https://accounts.xtrawrkx.com',
+  'https://portal.xtrawrkx.com',
+  'https://orbit.10x1.webfudge.in',
+];
+
+const webfudgeOrigins = [
   'https://webfudge.in',
   'https://www.webfudge.in',
   'https://crm.webfudge.in',
@@ -18,9 +29,27 @@ const allowedOrigins = [
   'https://www.webfudgesystems.in',
 ];
 
+const localOrigins = [
+  'http://localhost:3000', // Landing
+  'http://localhost:3001', // CRM
+  'http://localhost:3002', // Client portal
+  'http://localhost:3003', // Accounts
+  'http://localhost:3004', // Organization manager
+  'http://localhost:3005', // PM
+  'http://localhost:3008', // Books
+];
+
+const extraOrigins = String(process.env.CORS_EXTRA_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = [...localOrigins, ...xtrawrkxOrigins, ...webfudgeOrigins, ...extraOrigins];
+
 const allowedOriginPatterns = [
   /^http:\/\/localhost:\d+$/,
   /^https:\/\/[a-z0-9-]+\.vercel\.app$/,
+  /^https:\/\/[a-z0-9-]+\.xtrawrkx\.com$/,
   /^https:\/\/[a-z0-9-]+\.webfudge\.in$/,
   /^https:\/\/[a-z0-9-]+\.webfudgesystems\.in$/,
 ];
@@ -80,7 +109,9 @@ module.exports = [
         'Authorization',
         'Origin',
         'Accept',
-        'X-Organization-Id', // CRM / apps send active org; must match preflight Allow-Headers
+        'X-Organization-Id',
+        'x-landing-signup-secret',
+        'x-website-signup-secret',
       ],
     },
   },
