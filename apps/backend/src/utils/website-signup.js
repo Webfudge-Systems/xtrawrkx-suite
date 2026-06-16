@@ -613,8 +613,128 @@ async function ensureWebsiteClientAccount(strapi, body) {
   };
 }
 
+const COMMUNITY_LABELS = {
+  XEN: 'XEN',
+  XEVFIN: 'XEV.FiN',
+  XEVTG: 'XEVTG',
+  XDD: 'xD&D',
+};
+
+const COMMUNITY_PORTAL_PAGE_ID = {
+  XEN: 1,
+  XEVFIN: 2,
+  XEVTG: 3,
+  XDD: 4,
+};
+
+/**
+ * Landing profile page — resolve client account + active memberships by signup email.
+ * Uses DB queries (not authenticated REST) so server-side landing routes work in production.
+ */
+async function getPublicCommunityStatusByEmail(strapi, email) {
+  const emailRaw = normalizeString(email);
+  const emailNorm = emailRaw.toLowerCase();
+  if (!emailNorm || !EMAIL_RE.test(emailNorm)) {
+    return { ok: false, status: 400, error: 'A valid email is required.' };
+  }
+
+  let account = await strapi.db.query(CLIENT_ACCOUNT_UID).findOne({
+    where: { email: emailNorm },
+  });
+
+  if (!account) {
+    const contact = await strapi.db.query(CONTACT_UID).findOne({
+      where: { email: emailNorm },
+    });
+    const linkedAccountId = contact?.clientAccount?.id ?? contact?.clientAccount;
+    if (linkedAccountId) {
+      account = await strapi.db.query(CLIENT_ACCOUNT_UID).findOne({
+        where: { id: linkedAccountId },
+      });
+    }
+  }
+
+  if (!account) {
+    return {
+      ok: true,
+      status: 200,
+      data: {
+        hasClientAccount: false,
+        clientAccount: null,
+        hasCommunity: false,
+        memberships: [],
+        communityName: '',
+        communitySlug: '',
+        membershipId: '',
+      },
+    };
+  }
+
+  const accountDocumentId =
+    account.documentId != null && String(account.documentId).trim() !== ''
+      ? String(account.documentId).trim()
+      : null;
+  const clientKey =
+    accountDocumentId ||
+    (account.id != null && String(account.id).trim() !== ''
+      ? String(account.id).trim()
+      : '');
+
+  const membershipRows = clientKey
+    ? await strapi.db.query('api::community-membership.community-membership').findMany({
+        where: {
+          clientAccount: account.id,
+          status: 'ACTIVE',
+        },
+        limit: 50,
+        orderBy: { joinedAt: 'desc' },
+      })
+    : [];
+
+  const memberships = membershipRows.map((row) => {
+    const code = row.community || '';
+    const portalId = COMMUNITY_PORTAL_PAGE_ID[code] ?? null;
+    return {
+      id: row.id,
+      community: code,
+      label: COMMUNITY_LABELS[code] || code,
+      portalId,
+      status: row.status || 'ACTIVE',
+      joinedAt: row.joinedAt || null,
+    };
+  });
+
+  const hasCommunity = memberships.length > 0;
+  const primary = memberships[0];
+  const communityName = memberships
+    .map((m) => m.label || m.community)
+    .filter(Boolean)
+    .join(', ');
+
+  return {
+    ok: true,
+    status: 200,
+    data: {
+      hasClientAccount: true,
+      clientAccount: {
+        id: account.id,
+        documentId: accountDocumentId,
+        status: account.status || null,
+        source: account.source || null,
+        email: account.email || emailRaw || emailNorm,
+      },
+      hasCommunity,
+      memberships,
+      communityName,
+      communitySlug: primary?.community ? String(primary.community).toLowerCase() : '',
+      membershipId: primary?.id != null ? String(primary.id) : '',
+    },
+  };
+}
+
 module.exports = {
   verifyLandingSignupSecret,
   resolveWebsiteSignupOrgId,
   ensureWebsiteClientAccount,
+  getPublicCommunityStatusByEmail,
 };

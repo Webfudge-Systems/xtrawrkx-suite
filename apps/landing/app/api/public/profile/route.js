@@ -118,6 +118,22 @@ const ensureClientAccount = async (body) => {
 
   const baseUrl = buildBaseUrl();
   const secret = landingSignupSecret();
+
+  if (!secret && process.env.NODE_ENV === "production") {
+    return {
+      attempted: true,
+      ok: false,
+      status: 503,
+      error:
+        "Website signup is not configured. Set LANDING_SIGNUP_SECRET on the marketing site (Vercel) to match Strapi on Railway.",
+      data: null,
+      primaryContactSync: null,
+      defaultProjectSync: null,
+      clientPasswordSync: null,
+      companyNameSync: null,
+    };
+  }
+
   const headers = {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -143,14 +159,16 @@ const ensureClientAccount = async (body) => {
   }
 
   if (!response.ok) {
+    const strapiError =
+      data?.error?.message || data?.error || data?.clientAccountSync?.error;
     return {
       attempted: true,
       ok: false,
       status: lastStatus,
       error:
-        data?.error ||
-        data?.clientAccountSync?.error ||
-        "Client account setup failed.",
+        lastStatus === 403
+          ? "Website signup authentication failed. Set the same LANDING_SIGNUP_SECRET on Vercel (landing) and Railway (Strapi)."
+          : strapiError || "Client account setup failed.",
       data: null,
       primaryContactSync: data?.primaryContactSync || null,
       defaultProjectSync: data?.defaultProjectSync || null,

@@ -19,6 +19,7 @@ const { requireModuleAccess } = require('../../../utils/rbac');
 const {
   verifyLandingSignupSecret,
   ensureWebsiteClientAccount,
+  getPublicCommunityStatusByEmail,
 } = require('../../../utils/website-signup');
 
 const UID = 'api::client-account.client-account';
@@ -274,6 +275,26 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     } catch (error) {
       console.error('Website signup error:', error);
       return ctx.badRequest(error.message);
+    }
+  },
+
+  async publicCommunityStatus(ctx) {
+    if (!verifyLandingSignupSecret(ctx)) {
+      return ctx.forbidden('Invalid or missing website signup secret.');
+    }
+
+    try {
+      const result = await getPublicCommunityStatusByEmail(
+        strapi,
+        ctx.query?.email || ctx.request.body?.email
+      );
+      if (!result.ok) {
+        return ctx.send({ error: result.error }, result.status || 400);
+      }
+      return ctx.send(result.data, result.status || 200);
+    } catch (error) {
+      console.error('publicCommunityStatus error:', error);
+      return ctx.internalServerError(error.message || 'Unable to load community status.');
     }
   },
 }));

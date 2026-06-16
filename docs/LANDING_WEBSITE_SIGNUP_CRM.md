@@ -51,11 +51,23 @@ Headers:
 
 Body: website profile fields (`email`, `companyName`, `firstName`, `lastName`, `industry`, address fields, `initialClientPassword`, etc.)
 
-## Usage / Migration
+## Production troubleshooting
 
-1. Add env vars to Railway/Vercel for backend and landing.
-2. Restart Strapi so `onboardingData` column is created on `client_accounts`.
-3. New landing signups appear under **CRM → Clients → Client Accounts** in the Xtrawrkx org.
+If signup fails on `www.xtrawrkx.com` with **403** or **Client account setup failed**:
+
+1. **Vercel (landing app)** — set:
+   - `LANDING_SIGNUP_SECRET` (same value as Strapi)
+   - `STRAPI_API_URL` or `NEXT_PUBLIC_STRAPI_API_URL` → your Railway Strapi `/api` URL
+2. **Railway (Strapi backend)** — set:
+   - `LANDING_SIGNUP_SECRET` (must match Vercel exactly)
+   - `WEBSITE_SIGNUP_ORG_ID` (Xtrawrkx org id, optional if auto-detect works)
+3. Redeploy **both** services after changing env vars.
+
+**401 on `/api/public/community-status`** (before this fix): the landing route called authenticated Strapi REST. Use `GET /api/client-accounts/public-community-status` (server-to-server with signup secret) instead — implemented in landing `community-status` route.
+
+**Firestore `ERR_BLOCKED_BY_CLIENT`**: usually an ad-blocker; signup falls back to localStorage for profile data and does not block CRM provisioning.
+
+**422**: company name missing on profile sync, or CRM returned success without a client account payload — complete company step on signup or use **Retry Setup** on profile.
 
 Existing website users can use **Retry Setup** on their profile (re-triggers profile sync + client account provisioning).
 

@@ -16,5 +16,15 @@ module.exports = {
         middlewares: [],
       },
     },
+    {
+      method: 'GET',
+      path: '/client-accounts/public-community-status',
+      handler: 'client-account.publicCommunityStatus',
+      config: {
+        auth: false,
+        policies: [],
+        middlewares: [],
+      },
+    },
   ],
 };
