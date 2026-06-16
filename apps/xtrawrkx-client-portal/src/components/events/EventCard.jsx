@@ -85,8 +85,8 @@ export default function EventCard({
       <div
         className={`cursor-pointer rounded-2xl bg-gradient-to-br from-white/80 to-white/50 backdrop-blur-xl border shadow-md transition-all duration-300 overflow-hidden hover:shadow-lg ${
           selected
-            ? "border-xtrawrkx-400 ring-2 ring-xtrawrkx-500/25"
-            : "border-white/40 hover:border-xtrawrkx-200/60"
+            ? "border-orange-400 ring-2 ring-brand-primary/25"
+            : "border-white/40 hover:border-orange-200/60"
         }`}
         onClick={onClick}
       >
@@ -182,20 +182,26 @@ export default function EventCard({
                   className="text-xs"
                 />
               )}
-              {event.registrationStatus === "not_registered" ? (
-                <ModernButton
-                  type="primary"
-                  size="sm"
-                  text="Register Now"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (event.websiteUrl) {
-                      window.open(event.websiteUrl, "_blank", "noopener,noreferrer");
-                    }
-                  }}
-                  className="text-xs"
-                />
-              ) : (
+              {event.registrationStatus === "not_registered" &&
+                event.status === "upcoming" && (
+                  <ModernButton
+                    type="primary"
+                    size="sm"
+                    text="Register Now"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (event.websiteUrl) {
+                        window.open(
+                          event.websiteUrl,
+                          "_blank",
+                          "noopener,noreferrer"
+                        );
+                      }
+                    }}
+                    className="text-xs"
+                  />
+                )}
+              {event.registrationStatus !== "not_registered" && (
                 <div className="flex items-center text-gray-400">
                   <ArrowRight className="h-4 w-4" />
                 </div>

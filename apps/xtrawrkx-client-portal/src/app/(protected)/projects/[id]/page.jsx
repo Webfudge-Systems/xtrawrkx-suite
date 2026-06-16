@@ -1,78 +1,106 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Calendar,
   CheckSquare,
   Users,
-  MessageSquare,
   FileText,
-  DollarSign,
   Clock,
-  AlertCircle,
   CheckCircle2,
   Building2,
-  Globe,
-  ExternalLink,
-  Search,
-  Plus,
-  Paperclip,
-  Smile,
-  MoreVertical,
-  ArrowUpDown,
-  UserPlus,
-  Loader2,
-  Eye,
-  GitBranch,
-  User,
+  Target,
+  AlignLeft,
+  TrendingUp,
+  Share2,
+  RefreshCw,
+  FolderOpen,
+  Activity,
+  MessageSquare,
 } from "lucide-react";
+import {
+  KPICard,
+  TabsWithActions,
+  Button,
+  Card,
+  EmptyState,
+  LoadingSpinner,
+  Avatar,
+  ProgressBar,
+  InfoRow,
+  InfoSection,
+  SidebarCardTitle,
+  EntityActivityPanel,
+  formatRelativeTime,
+  PROJECT_STATUS_OPTIONS,
+} from "@webfudge/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PortalPageShell } from "@/components/layout/PortalPageShell";
+import ClientProjectDetailMetaBar from "@/components/projects/ClientProjectDetailMetaBar";
+import ClientProjectTasksPanel from "@/components/projects/ClientProjectTasksPanel";
+import CreateTaskModal from "@/components/tasks/CreateTaskModal";
 import { useSession } from "@/lib/auth";
-import strapiClient from "@/lib/strapiClient";
-import TaskDetailModal from "@/components/tasks/TaskDetailModal";
+import { getProjectForClient } from "@/lib/api/clientProjectService";
+import { createClientTask } from "@/lib/api/clientTaskService";
+import { listCompanyMembers } from "@/lib/api/companyMembersService";
+import {
+  fetchClientProjectTimeline,
+  fetchClientProjectComments,
+  addClientProjectComment,
+} from "@/lib/api/clientProjectActivityService";
 
-import ProjectDiscussionBoard from "@/components/projects/ProjectDiscussionBoard";
-
-/** Must match Strapi project schema relation names (see projects list page). */
-const PROJECT_DETAIL_POPULATE = [
-  "projectManager",
-  "teamMembers",
-  "tasks",
-  "tasks.assignee",
-  "clientAccount",
-  "account",
+const DETAIL_TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "tasks", label: "Tasks" },
+  { key: "comments", label: "Comments" },
+  { key: "activity", label: "Activity" },
+  { key: "files", label: "Files" },
 ];
 
-function mapProjectResponse(projectResponse, fallbackId) {
-  const projectData = projectResponse.attributes || projectResponse;
-  const pm =
-    projectData.projectManager?.data?.attributes ||
-    projectData.projectManager;
+const headerIconBtnClass =
+  "p-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 shadow-lg text-brand-text-light";
 
+function getProjectStatusLabel(status) {
+  const s = (status || "PLANNING").toUpperCase();
+  return PROJECT_STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s.replace(/_/g, " ");
+}
+
+function formatShortDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function projectStatusHeaderVisual(status) {
+  const label = getProjectStatusLabel(status);
+  const s = (status || "PLANNING").toUpperCase();
+  if (s === "COMPLETED") {
+    return {
+      pillClass: "border border-emerald-300/90 bg-gradient-to-br from-emerald-50 to-emerald-100/90 text-emerald-950 ring-emerald-200/70",
+      Icon: CheckCircle2,
+      label,
+    };
+  }
+  if (s === "IN_PROGRESS" || s === "ACTIVE") {
+    return {
+      pillClass: "border border-orange-300/90 bg-gradient-to-br from-orange-50 to-orange-100/90 text-orange-950 ring-orange-200/70",
+      Icon: Target,
+      label,
+    };
+  }
+  if (s === "PLANNING") {
+    return {
+      pillClass: "border border-blue-300/90 bg-gradient-to-br from-blue-50 to-blue-100/90 text-blue-950 ring-blue-200/70",
+      Icon: Target,
+      label,
+    };
+  }
   return {
-    id: projectResponse.id || fallbackId,
-    name: projectData.name || "Untitled Project",
-    description: projectData.description || "",
-    status: projectData.status || "PLANNING",
-    progress: projectData.progress || 0,
-    startDate: projectData.startDate,
-    endDate: projectData.endDate,
-    budget: projectData.budget || 0,
-    spent: projectData.spent || projectData.totalSpend || 0,
-    manager: pm,
-    team: projectData.teamMembers?.data || projectData.teamMembers || [],
-    tasks: projectData.tasks?.data || projectData.tasks || [],
-    clientAccount: (() => {
-      const rel = projectData.clientAccount?.data || projectData.clientAccount;
-      if (!rel) return null;
-      const attrs = rel.attributes || rel;
-      return {
-        ...attrs,
-        id: rel.id ?? attrs.id ?? attrs.documentId,
-        documentId: rel.documentId ?? attrs.documentId,
-      };
-    })(),
+    pillClass: "border border-gray-300/90 bg-gradient-to-br from-gray-50 to-gray-100/90 text-gray-950 ring-gray-200/70",
+    Icon: Target,
+    label,
   };
 }
 
@@ -80,1182 +108,554 @@ export default function ProjectDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
+  const projectId = params?.id;
+
   const [project, setProject] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [isTaskModalFullView, setIsTaskModalFullView] = useState(false);
+  const [crmTimeline, setCrmTimeline] = useState([]);
+  const [crmTimelineLoading, setCrmTimelineLoading] = useState(false);
+  const [crmTimelineError, setCrmTimelineError] = useState(null);
+  const [crmTimelineTotal, setCrmTimelineTotal] = useState(0);
+  const [commentCount, setCommentCount] = useState(0);
+  const [projectChatMessages, setProjectChatMessages] = useState([]);
+  const [projectChatLoading, setProjectChatLoading] = useState(false);
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [clientMembers, setClientMembers] = useState([]);
 
-  // Load project data
-  useEffect(() => {
-    const loadProject = async () => {
-      if (!params?.id) return;
-
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const projectIdentifier = params.id;
-
-        // Check if it's a numeric ID or a slug
-        const isNumericId = /^\d+$/.test(projectIdentifier);
-
-        let url;
-        let data;
-
-        if (isNumericId) {
-          // Fetch by ID directly
-          const queryParams = strapiClient.buildQueryString({
-            populate: PROJECT_DETAIL_POPULATE,
-          });
-
-          const baseURL = strapiClient.buildURL(
-            `/projects/${projectIdentifier}`,
-            {}
-          );
-          url = `${baseURL}?${queryParams}`;
-        } else {
-          // Fetch by slug using filter
-          const queryParams = strapiClient.buildQueryString({
-            filters: {
-              slug: {
-                $eq: projectIdentifier,
-              },
-            },
-            populate: PROJECT_DETAIL_POPULATE,
-          });
-
-          const baseURL = strapiClient.buildURL("/projects", {});
-          url = `${baseURL}?${queryParams}`;
-        }
-
-
-        // Use fetch directly with proper error handling
-        const response = await fetch(url, {
-          method: "GET",
-          headers: strapiClient.getHeaders(),
-        });
-
-        if (!response.ok) {
-          // Check if response is HTML (error page)
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("text/html")) {
-            const errorText = await response.text();
-            console.error(
-              "Server returned HTML instead of JSON. Status:",
-              response.status
-            );
-            console.error("Response preview:", errorText.substring(0, 500));
-            throw new Error(
-              `Server error: ${response.status} ${response.statusText}`
-            );
-          }
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        data = await response.json();
-
-        // Handle different response structures
-        let projectResponse;
-        if (isNumericId) {
-          // Single project response
-          projectResponse = data.data;
-        } else {
-          // Array response from filter query
-          if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-            projectResponse = data.data[0];
-          } else {
-            throw new Error("Project not found");
-          }
-        }
-
-        if (projectResponse) {
-          setProject(mapProjectResponse(projectResponse, projectIdentifier));
-        } else {
-          throw new Error("Invalid response format");
-        }
-      } catch (err) {
-        console.error("Error loading project:", err);
-        setError(err.message || "Failed to load project");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadProject();
-  }, [params]);
-
-  const clientVisibleTasks =
-    project?.tasks?.filter((task) => {
-      const taskData = task.attributes || task;
-      return !!taskData.isSharedWithClient;
-    }) || [];
-
-  // Calculate project stats
-  const stats = project
-    ? [
-        {
-          title: "Total Tasks",
-          value: clientVisibleTasks.length.toString(),
-          change: "+0",
-          changeType: "neutral",
-          icon: CheckSquare,
-        },
-        {
-          title: "In Progress",
-          value: (
-            clientVisibleTasks.filter(
-              (t) =>
-                t.status === "IN_PROGRESS" ||
-                t.attributes?.status === "IN_PROGRESS"
-            ).length
-          ).toString(),
-          change: "+0",
-          changeType: "neutral",
-          icon: Clock,
-        },
-        {
-          title: "Completed",
-          value: (
-            clientVisibleTasks.filter(
-              (t) =>
-                t.status === "COMPLETED" || t.attributes?.status === "COMPLETED"
-            ).length
-          ).toString(),
-          change: "+0",
-          changeType: "neutral",
-          icon: CheckCircle2,
-        },
-        {
-          title: "Team Members",
-          value: (project.team?.length || 0).toString(),
-          change: "+0",
-          changeType: "neutral",
-          icon: Users,
-        },
-      ]
-    : [];
-
-  const tabs = [
-    { id: "overview", label: "Overview", icon: FileText },
-    { id: "tasks", label: "Tasks", icon: CheckSquare },
-    { id: "members", label: "Members", icon: Users },
-    { id: "discussion", label: "Discussion", icon: MessageSquare },
-  ];
-
-  const getStatusColor = (status) => {
-    const statusUpper = (status || "").toUpperCase();
-    switch (statusUpper) {
-      case "COMPLETED":
-      case "DONE":
-        return "bg-green-100 text-green-800 border-green-400";
-      case "IN_PROGRESS":
-      case "IN PROGRESS":
-        return "bg-yellow-100 text-yellow-800 border-yellow-400";
-      case "ACTIVE":
-        return "bg-yellow-100 text-yellow-800 border-yellow-400";
-      case "IN REVIEW":
-      case "INTERNAL REVIEW":
-      case "IN_REVIEW":
-        return "bg-purple-100 text-purple-800 border-purple-400";
-      case "CLIENT REVIEW":
-      case "CLIENT_REVIEW":
-      case "CLIENT REVIEW":
-      case "CLIENT_REVIEW":
-        return "bg-purple-100 text-purple-800 border-purple-400";
-      case "APPROVED":
-        return "bg-blue-100 text-blue-800 border-blue-400";
-      case "TO DO":
-      case "TODO":
-      case "SCHEDULED":
-      case "PLANNING":
-      case "PLANNED":
-        return "bg-blue-100 text-blue-800 border-blue-400";
-      case "ON_HOLD":
-        return "bg-yellow-100 text-yellow-800 border-yellow-400";
-      case "CANCELLED":
-        return "bg-gray-100 text-gray-800 border-gray-400";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-400";
-    }
-  };
-
-  const formatStatus = (status) => {
-    const statusMap = {
-      PLANNING: "Planning",
-      IN_PROGRESS: "In Progress",
-      COMPLETED: "Completed",
-      ON_HOLD: "On Hold",
-      ACTIVE: "Active",
-      "TO DO": "To Do",
-      "IN PROGRESS": "In Progress",
-      IN_REVIEW: "Internal Review",
-      "CLIENT REVIEW": "Client Review",
-      CLIENT_REVIEW: "Client Review",
-      APPROVED: "Approved",
-      DONE: "Done",
-      TODO: "To Do",
-    };
-    return (
-      statusMap[status?.toUpperCase()] ||
-      status?.replace("_", " ") ||
-      "Planning"
-    );
-  };
-
-  // Normalize status for consistent display
-  const normalizeStatus = (status) => {
-    if (!status) return "To Do";
-    const statusUpper = status.toUpperCase();
-    if (statusUpper === "TO DO" || statusUpper === "TODO") return "To Do";
-    if (statusUpper === "IN PROGRESS" || statusUpper === "IN_PROGRESS")
-      return "In Progress";
-    if (statusUpper === "IN REVIEW" || statusUpper === "IN_REVIEW")
-      return "Internal Review";
-    if (statusUpper === "CLIENT REVIEW" || statusUpper === "CLIENT_REVIEW")
-      return "Client Review";
-    if (statusUpper === "APPROVED") return "Approved";
-    if (statusUpper === "DONE" || statusUpper === "COMPLETED") return "Done";
-    if (statusUpper === "CANCELLED") return "Cancelled";
-    return status.replace("_", " ");
-  };
-
-  // Normalize priority
-  const normalizePriority = (priority) => {
-    if (!priority) return "Medium";
-    const priorityLower = priority.toLowerCase();
-    if (priorityLower === "high") return "High";
-    if (priorityLower === "medium") return "Medium";
-    if (priorityLower === "low") return "Low";
-    return priority;
-  };
-
-  // Get priority color
-  const getPriorityColor = (priority) => {
-    const priorityLower = (priority || "").toLowerCase();
-    switch (priorityLower) {
-      case "high":
-        return "bg-red-100 text-red-800 border-red-200";
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "low":
-        return "bg-green-100 text-green-800 border-green-200";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
-    }
-  };
-
-  // Transform task data for display
-  const transformTask = (task) => {
-    const taskData = task.attributes || task;
-    const assigneeData =
-      taskData.assignee?.data?.attributes ||
-      taskData.assignee?.attributes ||
-      taskData.assignee;
-
-    return {
-      id: task.id || task.documentId || taskData.id || taskData.documentId,
-      name: taskData.name || taskData.title || "Untitled Task",
-      description: taskData.description || "",
-      status: normalizeStatus(taskData.status),
-      priority: normalizePriority(taskData.priority),
-      scheduledDate:
-        taskData.scheduledDate || taskData.dueDate || taskData.endDate,
-      timeAllotted: taskData.timeAllotted ?? null,
-      progress: taskData.progress || 0,
-      assignee: assigneeData
-        ? {
-            id: assigneeData.id || assigneeData.documentId,
-            name:
-              assigneeData.name ||
-              assigneeData.firstName ||
-              assigneeData.email?.split("@")[0] ||
-              "Unknown",
-            email: assigneeData.email,
-          }
-        : null,
-      subtasks: taskData.subtasks || [],
-      project: project
-        ? {
-            id: project.id,
-            name: project.name,
-          }
-        : null,
-      isSharedWithClient: !!taskData.isSharedWithClient,
-      createdBySource: taskData.createdBySource || "internal",
-      requiresApproval: taskData.requiresApproval || false,
-      clientApproval: taskData.clientApproval || null,
-      comments: taskData.comments || [],
-      attachments: taskData.attachments || [],
-    };
-  };
-
-  // Handle task click
-  const handleTaskClick = (task) => {
-    const transformedTask = transformTask(task);
-    setSelectedTask(transformedTask);
-    setIsTaskModalOpen(true);
-  };
-
-  // Task table columns - matching tasks page
-  const taskColumnsTable = [
-    {
-      key: "actionRequired",
-      label: "",
-      render: (_, task) => {
-        // Check if task requires client approval (status is Client Review only)
-        const isActionRequired =
-          (task.status === "Client Review" ||
-            task.status?.toUpperCase() === "CLIENT_REVIEW") &&
-          !task.clientApproval;
-
-        if (isActionRequired) {
-          return (
-            <div className="flex items-center justify-center">
-              <div className="relative">
-                <AlertCircle className="w-5 h-5 text-xtrawrkx-500 animate-pulse" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-xtrawrkx-500 rounded-full border-2 border-white"></div>
-              </div>
-            </div>
-          );
-        }
-
-        // Show a subtle indicator for tasks not in review
-        return (
-          <div className="flex items-center justify-center w-5 h-5">
-            <div className="w-2 h-2 rounded-full bg-gray-300"></div>
-          </div>
-        );
-      },
-    },
-    {
-      key: "name",
-      label: "TASK NAME",
-      render: (_, task) => {
-        const isDone =
-          task.status?.toLowerCase() === "done" ||
-          task.status?.toLowerCase() === "completed";
-
-        const taskSubtasks = task.subtasks || [];
-        const rootSubtasks = taskSubtasks.filter((st) => {
-          return (
-            !st.parentSubtask ||
-            st.parentSubtask === null ||
-            (typeof st.parentSubtask === "object" && !st.parentSubtask.id)
-          );
-        });
-        const hasSubtasks = rootSubtasks.length > 0;
-
-        return (
-          <div className="flex items-center gap-3 min-w-[200px]">
-            <div className="min-w-0 flex-1 flex items-center gap-2">
-              <div
-                className={`font-medium truncate flex-1 min-w-0 ${
-                  isDone ? "line-through text-gray-500" : "text-gray-900"
-                }`}
-              >
-                {task.name}
-              </div>
-              {hasSubtasks && (
-                <div
-                  className="flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600"
-                  title={`${rootSubtasks.length} ${
-                    rootSubtasks.length === 1 ? "subtask" : "subtasks"
-                  }`}
-                >
-                  <GitBranch className="w-3.5 h-3.5" />
-                  <span className="text-xs font-medium">
-                    {rootSubtasks.length}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      key: "assignee",
-      label: "ASSIGNEE",
-      render: (_, task) => {
-        const assignee = task.assignee;
-        const hasAssignee = assignee && assignee.name;
-
-        return (
-          <div className="flex items-center gap-2 min-w-[140px]">
-            {hasAssignee ? (
-              <div className="flex items-center gap-1">
-                <div
-                  className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0 border border-white"
-                  title={assignee.name}
-                >
-                  {assignee.name?.charAt(0)?.toUpperCase() || "U"}
-                </div>
-                <span className="text-sm text-gray-600 truncate ml-1">
-                  {assignee.name}
-                </span>
-              </div>
-            ) : (
-              <span className="text-sm text-gray-500">Unassigned</span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      key: "dueDate",
-      label: "DUE DATE",
-      render: (_, task) => {
-        const formatDate = (dateString) => {
-          if (!dateString) return "Not set";
-          try {
-            const date = new Date(dateString);
-            return date.toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            });
-          } catch {
-            return dateString;
-          }
-        };
-
-        return (
-          <div className="flex items-center gap-2 min-w-[150px]">
-            <Calendar className="w-4 h-4 flex-shrink-0 text-gray-500" />
-            <span className="text-sm text-gray-700">
-              {formatDate(task.scheduledDate)}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      key: "timeAllotted",
-      label: "TIME ALLOTTED",
-      render: (_, task) => (
-        <div className="flex items-center gap-2 min-w-[120px]">
-          <Clock className="w-4 h-4 flex-shrink-0 text-gray-500" />
-          <span className="text-sm text-gray-700 font-medium">
-            {task.timeAllotted != null && task.timeAllotted !== ""
-              ? `${task.timeAllotted} hrs`
-              : "—"}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: "status",
-      label: "STATUS",
-      render: (_, task) => {
-        return (
-          <div className="min-w-[140px]">
-            <span
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border inline-block ${getStatusColor(
-                task.status
-              )}`}
-            >
-              {formatStatus(task.status)}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      key: "priority",
-      label: "PRIORITY",
-      render: (_, task) => {
-        return (
-          <div className="min-w-[120px]">
-            <span
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border inline-block ${getPriorityColor(
-                task.priority
-              )}`}
-            >
-              {task.priority || "Medium"}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      key: "progress",
-      label: "PROGRESS",
-      render: (_, task) => (
-        <div className="min-w-[120px]">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
-                style={{ width: `${task.progress || 0}%` }}
-              />
-            </div>
-            <span className="text-sm font-medium text-gray-900">
-              {task.progress || 0}%
-            </span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: "actions",
-      label: "ACTIONS",
-      render: (_, task) => {
-        // Check if task requires client approval (status is Client Review only)
-        const isActionRequired =
-          (task.status === "Client Review" ||
-            task.status?.toUpperCase() === "CLIENT_REVIEW") &&
-          !task.clientApproval;
-
-        return (
-          <div className="flex items-center gap-1 min-w-[120px]">
-            {isActionRequired && (
-              <div className="px-2 py-1 bg-xtrawrkx-100 text-xtrawrkx-800 rounded-lg text-xs font-semibold border border-xtrawrkx-200 mr-2">
-                Action Required
-              </div>
-            )}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleTaskClick(task);
-              }}
-              className="p-1.5 text-xtrawrkx-600 hover:text-xtrawrkx-700 hover:bg-xtrawrkx-50 rounded transition-colors"
-              title="View Task"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      },
-    },
-  ];
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "Not set";
+  const loadProject = useCallback(async () => {
+    if (!projectId) return;
     try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateString;
+      setLoading(true);
+      setError(null);
+      const data = await getProjectForClient(projectId);
+      setProject(data);
+    } catch (e) {
+      setError(e.message || "Failed to load project");
+      setProject(null);
+    } finally {
+      setLoading(false);
     }
+  }, [projectId]);
+
+  useEffect(() => {
+    loadProject();
+  }, [loadProject]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const m = await listCompanyMembers();
+        if (!cancelled) setClientMembers(m?.data || []);
+      } catch {
+        if (!cancelled) setClientMembers([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const reloadProjectTimeline = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true;
+    const apiProjectId = project?.slug || project?.id;
+    if (!apiProjectId) return;
+    if (!silent) {
+      setCrmTimelineLoading(true);
+      setCrmTimelineError(null);
+      setProjectChatLoading(true);
+    }
+    try {
+      const [{ data, total }, commentsRes] = await Promise.all([
+        fetchClientProjectTimeline({ projectId: apiProjectId, limit: 80, type: "activity" }),
+        fetchClientProjectComments({ projectId: apiProjectId, limit: 80 }),
+      ]);
+      const rows = Array.isArray(data) ? data : [];
+      const commentRows = Array.isArray(commentsRes?.data) ? commentsRes.data : [];
+      setCrmTimeline(rows);
+      setCrmTimelineTotal(typeof total === "number" ? total : rows.length);
+      setProjectChatMessages([...commentRows].reverse());
+      setCommentCount(
+        typeof commentsRes?.total === "number"
+          ? commentsRes.total
+          : commentRows.length
+      );
+    } catch (e) {
+      if (!silent) {
+        setCrmTimelineError(e?.message || "Could not load activities");
+        setCrmTimeline([]);
+        setCrmTimelineTotal(0);
+        setCommentCount(0);
+        setProjectChatMessages([]);
+      }
+    } finally {
+      if (!silent) {
+        setCrmTimelineLoading(false);
+        setProjectChatLoading(false);
+      }
+    }
+  }, [project?.id, project?.slug]);
+
+  useEffect(() => {
+    if (!project?.id || loading) return;
+    reloadProjectTimeline({ silent: false });
+  }, [project?.id, project?.slug, loading, reloadProjectTimeline]);
+
+  useEffect(() => {
+    if (!project?.id || loading) return;
+    if (activeTab === "comments" || activeTab === "overview") {
+      reloadProjectTimeline({ silent: true });
+    }
+  }, [activeTab, project?.id, project?.slug, loading, reloadProjectTimeline]);
+
+  const refreshAll = useCallback(() => {
+    loadProject();
+    reloadProjectTimeline({ silent: false });
+  }, [loadProject, reloadProjectTimeline]);
+
+  const handleAddProjectComment = useCallback(
+    async ({ entityId, comment }) => {
+      const res = await addClientProjectComment({ projectId: entityId, comment });
+      const newMsg = res?.data;
+      if (newMsg) {
+        setProjectChatMessages((prev) => {
+          const newId = newMsg.id ?? newMsg.documentId;
+          if (newId != null && prev.some((m) => (m.id ?? m.documentId) === newId)) return prev;
+          return [...prev, newMsg];
+        });
+      }
+      await reloadProjectTimeline({ silent: true });
+      return res;
+    },
+    [reloadProjectTimeline],
+  );
+
+  const composerAvatarFallback = useMemo(() => {
+    const name =
+      session?.contact?.firstName && session?.contact?.lastName
+        ? `${session.contact.firstName} ${session.contact.lastName}`
+        : session?.account?.companyName || session?.contact?.email?.split("@")[0] || "You";
+    const parts = String(name).split(/[\s._-]/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return (String(name).slice(0, 2) || "Y").toUpperCase();
+  }, [session]);
+
+  const activityCount = typeof crmTimelineTotal === "number" ? crmTimelineTotal : crmTimeline.length;
+
+  const lastActivityDisplay = useMemo(() => {
+    const first = crmTimeline?.[0]?.createdAt;
+    if (first) return formatRelativeTime(first) || "—";
+    return project?.updatedAt ? formatRelativeTime(project.updatedAt) : "—";
+  }, [crmTimeline, project?.updatedAt]);
+
+  const projectTasks = useMemo(() => project?.tasks || [], [project]);
+
+  const taskStats = useMemo(() => {
+    if (!project) return { total: 0, completed: 0, inProgress: 0, progress: 0 };
+    const total = projectTasks.length;
+    const completed = projectTasks.filter((t) =>
+      ["COMPLETED", "DONE", "APPROVED"].includes((t.strapiStatus || "").toUpperCase()),
+    ).length;
+    const inProgress = projectTasks.filter((t) =>
+      ["IN_PROGRESS", "ACTIVE"].includes((t.strapiStatus || "").toUpperCase()),
+    ).length;
+    const progress = total > 0 ? Math.round((completed / total) * 100) : project.progress ?? 0;
+    return { total, completed, inProgress, progress };
+  }, [project, projectTasks]);
+
+  const handleCreateTask = useCallback(
+    async (taskInput) => {
+      if (!project?.id) return;
+      const priority = (taskInput.priority || "medium").toLowerCase();
+      await createClientTask({
+        name: taskInput.title,
+        description: taskInput.description || "",
+        projects: { set: [Number(taskInput.projectId || project.id)] },
+        scheduledDate: taskInput.dueDate ? new Date(`${taskInput.dueDate}T00:00:00`).toISOString() : null,
+        priority: priority === "urgent" ? "high" : priority,
+      });
+      await loadProject();
+    },
+    [loadProject, project?.id],
+  );
+
+  const visibleCommentCount = projectChatMessages.length || commentCount;
+
+  const tabsWithBadges = useMemo(
+    () =>
+      DETAIL_TABS.map((tab) => ({
+        ...tab,
+        badge:
+          tab.key === "tasks"
+            ? projectTasks.length || undefined
+            : tab.key === "comments" && visibleCommentCount
+              ? visibleCommentCount
+              : undefined,
+        badgeCount:
+          tab.key === "activity" && activityCount ? activityCount : undefined,
+      })),
+    [projectTasks.length, visibleCommentCount, activityCount]
+  );
+
+  if (loading) {
+    return (
+      <PortalPageShell>
+        <PageHeader title="Loading..." subtitle="Project details" showActions={false} />
+        <Card variant="elevated" className="flex justify-center rounded-xl p-12">
+          <LoadingSpinner message="Loading project..." />
+        </Card>
+      </PortalPageShell>
+    );
+  }
+
+  if (!project || error) {
+    return (
+      <PortalPageShell>
+        <PageHeader title="Project not found" subtitle={error || "This project may have been removed"} showActions={false} />
+        <Card variant="elevated" className="rounded-xl p-12 text-center">
+          <p className="text-gray-600">{error || "This project may have been deleted or moved."}</p>
+          <Button type="button" variant="primary" className="mt-4" onClick={() => router.push("/projects")}>
+            Back to projects
+          </Button>
+        </Card>
+      </PortalPageShell>
+    );
+  }
+
+  const statusVisual = projectStatusHeaderVisual(project.strapiStatus);
+  const StatusIcon = statusVisual.Icon;
+  const breadcrumbItems = [
+    { label: "Portal", href: "/dashboard" },
+    { label: "Projects", href: "/projects" },
+    { label: project.name, href: `/projects/${project.slug || project.id}` },
+  ];
+
+  const projectApiId = project?.slug || project?.id;
+
+  const discussionPanelProps = {
+    entityType: "project",
+    entityId: projectApiId,
+    entityName: project.name,
+    crmTimeline,
+    crmTimelineLoading,
+    crmTimelineError,
+    activityCount,
+    fetchCommentsFn: ({ entityId }) => fetchClientProjectComments({ projectId: entityId, limit: 80 }),
+    addCommentFn: handleAddProjectComment,
+    composerAvatarFallback,
+    chatFooterBadgeText: "Messages are saved on this project for your team.",
+    className: "w-full",
+    sharedChatMessages: projectChatMessages,
+    onSharedChatMessagesChange: setProjectChatMessages,
+    sharedChatLoading: projectChatLoading,
+    onSharedChatReload: () => reloadProjectTimeline({ silent: true }),
   };
-
-  const discussionClientAccountId =
-    project?.clientAccount?.id ||
-    strapiClient.getCurrentAccountId() ||
-    session?.user?.id;
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="p-4">
-          <PageHeader
-            title="Project"
-            subtitle="Loading project..."
-            breadcrumb={[
-              { label: "Dashboard", href: "/dashboard" },
-              { label: "Projects", href: "/projects" },
-            ]}
-            showSearch={false}
-            showActions={false}
-          />
-        </div>
-        <div className="flex-1 flex items-center justify-center h-64">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-xtrawrkx-500 mx-auto mb-4" />
-            <p className="text-gray-600">Loading project...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !project) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="p-4">
-          <PageHeader
-            title="Project"
-            subtitle="Error loading project"
-            breadcrumb={[
-              { label: "Dashboard", href: "/dashboard" },
-              { label: "Projects", href: "/projects" },
-            ]}
-            showSearch={false}
-            showActions={false}
-          />
-        </div>
-        <div className="flex-1 flex items-center justify-center h-64">
-          <div className="text-center">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-            <p className="text-gray-600">{error || "Project not found"}</p>
-            <button
-              onClick={() => router.push("/projects")}
-              className="mt-4 px-4 py-2 bg-xtrawrkx-500 text-white rounded-lg hover:bg-xtrawrkx-600 transition-colors"
-            >
-              Back to Projects
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="p-4 space-y-4">
+    <PortalPageShell>
+      <div className="space-y-3">
         <PageHeader
           title={project.name}
-          subtitle={`${formatStatus(project.status)} • ${
-            project.clientAccount?.name || "No Client"
-          }`}
-          breadcrumb={[
-            { label: "Dashboard", href: "/dashboard" },
-            { label: "Projects", href: "/projects" },
-            {
-              label: project.name,
-              href: `/projects/${project.id}`,
-            },
-          ]}
-          showProfile={true}
+          breadcrumb={breadcrumbItems}
+          showProfile
           showSearch={false}
           showActions={false}
-        />
-
-        {/* Project Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={index}
-                className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6 hover:shadow-2xl transition-all duration-200"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600 font-medium">
-                      {stat.title}
-                    </p>
-                    <div
-                      className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold ${
-                        stat.changeType === "increase"
-                          ? "bg-green-50 text-green-600"
-                          : stat.changeType === "decrease"
-                          ? "bg-red-50 text-red-600"
-                          : "bg-gray-50 text-gray-600"
-                      }`}
-                    >
-                      <span>{stat.change}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {stat.value}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Tabs */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl p-2 shadow-lg">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
-                    activeTab === tab.id
-                      ? "bg-xtrawrkx-500 text-white shadow-lg"
-                      : "bg-transparent text-gray-700 hover:bg-white/50"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
+          onBack={() => router.push("/projects")}
+        >
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              className={headerIconBtnClass}
+              title="Copy link"
+              onClick={() => navigator.clipboard?.writeText(window.location.href)}
+            >
+              <Share2 className="h-5 w-5" />
+            </button>
+            <button type="button" className={headerIconBtnClass} title="Refresh" onClick={refreshAll}>
+              <RefreshCw className="h-5 w-5" />
+            </button>
           </div>
-        </div>
+        </PageHeader>
 
-        {/* Tab Content */}
-        <div>
-          {/* Overview Tab */}
-          {activeTab === "overview" && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - Project Details */}
-              <div className="lg:col-span-2 space-y-6">
-                {/* Project Details Card */}
-                <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Project Details
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">
-                          Start Date
-                        </span>
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatDate(project.startDate)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">End Date</span>
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatDate(project.endDate)}
-                      </span>
-                    </div>
-                    {project.budget && project.budget > 0 && (
-                      <>
-                        <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">
-                              Budget
-                            </span>
-                          </div>
-                          <span className="text-sm font-medium text-gray-900">
-                            ₹{project.budget.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">Spent</span>
-                          </div>
-                          <span className="text-sm font-medium text-gray-900">
-                            ₹{project.spent.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between py-2">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">
-                              Remaining
-                            </span>
-                          </div>
-                          <span className="text-sm font-medium text-gray-900">
-                            ₹{(project.budget - project.spent).toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
-                          <div
-                            className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(
-                                (project.spent / project.budget) * 100,
-                                100
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Progress Card */}
-                <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Project Progress
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">
-                        Overall Progress
-                      </span>
-                      <span className="text-lg font-bold text-gray-900">
-                        {project.progress}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-xtrawrkx-500 h-3 rounded-full transition-all duration-500"
-                        style={{ width: `${project.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column - Quick Stats & Team */}
-              <div className="space-y-6">
-                {/* Quick Stats */}
-                <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Quick Stats
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-xtrawrkx-100 rounded-lg">
-                        <CheckSquare className="w-5 h-5 text-xtrawrkx-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500">Total Tasks</p>
-                        <p className="text-lg font-bold text-gray-900">
-                          {clientVisibleTasks.length}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500">Completed</p>
-                        <p className="text-lg font-bold text-gray-900">
-                          {clientVisibleTasks.filter(
-                            (t) =>
-                              t.status === "COMPLETED" ||
-                              t.attributes?.status === "COMPLETED"
-                          ).length}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-orange-100 rounded-lg">
-                        <Clock className="w-5 h-5 text-orange-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500">In Progress</p>
-                        <p className="text-lg font-bold text-gray-900">
-                          {clientVisibleTasks.filter(
-                            (t) =>
-                              t.status === "IN_PROGRESS" ||
-                              t.attributes?.status === "IN_PROGRESS"
-                          ).length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Team Members Preview */}
-                {project.team && project.team.length > 0 && (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Team Members
-                      </h3>
-                      <button
-                        onClick={() => setActiveTab("members")}
-                        className="text-sm text-xtrawrkx-600 hover:text-xtrawrkx-700 font-medium"
-                      >
-                        View All
-                      </button>
-                    </div>
-                    <div className="space-y-3">
-                      {project.team.slice(0, 6).map((member, index) => {
-                        const memberData = member.attributes || member;
-                        const name =
-                          memberData.firstName && memberData.lastName
-                            ? `${memberData.firstName} ${memberData.lastName}`
-                            : memberData.name ||
-                              memberData.email?.split("@")[0] ||
-                              "Unknown";
-                        const initial = name.charAt(0).toUpperCase();
-                        return (
-                          <div
-                            key={member.id || index}
-                            className="flex items-center gap-3 p-2 bg-white/50 rounded-lg"
-                          >
-                            <div className="w-8 h-8 bg-xtrawrkx-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                              {initial}
-                            </div>
-                            <span className="text-sm font-medium text-gray-900">
-                              {name}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      {project.team.length > 6 && (
-                        <div className="text-center text-sm text-gray-600">
-                          +{project.team.length - 6} more
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Tasks Tab */}
-          {activeTab === "tasks" && (
-            <div className="space-y-6 -mx-4 px-4">
-              {/* Tasks Table */}
-              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 rounded-3xl bg-white/70 backdrop-blur-xl border border-white/40 transition-shadow duration-300">
-                <table className="w-full rounded-3xl overflow-hidden min-w-[1600px]">
-                  <thead className="bg-white/90 backdrop-blur-lg border-b border-xtrawrkx-200/50 shadow-sm">
-                    <tr>
-                      {taskColumnsTable.map((column) => (
-                        <th
-                          key={column.key}
-                          className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm"
-                        >
-                          {column.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white/60 backdrop-blur-sm divide-y divide-white/20">
-                    {clientVisibleTasks.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={taskColumnsTable.length}
-                          className="px-6 py-12 text-center"
-                        >
-                          <div className="flex flex-col items-center">
-                            <CheckSquare className="w-12 h-12 text-gray-400 mb-4" />
-                            <p className="text-gray-600 font-medium">
-                              No tasks found
-                            </p>
-                            <p className="text-sm text-gray-500 mt-1">
-                              This project doesn't have any tasks yet
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      clientVisibleTasks
-                        .filter((task) => {
-                          const taskData = task.attributes || task;
-                          return !!taskData.isSharedWithClient;
-                        })
-                        .map((task) => {
-                        const transformedTask = transformTask(task);
-                        const isActionRequired =
-                          transformedTask.requiresApproval &&
-                          transformedTask.status === "Client Review" &&
-                          !transformedTask.clientApproval;
-
-                        return (
-                          <tr
-                            key={transformedTask.id}
-                            onClick={() => handleTaskClick(task)}
-                            className={`hover:bg-xtrawrkx-50/50 hover:shadow-lg transition-all duration-300 group bg-white/40 shadow-sm hover:shadow-xtrawrkx-100/50 cursor-pointer ${
-                              isActionRequired
-                                ? "border-l-4 border-xtrawrkx-500 bg-xtrawrkx-50/30"
-                                : ""
-                            }`}
-                          >
-                            {taskColumnsTable.map((column) => (
-                              <td
-                                key={column.key}
-                                className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300"
-                              >
-                                {column.render(
-                                  transformedTask,
-                                  transformedTask
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        );
-                        })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Members Tab */}
-          {activeTab === "members" && (
-            <div className="space-y-6">
-              <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl overflow-hidden">
-                <div className="p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Team Members
-                  </h3>
-                  {project.team && project.team.length > 0 ? (
-                    <div className="space-y-4">
-                      {project.team.map((member, index) => {
-                        const memberData = member.attributes || member;
-                        const name =
-                          memberData.firstName && memberData.lastName
-                            ? `${memberData.firstName} ${memberData.lastName}`
-                            : memberData.name ||
-                              memberData.email?.split("@")[0] ||
-                              "Unknown";
-                        const initial = name.charAt(0).toUpperCase();
-                        const role =
-                          memberData.role ||
-                          memberData.position ||
-                          "Team Member";
-                        return (
-                          <div
-                            key={member.id || index}
-                            className="flex items-center gap-4 p-4 bg-white/50 rounded-lg border border-white/30"
-                          >
-                            <div className="w-12 h-12 bg-xtrawrkx-500 rounded-full flex items-center justify-center text-white font-bold">
-                              {initial}
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900">
-                                {name}
-                              </h4>
-                              <p className="text-sm text-gray-600">{role}</p>
-                              {memberData.email && (
-                                <p className="text-xs text-gray-500">
-                                  {memberData.email}
-                                </p>
-                              )}
-                            </div>
-                            <button className="px-4 py-2 bg-xtrawrkx-500 text-white rounded-lg hover:bg-xtrawrkx-600 transition-colors text-sm font-medium">
-                              Contact
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">No team members</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "discussion" && (
-            <ProjectDiscussionBoard
-              projectId={project?.id}
-              clientAccountId={discussionClientAccountId}
-              projectName={project?.name}
-            />
-          )}
-        </div>
+        <ClientProjectDetailMetaBar project={project} />
       </div>
 
-      {/* Task Detail Modal */}
-      <TaskDetailModal
-        isOpen={isTaskModalOpen}
-        onClose={() => {
-          setIsTaskModalOpen(false);
-          setSelectedTask(null);
-          setIsTaskModalFullView(false);
-        }}
-        task={selectedTask}
-        isFullView={isTaskModalFullView}
-        onToggleView={() => setIsTaskModalFullView(!isTaskModalFullView)}
-        onOpenProject={(projectId) => {
-          if (projectId) {
-            router.push(`/projects/${projectId}`);
-            setIsTaskModalOpen(false);
-          }
-        }}
-        onApprove={async (taskId) => {
-          try {
-            // Update task approval and status via API
-            const response = await fetch(
-              strapiClient.buildURL(`/tasks/${taskId}`, {}),
-              {
-                method: "PUT",
-                headers: strapiClient.getHeaders(),
-                body: JSON.stringify({
-                  data: {
-                    clientApproval: "approved",
-                    approvedAt: new Date().toISOString(),
-                    status: "APPROVED", // Change status to Approved when client approves
-                  },
-                }),
-              }
-            );
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KPICard compact title="Total tasks" value={taskStats.total} icon={CheckSquare} colorScheme="orange" />
+        <KPICard compact title="Completed" value={taskStats.completed} icon={CheckCircle2} colorScheme="orange" />
+        <KPICard compact title="Progress" value={`${taskStats.progress}%`} icon={TrendingUp} colorScheme="orange" />
+        <KPICard compact title="Team" value={(project.team || []).length} icon={Users} colorScheme="orange" />
+      </div>
 
-            if (response.ok) {
-              // Reload project to get updated task status
-              const loadProject = async () => {
-                if (!params?.id) return;
-                try {
-                  const projectIdentifier = params.id;
-                  const isNumericId = /^\d+$/.test(projectIdentifier);
-                  let url;
+      <TabsWithActions variant="pill" tabs={tabsWithBadges} activeTab={activeTab} onTabChange={setActiveTab} />
 
-                  if (isNumericId) {
-                    const queryParams = strapiClient.buildQueryString({
-                      populate: PROJECT_DETAIL_POPULATE,
-                    });
-                    const baseURL = strapiClient.buildURL(
-                      `/projects/${projectIdentifier}`,
-                      {}
-                    );
-                    url = `${baseURL}?${queryParams}`;
-                  } else {
-                    const queryParams = strapiClient.buildQueryString({
-                      filters: {
-                        slug: {
-                          $eq: projectIdentifier,
-                        },
-                      },
-                      populate: PROJECT_DETAIL_POPULATE,
-                    });
-                    const baseURL = strapiClient.buildURL("/projects", {});
-                    url = `${baseURL}?${queryParams}`;
-                  }
+      {activeTab === "overview" ? (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <Card variant="elevated" className="rounded-xl">
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-xl font-semibold text-gray-900">Project information</h2>
+                  <p className="mt-1.5 text-base text-gray-500">Scope, timeline, ownership, and how work is tracking.</p>
+                </div>
+                <span
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold uppercase tracking-widest shadow-md ring-2 ${statusVisual.pillClass}`}
+                  role="status"
+                >
+                  <StatusIcon className="h-5 w-5 shrink-0 opacity-90" strokeWidth={2.25} aria-hidden />
+                  {statusVisual.label}
+                </span>
+              </div>
 
-                  const response = await fetch(url, {
-                    method: "GET",
-                    headers: strapiClient.getHeaders(),
-                  });
+              <InfoSection title="Key info" icon={Target} isFirst>
+                <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                  <InfoRow label="Owner" value={project.projectManager?.name || "—"} />
+                  <InfoRow label="Organization" icon={Building2} value={project.clientName || "—"} />
+                  <InfoRow label="Start date" value={formatShortDate(project.startDate)} icon={Calendar} />
+                  <InfoRow label="Due date" value={formatShortDate(project.endDate)} icon={Clock} />
+                </div>
+              </InfoSection>
 
-                  if (response.ok) {
-                    const data = await response.json();
-                    let projectResponse;
-                    if (isNumericId) {
-                      projectResponse = data.data;
-                    } else {
-                      if (
-                        data.data &&
-                        Array.isArray(data.data) &&
-                        data.data.length > 0
-                      ) {
-                        projectResponse = data.data[0];
-                      }
-                    }
+              <section className="border-t border-gray-100 pt-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <AlignLeft className="h-5 w-5 shrink-0 text-orange-500" aria-hidden />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">About</h3>
+                </div>
+                {project.description ? (
+                  <p className="mt-2.5 whitespace-pre-wrap text-base leading-relaxed text-gray-800">{project.description}</p>
+                ) : (
+                  <p className="mt-2.5 text-base text-gray-400">—</p>
+                )}
+              </section>
+            </Card>
 
-                    if (projectResponse) {
-                      setProject(
-                        mapProjectResponse(projectResponse, projectIdentifier)
-                      );
-                    }
-                  }
-                } catch (err) {
-                  console.error("Error reloading project:", err);
-                }
-              };
-              await loadProject();
-            }
-          } catch (error) {
-            console.error("Error approving task:", error);
-          }
-        }}
-        onReject={async (taskId) => {
-          // TODO: Implement reject via API
-        }}
-        onComment={async (taskId, comment) => {
-          // TODO: Implement comment via API
-        }}
+            <Card variant="elevated" className="rounded-xl">
+              <div className="mb-6 flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Team members</h2>
+                  <p className="mt-1.5 text-base text-gray-500">People assigned to deliver work on this project.</p>
+                </div>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">
+                  {(project.team || []).length}
+                </span>
+              </div>
+              {(project.team || []).length === 0 ? (
+                <EmptyState icon={Users} title="No team members" description="Team members will appear here when assigned." />
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {project.team.map((member) => (
+                    <div key={member.id} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                      <Avatar
+                        src={member.avatar || undefined}
+                        fallback={member.initials || (member.name || "U").charAt(0)}
+                        size="sm"
+                        className="bg-gray-600 text-white"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-900">{member.name}</p>
+                        <p className="truncate text-xs text-gray-500">{member.email || "Team member"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="space-y-4">
+            <Card variant="elevated" className="rounded-xl">
+              <SidebarCardTitle title="Project owner" icon={Users} />
+              {project.projectManager ? (
+                <div className="flex items-center gap-3">
+                  <Avatar
+                    src={project.projectManager.avatar || undefined}
+                    fallback={project.projectManager.initials}
+                    size="md"
+                    className="bg-gray-600 text-white"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-gray-900">{project.projectManager.name}</p>
+                    <p className="truncate text-sm text-gray-500">{project.projectManager.email || "Project manager"}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">Unassigned</p>
+              )}
+            </Card>
+
+            <Card variant="elevated" className="rounded-xl">
+              <SidebarCardTitle title="Delivery progress" icon={TrendingUp} />
+              <div className="space-y-4">
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Overall progress</span>
+                    <span className="font-bold text-gray-900">{taskStats.progress}%</span>
+                  </div>
+                  <ProgressBar value={taskStats.progress} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-gray-500">Tasks done</p>
+                    <p className="text-lg font-bold text-gray-900">
+                      {taskStats.completed}/{taskStats.total}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-gray-500">In progress</p>
+                    <p className="text-lg font-bold text-gray-900">{taskStats.inProgress}</p>
+                  </div>
+                </div>
+                <div className="space-y-2 border-t border-gray-100 pt-3 text-sm text-gray-600">
+                  <div className="flex justify-between">
+                    <span>Created</span>
+                    <span className="font-medium text-gray-800">{formatShortDate(project.createdAt)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Updated</span>
+                    <span className="font-medium text-gray-800">{formatShortDate(project.updatedAt)}</span>
+                  </div>
+                  {project.budget != null && project.budget !== "" ? (
+                    <div className="flex justify-between">
+                      <span>Budget</span>
+                      <span className="font-medium text-gray-800">
+                        {Number(project.budget).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </Card>
+
+            <Card variant="elevated" className="rounded-xl">
+              <SidebarCardTitle title="Quick links" icon={FolderOpen} />
+              <div className="flex flex-col gap-2">
+                <Button type="button" variant="outline" className="justify-start" onClick={() => setActiveTab("tasks")}>
+                  View project tasks ({projectTasks.length})
+                </Button>
+                <Button type="button" variant="outline" className="justify-start" onClick={() => setActiveTab("comments")}>
+                  Open discussion
+                </Button>
+              </div>
+            </Card>
+          </div>
+          </div>
+
+          <section className="min-w-0" aria-label="Project discussion">
+            <div className="mb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <MessageSquare className="h-5 w-5 shrink-0 text-orange-500" aria-hidden />
+                <h2 className="text-lg font-semibold text-gray-900">Discussion</h2>
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                Team chat for this project — same thread as the{" "}
+                <button
+                  type="button"
+                  className="font-medium text-orange-600 hover:underline"
+                  onClick={() => setActiveTab("comments")}
+                >
+                  Comments
+                </button>{" "}
+                tab.
+              </p>
+            </div>
+            <EntityActivityPanel
+              key={`project-chat-${projectApiId}`}
+              {...discussionPanelProps}
+              defaultSubTab="chat"
+              minHeightPx={440}
+              maxHeightPx={680}
+            />
+          </section>
+        </div>
+      ) : null}
+
+      {activeTab === "tasks" ? (
+        <ClientProjectTasksPanel
+          tasks={projectTasks}
+          onAddTask={() => setIsCreateTaskModalOpen(true)}
+        />
+      ) : null}
+
+      {activeTab === "comments" ? (
+        <div className="min-w-0">
+          <EntityActivityPanel
+            key={`project-chat-${projectApiId}`}
+            {...discussionPanelProps}
+            defaultSubTab="chat"
+            minHeightPx={560}
+            maxHeightPx={800}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === "activity" ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5 lg:items-start">
+          <Card variant="elevated" className="rounded-xl lg:col-span-2">
+            <SidebarCardTitle title="Activity summary" icon={Activity} />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-xl border border-orange-100 bg-orange-50/70 px-3 py-2.5">
+                <span className="text-xs font-medium text-orange-700">Total events</span>
+                <span className="text-lg font-bold tabular-nums text-orange-900">{activityCount}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+                <span className="text-xs font-medium text-gray-600">Last activity</span>
+                <span className="text-xs font-semibold text-gray-800">{lastActivityDisplay}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+                <span className="text-xs font-medium text-gray-600">Project manager</span>
+                <span className="truncate pl-2 text-right text-xs font-semibold text-gray-800">
+                  {project.projectManager?.name || "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+                <span className="text-xs font-medium text-gray-600">Organization</span>
+                <span className="truncate pl-2 text-right text-xs font-semibold text-gray-800">
+                  {project.clientName || "—"}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+                <span className="shrink-0 text-xs font-medium text-gray-600">Team</span>
+                <span className="line-clamp-3 text-right text-xs font-semibold text-gray-800">
+                  {(project.team || []).length
+                    ? (project.team || []).map((m) => m.name).filter(Boolean).join(", ")
+                    : "None"}
+                </span>
+              </div>
+            </div>
+          </Card>
+          <div className="min-w-0 lg:col-span-3">
+            <EntityActivityPanel
+              key={`project-activity-${project.id}`}
+              {...discussionPanelProps}
+              defaultSubTab="activity"
+              minHeightPx={560}
+              maxHeightPx={800}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "files" ? (
+        <Card variant="elevated" className="rounded-xl">
+          <EmptyState
+            icon={FileText}
+            title="No files yet"
+            description="Project files shared with your account will appear here."
+          />
+        </Card>
+      ) : null}
+
+      <CreateTaskModal
+        isOpen={isCreateTaskModalOpen}
+        onClose={() => setIsCreateTaskModalOpen(false)}
+        projects={project ? [{ id: project.id, name: project.name }] : []}
+        clientMembers={clientMembers}
+        defaultProjectId={project?.id}
+        onTaskCreate={handleCreateTask}
       />
-    </div>
+    </PortalPageShell>
   );
 }

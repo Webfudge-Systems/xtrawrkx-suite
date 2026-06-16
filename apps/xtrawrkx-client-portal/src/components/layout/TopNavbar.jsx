@@ -109,7 +109,7 @@ export function TopNavbar({ onMenuClick }) {
                         className={cn(
                           "px-4 py-2 text-sm font-medium transition-all duration-200 rounded-xl",
                           isActive
-                            ? "bg-xtrawrkx-500 text-white shadow-sm"
+                            ? "bg-brand-primary text-white shadow-sm"
                             : "text-gray-700 hover:text-gray-900 hover:bg-white/50"
                         )}
                       >
@@ -129,7 +129,7 @@ export function TopNavbar({ onMenuClick }) {
                 <input
                   type="text"
                   placeholder="Search anything..."
-                  className="w-64 pl-10 pr-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/25 transition-all duration-300 text-sm placeholder:text-gray-400 shadow-lg"
+                  className="w-64 pl-10 pr-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary focus:bg-white/25 transition-all duration-300 text-sm placeholder:text-gray-400 shadow-lg"
                 />
               </div>
 
@@ -163,7 +163,7 @@ export function TopNavbar({ onMenuClick }) {
                       <div className="flex items-center space-x-3">
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={session?.avatarUrl} />
-                          <AvatarFallback className="bg-xtrawrkx-500 text-white font-semibold">
+                          <AvatarFallback className="bg-brand-primary text-white font-semibold">
                             {clientDisplayName?.charAt(0) ||
                               memberEmail?.charAt(0) ||
                               "A"}

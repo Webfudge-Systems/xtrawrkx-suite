@@ -23,6 +23,7 @@ import {
   LEAD_COMPANY_TYPES,
   LEAD_COMPANY_SUB_TYPES,
 } from "@/src/data/companyRegistrationOptions";
+import { usePublicAuth } from "@/src/contexts/PublicAuthContext";
 
 const communityOptions = [
   { id: "none", name: "Not a member" },
@@ -111,7 +112,9 @@ export default function SeasonRegistration({ params }) {
   const [showSuccessPage, setShowSuccessPage] = useState(false);
   const [successData, setSuccessData] = useState(null);
   const [highlightPricingButton, setHighlightPricingButton] = useState(false);
+  const [showAuthGate, setShowAuthGate] = useState(false);
 
+  const { isAuthenticated, profile, loading: authLoading } = usePublicAuth();
   const eventService = new EventService();
 
   const [formData, setFormData] = useState({
@@ -201,9 +204,51 @@ export default function SeasonRegistration({ params }) {
     fetchSeasonEvents();
   }, [season, fromEvent]);
 
+  // Show auth gate once auth state is resolved and user is not logged in
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      setShowAuthGate(true);
+    }
+  }, [authLoading, isAuthenticated]);
+
+  // Auto-fill form fields from profile when authenticated
+  useEffect(() => {
+    if (isAuthenticated && profile) {
+      const fullName =
+        [profile.firstName, profile.lastName].filter(Boolean).join(" ") ||
+        profile.displayName ||
+        "";
+
+      setFormData((prev) => ({
+        ...prev,
+        companyName: prev.companyName || profile.company || "",
+        companyEmail: prev.companyEmail || profile.email || "",
+        companyPhone: prev.companyPhone || profile.phone || "",
+        linkedinUrl: prev.linkedinUrl || profile.linkedin || "",
+        primaryContactName: prev.primaryContactName || fullName,
+        primaryContactEmail: prev.primaryContactEmail || profile.email || "",
+        primaryContactPhone: prev.primaryContactPhone || profile.phone || "",
+        primaryContactDesignation:
+          prev.primaryContactDesignation || profile.jobTitle || "",
+        personnel:
+          prev.personnel?.[0]?.name || prev.personnel?.[0]?.email
+            ? prev.personnel
+            : [
+                {
+                  name: fullName,
+                  email: profile.email || "",
+                  phone: profile.phone || "",
+                  designation: profile.jobTitle || "",
+                  isAttending: true,
+                },
+              ],
+      }));
+    }
+  }, [isAuthenticated, profile]);
+
   // Auto-open pricing modal or highlight button after page loads
   useEffect(() => {
-    if (!loading && seasonEvents.length > 0) {
+    if (!loading && seasonEvents.length > 0 && isAuthenticated) {
       // Check if user has seen pricing rules before (localStorage)
       const hasSeenPricingRules = localStorage.getItem("hasSeenPricingRules");
 
@@ -229,7 +274,7 @@ export default function SeasonRegistration({ params }) {
         return () => clearTimeout(timer);
       }
     }
-  }, [loading, seasonEvents]);
+  }, [loading, seasonEvents, isAuthenticated]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1207,8 +1252,112 @@ export default function SeasonRegistration({ params }) {
 
   const pricing = calculatePricing();
 
+  const fromEventData = fromEvent
+    ? seasonEvents.find((e) => e.slug === fromEvent)
+    : null;
+  const registrationLabel =
+    fromEventData?.title || `Season ${season} registration`;
+  const registerRedirect = fromEvent
+    ? `/events/season/${season}/register?from=${encodeURIComponent(fromEvent)}`
+    : `/events/season/${season}/register`;
+  const backHref = fromEvent ? `/events/${fromEvent}` : "/events";
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Auth Gate Modal */}
+      {showAuthGate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => (window.location.href = backHref)}
+          />
+          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-[0_32px_80px_rgba(15,23,42,0.22)] overflow-hidden">
+            <div className="bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-5 text-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15">
+                  <Icon icon="solar:lock-bold" width={24} />
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-widest text-white/70">
+                    Account required
+                  </p>
+                  <h3 className="text-lg font-bold leading-tight">
+                    Register an account first
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-6">
+              <p className="text-sm leading-relaxed text-slate-600">
+                To register for{" "}
+                <span className="font-semibold text-slate-900">
+                  {registrationLabel}
+                </span>
+                , you need an xtrawrkx account. Once registered, we&apos;ll
+                automatically fill your details in this form.
+              </p>
+
+              <div className="mt-5 space-y-2.5">
+                {[
+                  {
+                    num: "1",
+                    label: "Create your free xtrawrkx account",
+                    icon: "solar:user-plus-bold",
+                  },
+                  {
+                    num: "2",
+                    label: "You'll be brought back here automatically",
+                    icon: "solar:arrow-right-bold",
+                  },
+                  {
+                    num: "3",
+                    label: "Your details are auto-filled — just confirm",
+                    icon: "solar:check-circle-bold",
+                  },
+                ].map(({ num, label, icon }) => (
+                  <div key={num} className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-primary/10">
+                      <Icon
+                        icon={icon}
+                        width={14}
+                        className="text-brand-primary"
+                      />
+                    </div>
+                    <p className="text-sm text-slate-700">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <a
+                  href={`/auth?mode=signup&redirect=${encodeURIComponent(registerRedirect)}`}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand-primary to-brand-secondary px-5 py-3.5 text-sm font-semibold text-white shadow-md transition hover:opacity-90 active:scale-[0.98]"
+                >
+                  <Icon icon="solar:user-plus-bold" width={18} />
+                  Create an account
+                </a>
+                <a
+                  href={`/auth?mode=login&redirect=${encodeURIComponent(registerRedirect)}`}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]"
+                >
+                  <Icon icon="solar:login-bold" width={18} />
+                  I already have an account
+                </a>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => (window.location.href = backHref)}
+                className="mt-4 w-full text-center text-xs text-slate-400 transition hover:text-slate-600"
+              >
+                ← Back to event
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <Section className="relative border-b overflow-hidden">
         {/* Background Image */}

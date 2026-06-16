@@ -11,7 +11,7 @@ export const communityAvatarClass = {
 };
 
 export function avatarClassFor(colorKey) {
-  return communityAvatarClass[colorKey] || "bg-xtrawrkx-500";
+  return communityAvatarClass[colorKey] || "bg-brand-primary";
 }
 
 export const STRAPI_COMMUNITY = {

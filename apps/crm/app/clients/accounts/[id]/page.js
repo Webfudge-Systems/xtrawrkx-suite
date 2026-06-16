@@ -34,6 +34,7 @@ import {
   Activity,
   Receipt,
   FolderKanban,
+  CheckSquare,
 } from 'lucide-react';
 import {
   Button,
@@ -54,6 +55,8 @@ import {
   EntityActivityPanel,
   TableCellOrangePill,
   TableCellDealStageSelect,
+  TableCellTaskStatusSelect,
+  TableCellTaskPrioritySelect,
   useIndustrySelectOptions,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
@@ -62,22 +65,28 @@ import contactService from '../../../../lib/api/contactService';
 import dealService from '../../../../lib/api/dealService';
 import invoiceService from '../../../../lib/api/invoiceService';
 import projectService from '../../../../lib/api/projectService';
-import { fetchActivityTimeline, fetchClientAccountComments, addClientAccountComment } from '../../../../lib/api/crmActivityService';
+import taskService from '../../../../lib/api/taskService';
+import {
+  fetchClientAccountUnifiedChat,
+  sendClientAccountUnifiedChat,
+} from '../../../../lib/api/clientChatService';
+import { fetchUnifiedClientAccountTimeline } from '../../../../lib/api/clientAccountAggregateService';
+import ClientAccountChatHub from '../../../../components/ClientAccountChatHub';
 import strapiClient from '../../../../lib/strapiClient';
-import { MeetingsEmbedList } from '@webfudge/ui';
-import meetingService from '../../../../lib/api/meetingService';
 import { canWriteCRM, canEditCRMRecord } from '../../../../lib/rbac';
 import { fetchChatMentionUsers } from '../../../../lib/chatMentionUsers';
-import { pmAddProjectUrl, pmProjectDetailUrl } from '../../../../lib/pmAppUrl';
+import { pmAddProjectUrl, pmProjectDetailUrl, pmTaskDetailUrl } from '../../../../lib/pmAppUrl';
 import {
   companyTypeSelectOptions,
   INDUSTRY_OTHER_VALUE,
   industryFormFromStored,
   resolveIndustryForSave,
   canonicalCompanyTypeValue,
+  getClientWorkflowStageLabel,
 } from '@webfudge/utils';
 import { fetchStoredIndustriesForCrm } from '../../../../lib/industryOptionsLoader';
 import { getIndustryVisual } from '@webfudge/ui/utils/industryVisuals';
+import ClientAccountCommunitiesPanel from '../../../../components/ClientAccountCommunitiesPanel';
 
 function formatCurrency(value) {
   if (value == null || value === '') return '₹0';
@@ -130,6 +139,22 @@ function formatRelativeTime(dateString) {
   }
   const y = Math.floor(diffDay / 365);
   return `${y} year${y !== 1 ? 's' : ''} ago`;
+}
+
+function getClientTaskVisibility(task) {
+  if (task?.createdBySource === 'client') {
+    return { label: 'Client created', tone: 'orange' };
+  }
+  if (task?.isSharedWithClient) {
+    return { label: 'Shared with client', tone: 'green' };
+  }
+  return { label: 'Internal', tone: 'gray' };
+}
+
+function clientTaskVisibilityClass(tone) {
+  if (tone === 'orange') return 'bg-orange-100 text-orange-800 ring-orange-200/80';
+  if (tone === 'green') return 'bg-emerald-100 text-emerald-800 ring-emerald-200/80';
+  return 'bg-gray-100 text-gray-600 ring-gray-200/80';
 }
 
 function humanizeSource(source) {
@@ -304,7 +329,9 @@ export default function ClientAccountDetailPage() {
   const [invoicesLoading, setInvoicesLoading] = useState(true);
   const [linkedProjects, setLinkedProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
-  const [meetingsCount, setMeetingsCount] = useState(0);
+  const [linkedTasks, setLinkedTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [taskFieldSaving, setTaskFieldSaving] = useState({});
   const [detailTab, setDetailTab] = useState('overview');
 
   const [assigneeModalOpen, setAssigneeModalOpen] = useState(false);
@@ -320,6 +347,7 @@ export default function ClientAccountDetailPage() {
   const [crmTimelineError, setCrmTimelineError] = useState(null);
   const [contactActionMenu, setContactActionMenu] = useState(null);
   const canEditClientAccount = canWriteCRM('client_accounts');
+  const canEditTasks = canWriteCRM('tasks');
   const canCreateDeals = canWriteCRM('deals');
   const canCreateInvoices = canWriteCRM('client_invoices');
   const canCreateProjects = canWriteCRM('client_projects');
@@ -542,6 +570,60 @@ export default function ClientAccountDetailPage() {
     [id]
   );
 
+  const loadLinkedTasks = useCallback(
+    async (showLoadingSpinner = false) => {
+      if (!id) return;
+      if (showLoadingSpinner) setTasksLoading(true);
+      try {
+        const { data } = await taskService.getByClientAccountId(id, {
+          pageSize: 200,
+          sort: 'updatedAt:desc',
+        });
+        setLinkedTasks(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error(e);
+        setLinkedTasks([]);
+      } finally {
+        if (showLoadingSpinner) setTasksLoading(false);
+      }
+    },
+    [id]
+  );
+
+  const handleTaskStatusUpdate = useCallback(async (taskId, newStatus) => {
+    if (!taskId || !newStatus) return;
+    const savingKey = `${taskId}-status`;
+    setTaskFieldSaving((prev) => ({ ...prev, [savingKey]: true }));
+    try {
+      await taskService.update(taskId, { status: newStatus });
+      setLinkedTasks((prev) =>
+        prev.map((t) => (t?.id === taskId ? { ...t, status: newStatus } : t))
+      );
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update task status.');
+    } finally {
+      setTaskFieldSaving((prev) => ({ ...prev, [savingKey]: false }));
+    }
+  }, []);
+
+  const handleTaskPriorityUpdate = useCallback(async (taskId, newPriority) => {
+    if (!taskId || !newPriority) return;
+    const savingKey = `${taskId}-priority`;
+    setTaskFieldSaving((prev) => ({ ...prev, [savingKey]: true }));
+    try {
+      await taskService.update(taskId, { priority: newPriority });
+      setLinkedTasks((prev) =>
+        prev.map((t) => (t?.id === taskId ? { ...t, priority: newPriority } : t))
+      );
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update task priority.');
+    } finally {
+      setTaskFieldSaving((prev) => ({ ...prev, [savingKey]: false }));
+    }
+  }, []);
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -550,10 +632,11 @@ export default function ClientAccountDetailPage() {
       setDealsLoading(true);
       setInvoicesLoading(true);
       setProjectsLoading(true);
+      setTasksLoading(true);
       setLinkedDeals([]);
       setLinkedInvoices([]);
       setLinkedProjects([]);
-      setMeetingsCount(0);
+      setLinkedTasks([]);
       try {
         const res = await clientAccountService.getOne(id);
         if (!cancelled && res?.data) {
@@ -562,19 +645,14 @@ export default function ClientAccountDetailPage() {
           await loadLinkedDeals(false);
           await loadLinkedInvoices(false);
           await loadLinkedProjects(false);
-          try {
-            const n = await meetingService.countByClientAccount(id);
-            if (!cancelled) setMeetingsCount(typeof n === 'number' && !Number.isNaN(n) ? n : 0);
-          } catch {
-            if (!cancelled) setMeetingsCount(0);
-          }
+          await loadLinkedTasks(false);
         } else if (!cancelled) {
           setAccount(null);
           setLinkedContacts([]);
           setLinkedDeals([]);
           setLinkedInvoices([]);
           setLinkedProjects([]);
-          setMeetingsCount(0);
+          setLinkedTasks([]);
         }
       } catch (e) {
         console.error(e);
@@ -584,7 +662,7 @@ export default function ClientAccountDetailPage() {
           setLinkedDeals([]);
           setLinkedInvoices([]);
           setLinkedProjects([]);
-          setMeetingsCount(0);
+          setLinkedTasks([]);
         }
       } finally {
         if (!cancelled) {
@@ -592,37 +670,36 @@ export default function ClientAccountDetailPage() {
           setDealsLoading(false);
           setInvoicesLoading(false);
           setProjectsLoading(false);
+          setTasksLoading(false);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [id, loadLinkedContacts, loadLinkedDeals, loadLinkedInvoices, loadLinkedProjects]);
+  }, [id, loadLinkedContacts, loadLinkedDeals, loadLinkedInvoices, loadLinkedProjects, loadLinkedTasks]);
 
   const reloadCrmTimeline = useCallback(
     async (opts = {}) => {
       const silent = opts.silent === true;
-      if (!leadCompanyIdForTimeline) {
-        if (!silent) {
-          setCrmTimeline([]);
-          setCrmTimelineTotal(0);
-          setCrmTimelineLoading(false);
-          setCrmTimelineError(null);
-        }
-        return;
-      }
+      if (!id) return;
       if (!silent) {
         setCrmTimelineLoading(true);
         setCrmTimelineError(null);
       }
       try {
-        const { data, total } = await fetchActivityTimeline({
+        const res = await fetchUnifiedClientAccountTimeline({
+          clientAccountId: id,
+          accountName: account?.companyName || account?.name,
           leadCompanyId: leadCompanyIdForTimeline,
-          limit: 80,
+          deals: linkedDeals,
+          projects: linkedProjects,
+          tasks: linkedTasks,
+          contacts: linkedContacts,
+          limit: 200,
         });
-        setCrmTimeline(Array.isArray(data) ? data : []);
-        setCrmTimelineTotal(typeof total === 'number' ? total : 0);
+        setCrmTimeline(res.data || []);
+        setCrmTimelineTotal(res.total ?? (res.data || []).length);
         if (!silent) setCrmTimelineError(null);
       } catch (e) {
         if (!silent) {
@@ -634,12 +711,45 @@ export default function ClientAccountDetailPage() {
         if (!silent) setCrmTimelineLoading(false);
       }
     },
-    [leadCompanyIdForTimeline]
+    [
+      id,
+      account?.companyName,
+      account?.name,
+      leadCompanyIdForTimeline,
+      linkedDeals,
+      linkedProjects,
+      linkedTasks,
+      linkedContacts,
+    ]
   );
+
+  const activityEntityHrefForRow = useCallback((row) => {
+    const src = row?.meta?.aggregateSource;
+    if (!src?.type || src.id == null) return null;
+    if (src.type === 'task') return pmTaskDetailUrl(src.id);
+    if (src.type === 'project') return pmProjectDetailUrl(src.id);
+    if (src.type === 'deal') return `/sales/deals/${src.id}`;
+    if (src.type === 'contact') return `/sales/contacts/${src.id}`;
+    if (src.type === 'client_account') return `/clients/accounts/${src.id}`;
+    if (src.type === 'lead_company') return `/sales/lead-companies/${src.id}`;
+    return null;
+  }, []);
 
   useEffect(() => {
     reloadCrmTimeline({ silent: false });
   }, [reloadCrmTimeline]);
+
+  const handleAddClientAccountComment = useCallback(
+    async ({ entityId, comment }) => {
+      const res = await sendClientAccountUnifiedChat({
+        clientAccountId: entityId,
+        comment,
+      });
+      await reloadCrmTimeline({ silent: true });
+      return res;
+    },
+    [reloadCrmTimeline]
+  );
 
   const name = account?.companyName || account?.name || 'Client account';
 
@@ -1435,14 +1545,166 @@ export default function ClientAccountDetailPage() {
     [linkedProjects]
   );
 
+  const taskVisibilityStats = useMemo(() => {
+    let clientCreated = 0;
+    let sharedWithClient = 0;
+    let internal = 0;
+    for (const task of linkedTasks) {
+      if (task?.createdBySource === 'client') clientCreated += 1;
+      else if (task?.isSharedWithClient) sharedWithClient += 1;
+      else internal += 1;
+    }
+    return {
+      total: linkedTasks.length,
+      clientCreated,
+      sharedWithClient,
+      internal,
+    };
+  }, [linkedTasks]);
+
+  const clientAccountTasksColumns = useMemo(
+    () => [
+      {
+        key: 'task',
+        label: 'TASK',
+        render: (_, task) => {
+          const parent = task.parent;
+          const parentName =
+            parent && typeof parent === 'object'
+              ? parent.name || parent.title
+              : null;
+          return (
+            <div className="flex min-w-[220px] items-start gap-3">
+              <Avatar
+                fallback={(task.name || 'T')[0].toUpperCase()}
+                alt={task.name}
+                size="sm"
+                className="flex-shrink-0 bg-gray-600 text-white"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium text-gray-900">
+                  {task.name || 'Untitled'}
+                </div>
+                {parentName ? (
+                  <div className="truncate text-xs text-gray-400">Subtask of {parentName}</div>
+                ) : null}
+                <div className="truncate text-sm text-gray-500">
+                  {task.description
+                    ? `${String(task.description).slice(0, 72)}${String(task.description).length > 72 ? '…' : ''}`
+                    : 'No description'}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'clientVisibility',
+        label: 'CLIENT VISIBILITY',
+        render: (_, task) => {
+          const vis = getClientTaskVisibility(task);
+          return (
+            <span
+              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${clientTaskVisibilityClass(vis.tone)}`}
+            >
+              {vis.label}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'status',
+        label: 'STATUS',
+        render: (_, task) => (
+          <TableCellTaskStatusSelect
+            status={task.status || 'ASSIGNED'}
+            onStatusChange={(next) => handleTaskStatusUpdate(task.id, next)}
+            saving={Boolean(taskFieldSaving[`${task.id}-status`])}
+            canEdit={canEditTasks}
+          />
+        ),
+      },
+      {
+        key: 'clientStage',
+        label: 'CLIENT STAGE',
+        render: (_, task) => (
+          <span className="text-sm text-gray-700">
+            {task.clientWorkflowStage || task.status
+              ? getClientWorkflowStageLabel(task.clientWorkflowStage, {
+                  ...task,
+                  strapiStatus: task.status,
+                })
+              : '—'}
+          </span>
+        ),
+      },
+      {
+        key: 'priority',
+        label: 'PRIORITY',
+        render: (_, task) => (
+          <TableCellTaskPrioritySelect
+            priority={task.priority || 'medium'}
+            onPriorityChange={(next) => handleTaskPriorityUpdate(task.id, next)}
+            saving={Boolean(taskFieldSaving[`${task.id}-priority`])}
+            canEdit={canEditTasks}
+          />
+        ),
+      },
+      {
+        key: 'scheduledDate',
+        label: 'DUE',
+        render: (_, task) => (
+          <span className="whitespace-nowrap text-sm text-gray-700">
+            {formatDate(task.scheduledDate || task.dueDate)}
+          </span>
+        ),
+      },
+      {
+        key: 'project',
+        label: 'PROJECT',
+        render: (_, task) => {
+          const projects = Array.isArray(task.projects)
+            ? task.projects
+            : task.projects?.data || [];
+          const first = projects[0];
+          const label =
+            first && typeof first === 'object'
+              ? first.name || first.title || 'Project'
+              : null;
+          return <span className="text-sm text-gray-700">{label || '—'}</span>;
+        },
+      },
+      {
+        key: 'actions',
+        label: 'ACTIONS',
+        render: (_, task) => (
+          <div className="flex min-w-[80px] items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2 text-slate-700 hover:bg-slate-100"
+              title="Open in PM"
+              onClick={() => window.open(pmTaskDetailUrl(task.id), '_blank', 'noopener,noreferrer')}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [canEditTasks, handleTaskPriorityUpdate, handleTaskStatusUpdate, taskFieldSaving]
+  );
+
   const detailTabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'contacts', label: 'Contacts', badge: contactsCount || undefined },
     { key: 'activities', label: 'Activities' },
+    { key: 'client_chat', label: 'Client chat' },
+    { key: 'communities', label: 'Communities' },
     { key: 'deals', label: 'Deals', badge: linkedDeals.length || undefined },
+    { key: 'tasks', label: 'Tasks', badge: linkedTasks.length || undefined },
     { key: 'projects', label: 'Projects', badge: linkedProjects.length || undefined },
     { key: 'invoices', label: 'Invoices', badge: linkedInvoices.length || undefined },
-    { key: 'meetings', label: 'Meetings', badge: meetingsCount || undefined },
   ];
 
   const convertedLead = account?.convertedFromLead;
@@ -1941,7 +2203,7 @@ export default function ClientAccountDetailPage() {
                     <div className="rounded-lg border border-gray-100 bg-gradient-to-br from-slate-50 to-white px-3.5 py-3 shadow-sm">
                       <p className="text-xs font-medium text-gray-500">Timeline events</p>
                       <p className="mt-1 text-sm font-semibold tabular-nums text-gray-900">
-                        {leadCompanyIdForTimeline ? activityCount : '—'}
+                        {activityCount}
                       </p>
                     </div>
                   </div>
@@ -2077,7 +2339,7 @@ export default function ClientAccountDetailPage() {
                     <div className="flex items-center justify-between rounded-xl bg-orange-50/70 border border-orange-100 px-3 py-2.5">
                       <span className="text-xs font-medium text-orange-700">Total events</span>
                       <span className="text-lg font-bold text-orange-900 tabular-nums">
-                        {leadCompanyIdForTimeline ? activityCount : '—'}
+                        {activityCount}
                       </span>
                     </div>
                     <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5">
@@ -2097,11 +2359,9 @@ export default function ClientAccountDetailPage() {
                       <span className="text-xs font-semibold text-gray-800">{formatDate(account.createdAt)}</span>
                     </div>
                   </div>
-                  {!leadCompanyIdForTimeline && (
-                    <p className="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                      Activity timeline is linked from the original lead company. No lead link found.
-                    </p>
-                  )}
+                  <p className="mt-4 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                    One timeline across this account, linked lead, deals, projects, tasks, and contacts — newest first, not grouped by record.
+                  </p>
                 </Card>
               </div>
 
@@ -2114,19 +2374,48 @@ export default function ClientAccountDetailPage() {
                   crmTimeline={crmTimeline}
                   crmTimelineLoading={crmTimelineLoading}
                   crmTimelineError={crmTimelineError}
-                  activityCount={leadCompanyIdForTimeline ? activityCount : 0}
+                  activityCount={activityCount}
+                  entityHrefForRow={activityEntityHrefForRow}
                   fetchCommentsFn={({ entityId }) =>
-                    fetchClientAccountComments({ clientAccountId: entityId, limit: 80 })
+                    fetchClientAccountUnifiedChat({ clientAccountId: entityId, limit: 80 })
                   }
                   addCommentFn={
-                    canEditClientAccount
-                      ? ({ entityId, comment }) => addClientAccountComment({ clientAccountId: entityId, comment })
-                      : null
+                    canEditClientAccount ? handleAddClientAccountComment : null
                   }
                   fetchMentionUsers={fetchChatMentionUsers}
+                  chatFooterBadgeText="Messages are visible to the client in their portal."
                 />
               </div>
             </div>
+          )}
+
+          {detailTab === 'client_chat' && (
+            <div className="min-w-0 space-y-3">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Client chat</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  All conversations with this client — account, tasks, projects, and deals. Pick a location on the left to read or reply.
+                </p>
+              </div>
+              <ClientAccountChatHub
+                clientAccountId={id}
+                accountName={name}
+                tasks={linkedTasks}
+                projects={linkedProjects}
+                deals={linkedDeals}
+                canSend={canEditClientAccount}
+                fetchMentionUsers={fetchChatMentionUsers}
+                entityHrefForRow={activityEntityHrefForRow}
+                onTimelineRefresh={() => reloadCrmTimeline({ silent: true })}
+                defaultSubTab="chat"
+                minHeightPx={560}
+                maxHeightPx={800}
+              />
+            </div>
+          )}
+
+          {detailTab === 'communities' && (
+            <ClientAccountCommunitiesPanel accountId={id} canWrite={canEditClientAccount} />
           )}
 
           {detailTab === 'deals' && (
@@ -2193,6 +2482,67 @@ export default function ClientAccountDetailPage() {
                     keyField="id"
                     variant="modern"
                     onRowClick={(row) => router.push(`/sales/deals/${row.id}`)}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {detailTab === 'tasks' && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Tasks</h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    All tasks for this client account — internal, shared with the portal, or submitted by the client.
+                  </p>
+                </div>
+                <Link
+                  href="/clients/tasks"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Open Tasks workspace
+                </Link>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-800 ring-1 ring-orange-200/80">
+                  Client created
+                  <span className="tabular-nums">{taskVisibilityStats.clientCreated}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200/80">
+                  Shared with client
+                  <span className="tabular-nums">{taskVisibilityStats.sharedWithClient}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200/80">
+                  Internal
+                  <span className="tabular-nums">{taskVisibilityStats.internal}</span>
+                </span>
+              </div>
+
+              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                {tasksLoading ? (
+                  <div className="flex flex-col items-center justify-center p-12">
+                    <LoadingSpinner size="lg" message="Loading tasks..." />
+                  </div>
+                ) : linkedTasks.length === 0 ? (
+                  <div className="p-6">
+                    <EmptyState
+                      icon={CheckSquare}
+                      title="No tasks yet"
+                      description="Tasks linked to this client account will appear here — including client-submitted work and items shared to the portal."
+                    />
+                  </div>
+                ) : (
+                  <Table
+                    columns={clientAccountTasksColumns}
+                    data={linkedTasks}
+                    keyField="id"
+                    variant="modern"
+                    onRowClick={(row) =>
+                      window.open(pmTaskDetailUrl(row.id), '_blank', 'noopener,noreferrer')
+                    }
                   />
                 )}
               </div>
@@ -2337,17 +2687,6 @@ export default function ClientAccountDetailPage() {
                 )}
               </div>
             </div>
-          )}
-
-          {detailTab === 'meetings' && (
-            <Card variant="elevated" className="rounded-xl p-5">
-              <MeetingsEmbedList
-                fetchFn={() => meetingService.getByClientAccount(id)}
-                scheduleHref={`/meetings/new?clientAccount=${id}`}
-                emptyTitle="No meetings for this account"
-                entityLabel="this account"
-              />
-            </Card>
           )}
 
           {contactActionMenu &&

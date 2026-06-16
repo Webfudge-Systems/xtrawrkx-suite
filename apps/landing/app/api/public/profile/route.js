@@ -102,10 +102,10 @@ const ensureClientAccount = async (body) => {
   const companyTrimmed = String(body?.companyName || body?.company || "").trim();
   if (!companyTrimmed) {
     return {
-      attempted: false,
-      ok: true,
-      status: 200,
-      error: null,
+      attempted: true,
+      ok: false,
+      status: 422,
+      error: "Company name is required to create your client account.",
       data: null,
       skipped: true,
       reason: "Missing company name on website profile.",
@@ -160,6 +160,22 @@ const ensureClientAccount = async (body) => {
   }
 
   const account = data?.clientAccount || data?.data || null;
+  if (!account) {
+    return {
+      attempted: true,
+      ok: false,
+      status: lastStatus === 200 ? 422 : lastStatus,
+      error:
+        data?.error ||
+        "Client account was not created. Complete your company profile or sign in if you already have an account.",
+      data: null,
+      primaryContactSync: data?.primaryContactSync || null,
+      defaultProjectSync: data?.defaultProjectSync || null,
+      clientPasswordSync: data?.clientPasswordSync || null,
+      companyNameSync: data?.clientAccountSync?.companyNameSync || null,
+    };
+  }
+
   return {
     attempted: true,
     ok: true,
@@ -169,15 +185,13 @@ const ensureClientAccount = async (body) => {
     defaultProjectSync: data?.defaultProjectSync || null,
     clientPasswordSync: data?.clientPasswordSync || null,
     companyNameSync: data?.clientAccountSync?.companyNameSync || null,
-    data: account
-      ? {
-          id: pickRecordId(account) ?? account.id ?? null,
-          status: account.status || "ACTIVE",
-          source: account.source || "WEBSITE",
-          organizationId: account.organizationId ?? null,
-          raw: account,
-        }
-      : null,
+    data: {
+      id: pickRecordId(account) ?? account.id ?? null,
+      status: account.status || "ACTIVE",
+      source: account.source || "WEBSITE",
+      organizationId: account.organizationId ?? null,
+      raw: account,
+    },
   };
 };
 
@@ -238,6 +252,17 @@ export async function POST(request) {
       clientAccountResult = await ensureClientAccount(body);
     }
 
+    const clientAccountFailed =
+      shouldEnsureClientAccount &&
+      clientAccountResult?.attempted &&
+      clientAccountResult?.ok === false;
+
+    const responseStatus = clientAccountFailed
+      ? clientAccountResult?.status && clientAccountResult.status >= 400
+        ? clientAccountResult.status
+        : 422
+      : 200;
+
     return NextResponse.json(
       {
         ...(result.ok ? result.data : {}),
@@ -266,7 +291,7 @@ export async function POST(request) {
         defaultProjectSync: clientAccountResult?.defaultProjectSync || null,
         clientPasswordSync: clientAccountResult?.clientPasswordSync || null,
       },
-      { status: 200 }
+      { status: responseStatus }
     );
   } catch (error) {
     return NextResponse.json(

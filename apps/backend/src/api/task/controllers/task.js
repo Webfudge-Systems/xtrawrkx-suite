@@ -39,15 +39,91 @@ const {
 
 const { relId } = require('../../../utils/books-crud');
 const {
-  isCrmTaskEntity,
+  defaultStageForClientCreated,
+  defaultStageForInternalShared,
+  appendStageHistory,
+  mapStatusToStage,
+  stageHistoryHadInProgress,
+} = require('../../../utils/client-task-workflow');
+const {
+  resolveClientPortalSession,
+  clientAccountIdFromSession,
+} = require('../../../utils/client-portal-request');
+const {
   crmTaskScopeFilter,
   readTaskListScope,
   mergeScopeFilter,
+  isCrmTaskEntity,
 } = require('../../../utils/task-scope');
 
 const UID = 'api::task.task';
 
 const PROJECT_UID = 'api::project.project';
+const CRM_ACTIVITY_UID = 'api::crm-activity.crm-activity';
+
+const { buildCommentMeta } = require('../../../utils/entity-attachments');
+
+async function resolveSharedClientTask(strapi, ctx) {
+  const session = await resolveClientPortalSession(strapi, ctx);
+  if (!session) return { error: ctx.unauthorized('Client authentication required') };
+
+  const accountId = clientAccountIdFromSession(session);
+  if (!accountId) return { error: ctx.badRequest('Client account not found in session') };
+
+  const rawId = ctx.params?.id;
+  if (!rawId) return { error: ctx.badRequest('Task id is required') };
+
+  const isNumeric = /^\d+$/.test(String(rawId));
+  const where = isNumeric ? { id: Number(rawId) } : { documentId: rawId };
+
+  const task = await strapi.db.query(UID).findOne({
+    where,
+    populate: ['clientAccount', 'organization', 'assignee', 'assigner', 'collaborators'],
+  });
+
+  if (!task) return { error: ctx.notFound('Task not found') };
+
+  const taskAccountId = task.clientAccount?.id ?? task.clientAccount;
+  if (Number(taskAccountId) !== Number(accountId)) {
+    return { error: ctx.forbidden('Access denied') };
+  }
+
+  if (!task.isSharedWithClient) {
+    return { error: ctx.forbidden('Task is not shared with client') };
+  }
+
+  const orgId = orgIdFromRelation(task.organization);
+  return { session, task, accountId, orgId };
+}
+
+function clientActorFromSession(session, accountId) {
+  const contact = session?.contact || {};
+  const email = contact.email || session.user?.email || session.account?.email || '';
+  const firstName = (contact.firstName || '').trim();
+  const lastName = (contact.lastName || '').trim();
+  const name =
+    [firstName, lastName].filter(Boolean).join(' ') ||
+    session.account?.companyName ||
+    (email ? email.split('@')[0] : '') ||
+    'Client';
+  return {
+    id: contact.id != null ? `contact-${contact.id}` : `client-${accountId}`,
+    username: name,
+    name,
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    email,
+  };
+}
+
+function mapClientActivityRow(row) {
+  if (!row) return row;
+  const meta = row.meta || {};
+  if (!row.actor && meta.clientActor) {
+    return { ...row, actor: meta.clientActor };
+  }
+  return row;
+}
 
 async function recomputeProjectFinancials(projectId) {
   if (!projectId) return;
@@ -666,7 +742,9 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
         filters.$or = visOr;
       }
     } else {
-      Object.assign(filters, extraFilters);
+      if (Object.keys(extraFilters).length > 0) {
+        filters = mergeScopeFilter(filters, extraFilters);
+      }
     }
 
     const results = await strapi.entityService.findMany(UID, {
@@ -917,6 +995,39 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     const becameCompleted = prevStatus !== 'COMPLETED' && mergedStatus === 'COMPLETED';
     const recurrenceFreq =
       data.recurrenceFrequency !== undefined ? data.recurrenceFrequency : existing.recurrenceFrequency;
+
+    let workflowNote;
+    if (Object.prototype.hasOwnProperty.call(data, 'workflowNote')) {
+      workflowNote = data.workflowNote;
+      delete data.workflowNote;
+    }
+
+    if (
+      data.status &&
+      String(data.status).toUpperCase() !== String(prevStatus || '').toUpperCase() &&
+      existing.isSharedWithClient
+    ) {
+      const mergedForStage = { ...existing, status: data.status };
+      const stage = mapStatusToStage(data.status, mergedForStage);
+      if (stage) {
+        data.clientWorkflowStage = stage;
+        data.stageHistory = appendStageHistory(existing.stageHistory, {
+          stage,
+          at: new Date().toISOString(),
+          by: ctx.state.user.id,
+          byType: 'internal',
+          note: workflowNote || `Status updated to ${data.status}`,
+        });
+      }
+      if (String(data.status).toUpperCase() === 'WAITING_FOR_CLIENT') {
+        data.clientApprovalStatus = data.clientApprovalStatus || 'pending';
+        data.clientActionRequired = true;
+      }
+      if (String(data.status).toUpperCase() === 'COMPLETED') {
+        data.clientApprovalStatus = 'approved';
+        data.clientActionRequired = false;
+      }
+    }
 
     await strapi.entityService.update(UID, pk, { data });
     const changedKeys = collectChangedKeys(data);
@@ -1316,5 +1427,573 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
         upcoming: { count: upcoming.length, items: slice(upcoming, 5) },
       },
     };
+  },
+
+  /**
+   * GET /tasks/list-for-client-account?clientAccountId=
+   * CRM: tasks linked to a client account directly or via the account's projects.
+   */
+  async listForClientAccount(ctx) {
+    if (!ctx.state.user) return ctx.unauthorized('Missing or invalid credentials');
+    if (!ctx.state.orgId) return ctx.forbidden('No active organization');
+    const denied = requireModuleAccess(ctx, 'crm', 'tasks', 'read');
+    if (denied) return denied;
+
+    const raw =
+      ctx.query.clientAccountId ?? ctx.query.accountId ?? ctx.query.id;
+    if (!raw) return ctx.badRequest('clientAccountId is required');
+
+    const orgId = ctx.state.orgId;
+    const idStr = String(raw).trim();
+    const isNumeric = /^\d+$/.test(idStr);
+    const account = await strapi.db.query('api::client-account.client-account').findOne({
+      where: isNumeric ? { id: Number(idStr) } : { documentId: idStr },
+      populate: ['organization'],
+    });
+
+    if (!account) {
+      return ctx.send({ data: [], meta: { pagination: { total: 0 } } });
+    }
+
+    if (orgIdFromRelation(account.organization) !== orgId) {
+      return ctx.forbidden('Access denied');
+    }
+
+    const pageSize = Math.min(Math.max(Number(ctx.query.pageSize) || 200, 1), 500);
+
+    const projects = await strapi.entityService.findMany(PROJECT_UID, {
+      filters: {
+        organization: orgId,
+        clientAccount: account.id,
+      },
+      fields: ['id'],
+      limit: 500,
+    });
+    const projectIds = (Array.isArray(projects) ? projects : [])
+      .map((p) => p.id)
+      .filter((pid) => pid != null);
+
+    const orClauses = [{ clientAccount: account.id }];
+    if (projectIds.length) {
+      orClauses.push({ projects: { id: { $in: projectIds } } });
+    }
+
+    const rows = await strapi.entityService.findMany(UID, {
+      filters: {
+        organization: orgId,
+        $or: orClauses,
+      },
+      limit: pageSize,
+      sort: { updatedAt: 'desc' },
+      populate: buildTaskPopulateConfig([
+        'assignee',
+        'projects',
+        'clientAccount',
+        'parent',
+        'deal',
+      ]),
+    });
+
+    ctx.set('Cache-Control', 'no-store');
+    return ctx.send({
+      data: rows,
+      meta: { pagination: { total: rows.length, pageSize: rows.length } },
+    });
+  },
+
+  /**
+   * GET /tasks/list-for-client?clientAccountId=
+   * Returns only tasks shared with the client for their account.
+   */
+  async listForClient(ctx) {
+    const raw =
+      ctx.query.clientAccountId ?? ctx.query.accountId ?? ctx.query.id;
+    if (!raw) return ctx.badRequest('clientAccountId is required');
+
+    const session = await resolveClientPortalSession(strapi, ctx);
+    const idStr = String(raw).trim();
+    const isNumeric = /^\d+$/.test(idStr);
+    const account = await strapi.db.query('api::client-account.client-account').findOne({
+      where: isNumeric ? { id: Number(idStr) } : { documentId: idStr },
+      select: ['id'],
+    });
+
+    if (!account) {
+      return ctx.send({ data: [], meta: { pagination: { total: 0 } } });
+    }
+
+    if (session) {
+      const sessionAccountId = clientAccountIdFromSession(session);
+      if (sessionAccountId != null && Number(sessionAccountId) !== Number(account.id)) {
+        return ctx.forbidden('Access denied');
+      }
+    }
+
+    const pageSize = Math.min(Math.max(Number(ctx.query.pageSize) || 100, 1), 200);
+
+    const rows = await strapi.entityService.findMany(UID, {
+      filters: {
+        clientAccount: account.id,
+        isSharedWithClient: true,
+      },
+      limit: pageSize,
+      sort: { updatedAt: 'desc' },
+      populate: buildTaskPopulateConfig(['assignee', 'projects', 'clientAccount', 'parent', 'subtasks']),
+    });
+
+    return ctx.send({
+      data: rows,
+      meta: { pagination: { total: rows.length, pageSize: rows.length } },
+    });
+  },
+
+  /**
+   * GET /tasks/:id/client-view
+   * Fetch a single task for the client portal. Verifies the task belongs to the
+   * authenticated client's account and is shared with the client.
+   */
+  async getForClient(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) return ctx.unauthorized('Client authentication required');
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) return ctx.badRequest('Client account not found in session');
+
+    const rawId = ctx.params?.id;
+    if (!rawId) return ctx.badRequest('Task id is required');
+
+    const isNumeric = /^\d+$/.test(String(rawId));
+    const where = isNumeric ? { id: Number(rawId) } : { documentId: rawId };
+
+    const task = await strapi.db.query(UID).findOne({
+      where,
+      populate: buildTaskPopulateConfig(['assignee', 'assigner', 'projects', 'clientAccount', 'parent', 'subtasks']),
+    });
+
+    if (!task) return ctx.notFound('Task not found');
+
+    const taskAccountId = task.clientAccount?.id ?? task.clientAccount;
+    if (Number(taskAccountId) !== Number(accountId)) {
+      return ctx.forbidden('Access denied');
+    }
+
+    if (!task.isSharedWithClient) {
+      return ctx.forbidden('Task is not shared with client');
+    }
+
+    return ctx.send({ data: task });
+  },
+
+  /**
+   * GET /tasks/:id/client-timeline
+   * CRM activity timeline for a client-visible task (comments + updates).
+   */
+  async clientTimeline(ctx) {
+    const resolved = await resolveSharedClientTask(strapi, ctx);
+    if (resolved.error) return resolved.error;
+
+    const { task, orgId } = resolved;
+    const q = ctx.query || {};
+    const limit = Math.min(Math.max(Number(q.limit) || 80, 1), 100);
+    const type = String(q.type || '').trim().toLowerCase();
+
+    const filters = {
+      organization: orgId,
+      subjectType: 'task',
+      subjectId: task.id,
+    };
+    if (type === 'comment') filters.action = 'comment';
+
+    const rows = await strapi.entityService.findMany(CRM_ACTIVITY_UID, {
+      filters,
+      sort: { createdAt: 'DESC' },
+      limit,
+      populate: ['actor'],
+    });
+
+    const data = (Array.isArray(rows) ? rows : []).map(mapClientActivityRow);
+    return ctx.send({ data, meta: { total: data.length } });
+  },
+
+  /**
+   * POST /tasks/:id/client-comment
+   * Client posts a message on the task discussion thread.
+   */
+  async clientComment(ctx) {
+    const resolved = await resolveSharedClientTask(strapi, ctx);
+    if (resolved.error) return resolved.error;
+
+    const { session, task, accountId, orgId } = resolved;
+    const comment = String(ctx.request.body?.comment || '').trim();
+    if (!comment) return ctx.badRequest('comment is required');
+
+    const clientActor = clientActorFromSession(session, accountId);
+    const actorName = clientActor.username || clientActor.email || 'Client';
+    const taskName = (task.name || task.title || 'Task').trim() || 'Task';
+
+    const entry = await strapi.entityService.create(CRM_ACTIVITY_UID, {
+      data: {
+        organization: orgId,
+        actor: null,
+        action: 'comment',
+        subjectType: 'task',
+        subjectId: task.id,
+        summary: `${actorName} commented on task "${taskName}"`,
+        meta: {
+          ...buildCommentMeta({ comment }),
+          clientActor,
+        },
+      },
+      populate: ['actor'],
+    });
+
+    return ctx.send({ data: mapClientActivityRow(entry) });
+  },
+
+  /**
+   * POST /tasks/client-create
+   * Client portal task creation — auto-shared, starts at CLIENT_SUBMITTED stage.
+   */
+  async clientCreate(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) return ctx.unauthorized('Client authentication required');
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) return ctx.badRequest('Client account not found in session');
+
+    const body = ctx.request?.body || {};
+    const payload = body.data || body;
+    const name = (payload.name || payload.title || '').trim();
+    if (!name) return ctx.badRequest('Task name is required');
+
+    const account = await strapi.entityService.findOne('api::client-account.client-account', accountId, {
+      populate: ['organization'],
+    });
+    if (!account) return ctx.notFound('Client account not found');
+
+    let orgId = orgIdFromRelation(account.organization);
+    const stage = defaultStageForClientCreated();
+    const now = new Date().toISOString();
+    const actorLabel = session.user?.email || session.contact?.email || 'client';
+
+    let parentTask = null;
+    const rawParent = payload.parent ?? payload.parentId;
+    if (rawParent != null && rawParent !== '') {
+      const parentPk = await resolveEntityPkForRouteParam(strapi, UID, String(rawParent));
+      if (parentPk == null) return ctx.badRequest('Parent task not found');
+
+      parentTask = await strapi.entityService.findOne(UID, parentPk, {
+        populate: ['clientAccount', 'organization', 'projects', 'parent'],
+      });
+      if (!parentTask) return ctx.notFound('Parent task not found');
+      if (!parentTask.isSharedWithClient) return ctx.forbidden('Parent task is not shared with client');
+
+      const parentAccountId = relationId(parentTask.clientAccount);
+      if (parentAccountId == null || Number(parentAccountId) !== Number(accountId)) {
+        return ctx.forbidden('Access denied');
+      }
+      if (relationId(parentTask.parent)) {
+        return ctx.badRequest('Cannot add subtasks to a subtask');
+      }
+
+      const parentOrgId = orgIdFromRelation(parentTask.organization);
+      if (parentOrgId) orgId = parentOrgId;
+    }
+
+    const data = {
+      name,
+      description: payload.description || null,
+      status: 'ASSIGNED',
+      priority: payload.priority || 'medium',
+      clientAccount: account.id,
+      organization: orgId,
+      isSharedWithClient: true,
+      createdBySource: 'client',
+      clientWorkflowStage: stage,
+      clientApprovalStatus: 'none',
+      clientActionRequired: false,
+      stageHistory: appendStageHistory([], {
+        stage,
+        at: now,
+        by: actorLabel,
+        byType: 'client',
+        note: parentTask
+          ? `Subtask added to "${parentTask.name || 'task'}"`
+          : 'Task submitted by client',
+      }),
+    };
+
+    if (parentTask) data.parent = parentTask.id;
+
+    if (payload.scheduledDate) data.scheduledDate = payload.scheduledDate;
+    if (payload.projects) {
+      data.projects = await normalizeProjectsInput(strapi, orgId, payload.projects);
+    } else if (parentTask?.projects?.length) {
+      const parentProjectIds = parentTask.projects.map((p) => p.id).filter((id) => id != null);
+      if (parentProjectIds.length) {
+        data.projects = parentProjectIds;
+      }
+    }
+
+    const entry = await strapi.entityService.create(UID, { data });
+
+    try {
+      const clientActor = clientActorFromSession(session, accountId);
+      const actorName = clientActor.username || clientActor.email || 'Client';
+      const activitySubjectId = parentTask ? parentTask.id : entry.id;
+      const summary = parentTask
+        ? `${actorName} added subtask "${name}"`
+        : `Task "${name}" was created`;
+
+      await strapi.entityService.create(CRM_ACTIVITY_UID, {
+        data: {
+          organization: orgId,
+          actor: null,
+          action: 'create',
+          subjectType: 'task',
+          subjectId: activitySubjectId,
+          summary,
+          meta: {
+            clientActor,
+            ...(parentTask
+              ? { kind: 'subtask_created', subtaskId: entry.id, subtaskName: name }
+              : { kind: 'client_task_created' }),
+          },
+        },
+      });
+    } catch (_) {
+      /* best-effort activity log */
+    }
+
+    return ctx.send({ data: entry });
+  },
+
+  /**
+   * POST /tasks/:id/client-action
+   * Client approves, rejects, or closes a task.
+   */
+  async clientAction(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) return ctx.unauthorized('Client authentication required');
+
+    const accountId = clientAccountIdFromSession(session);
+    const pk = await resolveEntityPkForRouteParam(strapi, UID, ctx.params.id);
+    if (pk == null) return ctx.notFound();
+
+    const existing = await strapi.entityService.findOne(UID, pk, {
+      populate: ['clientAccount', 'organization'],
+    });
+    if (!existing) return ctx.notFound();
+    if (!existing.isSharedWithClient) return ctx.forbidden('Task is not shared with client');
+
+    const taskAccountId = relationId(existing.clientAccount);
+    if (taskAccountId == null || Number(taskAccountId) !== Number(accountId)) {
+      return ctx.forbidden('Access denied');
+    }
+
+    const { action, note } = ctx.request.body || {};
+    const act = String(action || '').toLowerCase();
+    if (!['approve', 'reject', 'close', 'request_revision'].includes(act)) {
+      return ctx.badRequest('action must be approve, reject, close, or request_revision');
+    }
+
+    const now = new Date().toISOString();
+    const patch = {};
+    let stage = existing.clientWorkflowStage;
+
+    if (act === 'approve') {
+      patch.clientApprovalStatus = 'approved';
+      patch.clientActionRequired = false;
+      const hadProgress =
+        stageHistoryHadInProgress(existing.stageHistory) ||
+        ['IN_PROGRESS', 'INTERNAL_REVIEW', 'PENDING_REVIEW', 'REVISION_REQUIRED'].includes(
+          String(existing.status || '').toUpperCase()
+        );
+      if (hadProgress) {
+        stage = 'CLOSED';
+        patch.status = 'COMPLETED';
+      } else {
+        stage = 'IN_PROGRESS';
+        patch.status = 'IN_PROGRESS';
+      }
+    } else if (act === 'reject' || act === 'request_revision') {
+      patch.clientApprovalStatus = 'rejected';
+      patch.clientActionRequired = false;
+      stage = 'CLIENT_REVIEW';
+      patch.status = 'REVISION_REQUIRED';
+    } else if (act === 'close') {
+      patch.clientApprovalStatus = 'closed';
+      patch.clientActionRequired = false;
+      stage = 'CLOSED';
+      patch.status = 'COMPLETED';
+    }
+
+    patch.clientWorkflowStage = stage;
+    patch.stageHistory = appendStageHistory(existing.stageHistory, {
+      stage,
+      at: now,
+      by: session.user?.email || 'client',
+      byType: 'client',
+      note: note || `Client action: ${act}`,
+    });
+
+    await strapi.entityService.update(UID, pk, { data: patch });
+    const updated = await strapi.entityService.findOne(UID, pk, {
+      populate: buildTaskPopulateConfig(['assignee', 'projects', 'clientAccount']),
+    });
+    return ctx.send({ data: updated });
+  },
+
+  /**
+   * PATCH /tasks/:id/share-with-client
+   * Internal users share or unshare a task with the client.
+   */
+  async shareWithClient(ctx) {
+    if (!ctx.state.user) return ctx.unauthorized('Missing or invalid credentials');
+    if (!ctx.state.orgId) return ctx.forbidden('No active organization');
+
+    const pk = await resolveEntityPkForRouteParam(strapi, UID, ctx.params.id);
+    if (pk == null) return ctx.notFound();
+
+    const existing = await strapi.entityService.findOne(UID, pk, {
+      populate: ['organization', 'clientAccount'],
+    });
+    if (!existing) return ctx.notFound();
+    if (orgIdFromRelation(existing.organization) !== ctx.state.orgId) {
+      return ctx.forbidden('Access denied');
+    }
+
+    const { isSharedWithClient, clientActionRequired, clientActionType, clientActionNotes, note } =
+      ctx.request.body || {};
+
+    const now = new Date().toISOString();
+    const patch = {};
+
+    if (typeof isSharedWithClient === 'boolean') {
+      patch.isSharedWithClient = isSharedWithClient;
+      if (isSharedWithClient && !existing.clientWorkflowStage) {
+        const stage =
+          existing.createdBySource === 'client'
+            ? defaultStageForClientCreated()
+            : defaultStageForInternalShared();
+        patch.clientWorkflowStage = stage;
+        patch.stageHistory = appendStageHistory(existing.stageHistory, {
+          stage,
+          at: now,
+          by: ctx.state.user.id,
+          byType: 'internal',
+          note: note || 'Task shared with client',
+        });
+      }
+      if (
+        isSharedWithClient &&
+        !existing.isSharedWithClient &&
+        !stageHistoryHadInProgress(existing.stageHistory) &&
+        !['IN_PROGRESS', 'INTERNAL_REVIEW', 'PENDING_REVIEW', 'COMPLETED'].includes(
+          String(existing.status || '').toUpperCase()
+        )
+      ) {
+        patch.status = 'WAITING_FOR_CLIENT';
+        patch.clientWorkflowStage = patch.clientWorkflowStage || 'PREP_REVIEW';
+        patch.clientActionRequired = true;
+      }
+    }
+
+    if (typeof clientActionRequired === 'boolean') {
+      patch.clientActionRequired = clientActionRequired;
+      if (clientActionRequired) {
+        const reviewStage = stageHistoryHadInProgress(existing.stageHistory) ||
+          ['IN_PROGRESS', 'INTERNAL_REVIEW', 'PENDING_REVIEW', 'REVISION_REQUIRED'].includes(
+            String(existing.status || '').toUpperCase()
+          )
+          ? 'CLIENT_REVIEW'
+          : 'PREP_REVIEW';
+        patch.clientWorkflowStage = reviewStage;
+        patch.clientApprovalStatus = 'pending';
+        patch.status = 'WAITING_FOR_CLIENT';
+        patch.stageHistory = appendStageHistory(
+          patch.stageHistory || existing.stageHistory,
+          {
+            stage: reviewStage,
+            at: now,
+            by: ctx.state.user.id,
+            byType: 'internal',
+            note: clientActionNotes || note || 'Client action required',
+          }
+        );
+      }
+    }
+
+    if (clientActionType) patch.clientActionType = clientActionType;
+    if (clientActionNotes != null) patch.clientActionNotes = clientActionNotes;
+
+    await strapi.entityService.update(UID, pk, { data: patch });
+    const updated = await strapi.entityService.findOne(UID, pk, {
+      populate: buildTaskPopulateConfig(['assignee', 'projects', 'clientAccount']),
+    });
+    return ctx.send({ data: updated });
+  },
+
+  /**
+   * PATCH /tasks/:id/advance-client-stage
+   * Internal users advance the client-visible workflow stage.
+   */
+  async advanceClientStage(ctx) {
+    if (!ctx.state.user) return ctx.unauthorized('Missing or invalid credentials');
+    if (!ctx.state.orgId) return ctx.forbidden('No active organization');
+
+    const pk = await resolveEntityPkForRouteParam(strapi, UID, ctx.params.id);
+    if (pk == null) return ctx.notFound();
+
+    const existing = await strapi.entityService.findOne(UID, pk, {
+      populate: ['organization'],
+    });
+    if (!existing) return ctx.notFound();
+    if (orgIdFromRelation(existing.organization) !== ctx.state.orgId) {
+      return ctx.forbidden('Access denied');
+    }
+
+    const { stage, status, note } = ctx.request.body || {};
+    if (!stage) return ctx.badRequest('stage is required');
+
+    const now = new Date().toISOString();
+    const patch = {
+      clientWorkflowStage: stage,
+      stageHistory: appendStageHistory(existing.stageHistory, {
+        stage,
+        at: now,
+        by: ctx.state.user.id,
+        byType: 'internal',
+        note: note || null,
+      }),
+    };
+
+    if (status) patch.status = status;
+
+    if (stage === 'ASSIGNED') patch.status = 'ASSIGNED';
+    if (stage === 'ACCEPTED') patch.status = 'ACCEPTED';
+    if (stage === 'SCHEDULED') patch.status = 'SCHEDULED';
+    if (stage === 'IN_PROGRESS') patch.status = 'IN_PROGRESS';
+    if (stage === 'INTERNAL_REVIEW') patch.status = 'INTERNAL_REVIEW';
+    if (
+      stage === 'CLIENT_REVIEW' ||
+      stage === 'CLIENT_DECISION' ||
+      stage === 'PREP_REVIEW'
+    ) {
+      patch.status = 'WAITING_FOR_CLIENT';
+      patch.clientApprovalStatus = 'pending';
+      patch.clientActionRequired = true;
+    }
+    if (stage === 'COMPLETED' || stage === 'CLOSED') {
+      patch.status = 'COMPLETED';
+      patch.clientApprovalStatus = 'approved';
+      patch.clientActionRequired = false;
+    }
+
+    await strapi.entityService.update(UID, pk, { data: patch });
+    const updated = await strapi.entityService.findOne(UID, pk, {
+      populate: buildTaskPopulateConfig(['assignee', 'projects', 'clientAccount']),
+    });
+    return ctx.send({ data: updated });
   },
 }));

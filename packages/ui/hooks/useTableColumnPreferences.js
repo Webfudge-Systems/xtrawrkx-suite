@@ -74,22 +74,34 @@ export function useTableColumnPreferences({
   const columnDragKeyRef = useRef(null);
   const columnDropIndicatorRef = useRef(null);
   const toolbarRef = useRef(null);
-
-  useEffect(() => {
-    setColumnVisibility(loadVisibility(visibilityStorageKey, defaultVisibility));
-    setColumnOrder(loadOrder(orderStorageKey, reorderableKeys));
-    const widths = loadWidths(widthsStorageKey, defaultWidths, minWidths);
-    setColumnWidths(widths);
-    if (widthsStorageKey) persistJson(widthsStorageKey, widths);
-  }, [
+  const defaultsRef = useRef({
     defaultVisibility,
     defaultWidths,
     minWidths,
-    orderStorageKey,
     reorderableKeys,
-    visibilityStorageKey,
-    widthsStorageKey,
-  ]);
+  });
+  defaultsRef.current = {
+    defaultVisibility,
+    defaultWidths,
+    minWidths,
+    reorderableKeys,
+  };
+
+  // Only re-load when storage keys change; default option objects are read from a ref
+  // so inline literals (e.g. minWidths: { actions: 100 }) do not retrigger every render.
+  useEffect(() => {
+    const {
+      defaultVisibility: visDefaults,
+      defaultWidths: widthDefaults,
+      minWidths: minWidthDefaults,
+      reorderableKeys: orderKeys,
+    } = defaultsRef.current;
+    setColumnVisibility(loadVisibility(visibilityStorageKey, visDefaults));
+    setColumnOrder(loadOrder(orderStorageKey, orderKeys));
+    const widths = loadWidths(widthsStorageKey, widthDefaults, minWidthDefaults);
+    setColumnWidths(widths);
+    if (widthsStorageKey) persistJson(widthsStorageKey, widths);
+  }, [orderStorageKey, visibilityStorageKey, widthsStorageKey]);
 
   const handleColumnResizeEnd = useCallback(
     (next) => {
@@ -176,13 +188,23 @@ export function useTableColumnPreferences({
   const resetColumnTablePreferences = useCallback(() => {
     const vis = { ...defaultVisibility };
     const order = [...reorderableKeys];
+    const widths = { ...defaultWidths };
     setColumnVisibility(vis);
     setColumnOrder(order);
+    setColumnWidths(widths);
     columnDropIndicatorRef.current = null;
     setColumnDropIndicator(null);
     persistJson(visibilityStorageKey, vis);
     persistJson(orderStorageKey, order);
-  }, [defaultVisibility, orderStorageKey, reorderableKeys, visibilityStorageKey]);
+    if (widthsStorageKey) persistJson(widthsStorageKey, widths);
+  }, [
+    defaultVisibility,
+    defaultWidths,
+    orderStorageKey,
+    reorderableKeys,
+    visibilityStorageKey,
+    widthsStorageKey,
+  ]);
 
   const toggleColumnPicker = useCallback(() => {
     setColumnPickerOpen((open) => !open);

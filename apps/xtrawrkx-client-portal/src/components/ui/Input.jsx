@@ -44,7 +44,7 @@ export const Input = forwardRef(function Input(
           className={clsx(
             "block w-full rounded-lg border shadow-sm",
             "px-3 py-2.5 text-gray-900 placeholder-gray-400",
-            "focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500 focus:border-transparent",
+            "focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent",
             "transition-colors duration-200",
             Icon && "pl-10",
             enablePasswordToggle && "pr-10",

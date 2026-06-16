@@ -48,7 +48,7 @@ import { canManageCRM, canWriteCRM } from '../../../lib/rbac';
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.clientAccounts.tableColumnVisibility';
 const COLUMN_ORDER_STORAGE_KEY = 'crm.clientAccounts.tableColumnOrder';
-const COLUMN_WIDTHS_STORAGE_KEY = 'crm.clientAccounts.tableColumnWidths';
+const COLUMN_WIDTHS_STORAGE_KEY = 'crm.clientAccounts.tableColumnWidths.v2';
 
 const TOGGLEABLE_COLUMNS = [
   { key: 'primaryContact', label: 'Primary contact' },
@@ -59,6 +59,8 @@ const TOGGLEABLE_COLUMNS = [
   { key: 'industry', label: 'Industry' },
   { key: 'assignedTo', label: 'Account manager' },
   { key: 'status', label: 'Status' },
+  { key: 'communities', label: 'Communities' },
+  { key: 'portalOnboarding', label: 'Portal onboarding' },
   { key: 'createdAt', label: 'Created' },
   { key: 'updatedAt', label: 'Updated' },
   { key: 'accountType', label: 'Account type' },
@@ -91,6 +93,8 @@ const DEFAULT_ON_KEYS = new Set([
   'industry',
   'assignedTo',
   'status',
+  'communities',
+  'portalOnboarding',
   'createdAt',
 ]);
 
@@ -98,6 +102,58 @@ const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
   acc[key] = DEFAULT_ON_KEYS.has(key);
   return acc;
 }, {});
+
+/** Default pixel widths for resizable table columns (keyed by column `key`). */
+const DEFAULT_COLUMN_WIDTHS = {
+  company: 280,
+  primaryContact: 260,
+  healthScore: 130,
+  dealValue: 130,
+  contactsCount: 110,
+  location: 160,
+  industry: 140,
+  assignedTo: 180,
+  status: 150,
+  communities: 160,
+  portalOnboarding: 120,
+  createdAt: 150,
+  updatedAt: 130,
+  accountType: 140,
+  billingCycle: 140,
+  website: 180,
+  companyPhone: 140,
+  companyEmail: 200,
+  address: 200,
+  city: 120,
+  state: 120,
+  country: 120,
+  zipCode: 100,
+  employees: 120,
+  description: 200,
+  linkedIn: 100,
+  twitter: 120,
+  notes: 180,
+  contractStartDate: 140,
+  contractEndDate: 140,
+  actions: 220,
+};
+
+/** Enforced minimums when loading saved widths (e.g. after layout updates). */
+const MIN_COLUMN_WIDTHS = {
+  company: 220,
+  primaryContact: 220,
+  healthScore: 110,
+  dealValue: 110,
+  contactsCount: 90,
+  location: 120,
+  industry: 110,
+  assignedTo: 160,
+  status: 130,
+  communities: 130,
+  portalOnboarding: 100,
+  createdAt: 130,
+  actions: 200,
+};
 
 const formatCurrency = (value) => {
   if (!value && value !== 0) return '₹0';
@@ -179,6 +235,8 @@ export default function ClientAccountsPage() {
     widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
     defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
     reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
   });
 
   useEffect(() => {
@@ -458,6 +516,7 @@ export default function ClientAccountsPage() {
         key: 'company',
         label: 'COMPANY',
         fixed: true,
+        defaultWidth: '280px',
         render: (_, account) => {
           const primaryContact = account.contacts?.find((c) => c.isPrimaryContact) || account.contacts?.[0];
           const contactName = primaryContact
@@ -487,6 +546,7 @@ export default function ClientAccountsPage() {
         key: 'primaryContact',
         visibilityKey: 'primaryContact',
         label: 'PRIMARY CONTACT',
+        defaultWidth: '260px',
         render: (_, account) => {
           const primaryContact = account.contacts?.find((c) => c.isPrimaryContact) || account.contacts?.[0];
           return (
@@ -511,6 +571,7 @@ export default function ClientAccountsPage() {
         key: 'healthScore',
         visibilityKey: 'healthScore',
         label: 'HEALTH SCORE',
+        defaultWidth: '130px',
         render: (_, account) => {
           const score = account.healthScore ?? 0;
           const colorClass =
@@ -533,6 +594,7 @@ export default function ClientAccountsPage() {
         key: 'dealValue',
         visibilityKey: 'dealValue',
         label: 'DEAL VALUE',
+        defaultWidth: '130px',
         render: (_, account) => (
           <span className="font-semibold text-gray-900 whitespace-nowrap">
             {formatCurrency(account.dealValue || 0)}
@@ -591,6 +653,7 @@ export default function ClientAccountsPage() {
         key: 'assignedTo',
         visibilityKey: 'assignedTo',
         label: 'ACCOUNT MANAGER',
+        defaultWidth: '180px',
         render: (_, account) => <TableCellOwner user={account.assignedTo} />,
       },
       {
@@ -608,6 +671,43 @@ export default function ClientAccountsPage() {
               saving={saving}
               canEdit={canWriteCRM('client_accounts')}
             />
+          );
+        },
+      },
+      {
+        key: 'communities',
+        visibilityKey: 'communities',
+        label: 'COMMUNITIES',
+        defaultWidth: '160px',
+        render: (_, account) => {
+          const list = Array.isArray(account.selectedCommunities) ? account.selectedCommunities : [];
+          return list.length ? (
+            <span className="text-sm text-gray-700">{list.join(', ')}</span>
+          ) : (
+            <span className="text-sm text-gray-400">None approved</span>
+          );
+        },
+      },
+      {
+        key: 'portalOnboarding',
+        visibilityKey: 'portalOnboarding',
+        label: 'PORTAL',
+        render: (_, account) => {
+          const od = account.onboardingData && typeof account.onboardingData === 'object' ? account.onboardingData : {};
+          const complete = Boolean(
+            (account.companyName || od.signupCompany) &&
+              account.industry &&
+              account.email &&
+              account.phone
+          );
+          return (
+            <span
+              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                complete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {complete ? 'Onboarded' : 'Pending'}
+            </span>
           );
         },
       },
@@ -759,6 +859,7 @@ export default function ClientAccountsPage() {
         key: 'actions',
         label: 'ACTIONS',
         fixed: true,
+        defaultWidth: '220px',
         render: (_, account) => {
           const canEditClientAccount = canWriteCRM('client_accounts');
           const canDeleteClientAccount = canManageCRM('client_accounts');

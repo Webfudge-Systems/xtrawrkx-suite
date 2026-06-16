@@ -20,9 +20,14 @@ import {
   Download,
 } from "lucide-react";
 import { ModernButton } from "../../../../components/ui";
+import { KPICard } from "@webfudge/ui";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
 import CommunityJoinRequirementsModal from "@/components/communities/CommunityJoinRequirementsModal";
 import { getCommunityById, avatarClassFor } from "@/data/communitiesCatalog";
+import {
+  getXenTierByCode,
+  tierPerksSummary,
+} from "@webfudge/utils";
 import {
   isPendingSubmissionStatus,
   listActiveMembershipsForClient,
@@ -146,81 +151,6 @@ const DETAIL_TEMPLATE = {
   ],
 };
 
-/**
- * Same visual system as dashboard stats (`dashboard/page.jsx`):
- * glass card, title + font-black value, dot + change row, tinted icon tile.
- */
-function CommunityKpiCard({
-  title,
-  value,
-  change,
-  changeType = "increase",
-  icon: IconComponent,
-  configIndex,
-}) {
-  const statConfig = [
-    {
-      color: "bg-xtrawrkx-50",
-      borderColor: "border-xtrawrkx-200",
-      iconColor: "text-xtrawrkx-600",
-      dotColor: "bg-xtrawrkx-500",
-    },
-    {
-      color: "bg-green-50",
-      borderColor: "border-green-200",
-      iconColor: "text-green-600",
-      dotColor: "bg-green-500",
-    },
-    {
-      color: "bg-purple-50",
-      borderColor: "border-purple-200",
-      iconColor: "text-purple-600",
-      dotColor: "bg-purple-500",
-    },
-    {
-      color: "bg-orange-50",
-      borderColor: "border-orange-200",
-      iconColor: "text-orange-600",
-      dotColor: "bg-orange-500",
-    },
-  ];
-
-  const config = statConfig[configIndex % statConfig.length];
-
-  return (
-    <div className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300">
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <p className="mb-1 text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-3xl font-black text-gray-800">{value}</p>
-          <div className="mt-2 flex flex-wrap items-center text-xs text-gray-500">
-            <span
-              className={`mr-2 h-2 w-2 shrink-0 rounded-full ${config.dotColor}`}
-            />
-            <span
-              className={
-                changeType === "increase"
-                  ? "font-medium text-green-600"
-                  : "font-medium text-red-600"
-              }
-            >
-              {change}
-            </span>
-            {change !== "0" && (
-              <span className="ml-1">this period</span>
-            )}
-          </div>
-        </div>
-        <div
-          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border ${config.color} ${config.borderColor} shadow-lg backdrop-blur-md`}
-        >
-          <IconComponent className={`h-8 w-8 ${config.iconColor}`} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function CommunityDetailPage() {
   const params = useParams();
   const id = Number(params?.id);
@@ -233,6 +163,7 @@ export default function CommunityDetailPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [isMember, setIsMember] = useState(false);
   const [isPending, setIsPending] = useState(false);
+  const [activeMembership, setActiveMembership] = useState(null);
   const [clientAccountId, setClientAccountId] = useState(null);
   const [accountDefaults, setAccountDefaults] = useState({});
   const [joinModalOpen, setJoinModalOpen] = useState(false);
@@ -272,7 +203,9 @@ export default function CommunityDetailPage() {
         listSubmissionsForClient(accId),
       ]);
       if (cancelled) return;
-      setIsMember(memberships.some((m) => m.community === base.strapiEnum));
+      const membership = memberships.find((m) => m.community === base.strapiEnum);
+      setActiveMembership(membership || null);
+      setIsMember(Boolean(membership));
       setIsPending(
         submissions.some(
           (s) =>
@@ -297,12 +230,24 @@ export default function CommunityDetailPage() {
         base.tags.length >= 4 ? base.tags : [...base.tags, "Innovation"],
       isMember,
       userTierName: isMember
-        ? base.userTierName || "Member"
+        ? activeMembership?.membershipData?.tierName ||
+          getXenTierByCode(activeMembership?.membershipData?.tier)?.name ||
+          base.userTierName ||
+          "Member"
         : "Guest",
       canUpgrade: isMember && Boolean(base.canUpgrade),
       memberSince: isMember ? "Active" : isPending ? "Pending approval" : "—",
     };
-  }, [base, isMember, isPending]);
+  }, [base, isMember, isPending, activeMembership]);
+
+  const memberPerks = useMemo(() => {
+    if (!isMember || !activeMembership) return communityData?.benefits || [];
+    const tierCode = activeMembership.membershipData?.tier || activeMembership.membershipData?.selectedTier;
+    if (base?.strapiEnum === "XEN" && tierCode) {
+      return tierPerksSummary(tierCode);
+    }
+    return communityData?.benefits || [];
+  }, [isMember, activeMembership, base, communityData]);
 
   if (!base || !communityData) {
     notFound();
@@ -392,31 +337,31 @@ export default function CommunityDetailPage() {
       <div className="border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-7xl space-y-4 p-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <CommunityKpiCard
+            <KPICard
               title="Total members"
               value={communityData.members.toLocaleString()}
               change="All active members"
               changeType="increase"
               icon={Users}
-              configIndex={0}
+              colorScheme="orange"
             />
-            <CommunityKpiCard
+            <KPICard
               title="Events this month"
               value={String(communityData.monthlyEvents)}
               change="Scheduled in calendar"
               changeType="increase"
               icon={Calendar}
-              configIndex={1}
+              colorScheme="orange"
             />
-            <CommunityKpiCard
+            <KPICard
               title="Active discussions"
               value={String(communityData.activeDiscussions)}
               change="Open conversations"
               changeType="increase"
               icon={MessageCircle}
-              configIndex={2}
+              colorScheme="orange"
             />
-            <CommunityKpiCard
+            <KPICard
               title="Success stories"
               value={Number(
                 communityData.successStoriesCount || 0
@@ -424,7 +369,7 @@ export default function CommunityDetailPage() {
               change="Community highlights"
               changeType="increase"
               icon={Award}
-              configIndex={3}
+              colorScheme="orange"
             />
           </div>
         </div>
@@ -493,7 +438,7 @@ export default function CommunityDetailPage() {
                   Benefits
                 </h4>
                 <ul className="space-y-3">
-                  {communityData.benefits.map((benefit, index) => (
+                  {memberPerks.map((benefit, index) => (
                     <li
                       key={index}
                       className="flex gap-2.5 text-sm leading-snug text-gray-600"

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { clsx } from 'clsx';
 import { Eye, Pencil } from 'lucide-react';
+import { TASK_STATUS_SELECT_OPTIONS } from '@webfudge/utils';
 import { Select } from '../Select';
 import { Badge } from '../Badge';
 import { TableCellLeadStatus, TableCellStatusPill } from './TableCrmCells';
@@ -14,14 +15,12 @@ export const LEAD_STATUS_OPTIONS = [
   { value: 'LOST', label: 'Lost' },
 ];
 
-export const TASK_STATUS_OPTIONS = [
-  { value: 'SCHEDULED', label: 'Scheduled' },
-  { value: 'IN_PROGRESS', label: 'In progress' },
-  { value: 'INTERNAL_REVIEW', label: 'Internal review' },
-  { value: 'ON_HOLD', label: 'On hold' },
-  { value: 'OVERDUE', label: 'Overdue' },
-  { value: 'COMPLETED', label: 'Completed' },
-  { value: 'CANCELLED', label: 'Cancelled' },
+export const TASK_STATUS_OPTIONS = TASK_STATUS_SELECT_OPTIONS;
+
+export const TASK_PRIORITY_OPTIONS = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
 ];
 
 export const DEAL_STAGE_OPTIONS = [
@@ -38,15 +37,8 @@ export const ACCOUNT_STATUS_OPTIONS = [
   { value: 'INACTIVE', label: 'Inactive' },
 ];
 
-/** PM task table labels (same enum values as {@link TASK_STATUS_OPTIONS}). */
-export const PM_TASK_STATUS_OPTIONS = [
-  { value: 'SCHEDULED', label: 'To Do' },
-  { value: 'IN_PROGRESS', label: 'In Progress' },
-  { value: 'INTERNAL_REVIEW', label: 'In Review' },
-  { value: 'ON_HOLD', label: 'On Hold' },
-  { value: 'COMPLETED', label: 'Completed' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-];
+/** PM task table labels — same values as {@link TASK_STATUS_OPTIONS}. */
+export const PM_TASK_STATUS_OPTIONS = TASK_STATUS_SELECT_OPTIONS;
 
 export const PROJECT_STATUS_OPTIONS = [
   { value: 'PLANNING', label: 'Planning' },
@@ -82,13 +74,24 @@ const LEAD_STATUS_FILL_CLASS = {
 };
 
 const TASK_STATUS_FILL_CLASS = {
+  ASSIGNED: 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100',
+  ACCEPTED: 'border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100',
   SCHEDULED: 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100',
   IN_PROGRESS: 'border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100',
   INTERNAL_REVIEW: 'border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100',
+  PENDING_REVIEW: 'border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100',
   ON_HOLD: 'border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100',
+  WAITING_FOR_CLIENT: 'border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100',
+  REVISION_REQUIRED: 'border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100',
   OVERDUE: 'border-red-200 bg-red-50 text-red-900 hover:bg-red-100',
   COMPLETED: 'border-green-200 bg-green-50 text-green-900 hover:bg-green-100',
   CANCELLED: 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100',
+};
+
+const TASK_PRIORITY_FILL_CLASS = {
+  high: 'border-red-200 bg-red-50 text-red-800 hover:bg-red-100',
+  medium: 'border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100',
+  low: 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
 };
 
 const DEAL_STAGE_FILL_CLASS = {
@@ -117,9 +120,14 @@ const PM_VARIANT_FILL_CLASS = {
 };
 
 const PM_TASK_STATUS_VARIANT = {
+  ASSIGNED: 'primary',
+  ACCEPTED: 'cyan',
   SCHEDULED: 'primary',
   IN_PROGRESS: 'warning',
   INTERNAL_REVIEW: 'purple',
+  PENDING_REVIEW: 'purple',
+  WAITING_FOR_CLIENT: 'orange',
+  REVISION_REQUIRED: 'warning',
   ON_HOLD: 'cyan',
   COMPLETED: 'success',
   CANCELLED: 'danger',
@@ -185,6 +193,15 @@ export function crmLeadTableSelectFillProps(status) {
 export function crmTaskTableSelectFillProps(status) {
   const key = (status || 'SCHEDULED').toString().toUpperCase();
   const fill = TASK_STATUS_FILL_CLASS[key] || TASK_STATUS_FILL_CLASS.SCHEDULED;
+  return {
+    className: `${SELECT_BASE_CLASS} ${fill}`,
+    chevronClassName: 'text-current opacity-60',
+  };
+}
+
+export function crmTaskPriorityTableSelectFillProps(priority) {
+  const key = (priority || 'medium').toString().toLowerCase();
+  const fill = TASK_PRIORITY_FILL_CLASS[key] || TASK_PRIORITY_FILL_CLASS.medium;
   return {
     className: `${SELECT_BASE_CLASS} ${fill}`,
     chevronClassName: 'text-current opacity-60',
@@ -402,6 +419,43 @@ export function TableCellTaskStatusSelect({
         {...fillProps}
         containerClassName={containerClassName}
         placeholder="Status"
+      />
+    </div>
+  );
+}
+
+export function TableCellTaskPrioritySelect({
+  priority,
+  onPriorityChange,
+  saving = false,
+  canEdit = true,
+  containerClassName = 'min-w-[130px]',
+  options = TASK_PRIORITY_OPTIONS,
+}) {
+  const normalized = (priority || 'medium').toString().toLowerCase();
+
+  if (!canEdit || !onPriorityChange) {
+    return (
+      <Badge
+        variant={normalized === 'high' ? 'danger' : normalized === 'low' ? 'success' : 'warning'}
+        className="whitespace-nowrap text-xs font-semibold uppercase"
+      >
+        {options.find((o) => o.value === normalized)?.label ?? normalized}
+      </Badge>
+    );
+  }
+
+  return (
+    <div onClick={(event) => event.stopPropagation()}>
+      <Select
+        value={normalized}
+        options={options}
+        onChange={onPriorityChange}
+        disabled={saving}
+        allowEmpty={false}
+        {...crmTaskPriorityTableSelectFillProps(normalized)}
+        containerClassName={containerClassName}
+        placeholder="Priority"
       />
     </div>
   );

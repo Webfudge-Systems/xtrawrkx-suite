@@ -388,6 +388,14 @@ export function transformTask(strapiTask) {
       recurrenceWeekdays: t.recurrenceWeekdays,
       recurrenceCustomUnit: t.recurrenceCustomUnit,
     }),
+    isSharedWithClient: t.isSharedWithClient === true,
+    createdBySource: t.createdBySource || 'internal',
+    clientWorkflowStage: t.clientWorkflowStage || null,
+    clientActionRequired: t.clientActionRequired === true,
+    clientActionType: t.clientActionType || 'none',
+    clientActionNotes: t.clientActionNotes || '',
+    clientApprovalStatus: t.clientApprovalStatus || 'none',
+    stageHistory: Array.isArray(t.stageHistory) ? t.stageHistory : [],
   };
 }
 

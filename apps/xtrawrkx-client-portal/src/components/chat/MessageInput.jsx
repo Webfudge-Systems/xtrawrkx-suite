@@ -27,7 +27,7 @@ export function MessageInput({
 
   return (
     <div className="flex items-end gap-2">
-      <div className="min-w-0 flex-1 rounded-2xl border border-gray-200 bg-gray-50/80 shadow-inner focus-within:border-pink-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-pink-500/20">
+      <div className="min-w-0 flex-1 rounded-2xl border border-gray-200 bg-gray-50/80 shadow-inner focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/20">
         <textarea
           ref={textareaRef}
           value={message}
@@ -48,7 +48,7 @@ export function MessageInput({
         onClick={handleSend}
         disabled={!message.trim()}
         aria-label="Send message"
-        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-red-500 text-white shadow-md transition hover:from-pink-600 hover:to-red-600 hover:shadow-lg disabled:pointer-events-none disabled:opacity-40"
+        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-pink-500 text-white shadow-md transition hover:from-orange-600 hover:to-pink-600 hover:shadow-lg disabled:pointer-events-none disabled:opacity-40"
       >
         <Send className="h-5 w-5" strokeWidth={2} />
       </button>

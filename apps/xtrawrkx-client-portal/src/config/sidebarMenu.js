@@ -123,14 +123,15 @@ export const sidebarMenuConfig = [
                 icon: Users,
                 roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
             },
-            {
-                id: "services",
-                type: MENU_ITEM_TYPES.LINK,
-                label: "Services",
-                href: "/services",
-                icon: Settings,
-                roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
-            },
+            // Hidden until Services page is finalized — uncomment to restore sidebar link
+            // {
+            //     id: "services",
+            //     type: MENU_ITEM_TYPES.LINK,
+            //     label: "Services",
+            //     href: "/services",
+            //     icon: Settings,
+            //     roles: [USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.CLIENT, USER_ROLES.MEMBER],
+            // },
         ],
     },
 

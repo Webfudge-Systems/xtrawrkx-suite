@@ -40,7 +40,7 @@ function MessageBody({ text, isClient }) {
   );
 }
 
-export function MessageList({ messages }) {
+export function MessageList({ messages, showSenderNames = false }) {
   if (!messages || messages.length === 0) {
     return (
       <EmptyState
@@ -59,6 +59,7 @@ export function MessageList({ messages }) {
           key={message.id}
           message={message}
           isLast={index === messages.length - 1}
+          showSenderNames={showSenderNames}
         />
       ))}
     </div>
@@ -81,7 +82,7 @@ function sourceBadgeClass(sourceType, isClient) {
     : "bg-amber-100 text-amber-900";
 }
 
-function MessageItem({ message, isLast }) {
+function MessageItem({ message, isLast, showSenderNames = false }) {
   const isClient = message.sender === "client";
   const isTeam = message.sender === "team";
   const sourceLabel =
@@ -97,28 +98,35 @@ function MessageItem({ message, isLast }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className={`flex ${isClient ? "justify-end" : "justify-start"}`}
+      className={`flex ${isClient ? "justify-end" : "justify-start"} ${isLast ? "" : "mb-3"}`}
     >
       <div
-        className={`flex items-end space-x-2 max-w-[70%] ${isClient ? "flex-row-reverse space-x-reverse" : ""}`}
+        className={`flex max-w-[78%] flex-col ${isClient ? "items-end" : "items-start"}`}
       >
-        {/* Avatar for team messages */}
+        {showSenderNames && isTeam ? (
+          <p className="mb-1 px-1 text-xs font-semibold text-gray-600">
+            {message.senderName || "Xtrawrkx Team"}
+          </p>
+        ) : null}
+        <div
+          className={`flex items-end space-x-2 ${isClient ? "flex-row-reverse space-x-reverse" : ""}`}
+        >
         {isTeam && (
           <Avatar
             src={message.avatarUrl || undefined}
             name={message.senderName || "Xtrawrkx"}
-            color="bg-gray-400"
+            color="bg-gradient-to-br from-orange-400 to-pink-500"
             size="sm"
-            className="h-8 w-8 flex-shrink-0"
+            className="h-8 w-8 shrink-0 shadow-sm"
           />
         )}
 
         {/* Message bubble */}
         <div
-          className={`relative px-4 py-2 rounded-2xl ${
+          className={`relative rounded-2xl px-4 py-2.5 shadow-sm ${
             isClient
-              ? "bg-gradient-to-r from-pink-500 to-red-500 text-white"
-              : "bg-gray-100 text-gray-900"
+              ? "bg-gradient-to-br from-orange-500 via-pink-500 to-red-500 text-white"
+              : "border border-gray-100 bg-white text-gray-900"
           }`}
         >
           <MessageBody text={message.text} isClient={isClient} />
@@ -151,34 +159,19 @@ function MessageItem({ message, isLast }) {
               <MessageStatus status={message.status} />
             </div>
           )}
-
-          {/* Message tail */}
-          <div
-            className={`absolute bottom-0 ${
-              isClient ? "right-0 translate-x-1" : "left-0 -translate-x-1"
-            }`}
-          >
-            <div
-              className={`w-3 h-3 transform rotate-45 ${
-                isClient
-                  ? "bg-gradient-to-r from-pink-500 to-red-500"
-                  : "bg-gray-100"
-              }`}
-            />
-          </div>
         </div>
 
-        {/* Avatar for client messages */}
         {isClient && (
           <Avatar
             src={message.clientAvatarUrl || undefined}
             name={message.senderName || "You"}
             initials="ME"
-            color="bg-gradient-to-br from-pink-500 to-red-500"
+            color="bg-gradient-to-br from-orange-500 to-pink-500"
             size="sm"
-            className="h-8 w-8 flex-shrink-0"
+            className="h-8 w-8 shrink-0 shadow-sm"
           />
         )}
+        </div>
       </div>
     </motion.div>
   );

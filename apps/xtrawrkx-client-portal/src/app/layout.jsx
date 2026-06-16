@@ -87,7 +87,7 @@ export const metadata = {
     statusBarStyle: "default",
   },
   other: {
-    "msapplication-TileColor": "#FF4A74",
+    "msapplication-TileColor": "#F5630F",
     "msapplication-config": "/browserconfig.xml",
   },
 };
@@ -98,14 +98,14 @@ export const viewport = {
   maximumScale: 5,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#FF4A74" },
+    { media: "(prefers-color-scheme: dark)", color: "#F5630F" },
   ],
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="font-sans">
+      <body className="font-primary">
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>
         </QueryProvider>

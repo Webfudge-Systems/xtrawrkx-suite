@@ -16,10 +16,15 @@ export const PRIORITY_OPTIONS = [
 ];
 
 const TASK_STATUS_META = {
-  SCHEDULED: { variant: 'primary', label: 'To Do' },
-  IN_PROGRESS: { variant: 'warning', label: 'In Progress' },
-  INTERNAL_REVIEW: { variant: 'purple', label: 'In Review' },
-  ON_HOLD: { variant: 'cyan', label: 'On Hold' },
+  ASSIGNED: { variant: 'primary', label: 'Assigned' },
+  ACCEPTED: { variant: 'cyan', label: 'Accepted' },
+  SCHEDULED: { variant: 'primary', label: 'Scheduled' },
+  IN_PROGRESS: { variant: 'warning', label: 'In progress' },
+  INTERNAL_REVIEW: { variant: 'purple', label: 'Internal review' },
+  PENDING_REVIEW: { variant: 'purple', label: 'Review' },
+  WAITING_FOR_CLIENT: { variant: 'orange', label: 'Client review' },
+  REVISION_REQUIRED: { variant: 'warning', label: 'Revision required' },
+  ON_HOLD: { variant: 'cyan', label: 'On hold' },
   COMPLETED: { variant: 'success', label: 'Completed' },
   CANCELLED: { variant: 'danger', label: 'Cancelled' },
   OVERDUE: { variant: 'danger', label: 'Overdue' },

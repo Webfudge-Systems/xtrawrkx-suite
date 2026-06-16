@@ -435,6 +435,20 @@ class TaskService {
     }
   }
 
+  async shareWithClient(id, payload) {
+    return strapiClient.request(`/tasks/${id}/share-with-client`, {
+      method: 'PATCH',
+      body: payload,
+    });
+  }
+
+  async advanceClientStage(id, payload) {
+    return strapiClient.request(`/tasks/${id}/advance-client-stage`, {
+      method: 'PATCH',
+      body: payload,
+    });
+  }
+
   async searchTasks(query, options = {}) {
     try {
       const params = {

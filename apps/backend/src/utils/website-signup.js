@@ -4,6 +4,7 @@ const CLIENT_ACCOUNT_UID = 'api::client-account.client-account';
 const CONTACT_UID = 'api::contact.contact';
 const PROJECT_UID = 'api::project.project';
 const PORTAL_ACCESS_UID = 'api::client-portal-access.client-portal-access';
+const { normalizeCompanyName } = require('./company-name-similarity');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -118,21 +119,45 @@ function verifyLandingSignupSecret(ctx) {
   return provided === expected;
 }
 
-async function findClientAccountByEmail(strapi, orgId, body) {
+/**
+ * Idempotent profile re-sync only: same company + same signup user already on that account.
+ * Do NOT match by email alone — one person may register multiple companies.
+ */
+async function findClientAccountForSignupRetry(strapi, orgId, body) {
+  const companyTrimmed = normalizeString(body?.companyName) || normalizeString(body?.company);
   const userEmail = normalizeString(body?.email).toLowerCase();
   const companyEmail = normalizeString(body?.companyEmail).toLowerCase();
-  const emails = uniqueStringList(userEmail, companyEmail);
-  if (!emails.length) return null;
+  if (!companyTrimmed || !userEmail) return null;
 
-  const rows = await strapi.entityService.findMany(CLIENT_ACCOUNT_UID, {
+  const normalizedIncoming = normalizeCompanyName(companyTrimmed);
+  if (!normalizedIncoming) return null;
+
+  const candidates = await strapi.entityService.findMany(CLIENT_ACCOUNT_UID, {
     filters: {
       organization: orgId,
-      email: { $in: emails },
+      companyName: { $containsi: companyTrimmed },
     },
-    limit: 1,
-    sort: { createdAt: 'desc' },
+    limit: 20,
+    sort: { updatedAt: 'desc' },
+    fields: ['id', 'companyName', 'email', 'status'],
   });
-  return rows[0] || null;
+
+  for (const account of candidates) {
+    if (normalizeCompanyName(account.companyName) !== normalizedIncoming) continue;
+
+    const accountEmail = normalizeString(account.email).toLowerCase();
+    if (accountEmail === userEmail || (companyEmail && accountEmail === companyEmail)) {
+      return account;
+    }
+
+    const contacts = await strapi.entityService.findMany(CONTACT_UID, {
+      filters: { clientAccount: account.id, email: userEmail },
+      limit: 1,
+    });
+    if (contacts.length > 0) return account;
+  }
+
+  return null;
 }
 
 async function findPrimaryContact(strapi, orgId, clientAccountId) {
@@ -155,6 +180,29 @@ async function findPrimaryContact(strapi, orgId, clientAccountId) {
     sort: { createdAt: 'asc' },
   });
   return any[0] || null;
+}
+
+async function ensureSignupContact(strapi, orgId, clientAccountId, body) {
+  const email = normalizeString(body?.email).toLowerCase();
+  if (!email || !clientAccountId) {
+    return { attempted: false, ok: false, error: 'Missing email or client account id.' };
+  }
+
+  const existingForEmail = await strapi.entityService.findMany(CONTACT_UID, {
+    filters: { clientAccount: clientAccountId, email },
+    limit: 1,
+  });
+  if (existingForEmail.length > 0) {
+    return {
+      attempted: true,
+      ok: true,
+      status: 200,
+      error: null,
+      contactId: existingForEmail[0].id,
+    };
+  }
+
+  return ensurePrimaryContact(strapi, orgId, clientAccountId, body);
 }
 
 async function ensurePrimaryContact(strapi, orgId, clientAccountId, body) {
@@ -319,10 +367,6 @@ function buildClientAccountPayload(body, orgId, companyName) {
     linkedIn: normalizeString(body?.linkedin) || null,
     twitter: normalizeString(body?.xProfile) || null,
     organization: orgId,
-    onboardingData: {
-      ...buildOnboardingData(body),
-      createdFrom: 'website_public_signup',
-    },
   };
 }
 
@@ -367,13 +411,10 @@ async function syncCompanyName(strapi, existing, body) {
   }
 
   const currentName = normalizeString(existing.companyName);
-  const onboarding = buildOnboardingData(body, existing.onboardingData);
-  const signupCo = normalizeString(onboarding.signupCompany);
-  if (currentName === incoming && signupCo === incoming) {
+  if (currentName === incoming) {
     return { attempted: false, ok: true, skipped: true, error: null };
   }
 
-  const orgId = existing.organization?.id ?? existing.organization;
   const email = normalizeString(body?.email).toLowerCase();
   const localPart = email.split('@')[0] || 'user';
   const candidates = uniqueStringList(
@@ -388,7 +429,6 @@ async function syncCompanyName(strapi, existing, body) {
       await strapi.entityService.update(CLIENT_ACCOUNT_UID, existing.id, {
         data: {
           companyName,
-          onboardingData: onboarding,
         },
       });
       return { attempted: true, ok: true, skipped: false, companyName, error: null };
@@ -463,9 +503,9 @@ async function ensureWebsiteClientAccount(strapi, body) {
     };
   }
 
-  const existing = await findClientAccountByEmail(strapi, orgId, body);
+  const existing = await findClientAccountForSignupRetry(strapi, orgId, body);
   if (existing) {
-    const primaryContactSync = await ensurePrimaryContact(
+    const primaryContactSync = await ensureSignupContact(
       strapi,
       orgId,
       existing.id,
@@ -541,7 +581,7 @@ async function ensureWebsiteClientAccount(strapi, body) {
   }
 
   const created = createResult.entry;
-  const primaryContactSync = await ensurePrimaryContact(strapi, orgId, created.id, body);
+  const primaryContactSync = await ensureSignupContact(strapi, orgId, created.id, body);
   const defaultProjectSync = await ensureDefaultProject(strapi, orgId, created.id, body);
   const includePassword =
     body?.initialClientPassword && String(body.initialClientPassword).length >= 6;

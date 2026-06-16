@@ -5,6 +5,11 @@ import Link from 'next/link';
 import { Activity, ExternalLink } from 'lucide-react';
 import { EmptyState } from '../EmptyState';
 import { LoadingSpinner } from '../../feedback';
+import {
+  resolveActivityActor,
+  activityActorLabel,
+  parseActivityMeta,
+} from '../../utils/activityActor';
 
 function formatWhen(iso) {
   if (!iso) return '';
@@ -23,12 +28,7 @@ function formatWhen(iso) {
 }
 
 function actorLabel(actor) {
-  if (!actor || typeof actor !== 'object') return null;
-  const u = actor.username?.trim();
-  const e = actor.email?.trim();
-  if (u && u.length) return u;
-  if (e && e.length) return e;
-  return actor.id != null ? `User ${actor.id}` : null;
+  return activityActorLabel(actor);
 }
 
 /** Badge styles aligned with CRM reference: CREATE green, COMMENT blue, UPDATE neutral/sky, DELETE red */
@@ -42,15 +42,7 @@ function actionStyles(action) {
 
 /** Normalize Strapi meta (object or occasional JSON string). */
 function parseMeta(meta) {
-  if (meta == null) return null;
-  if (typeof meta === 'string') {
-    try {
-      return JSON.parse(meta);
-    } catch {
-      return null;
-    }
-  }
-  return typeof meta === 'object' ? meta : null;
+  return parseActivityMeta(meta);
 }
 
 function actionLabel(action) {
@@ -116,12 +108,13 @@ export function ActivitiesTimeline({
         aria-hidden
       />
       {items.map((row, i) => {
-        const who = actorLabel(row.actor);
+        const who = actorLabel(resolveActivityActor(row));
         const when = formatWhen(row.createdAt);
         const summary = row.summary || 'Activity';
         const act = (row.action || 'update').toString();
         const meta = parseMeta(row.meta);
         const changes = Array.isArray(meta?.changes) ? meta.changes : [];
+        const aggregateSource = meta?.aggregateSource;
         const isSelected =
           selectedItemId != null && row.id != null && String(row.id) === String(selectedItemId);
         const entryBody = (
@@ -132,6 +125,11 @@ export function ActivitiesTimeline({
               >
                 {actionLabel(act)}
               </span>
+              {aggregateSource?.label ? (
+                <span className="inline-flex max-w-[200px] truncate rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700 ring-1 ring-slate-200/80">
+                  {aggregateSource.section} · {aggregateSource.label}
+                </span>
+              ) : null}
               {when ? (
                 <span className="text-xs font-medium text-gray-400 tabular-nums">{when}</span>
               ) : null}

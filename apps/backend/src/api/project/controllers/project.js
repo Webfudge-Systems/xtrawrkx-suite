@@ -27,10 +27,202 @@ const {
 } = require('../../../utils/rbac');
 
 const { relId } = require('../../../utils/books-crud');
+const { buildCommentMeta } = require('../../../utils/entity-attachments');
+const {
+  resolveClientPortalSession,
+  clientAccountIdFromSession,
+} = require('../../../utils/client-portal-request');
+
+const CRM_ACTIVITY_UID = 'api::crm-activity.crm-activity';
+
+function buildClientProjectSlug(name) {
+  const base =
+    String(name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'project';
+  return `${base}-${Date.now()}`;
+}
 
 const UID = 'api::project.project';
 const TASK_UID = 'api::task.task';
 const CLIENT_ACCOUNT_UID = 'api::client-account.client-account';
+
+function clientActorFromSession(session, accountId) {
+  const contact = session?.contact || {};
+  const email = contact.email || session.user?.email || session.account?.email || '';
+  const firstName = (contact.firstName || '').trim();
+  const lastName = (contact.lastName || '').trim();
+  const name =
+    [firstName, lastName].filter(Boolean).join(' ') ||
+    session.account?.companyName ||
+    (email ? email.split('@')[0] : '') ||
+    'Client';
+  return {
+    id: contact.id != null ? `contact-${contact.id}` : `client-${accountId}`,
+    username: name,
+    name,
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    email,
+  };
+}
+
+function mapClientActivityRow(row) {
+  if (!row) return row;
+  const meta = row.meta || {};
+  if (!row.actor && meta.clientActor) {
+    return { ...row, actor: meta.clientActor };
+  }
+  return row;
+}
+
+function projectSubjectId(project) {
+  if (!project) return null;
+  const raw = project.id ?? project.documentId;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+async function resolveProjectSubjectId(strapi, project, routeParam) {
+  const direct = projectSubjectId(project);
+  if (direct != null) return direct;
+  if (routeParam == null || String(routeParam).trim() === '') return null;
+  return resolveEntityPkForRouteParam(strapi, UID, routeParam);
+}
+
+async function fetchProjectCrmActivities(strapi, { subjectId, type, limit }) {
+  const sid = Number(subjectId);
+  if (!Number.isFinite(sid) || sid <= 0) return { rows: [], total: 0 };
+
+  const baseWhere = { subjectType: 'project', subjectId: sid };
+
+  if (type === 'comment') {
+    const where = { ...baseWhere, action: 'comment' };
+    const [rows, total] = await Promise.all([
+      strapi.db.query(CRM_ACTIVITY_UID).findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        limit,
+        populate: ['actor'],
+      }),
+      strapi.db.query(CRM_ACTIVITY_UID).count({ where }),
+    ]);
+    return { rows: Array.isArray(rows) ? rows : [], total: Number(total) || 0 };
+  }
+
+  if (type === 'activity') {
+    const rows = await strapi.db.query(CRM_ACTIVITY_UID).findMany({
+      where: baseWhere,
+      orderBy: { createdAt: 'desc' },
+      limit: Math.min(Math.max(limit * 4, limit), 400),
+      populate: ['actor'],
+    });
+    const filtered = (Array.isArray(rows) ? rows : []).filter(
+      (row) => String(row?.action || '').toLowerCase() !== 'comment'
+    );
+    let total = filtered.length;
+    try {
+      total = await strapi.db.query(CRM_ACTIVITY_UID).count({
+        where: { ...baseWhere, action: { $ne: 'comment' } },
+      });
+    } catch (_) {
+      /* fall back to filtered length */
+    }
+    return { rows: filtered.slice(0, limit), total: Number(total) || filtered.length };
+  }
+
+  const [rows, total] = await Promise.all([
+    strapi.db.query(CRM_ACTIVITY_UID).findMany({
+      where: baseWhere,
+      orderBy: { createdAt: 'desc' },
+      limit,
+      populate: ['actor'],
+    }),
+    strapi.db.query(CRM_ACTIVITY_UID).count({ where: baseWhere }),
+  ]);
+  return { rows: Array.isArray(rows) ? rows : [], total: Number(total) || 0 };
+}
+
+async function resolveClientProjectOrgId(strapi, project, accountId) {
+  let orgId = orgIdFromRelation(project?.organization) ?? relId(project?.organization);
+  if (orgId) return orgId;
+
+  if (accountId) {
+    const account = await strapi.entityService.findOne(CLIENT_ACCOUNT_UID, accountId, {
+      populate: ['organization'],
+    });
+    orgId = orgIdFromRelation(account?.organization) ?? relId(account?.organization);
+    if (orgId) return orgId;
+  }
+
+  return null;
+}
+
+async function ensureProjectBootstrapActivity(strapi, { project, orgId, routeParam }) {
+  const subjectId = await resolveProjectSubjectId(strapi, project, routeParam);
+  if (!subjectId) return;
+
+  const existing = await strapi.db.query(CRM_ACTIVITY_UID).count({
+    where: { subjectType: 'project', subjectId },
+  });
+  if (existing > 0) return;
+
+  const projectName = (project.name || 'Project').trim() || 'Project';
+  try {
+    await strapi.entityService.create(CRM_ACTIVITY_UID, {
+      data: {
+        ...(orgId ? { organization: orgId } : {}),
+        actor: null,
+        action: 'create',
+        subjectType: 'project',
+        subjectId,
+        summary: `Project "${projectName}" was created`,
+        meta: { kind: 'bootstrap_project_activity' },
+      },
+    });
+  } catch (_) {
+    /* best-effort */
+  }
+}
+
+async function resolveClientProject(strapi, ctx) {
+  const session = await resolveClientPortalSession(strapi, ctx);
+  if (!session) return { error: ctx.unauthorized('Client authentication required') };
+
+  const accountId = clientAccountIdFromSession(session);
+  if (!accountId) return { error: ctx.badRequest('Client account not found in session') };
+
+  const rawId = ctx.params?.id;
+  if (!rawId) return { error: ctx.badRequest('Project id is required') };
+
+  const isNumeric = /^\d+$/.test(String(rawId));
+  let project = null;
+
+  if (isNumeric) {
+    project = await strapi.entityService.findOne(UID, Number(rawId), {
+      populate: ['clientAccount', 'organization'],
+    });
+  } else {
+    const rows = await strapi.entityService.findMany(UID, {
+      filters: { slug: String(rawId) },
+      limit: 1,
+      populate: ['clientAccount', 'organization'],
+    });
+    project = rows?.[0] || null;
+  }
+
+  if (!project) return { error: ctx.notFound('Project not found') };
+
+  const projectAccountId = relId(project.clientAccount);
+  if (projectAccountId == null || Number(projectAccountId) !== Number(accountId)) {
+    return { error: ctx.forbidden('Access denied') };
+  }
+
+  const orgId = await resolveClientProjectOrgId(strapi, project, accountId);
+  return { session, project, accountId, orgId };
+}
 
 async function recomputeFinancials(projectId) {
   const tasks = await strapi.entityService.findMany(TASK_UID, {
@@ -431,6 +623,290 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
         paidInvoiceCount: invoices.filter((i) => i.status === 'paid' || i.status === 'PAID').length,
       },
     });
+  },
+
+  /**
+   * GET /projects/list-for-client?clientAccountId=
+   * Returns projects linked to the authenticated client's account.
+   */
+  async listForClient(ctx) {
+    const raw =
+      ctx.query.clientAccountId ?? ctx.query.accountId ?? ctx.query.id;
+    if (!raw) return ctx.badRequest('clientAccountId is required');
+
+    const session = await resolveClientPortalSession(strapi, ctx);
+    const idStr = String(raw).trim();
+    const isNumeric = /^\d+$/.test(idStr);
+    const account = await strapi.db.query(CLIENT_ACCOUNT_UID).findOne({
+      where: isNumeric ? { id: Number(idStr) } : { documentId: idStr },
+      select: ['id'],
+    });
+
+    if (!account) {
+      return ctx.send({ data: [], meta: { pagination: { total: 0 } } });
+    }
+
+    if (session) {
+      const sessionAccountId = clientAccountIdFromSession(session);
+      if (sessionAccountId != null && Number(sessionAccountId) !== Number(account.id)) {
+        return ctx.forbidden('Access denied');
+      }
+    }
+
+    const pageSize = Math.min(Math.max(Number(ctx.query.pageSize) || 100, 1), 200);
+
+    const rows = await strapi.entityService.findMany(UID, {
+      filters: { clientAccount: account.id },
+      limit: pageSize,
+      sort: { updatedAt: 'desc' },
+      populate: sanitizePopulate(
+        ctx.query?.populate || ['projectManager', 'teamMembers', 'clientAccount', 'tasks']
+      ),
+    });
+
+    return ctx.send({
+      data: rows,
+      meta: { pagination: { total: rows.length, pageSize: rows.length } },
+    });
+  },
+
+  /**
+   * POST /projects/client-create
+   * Client portal project creation — scoped to the authenticated client account.
+   */
+  async clientCreate(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) return ctx.unauthorized('Client authentication required');
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) return ctx.badRequest('Client account not found in session');
+
+    const body = ctx.request?.body || {};
+    const payload = body.data || body;
+    const name = (payload.name || '').trim();
+    if (!name) return ctx.badRequest('Project name is required');
+
+    const account = await strapi.entityService.findOne(CLIENT_ACCOUNT_UID, accountId, {
+      populate: ['organization'],
+    });
+    if (!account) return ctx.notFound('Client account not found');
+
+    const orgId = orgIdFromRelation(account.organization);
+    if (!orgId) return ctx.badRequest('Client account is not linked to an organization');
+
+    const allowedStatuses = new Set([
+      'PLANNING',
+      'PLANNED',
+      'ACTIVE',
+      'IN_PROGRESS',
+      'ON_HOLD',
+      'COMPLETED',
+      'CANCELLED',
+    ]);
+    const status = String(payload.status || 'PLANNING').toUpperCase();
+
+    const data = {
+      name,
+      slug: (payload.slug || '').trim() || buildClientProjectSlug(name),
+      description: payload.description || null,
+      status: allowedStatuses.has(status) ? status : 'PLANNING',
+      clientAccount: account.id,
+      organization: orgId,
+      icon: (payload.icon || name.charAt(0).toUpperCase() || 'P').slice(0, 1),
+    };
+
+    if (payload.startDate) data.startDate = payload.startDate;
+    if (payload.endDate) data.endDate = payload.endDate;
+
+    const entry = await strapi.entityService.create(UID, { data });
+    try {
+      const clientActor = clientActorFromSession(session, accountId);
+      const actorName = clientActor.username || clientActor.email || 'Client';
+      const subjectId = projectSubjectId(entry) ?? (await resolveEntityPkForRouteParam(strapi, UID, entry?.documentId));
+      if (subjectId) {
+        await strapi.entityService.create(CRM_ACTIVITY_UID, {
+          data: {
+            ...(orgId ? { organization: orgId } : {}),
+            actor: null,
+            action: 'create',
+            subjectType: 'project',
+            subjectId,
+            summary: `${actorName} created project "${name}"`,
+            meta: {
+              clientActor,
+              kind: 'client_project_created',
+            },
+          },
+        });
+      }
+    } catch (_) {
+      /* best-effort activity log */
+    }
+    return ctx.send({ data: entry });
+  },
+
+  /**
+   * GET /projects/get-for-client/:id
+   * Single project for client portal (id or slug), scoped to session account.
+   */
+  async getForClient(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) return ctx.unauthorized('Client authentication required');
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) return ctx.badRequest('Client account not found in session');
+
+    const identifier = ctx.params.id || ctx.query.id;
+    if (!identifier) return ctx.badRequest('Project id is required');
+
+    const populate = sanitizePopulate(
+      ctx.query?.populate || [
+        'projectManager',
+        'teamMembers',
+        'clientAccount',
+        'tasks',
+        'tasks.assignee',
+      ]
+    );
+
+    const isNumeric = /^\d+$/.test(String(identifier));
+    let project = null;
+
+    if (isNumeric) {
+      project = await strapi.entityService.findOne(UID, Number(identifier), { populate });
+    } else {
+      const rows = await strapi.entityService.findMany(UID, {
+        filters: { slug: String(identifier) },
+        limit: 1,
+        populate,
+      });
+      project = rows?.[0] || null;
+    }
+
+    if (!project) return ctx.notFound();
+
+    const projectAccountId = relId(project.clientAccount);
+    if (projectAccountId == null || Number(projectAccountId) !== Number(accountId)) {
+      return ctx.forbidden('Access denied');
+    }
+
+    return ctx.send({ data: project });
+  },
+
+  /**
+   * GET /projects/:id/client-timeline
+   */
+  async clientTimeline(ctx) {
+    const resolved = await resolveClientProject(strapi, ctx);
+    if (resolved.error) return resolved.error;
+
+    const { project, orgId } = resolved;
+    const routeParam = ctx.params?.id;
+    const subjectId = await resolveProjectSubjectId(strapi, project, routeParam);
+    if (!subjectId) return ctx.badRequest('Invalid project id');
+
+    await ensureProjectBootstrapActivity(strapi, { project, orgId, routeParam });
+
+    const q = ctx.query || {};
+    const limit = Math.min(Math.max(Number(q.limit) || 80, 1), 100);
+    const type = String(q.type || '').trim().toLowerCase();
+
+    const { rows, total } = await fetchProjectCrmActivities(strapi, {
+      subjectId,
+      type,
+      limit,
+    });
+    const data = rows.map(mapClientActivityRow);
+    return ctx.send({ data, meta: { total } });
+  },
+
+  /**
+   * POST /projects/:id/client-comment
+   */
+  async clientComment(ctx) {
+    const resolved = await resolveClientProject(strapi, ctx);
+    if (resolved.error) return resolved.error;
+
+    const { session, project, accountId, orgId } = resolved;
+    const comment = String(ctx.request.body?.comment || '').trim();
+    if (!comment) return ctx.badRequest('comment is required');
+
+    const subjectId = await resolveProjectSubjectId(strapi, project, ctx.params?.id);
+    if (!subjectId) return ctx.badRequest('Invalid project id');
+
+    const resolvedOrgId = orgId ?? (await resolveClientProjectOrgId(strapi, project, accountId));
+    const clientActor = clientActorFromSession(session, accountId);
+    const actorName = clientActor.username || clientActor.email || 'Client';
+    const projectName = (project.name || 'Project').trim() || 'Project';
+
+    const entry = await strapi.entityService.create(CRM_ACTIVITY_UID, {
+      data: {
+        ...(resolvedOrgId ? { organization: resolvedOrgId } : {}),
+        actor: null,
+        action: 'comment',
+        subjectType: 'project',
+        subjectId,
+        summary: `${actorName} commented on project "${projectName}"`,
+        meta: {
+          ...buildCommentMeta({ comment }),
+          clientActor,
+        },
+      },
+      populate: ['actor'],
+    });
+
+    return ctx.send({ data: mapClientActivityRow(entry) });
+  },
+
+  /**
+   * GET /projects/client-comment-counts?projectIds=1,2,3
+   */
+  async clientCommentCounts(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) return ctx.unauthorized('Client authentication required');
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) return ctx.badRequest('Client account not found in session');
+
+    const raw = ctx.query.projectIds ?? ctx.query['projectIds'];
+    const list = Array.isArray(raw)
+      ? raw
+      : String(raw || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+    if (!list.length) return ctx.send({ data: {} });
+
+    const ids = [];
+    for (const idRaw of list) {
+      const n = Number(idRaw);
+      if (Number.isFinite(n) && n > 0) ids.push(n);
+    }
+    if (!ids.length) return ctx.send({ data: {} });
+
+    const projects = await strapi.entityService.findMany(UID, {
+      filters: { id: { $in: ids }, clientAccount: accountId },
+      fields: ['id'],
+      limit: ids.length,
+    });
+    const allowedIds = (projects || []).map((p) => p.id).filter(Boolean);
+    if (!allowedIds.length) return ctx.send({ data: {} });
+
+    const counts = {};
+    await Promise.all(
+      allowedIds.map(async (projectId) => {
+        const count = await strapi.db.query(CRM_ACTIVITY_UID).count({
+          where: {
+            subjectType: 'project',
+            subjectId: projectId,
+            action: 'comment',
+          },
+        });
+        counts[String(projectId)] = count;
+      })
+    );
+
+    return ctx.send({ data: counts });
   },
 }));
 

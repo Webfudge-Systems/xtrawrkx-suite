@@ -1,4 +1,4 @@
-﻿// Base Components
+// Base Components
 export { Button } from './Button.jsx'
 export * from './buttons'
 export { Card, CardHeader, CardTitle, CardContent } from './Card.jsx'
@@ -25,9 +25,6 @@ export { Table } from './Table.jsx'
 export { EmptyState } from './EmptyState.jsx'
 export { AreaChart } from './AreaChart.jsx'
 export { Progress } from './Progress.jsx'
-
-// Feedback
-export { Modal } from './Modal.jsx'
 
 // Navigation
 export { Tabs } from './Tabs'

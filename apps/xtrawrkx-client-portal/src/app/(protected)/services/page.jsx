@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { KPICard } from "@webfudge/ui";
 import Link from "next/link";
 
 // Mock services data with community segregation
@@ -494,40 +495,24 @@ function ServicesContent() {
           value: String(availableServices.length),
           hint: "Unlocked with X4",
           icon: ArrowUpRight,
-          color: "bg-purple-50",
-          borderColor: "border-purple-200",
-          iconColor: "text-purple-600",
-          dotColor: "bg-purple-500",
         },
         {
           title: "Est. combined value",
           value: "$9.5k",
           hint: "Per month (sample)",
           icon: DollarSign,
-          color: "bg-xtrawrkx-50",
-          borderColor: "border-xtrawrkx-200",
-          iconColor: "text-xtrawrkx-600",
-          dotColor: "bg-xtrawrkx-500",
         },
         {
           title: "Avg. satisfaction",
           value: "4.8",
           hint: "Across add-ons",
           icon: Star,
-          color: "bg-green-50",
-          borderColor: "border-green-200",
-          iconColor: "text-green-600",
-          dotColor: "bg-green-500",
         },
         {
           title: "Tier to unlock",
           value: "X4",
           hint: "Scale Member",
           icon: Crown,
-          color: "bg-orange-50",
-          borderColor: "border-orange-200",
-          iconColor: "text-orange-600",
-          dotColor: "bg-orange-500",
         },
       ];
     }
@@ -538,40 +523,24 @@ function ServicesContent() {
           value: String(includedServices.length),
           hint: "Included services",
           icon: CheckCircle,
-          color: "bg-green-50",
-          borderColor: "border-green-200",
-          iconColor: "text-green-600",
-          dotColor: "bg-green-500",
         },
         {
           title: "Hours used",
           value: `${totalUsedHours}h`,
           hint: `of ${totalAllocatedHours}h allocated`,
           icon: Clock,
-          color: "bg-xtrawrkx-50",
-          borderColor: "border-xtrawrkx-200",
-          iconColor: "text-xtrawrkx-600",
-          dotColor: "bg-xtrawrkx-500",
         },
         {
           title: "Usage rate",
           value: `${usagePct}%`,
           hint: "Across included work",
           icon: Target,
-          color: "bg-orange-50",
-          borderColor: "border-orange-200",
-          iconColor: "text-orange-600",
-          dotColor: "bg-orange-500",
         },
         {
           title: "Avg. rating",
           value: "4.8",
           hint: "From client reviews",
           icon: Star,
-          color: "bg-purple-50",
-          borderColor: "border-purple-200",
-          iconColor: "text-purple-600",
-          dotColor: "bg-purple-500",
         },
       ];
     }
@@ -581,40 +550,24 @@ function ServicesContent() {
         value: String(includedServices.length),
         hint: "Active on X3",
         icon: CheckCircle,
-        color: "bg-green-50",
-        borderColor: "border-green-200",
-        iconColor: "text-green-600",
-        dotColor: "bg-green-500",
       },
       {
         title: "Hours used",
         value: `${totalUsedHours}h`,
         hint: `of ${totalAllocatedHours}h`,
         icon: Clock,
-        color: "bg-xtrawrkx-50",
-        borderColor: "border-xtrawrkx-200",
-        iconColor: "text-xtrawrkx-600",
-        dotColor: "bg-xtrawrkx-500",
       },
       {
         title: "Add-ons available",
         value: String(availableServices.length),
         hint: "Requires X4",
         icon: Star,
-        color: "bg-purple-50",
-        borderColor: "border-purple-200",
-        iconColor: "text-purple-600",
-        dotColor: "bg-purple-500",
       },
       {
         title: "Usage rate",
         value: `${usagePct}%`,
         hint: "Plan efficiency",
         icon: Target,
-        color: "bg-orange-50",
-        borderColor: "border-orange-200",
-        iconColor: "text-orange-600",
-        dotColor: "bg-orange-500",
       },
     ];
   }, [
@@ -652,41 +605,16 @@ function ServicesContent() {
       <div className="px-3 mt-6 pb-10">
         <div className="space-y-4 max-w-[1600px] mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {kpiRows.map((stat) => {
-              const IconComponent = stat.icon;
-              return (
-                <div
-                  key={stat.title}
-                  className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0 pr-2">
-                      <p className="text-sm text-gray-600 mb-1 font-medium truncate">
-                        {stat.title}
-                      </p>
-                      <p className="text-3xl font-black text-gray-800">
-                        {stat.value}
-                      </p>
-                      <div className="mt-2 flex items-center text-xs text-gray-500">
-                        <span
-                          className={`w-2 h-2 rounded-full mr-2 shrink-0 ${stat.dotColor}`}
-                        />
-                        <span className="text-gray-600 font-medium leading-snug">
-                          {stat.hint}
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      className={`w-16 h-16 shrink-0 ${stat.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${stat.borderColor}`}
-                    >
-                      <IconComponent
-                        className={`w-8 h-8 ${stat.iconColor}`}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {kpiRows.map((stat) => (
+              <KPICard
+                key={stat.title}
+                title={stat.title}
+                value={stat.value}
+                subtitle={stat.hint}
+                icon={stat.icon}
+                colorScheme="orange"
+              />
+            ))}
           </div>
 
           {scopeFilter !== "available" ? (
@@ -771,7 +699,7 @@ function ServicesContent() {
                   onClick={() => setScope(tab.key)}
                   className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap shrink-0 ${
                     scopeFilter === tab.key
-                      ? "bg-xtrawrkx-500 text-white shadow-lg"
+                      ? "bg-brand-primary text-white shadow-lg"
                       : "bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white/90 border border-white/40"
                   }`}
                 >
@@ -793,7 +721,7 @@ function ServicesContent() {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="rounded-xl border border-white/40 bg-white/90 px-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 min-w-[160px]"
+                className="rounded-xl border border-white/40 bg-white/90 px-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 min-w-[160px]"
                 aria-label="Filter by category"
               >
                 {SERVICE_CATEGORY_OPTIONS.map((c) => (
@@ -806,7 +734,7 @@ function ServicesContent() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="rounded-xl border border-white/40 bg-white/90 px-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30"
+                className="rounded-xl border border-white/40 bg-white/90 px-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
                 aria-label="Sort services"
               >
                 <option value="name">Sort: Name</option>
@@ -818,7 +746,7 @@ function ServicesContent() {
               {scopeFilter === "available" ? (
                 <button
                   type="button"
-                  className="px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-semibold hover:bg-xtrawrkx-600 transition-colors shadow-md whitespace-nowrap"
+                  className="px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors shadow-md whitespace-nowrap"
                   onClick={() => {}}
                 >
                   Upgrade to X4
@@ -974,7 +902,7 @@ function ServicesContent() {
                     </Link>
                     <Link
                       href={`/services/${service.id}`}
-                      className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-xtrawrkx-500 text-white hover:bg-xtrawrkx-600 transition-colors shadow-sm"
+                      className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-primary text-white hover:bg-orange-600 transition-colors shadow-sm"
                     >
                       {service.isIncluded
                         ? "Manage service"
@@ -1000,7 +928,7 @@ function ServicesContent() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-semibold hover:bg-xtrawrkx-600 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Reset filters
@@ -1017,7 +945,7 @@ function LoadingFallback() {
   return (
     <div className="bg-white min-h-screen flex items-center justify-center">
       <div className="flex items-center gap-3 text-gray-600">
-        <div className="w-8 h-8 border-2 border-xtrawrkx-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
         <span>Loading services…</span>
       </div>
     </div>

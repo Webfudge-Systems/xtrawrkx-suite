@@ -8,7 +8,7 @@ function ContactLink({ href, icon: Icon, label }) {
   return (
     <a
       href={href}
-      className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/80 px-2.5 py-2 transition-colors hover:border-xtrawrkx-200 hover:bg-xtrawrkx-50/50"
+      className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/80 px-2.5 py-2 transition-colors hover:border-orange-200 hover:bg-orange-50/50"
     >
       <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white border border-gray-100 text-gray-500">
         <Icon className="h-3.5 w-3.5" />
@@ -31,7 +31,7 @@ export default function SupportAssistanceCard({ collapsed = false }) {
         </span>
         <a
           href={`mailto:${email}`}
-          className="text-gray-500 hover:text-xtrawrkx-600"
+          className="text-gray-500 hover:text-orange-600"
           title={email}
         >
           <Mail className="h-4 w-4" />

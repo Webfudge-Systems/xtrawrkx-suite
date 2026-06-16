@@ -93,7 +93,7 @@ export default function FilesPage() {
               placeholder="Search documents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-xtrawrkx-500 focus:border-transparent"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-primary focus:border-transparent"
             />
           </div>
         </div>
@@ -101,7 +101,7 @@ export default function FilesPage() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-xtrawrkx-500" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-primary" />
         </div>
       ) : error ? (
         <div className="bg-white rounded-2xl border border-red-200 p-8 text-center text-red-600">
@@ -134,7 +134,7 @@ export default function FilesPage() {
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center">
-                      <FileText className="h-5 w-5 text-xtrawrkx-600" />
+                      <FileText className="h-5 w-5 text-orange-600" />
                     </div>
                     <div>
                       <h2 className="text-lg font-semibold text-gray-900">

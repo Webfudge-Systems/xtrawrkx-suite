@@ -1,0 +1,64 @@
+{
+  "kind": "collectionType",
+  "collectionName": "chat_messages",
+  "info": {
+    "singularName": "chat-message",
+    "pluralName": "chat-messages",
+    "displayName": "Client Chat Message",
+    "description": "Client-portal chat messages — separate from internal CRM activity and PM direct messages"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "message": {
+      "type": "text",
+      "required": true
+    },
+    "channelKey": {
+      "type": "string",
+      "default": ""
+    },
+    "fromClient": {
+      "type": "boolean",
+      "default": true
+    },
+    "entityType": {
+      "type": "string",
+      "default": "clientAccount"
+    },
+    "entityId": {
+      "type": "string"
+    },
+    "isThreadStarter": {
+      "type": "boolean",
+      "default": false
+    },
+    "clientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "authorClientAccount": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::client-account.client-account"
+    },
+    "authorContact": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::contact.contact"
+    },
+    "authorUser": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization"
+    }
+  }
+}

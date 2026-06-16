@@ -48,15 +48,16 @@ export default function RegistrationDetails({ event }) {
             Not Registered
           </h3>
           <p className="text-gray-500 mb-6">
-            You haven&apos;t registered for this event yet. Register on the
-            xtrawrkx website to secure your spot.
+            {event.status === "upcoming"
+              ? "You haven't registered for this event yet. Register on the xtrawrkx website to secure your spot."
+              : "Registration is closed for this event."}
           </p>
-          {event.websiteUrl && (
+          {event.status === "upcoming" && event.websiteUrl && (
             <a
               href={`${event.websiteUrl}/register`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-xtrawrkx-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-xtrawrkx-700 w-full"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-700 w-full"
             >
               Register Now
             </a>

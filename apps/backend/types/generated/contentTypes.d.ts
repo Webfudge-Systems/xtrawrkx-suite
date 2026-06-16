@@ -641,6 +641,43 @@ export interface ApiChartOfAccountChartOfAccount extends Struct.CollectionTypeSc
   }
 }
 
+export interface ApiChatMessageChatMessage extends Struct.CollectionTypeSchema {
+  collectionName: 'chat_messages'
+  info: {
+    description: 'Client-portal chat messages \u2014 separate from internal CRM activity and PM direct messages'
+    displayName: 'Client Chat Message'
+    pluralName: 'chat-messages'
+    singularName: 'chat-message'
+  }
+  options: {
+    draftAndPublish: false
+  }
+  attributes: {
+    authorClientAccount: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::client-account.client-account'
+    >
+    authorContact: Schema.Attribute.Relation<'manyToOne', 'api::contact.contact'>
+    authorUser: Schema.Attribute.Relation<'manyToOne', 'plugin::users-permissions.user'>
+    channelKey: Schema.Attribute.String & Schema.Attribute.DefaultTo<''>
+    clientAccount: Schema.Attribute.Relation<'manyToOne', 'api::client-account.client-account'>
+    createdAt: Schema.Attribute.DateTime
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    entityId: Schema.Attribute.String
+    entityType: Schema.Attribute.String & Schema.Attribute.DefaultTo<'clientAccount'>
+    fromClient: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>
+    isThreadStarter: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
+    locale: Schema.Attribute.String & Schema.Attribute.Private
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::chat-message.chat-message'> &
+      Schema.Attribute.Private
+    message: Schema.Attribute.Text & Schema.Attribute.Required
+    organization: Schema.Attribute.Relation<'manyToOne', 'api::organization.organization'>
+    publishedAt: Schema.Attribute.DateTime
+    updatedAt: Schema.Attribute.DateTime
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+  }
+}
+
 export interface ApiClientAccountClientAccount extends Struct.CollectionTypeSchema {
   collectionName: 'client_accounts'
   info: {
@@ -679,6 +716,7 @@ export interface ApiClientAccountClientAccount extends Struct.CollectionTypeSche
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::client-account.client-account'> &
       Schema.Attribute.Private
     notes: Schema.Attribute.Text
+    onboardingData: Schema.Attribute.JSON
     onboardingDate: Schema.Attribute.DateTime
     organization: Schema.Attribute.Relation<'manyToOne', 'api::organization.organization'>
     paymentTerms: Schema.Attribute.String & Schema.Attribute.DefaultTo<'NET_30'>
@@ -2575,15 +2613,38 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
     assignmentRequestedBy: Schema.Attribute.Relation<'manyToOne', 'plugin::users-permissions.user'>
     billable: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>
     clientAccount: Schema.Attribute.Relation<'manyToOne', 'api::client-account.client-account'>
+    clientActionNotes: Schema.Attribute.Text
+    clientActionRequired: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
+    clientActionType: Schema.Attribute.Enumeration<
+      ['none', 'quote', 'financial_decision', 'approval', 'info']
+    >
+    clientApprovalStatus: Schema.Attribute.Enumeration<
+      ['none', 'pending', 'approved', 'rejected', 'closed']
+    >
+    clientWorkflowStage: Schema.Attribute.Enumeration<
+      [
+        'CLIENT_SUBMITTED',
+        'XTRAWRKX_REVIEW',
+        'ACCEPTED',
+        'IN_PROGRESS',
+        'CLIENT_DECISION',
+        'CLIENT_REVIEW',
+        'CLOSED',
+        'CANCELLED',
+      ]
+    >
     collaborators: Schema.Attribute.Relation<'manyToMany', 'plugin::users-permissions.user'>
     createdAt: Schema.Attribute.DateTime
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private
+    createdBySource: Schema.Attribute.Enumeration<['internal', 'client']> &
+      Schema.Attribute.DefaultTo<'internal'>
     deal: Schema.Attribute.Relation<'manyToOne', 'api::deal.deal'>
     description: Schema.Attribute.Text
     endTime: Schema.Attribute.String
     hoursLogged: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<0>
     invoiced: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
     invoicedOn: Schema.Attribute.DateTime
+    isSharedWithClient: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
     leadCompany: Schema.Attribute.Relation<'manyToOne', 'api::lead-company.lead-company'>
     locale: Schema.Attribute.String & Schema.Attribute.Private
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::task.task'> &
@@ -2624,14 +2685,20 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
       >
     recurrenceWeekdays: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<[]>
     scheduledDate: Schema.Attribute.DateTime
+    stageHistory: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<[]>
     startDate: Schema.Attribute.DateTime
     startTime: Schema.Attribute.String
     status: Schema.Attribute.Enumeration<
       [
         'SCHEDULED',
+        'ASSIGNED',
+        'ACCEPTED',
         'IN_PROGRESS',
         'INTERNAL_REVIEW',
+        'PENDING_REVIEW',
         'ON_HOLD',
+        'WAITING_FOR_CLIENT',
+        'REVISION_REQUIRED',
         'COMPLETED',
         'CANCELLED',
         'OVERDUE',
@@ -3162,6 +3229,7 @@ declare module '@strapi/strapi' {
       'api::bill-line-item.bill-line-item': ApiBillLineItemBillLineItem
       'api::bill.bill': ApiBillBill
       'api::chart-of-account.chart-of-account': ApiChartOfAccountChartOfAccount
+      'api::chat-message.chat-message': ApiChatMessageChatMessage
       'api::client-account.client-account': ApiClientAccountClientAccount
       'api::client-portal-access.client-portal-access': ApiClientPortalAccessClientPortalAccess
       'api::client-portal-document.client-portal-document': ApiClientPortalDocumentClientPortalDocument

@@ -105,5 +105,37 @@ module.exports = createCoreController(
 
       return ctx.send({ data: entry, alreadyMember });
     },
+
+    /**
+     * GET /api/community-memberships/program-stats
+     * Active member counts per program community (portal directory).
+     */
+    async programStats(ctx) {
+      const COMMUNITIES = ['XEN', 'XEVFIN', 'XEVTG', 'XDD'];
+      const counts = Object.fromEntries(COMMUNITIES.map((c) => [c, 0]));
+
+      const rows = await strapi.db
+        .query('api::community-membership.community-membership')
+        .findMany({
+          where: { status: 'ACTIVE' },
+          select: ['community'],
+        });
+
+      for (const row of rows) {
+        const key = row.community;
+        if (key && Object.prototype.hasOwnProperty.call(counts, key)) {
+          counts[key] += 1;
+        }
+      }
+
+      const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+
+      return ctx.send({
+        data: {
+          byCommunity: counts,
+          total,
+        },
+      });
+    },
   })
 );

@@ -47,11 +47,6 @@ function buildWritePayload(payload) {
   return data;
 }
 
-/**
- * Open tasks for a deal (next steps on deal detail).
- * @param {string|number} dealId
- * @returns {Promise<{ data: object[] }>}
- */
 async function getByDealId(dealId, options = {}) {
   const pageSize = options.pageSize ?? 50;
   const dealIdStr = dealId == null ? '' : String(dealId).trim();
@@ -68,6 +63,22 @@ async function getByDealId(dealId, options = {}) {
     populate: ['assignee', 'leadCompany', 'clientAccount', 'deal'],
   });
   const res = await strapiClient.get(ENDPOINT, query);
+  return normalizeListResponse(res);
+}
+
+/**
+ * Tasks linked to a client account.
+ * @param {string|number} clientAccountId
+ * @returns {Promise<{ data: object[] }>}
+ */
+async function getByClientAccountId(clientAccountId, options = {}) {
+  const idStr = clientAccountId == null ? '' : String(clientAccountId).trim();
+  if (!idStr) return { data: [] };
+
+  const res = await strapiClient.get(`${ENDPOINT}/list-for-client-account`, {
+    clientAccountId: idStr,
+    pageSize: options.pageSize ?? 200,
+  });
   return normalizeListResponse(res);
 }
 
@@ -168,15 +179,34 @@ async function deleteTask(id) {
   return {};
 }
 
+async function shareWithClient(id, payload) {
+  const response = await strapiClient.request(`${ENDPOINT}/${id}/share-with-client`, {
+    method: 'PATCH',
+    body: payload,
+  });
+  return normalizeOneResponse(response);
+}
+
+async function advanceClientStage(id, payload) {
+  const response = await strapiClient.request(`${ENDPOINT}/${id}/advance-client-stage`, {
+    method: 'PATCH',
+    body: payload,
+  });
+  return normalizeOneResponse(response);
+}
+
 const taskService = {
   fetchMyWorkSummary,
   getByDealId,
+  getByClientAccountId,
   getAll,
   fetchAll,
   getOne,
   create,
   update,
   delete: deleteTask,
+  shareWithClient,
+  advanceClientStage,
 };
 
 export default taskService;

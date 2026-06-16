@@ -97,6 +97,9 @@
       "type": "string",
       "default": "NET_30"
     },
+    "onboardingData": {
+      "type": "json"
+    },
     "conversionDate": {
       "type": "datetime"
     },

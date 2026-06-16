@@ -1,25 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Users,
-  Search,
-  Filter,
-  Crown,
   Calendar,
-  TrendingUp,
-  Plus,
-  Grid3X3,
-  List,
-  MoreVertical,
   CheckCircle,
   Clock,
-  XCircle,
+  Eye,
+  LayoutGrid,
+  Table2,
+  CheckCircle2,
+  UserPlus,
 } from "lucide-react";
+import {
+  KPICard,
+  Card,
+  TabsWithActions,
+  Table,
+  Button,
+  Badge,
+  LoadingSpinner,
+  ViewToggleGroup,
+  ViewToggleButton,
+  TableCellTitleSubtitle,
+} from "@webfudge/ui";
+import { getXenTierByCode } from "@webfudge/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import CommunityJoinRequirementsModal from "@/components/communities/CommunityJoinRequirementsModal";
 import {
   COMMUNITIES_LIST,
@@ -30,38 +39,163 @@ import {
   isPendingSubmissionStatus,
   listActiveMembershipsForClient,
   listSubmissionsForClient,
+  fetchCommunityProgramStats,
 } from "@/lib/api/communityProgramService";
+import { fetchWebsiteEventsCatalog } from "@/lib/websiteEventsService";
 import { strapiClient } from "@/lib/strapiClient";
 import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
 
-const filterOptions = {
-  status: ["All", "Member", "Pending", "Non-Member"],
-  tier: ["All", "Standard", "Premium", "Elite"],
-  category: [
-    "All",
-    "Business Division",
-    "Investment Division",
-    "Tech Division",
-    "Creative Division",
-  ],
+const TAB_KEYS = {
+  ALL: "all",
+  MEMBER: "member",
+  PENDING: "pending",
+  DISCOVER: "discover",
 };
 
+function membershipTierLabel(communityEnum, membership) {
+  if (!membership) return "—";
+  const tierCode =
+    membership.membershipData?.tier ||
+    membership.membershipData?.selectedTier;
+  if (communityEnum === "XEN" && tierCode) {
+    const tier = getXenTierByCode(tierCode);
+    if (tier) return `${tier.tier} · ${tier.name}`;
+  }
+  return membership.membershipType || "Active";
+}
+
+function communityStatusMeta(community) {
+  if (community.isMember) {
+    return { label: "Member", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+  }
+  if (community.isPending) {
+    return { label: "Pending approval", className: "bg-amber-50 text-amber-800 border-amber-200" };
+  }
+  return { label: "Open to join", className: "bg-gray-50 text-gray-700 border-gray-200" };
+}
+
+function countEventsThisMonth(events) {
+  const now = new Date();
+  const month = now.getMonth();
+  const year = now.getFullYear();
+  return events.filter((event) => {
+    if (!event?.date) return false;
+    const d = new Date(event.date);
+    return !Number.isNaN(d.getTime()) && d.getMonth() === month && d.getFullYear() === year;
+  }).length;
+}
+
+function CommunityGalleryCard({ community, onJoin }) {
+  const avatarClass = avatarClassFor(community.color);
+  const status = communityStatusMeta(community);
+
+  return (
+    <Card
+      variant="elevated"
+      className="flex h-full flex-col rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-md"
+    >
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm ${avatarClass}`}
+          >
+            <span className="text-lg font-bold leading-none text-white">
+              {community.name.charAt(0)}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold text-gray-900">
+              {community.name}
+            </h3>
+            <p className="truncate text-sm text-gray-500">{community.category}</p>
+          </div>
+        </div>
+        <Badge className={`shrink-0 border text-xs font-semibold ${status.className}`}>
+          {status.label}
+        </Badge>
+      </div>
+
+      <p className="mb-4 line-clamp-2 flex-1 text-sm text-gray-600">
+        {community.description}
+      </p>
+
+      {community.tags?.length > 0 ? (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {community.tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-700"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mb-4 flex items-center justify-between border-t border-gray-100 pt-3 text-sm text-gray-600">
+        <div className="flex items-center gap-1.5">
+          <Users className="h-4 w-4 text-gray-400" />
+          <span>{community.memberCount.toLocaleString()} members</span>
+        </div>
+        {community.isMember && community.userTierLabel ? (
+          <span className="text-xs font-medium text-gray-700">{community.userTierLabel}</span>
+        ) : null}
+      </div>
+
+      <div className="mt-auto flex flex-wrap gap-2">
+        {community.isMember ? (
+          <Link
+            href={`/communities/${community.id}`}
+            className="inline-flex flex-1 items-center justify-center rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600"
+          >
+            View community
+          </Link>
+        ) : community.isPending ? (
+          <span className="inline-flex flex-1 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900">
+            Awaiting approval
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onJoin(community)}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600"
+          >
+            <UserPlus className="h-4 w-4" />
+            Join community
+          </button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function CommunitiesPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const joinPromptConsumed = useRef(false);
+  const toolbarRef = useRef(null);
 
+  const [loading, setLoading] = useState(true);
   const [joinedEnums, setJoinedEnums] = useState([]);
   const [pendingEnums, setPendingEnums] = useState([]);
-  const [membershipsLoaded, setMembershipsLoaded] = useState(false);
+  const [membershipByEnum, setMembershipByEnum] = useState({});
+  const [memberCounts, setMemberCounts] = useState({});
+  const [totalNetworkMembers, setTotalNetworkMembers] = useState(0);
+  const [eventsThisMonth, setEventsThisMonth] = useState(0);
   const [clientAccountId, setClientAccountId] = useState(null);
   const [accountDefaults, setAccountDefaults] = useState({});
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [joinTarget, setJoinTarget] = useState(null);
 
+  const [activeTab, setActiveTab] = useState(TAB_KEYS.ALL);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeView, setActiveView] = useState("gallery");
+
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
+      setLoading(true);
       const id = strapiClient.getCurrentAccountId();
       if (!cancelled) setClientAccountId(id);
 
@@ -80,9 +214,7 @@ export default function CommunitiesPage() {
                 resolveClientAccountCompanyName(acc) ||
                 resolveClientAccountCompanyName(attrs),
               companyEmail:
-                onboardingData.companyEmail ||
-                attrs.companyEmail ||
-                "",
+                onboardingData.companyEmail || attrs.companyEmail || "",
               jobTitle:
                 onboardingData.jobTitle || attrs.jobTitle || acc.jobTitle || "",
               phone:
@@ -92,9 +224,7 @@ export default function CommunitiesPage() {
                 onboardingData.companyPhone ||
                 "",
               companyPhone:
-                onboardingData.companyPhone ||
-                attrs.companyPhone ||
-                "",
+                onboardingData.companyPhone || attrs.companyPhone || "",
               industry:
                 onboardingData.industry || attrs.industry || acc.industry || "",
               website: onboardingData.website || attrs.website || "",
@@ -114,8 +244,7 @@ export default function CommunitiesPage() {
               postalCode: onboardingData.postalCode || attrs.postalCode || "",
               linkedin: onboardingData.linkedin || attrs.linkedin || "",
               xProfile: onboardingData.xProfile || attrs.xProfile || "",
-              interests:
-                onboardingData.interests || attrs.interests || "",
+              interests: onboardingData.interests || attrs.interests || "",
               registrationLookingFor:
                 onboardingData.lookingFor || attrs.lookingFor || "",
               bio: onboardingData.bio || attrs.bio || "",
@@ -126,25 +255,46 @@ export default function CommunitiesPage() {
         }
       }
 
+      const statsPromise = fetchCommunityProgramStats();
+      const eventsPromise = fetchWebsiteEventsCatalog().catch(() => []);
+
       if (!id) {
-        if (!cancelled) setMembershipsLoaded(true);
+        const [stats, events] = await Promise.all([statsPromise, eventsPromise]);
+        if (cancelled) return;
+        setMemberCounts(stats.byCommunity || {});
+        setTotalNetworkMembers(stats.total || 0);
+        setEventsThisMonth(countEventsThisMonth(events));
+        setLoading(false);
         return;
       }
 
-      const [membershipRows, submissionRows] = await Promise.all([
+      const [membershipRows, submissionRows, stats, events] = await Promise.all([
         listActiveMembershipsForClient(id),
         listSubmissionsForClient(id),
+        statsPromise,
+        eventsPromise,
       ]);
+
       if (cancelled) return;
+
       const activeEnums = membershipRows.map((r) => r.community).filter(Boolean);
+      const byEnum = {};
+      for (const row of membershipRows) {
+        if (row.community) byEnum[row.community] = row;
+      }
+
       setJoinedEnums(activeEnums);
+      setMembershipByEnum(byEnum);
       setPendingEnums(
         submissionRows
           .filter((s) => isPendingSubmissionStatus(s.status))
           .map((s) => s.community)
           .filter((c) => c && !activeEnums.includes(c))
       );
-      setMembershipsLoaded(true);
+      setMemberCounts(stats.byCommunity || {});
+      setTotalNetworkMembers(stats.total || 0);
+      setEventsThisMonth(countEventsThisMonth(events));
+      setLoading(false);
     })();
 
     return () => {
@@ -153,38 +303,104 @@ export default function CommunitiesPage() {
   }, []);
 
   useEffect(() => {
-    if (!membershipsLoaded || joinPromptConsumed.current) return;
+    if (loading || joinPromptConsumed.current) return;
     const raw = searchParams.get("join");
     if (!raw) return;
     const c = getCommunityById(raw);
     if (!c || !clientAccountId) return;
-    if (
-      joinedEnums.includes(c.strapiEnum) ||
-      pendingEnums.includes(c.strapiEnum)
-    ) {
+    if (joinedEnums.includes(c.strapiEnum) || pendingEnums.includes(c.strapiEnum)) {
       return;
     }
     joinPromptConsumed.current = true;
     setJoinTarget(c);
     setJoinModalOpen(true);
-  }, [membershipsLoaded, joinedEnums, pendingEnums, clientAccountId, searchParams]);
+  }, [loading, joinedEnums, pendingEnums, clientAccountId, searchParams]);
 
   const communitiesData = useMemo(
     () =>
-      COMMUNITIES_LIST.map((c) => ({
-        ...c,
-        isMember: joinedEnums.includes(c.strapiEnum),
-        isPending:
-          !joinedEnums.includes(c.strapiEnum) &&
-          pendingEnums.includes(c.strapiEnum),
-      })),
-    [joinedEnums, pendingEnums]
+      COMMUNITIES_LIST.map((c) => {
+        const membership = membershipByEnum[c.strapiEnum];
+        const isMember = joinedEnums.includes(c.strapiEnum);
+        const isPending =
+          !isMember && pendingEnums.includes(c.strapiEnum);
+        return {
+          ...c,
+          isMember,
+          isPending,
+          memberCount: memberCounts[c.strapiEnum] ?? 0,
+          userTierLabel: isMember
+            ? membershipTierLabel(c.strapiEnum, membership)
+            : null,
+          joinedAt: membership?.joinedAt || null,
+        };
+      }),
+    [joinedEnums, pendingEnums, membershipByEnum, memberCounts]
   );
 
-  const openJoinModal = (community) => {
+  const memberCommunities = useMemo(
+    () => communitiesData.filter((c) => c.isMember),
+    [communitiesData]
+  );
+  const pendingCommunities = useMemo(
+    () => communitiesData.filter((c) => c.isPending),
+    [communitiesData]
+  );
+  const discoverCommunities = useMemo(
+    () => communitiesData.filter((c) => !c.isMember && !c.isPending),
+    [communitiesData]
+  );
+
+  const filteredCommunities = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return communitiesData.filter((community) => {
+      const matchesTab =
+        activeTab === TAB_KEYS.ALL ||
+        (activeTab === TAB_KEYS.MEMBER && community.isMember) ||
+        (activeTab === TAB_KEYS.PENDING && community.isPending) ||
+        (activeTab === TAB_KEYS.DISCOVER &&
+          !community.isMember &&
+          !community.isPending);
+
+      if (!matchesTab) return false;
+      if (!q) return true;
+
+      const haystack = [
+        community.name,
+        community.fullName,
+        community.description,
+        community.category,
+        ...(community.tags || []),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(q);
+    });
+  }, [communitiesData, activeTab, searchQuery]);
+
+  const tabItems = [
+    { key: TAB_KEYS.ALL, label: "All", badge: communitiesData.length },
+    {
+      key: TAB_KEYS.MEMBER,
+      label: "My communities",
+      badge: memberCommunities.length,
+    },
+    {
+      key: TAB_KEYS.PENDING,
+      label: "Pending approval",
+      badge: pendingCommunities.length,
+    },
+    {
+      key: TAB_KEYS.DISCOVER,
+      label: "Discover",
+      badge: discoverCommunities.length,
+    },
+  ];
+
+  const openJoinModal = useCallback((community) => {
     setJoinTarget(community);
     setJoinModalOpen(true);
-  };
+  }, []);
 
   const handleJoinSuccess = (community) => {
     if (!community?.strapiEnum) return;
@@ -195,614 +411,234 @@ export default function CommunitiesPage() {
     );
   };
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedFilters, setSelectedFilters] = useState({
-    status: "All",
-    tier: "All",
-    category: "All",
-  });
-  const [viewMode, setViewMode] = useState("grid");
-  const [showFilters, setShowFilters] = useState(false);
-
-  const filteredCommunities = communitiesData.filter((community) => {
-    const matchesSearch =
-      community.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      community.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      community.description.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesStatus =
-      selectedFilters.status === "All" ||
-      (selectedFilters.status === "Member" && community.isMember) ||
-      (selectedFilters.status === "Pending" && community.isPending) ||
-      (selectedFilters.status === "Non-Member" &&
-        !community.isMember &&
-        !community.isPending);
-
-    const matchesTier =
-      selectedFilters.tier === "All" || community.tier === selectedFilters.tier;
-    const matchesCategory =
-      selectedFilters.category === "All" ||
-      community.category === selectedFilters.category;
-
-    return matchesSearch && matchesStatus && matchesTier && matchesCategory;
-  });
-
-  const memberCommunities = communitiesData.filter((c) => c.isMember);
-  const pendingCommunities = communitiesData.filter((c) => c.isPending);
-  const totalMembers = communitiesData.reduce((sum, c) => sum + c.members, 0);
-  const eventsThisMonth = communitiesData.reduce(
-    (sum, c) => sum + c.monthlyEvents,
-    0
+  const tableColumns = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "COMMUNITY",
+        render: (_, row) => (
+          <TableCellTitleSubtitle
+            title={row.name}
+            subtitle={row.fullName || row.category}
+          />
+        ),
+      },
+      {
+        key: "category",
+        label: "DIVISION",
+        render: (_, row) => (
+          <span className="text-sm text-gray-700">{row.category}</span>
+        ),
+      },
+      {
+        key: "status",
+        label: "STATUS",
+        render: (_, row) => {
+          const status = communityStatusMeta(row);
+          return (
+            <Badge className={`border text-xs font-semibold ${status.className}`}>
+              {status.label}
+            </Badge>
+          );
+        },
+      },
+      {
+        key: "members",
+        label: "MEMBERS",
+        render: (_, row) => (
+          <span className="text-sm text-gray-700">
+            {row.memberCount.toLocaleString()}
+          </span>
+        ),
+      },
+      {
+        key: "tier",
+        label: "YOUR ACCESS",
+        render: (_, row) => (
+          <span className="text-sm text-gray-700">
+            {row.isMember ? row.userTierLabel || "Active" : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "actions",
+        label: "ACTIONS",
+        className: "whitespace-nowrap",
+        render: (_, row) => (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            {row.isMember ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-2 text-orange-600 hover:bg-orange-50"
+                title="View community"
+                onClick={() => router.push(`/communities/${row.id}`)}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            ) : row.isPending ? (
+              <span className="px-2 text-xs font-medium text-amber-700">Pending</span>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 px-2 text-orange-600 hover:bg-orange-50"
+                title="Join community"
+                onClick={() => openJoinModal(row)}
+              >
+                <UserPlus className="h-4 w-4" />
+                Join
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [openJoinModal, router]
   );
-  const successStoriesTotal = communitiesData.reduce(
-    (sum, c) => sum + (c.successStoriesCount ?? 0),
-    0
-  );
 
-  const tabItems = [
-    { key: "All", label: "All", badge: communitiesData.length.toString() },
-    {
-      key: "Member",
-      label: "My communities",
-      badge: memberCommunities.length.toString(),
-    },
-    {
-      key: "Pending",
-      label: "Pending approval",
-      badge: pendingCommunities.length.toString(),
-    },
-    {
-      key: "Non-Member",
-      label: "Discover",
-      badge: (
-        communitiesData.length -
-        memberCommunities.length -
-        pendingCommunities.length
-      ).toString(),
-    },
-  ];
-
-  const setStatusFilter = (status) => {
-    setSelectedFilters((prev) => ({ ...prev, status }));
-  };
-
-  const hasAdvancedFilters =
-    selectedFilters.tier !== "All" || selectedFilters.category !== "All";
-
-  const hasActiveFilters =
-    searchTerm.length > 0 ||
-    selectedFilters.status !== "All" ||
-    hasAdvancedFilters;
-
-  const kpiStats = [
-    {
-      title: "Total members",
-      value: totalMembers.toLocaleString(),
-      hint: "Across all communities",
-      color: "bg-xtrawrkx-50",
-      borderColor: "border-xtrawrkx-200",
-      iconColor: "text-xtrawrkx-600",
-      dotClass: "bg-xtrawrkx-500",
-      icon: Users,
-    },
-    {
-      title: "My communities",
-      value: memberCommunities.length.toString(),
-      hint: "Active memberships",
-      color: "bg-green-50",
-      borderColor: "border-green-200",
-      iconColor: "text-green-600",
-      dotClass: "bg-green-500",
-      icon: CheckCircle,
-    },
-    {
-      title: "Events this month",
-      value: eventsThisMonth.toString(),
-      hint: "Scheduled in network",
-      color: "bg-purple-50",
-      borderColor: "border-purple-200",
-      iconColor: "text-purple-600",
-      dotClass: "bg-purple-500",
-      icon: Calendar,
-    },
-    {
-      title: "Success stories",
-      value: successStoriesTotal.toLocaleString(),
-      hint: "Reported wins",
-      color: "bg-orange-50",
-      borderColor: "border-orange-200",
-      iconColor: "text-orange-600",
-      dotClass: "bg-orange-500",
-      icon: TrendingUp,
-    },
-  ];
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setSelectedFilters({
-      status: "All",
-      tier: "All",
-      category: "All",
-    });
-    setShowFilters(false);
-  };
-
-  return (
-    <div className="min-h-screen bg-white">
-      <div className="px-4 pt-4">
+  if (loading) {
+    return (
+      <PortalPageShell>
         <PageHeader
           title="Communities"
           subtitle="Connect with like-minded professionals and grow your network"
-          breadcrumb={[]}
           showSearch={false}
-        >
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="p-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 shadow-lg group"
-              aria-label="Join a community"
-            >
-              <Plus className="w-5 h-5 text-gray-600 group-hover:text-xtrawrkx-600 transition-colors" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowFilters((v) => !v)}
-              className="relative p-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 shadow-lg"
-              aria-expanded={showFilters}
-              aria-label="Toggle filters"
-            >
-              <Filter className="w-5 h-5 text-gray-600" />
-              {(hasAdvancedFilters || searchTerm.length > 0) && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white/95 shadow-sm" />
-              )}
-            </button>
-          </div>
-        </PageHeader>
+          showActions={false}
+        />
+        <Card variant="elevated" className="flex justify-center rounded-xl p-12">
+          <LoadingSpinner size="lg" message="Loading communities…" />
+        </Card>
+      </PortalPageShell>
+    );
+  }
+
+  return (
+    <PortalPageShell>
+      <PageHeader
+        title="Communities"
+        subtitle="Connect with like-minded professionals and grow your network"
+        showSearch={false}
+        showActions={false}
+      />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <KPICard
+          title="Network members"
+          value={totalNetworkMembers.toLocaleString()}
+          subtitle="Active across all programs"
+          icon={Users}
+          colorScheme="orange"
+        />
+        <KPICard
+          title="My communities"
+          value={String(memberCommunities.length)}
+          subtitle={
+            memberCommunities.length === 1
+              ? "Active membership"
+              : "Active memberships"
+          }
+          icon={CheckCircle}
+          colorScheme="orange"
+        />
+        <KPICard
+          title="Pending approval"
+          value={String(pendingCommunities.length)}
+          subtitle="Applications under review"
+          icon={Clock}
+          colorScheme="orange"
+        />
+        <KPICard
+          title="Events this month"
+          value={String(eventsThisMonth)}
+          subtitle="From the events catalog"
+          icon={Calendar}
+          colorScheme="orange"
+        />
       </div>
 
-      <div className="px-3 mt-6 pb-10">
-        <div className="space-y-4">
-          {/* KPI row — matches Dashboard / Projects / Tasks */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {kpiStats.map((stat) => {
-              const IconComponent = stat.icon;
-              return (
-                <div
-                  key={stat.title}
-                  className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-600 mb-1 font-medium truncate">
-                        {stat.title}
-                      </p>
-                      <p className="text-3xl font-black text-gray-800 tracking-tight">
-                        {stat.value}
-                      </p>
-                      <div className="mt-2 flex items-center text-xs text-gray-500">
-                        <span
-                          className={`w-2 h-2 rounded-full mr-2 shrink-0 ${stat.dotClass}`}
-                        />
-                        <span className="truncate">{stat.hint}</span>
-                      </div>
-                    </div>
-                    <div
-                      className={`w-16 h-16 shrink-0 ${stat.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${stat.borderColor}`}
-                    >
-                      <IconComponent className={`w-8 h-8 ${stat.iconColor}`} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Toolbar — single glass bar like Projects / Tasks */}
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-xl p-3">
-            <div className="flex items-center gap-2 flex-1 overflow-x-auto min-w-0">
-              {tabItems.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setStatusFilter(tab.key)}
-                  className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap ${
-                    selectedFilters.status === tab.key
-                      ? "bg-xtrawrkx-500 text-white shadow-lg"
-                      : "bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white/90 border border-white/40"
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                      selectedFilters.status === tab.key
-                        ? "bg-white/30 text-white"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {tab.badge}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2 flex-shrink-0 justify-end flex-wrap">
-              <div className="relative w-full min-w-[200px] sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                <input
-                  type="search"
-                  placeholder="Search communities..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2 bg-white/80 backdrop-blur-sm border border-white/40 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/90 transition-all duration-300 placeholder:text-gray-500 shadow-sm"
-                />
-                {searchTerm ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    aria-label="Clear search"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
-                    viewMode === "grid"
-                      ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
-                      : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
-                  }`}
-                  title="Grid view"
-                >
-                  <Grid3X3 className="w-5 h-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("list")}
-                  className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
-                    viewMode === "list"
-                      ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
-                      : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
-                  }`}
-                  title="List view"
-                >
-                  <List className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <AnimatePresence initial={false}>
-            {showFilters ? (
-              <motion.div
-                key="filters"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden rounded-2xl border border-white/40 bg-white/70 backdrop-blur-xl shadow-xl"
+      <div className="relative" ref={toolbarRef}>
+        <TabsWithActions
+          variant="glass"
+          tabs={tabItems}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          afterTabs={
+            <ViewToggleGroup aria-label="Community layout">
+              <ViewToggleButton
+                active={activeView === "gallery"}
+                onClick={() => setActiveView("gallery")}
+                title="Gallery view"
               >
-                <div className="p-4 sm:p-5 border-b border-white/30 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-gray-800">
-                    Refine by tier and category
-                  </p>
-                  {hasActiveFilters ? (
-                    <button
-                      type="button"
-                      onClick={clearFilters}
-                      className="text-sm font-medium text-xtrawrkx-600 hover:text-xtrawrkx-700"
-                    >
-                      Clear all
-                    </button>
-                  ) : null}
-                </div>
-                <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      Tier
-                    </label>
-                    <select
-                      value={selectedFilters.tier}
-                      onChange={(e) =>
-                        setSelectedFilters((p) => ({
-                          ...p,
-                          tier: e.target.value,
-                        }))
-                      }
-                      className="w-full py-2.5 px-3 bg-white/90 border border-white/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500"
-                    >
-                      {filterOptions.tier.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      Category
-                    </label>
-                    <select
-                      value={selectedFilters.category}
-                      onChange={(e) =>
-                        setSelectedFilters((p) => ({
-                          ...p,
-                          category: e.target.value,
-                        }))
-                      }
-                      className="w-full py-2.5 px-3 bg-white/90 border border-white/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500"
-                    >
-                      {filterOptions.category.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+                <LayoutGrid className="h-[18px] w-[18px]" />
+              </ViewToggleButton>
+              <ViewToggleButton
+                active={activeView === "table"}
+                onClick={() => setActiveView("table")}
+                title="Table view"
+              >
+                <Table2 className="h-[18px] w-[18px]" />
+              </ViewToggleButton>
+            </ViewToggleGroup>
+          }
+          showSearch
+          searchPlaceholder="Search communities..."
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
+      </div>
 
-          {/* Community cards — same glass treatment as Projects grid */}
-          {filteredCommunities.length > 0 ? (
-            <div
-              className={
-                viewMode === "grid"
-                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                  : "flex flex-col gap-4"
-              }
+      <div className="text-sm text-gray-600">
+        Showing{" "}
+        <span className="font-semibold text-gray-900">
+          {filteredCommunities.length}
+        </span>{" "}
+        result{filteredCommunities.length !== 1 ? "s" : ""}
+      </div>
+
+      {filteredCommunities.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 py-16">
+          <CheckCircle2 className="mb-3 h-10 w-10 text-gray-300" />
+          <p className="text-base font-semibold text-gray-700">No communities found</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {searchQuery
+              ? "Try adjusting your search"
+              : "Switch tabs or explore programs available to join"}
+          </p>
+          {searchQuery ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => setSearchQuery("")}
             >
-              {filteredCommunities.map((community, index) => {
-                const avatarClass = avatarClassFor(community.color);
-                return (
-                  <motion.div
-                    key={community.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: Math.min(index * 0.05, 0.25) }}
-                    className={`rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 ${
-                      viewMode === "grid" ? "hover:scale-[1.02]" : ""
-                    }`}
-                  >
-                  {viewMode === "grid" ? (
-                    <div className="flex flex-col h-full">
-                      <div className="flex items-start justify-between gap-3 mb-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-md ${avatarClass}`}
-                          >
-                            <span className="text-white font-bold text-lg leading-none">
-                              {community.name.charAt(0)}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="text-lg font-semibold text-gray-900 truncate">
-                              {community.name}
-                            </h3>
-                            <p className="text-sm text-gray-600 truncate">
-                              {community.category}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {community.isMember ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Member
-                            </span>
-                          ) : community.isPending ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-200">
-                              <Clock className="w-3 h-3 mr-1" />
-                              Approval pending
-                            </span>
-                          ) : null}
-                          <button
-                            type="button"
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-white/60 border border-transparent hover:border-white/40 transition-colors"
-                            aria-label="Community options"
-                          >
-                            <MoreVertical className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-2 flex-1">
-                        {community.description}
-                      </p>
-
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {community.tags.slice(0, 2).map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/60 text-gray-800 border border-white/40"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        {community.tags.length > 2 ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/60 text-gray-800 border border-white/40">
-                            +{community.tags.length - 2}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm text-gray-600 mb-4 pt-2 border-t border-white/30">
-                        <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4 text-gray-500" />
-                          <span>
-                            {community.members.toLocaleString()} members
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Crown className="w-4 h-4 text-amber-500" />
-                          <span className="font-medium text-gray-800">
-                            {community.tier}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 mt-auto">
-                        {community.isMember ? (
-                          <>
-                            <Link
-                              href={`/communities/${community.id}`}
-                              className="inline-flex items-center justify-center px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-semibold hover:bg-xtrawrkx-600 transition-colors shadow-md"
-                            >
-                              View community
-                            </Link>
-                            {community.canUpgrade ? (
-                              <button
-                                type="button"
-                                className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold border border-xtrawrkx-300 text-xtrawrkx-700 bg-white/50 hover:bg-white/80 transition-colors"
-                              >
-                                Upgrade
-                              </button>
-                            ) : null}
-                          </>
-                        ) : community.isPending ? (
-                          <span className="inline-flex flex-1 min-w-[140px] items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold border border-amber-200 bg-amber-50 text-amber-900">
-                            Awaiting approval
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => openJoinModal(community)}
-                            className="inline-flex flex-1 min-w-[140px] items-center justify-center px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-semibold hover:bg-xtrawrkx-600 transition-colors shadow-md"
-                          >
-                            Join community
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                      <div className="flex items-start gap-4 flex-1 min-w-0">
-                        <div
-                          className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 shadow-md ${avatarClass}`}
-                        >
-                          <span className="text-white font-bold text-xl leading-none">
-                            {community.name.charAt(0)}
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <h3 className="text-xl font-semibold text-gray-900 truncate">
-                              {community.name}
-                            </h3>
-                            {community.isMember ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Member
-                              </span>
-                            ) : community.isPending ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-200">
-                                <Clock className="w-3 h-3 mr-1" />
-                                Approval pending
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="text-sm text-gray-600 truncate">
-                            {community.fullName}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {community.category}
-                          </p>
-                          <p className="text-gray-600 text-sm mt-3">
-                            {community.description}
-                          </p>
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            {community.tags.map((tag) => (
-                              <span
-                                key={tag}
-                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/60 text-gray-800 border border-white/40"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-4 lg:flex-col lg:items-end shrink-0">
-                        <div className="text-sm text-gray-600 space-y-1 lg:text-right">
-                          <div className="flex items-center gap-2 lg:justify-end">
-                            <Users className="w-4 h-4 text-gray-500" />
-                            <span>
-                              {community.members.toLocaleString()} members
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 lg:justify-end">
-                            <Calendar className="w-4 h-4 text-gray-500" />
-                            <span>{community.monthlyEvents} events / mo</span>
-                          </div>
-                          <div className="flex items-center gap-2 lg:justify-end">
-                            <Crown className="w-4 h-4 text-amber-500" />
-                            <span>{community.tier} tier</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2 justify-start lg:justify-end">
-                          {community.isMember ? (
-                            <>
-                              <Link
-                                href={`/communities/${community.id}`}
-                                className="inline-flex items-center justify-center px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-semibold hover:bg-xtrawrkx-600 transition-colors shadow-md"
-                              >
-                                View community
-                              </Link>
-                              {community.canUpgrade ? (
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold border border-xtrawrkx-300 text-xtrawrkx-700 bg-white/50 hover:bg-white/80 transition-colors"
-                                >
-                                  Upgrade
-                                </button>
-                              ) : null}
-                            </>
-                          ) : community.isPending ? (
-                            <span className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold border border-amber-200 bg-amber-50 text-amber-900">
-                              Awaiting approval
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => openJoinModal(community)}
-                              className="inline-flex items-center justify-center px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-semibold hover:bg-xtrawrkx-600 transition-colors shadow-md"
-                            >
-                              Join community
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  </motion.div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-3xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-12 text-center">
-              <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No communities found
-              </h3>
-              <p className="text-gray-600 mb-6 text-sm sm:text-base">
-                Try adjusting search, tabs, or filters
-              </p>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/50 bg-white/70 text-gray-800 hover:bg-white transition-colors shadow-sm"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
+              Clear search
+            </Button>
+          ) : null}
         </div>
-      </div>
+      ) : activeView === "table" ? (
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+          <Table
+            columns={tableColumns}
+            data={filteredCommunities}
+            keyField="id"
+            variant="modernEmbedded"
+            onRowClick={(row) => {
+              if (row.isMember) router.push(`/communities/${row.id}`);
+            }}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filteredCommunities.map((community) => (
+            <CommunityGalleryCard
+              key={community.id}
+              community={community}
+              onJoin={openJoinModal}
+            />
+          ))}
+        </div>
+      )}
 
       <CommunityJoinRequirementsModal
         isOpen={joinModalOpen}
@@ -815,6 +651,6 @@ export default function CommunitiesPage() {
         accountDefaults={accountDefaults}
         onSuccess={handleJoinSuccess}
       />
-    </div>
+    </PortalPageShell>
   );
 }

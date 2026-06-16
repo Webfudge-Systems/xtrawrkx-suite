@@ -7,13 +7,16 @@ import { Sidebar } from "./Sidebar";
 import { ChatProvider } from "../providers/ChatProvider";
 import { PORTAL_SITE } from "@/lib/site";
 
+/**
+ * Client portal shell — mirrors CRM/PM layout (top bar + sidebar) but uses
+ * portal custom auth instead of @webfudge/auth AppShell.
+ */
 export function MainLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
-  // Handle redirect from root protected route to dashboard
   useEffect(() => {
     if (pathname === "/") {
       router.replace("/dashboard");
@@ -34,7 +37,7 @@ export function MainLayout({ children }) {
 
   return (
     <ChatProvider>
-      <div className="min-h-screen flex flex-col relative bg-white">
+      <div className="flex h-screen flex-col overflow-hidden bg-white">
         {sidebarHidden ? (
           <WorkspaceTopBar
             onOpenSidebar={openSidebar}
@@ -46,7 +49,7 @@ export function MainLayout({ children }) {
           />
         ) : null}
 
-        <div className="flex flex-1 min-h-0 relative">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           {!sidebarHidden ? (
             <Sidebar
               isOpen={sidebarOpen}
@@ -55,9 +58,9 @@ export function MainLayout({ children }) {
             />
           ) : null}
 
-          <div className="flex-1 flex flex-col relative z-10 transition-all duration-300 min-w-0">
-            <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
-          </div>
+          <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-white">
+            {children}
+          </main>
         </div>
       </div>
     </ChatProvider>

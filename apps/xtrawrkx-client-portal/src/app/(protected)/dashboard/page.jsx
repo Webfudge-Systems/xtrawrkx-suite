@@ -31,8 +31,9 @@ import {
   GitBranch,
   ChevronDown,
 } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import { Card, KPICard, Button } from "@webfudge/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import { useSession } from "@/lib/auth";
 import strapiClient from "@/lib/strapiClient";
 import { useRouter } from "next/navigation";
@@ -40,6 +41,7 @@ import { createPortal } from "react-dom";
 import TaskDetailModal from "@/components/tasks/TaskDetailModal";
 import CreateTaskModal from "@/components/tasks/CreateTaskModal";
 import { listCompanyMembers } from "@/lib/api/companyMembersService";
+import { createClientTask } from "@/lib/api/clientTaskService";
 import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
 import { COMMUNITIES_LIST } from "@/data/communitiesCatalog";
 
@@ -51,7 +53,7 @@ const dashboardStats = [
     change: "+15%",
     changeType: "increase",
     icon: Folder,
-    color: "from-xtrawrkx-500 to-xtrawrkx-600",
+    color: "from-brand-primary to-orange-600",
     bgColor: "from-xtrawrkx-50 to-xtrawrkx-100",
   },
   {
@@ -235,8 +237,8 @@ const quickActions = [
     title: "New Project",
     description: "Start a new project",
     icon: Folder,
-    color: "text-xtrawrkx-600",
-    bgColor: "bg-xtrawrkx-50",
+    color: "text-orange-600",
+    bgColor: "bg-orange-50",
   },
   {
     id: 2,
@@ -1091,64 +1093,16 @@ export default function DashboardPage() {
   }, [session, tasksReloadKey]);
 
   const handleCreateTask = async (taskInput) => {
-    const taskBaseURL = strapiClient.buildURL("/tasks", {});
-    const creatorId = Number(session?.user?.id);
-    const numericAccountId =
-      currentAccountId !== null && currentAccountId !== undefined
-        ? Number(currentAccountId)
-        : null;
-
-    const priorityMap = {
-      low: "LOW",
-      medium: "MEDIUM",
-      high: "HIGH",
-      urgent: "HIGH",
-    };
-
-    const resolvedStatus =
-      taskInput.autoAccept && taskInput.assigneeMemberId
-        ? "ACCEPTED"
-        : taskInput.status || "ASSIGNED";
-
-    const payload = {
-      title: taskInput.title,
+    const priority = (taskInput.priority || "medium").toLowerCase();
+    await createClientTask({
+      name: taskInput.title,
       description: taskInput.description || "",
-      projects: [Number(taskInput.projectId)],
+      projects: taskInput.projectId ? { set: [Number(taskInput.projectId)] } : undefined,
       scheduledDate: taskInput.dueDate
         ? new Date(`${taskInput.dueDate}T00:00:00`).toISOString()
         : null,
-      status: resolvedStatus,
-      timeAllotted: taskInput.timeAllotted ?? null,
-      autoAccept: !!taskInput.autoAccept,
-      sharePreferenceSetAtCreation: true,
-      priority: priorityMap[taskInput.priority] || "MEDIUM",
-      progress: 0,
-      isSharedWithClient: true,
-      createdBySource: "client",
-      clientId:
-        currentAccountId !== null && currentAccountId !== undefined
-          ? String(currentAccountId)
-          : null,
-      ...(numericAccountId && !isNaN(numericAccountId)
-        ? { clientAccount: numericAccountId }
-        : {}),
-      ...(creatorId && !isNaN(creatorId) ? { creator: creatorId } : {}),
-      ...(taskInput.assignmentScope === "client" && taskInput.assigneeMemberId
-        ? { contact: Number(taskInput.assigneeMemberId) }
-        : {}),
-    };
-
-    const response = await fetch(taskBaseURL, {
-      method: "POST",
-      headers: strapiClient.getHeaders(),
-      body: JSON.stringify({ data: payload }),
+      priority: priority === "urgent" ? "high" : priority,
     });
-
-    if (!response.ok) {
-      const errPayload = await response.json().catch(() => ({}));
-      throw new Error(errPayload?.error?.message || "Failed to create task");
-    }
-
     setTasksReloadKey((prev) => prev + 1);
   };
 
@@ -1484,144 +1438,70 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4 bg-white min-h-screen">
+      <PortalPageShell>
         <PageHeader
           subtitle={getCurrentDate()}
           breadcrumb={[]}
           showSearch={false}
         />
-        <div className="flex justify-center items-center h-64">
+        <div className="flex h-64 items-center justify-center">
           <div className="flex items-center gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+            <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
             <span className="text-gray-600">Loading dashboard...</span>
           </div>
         </div>
-      </div>
+      </PortalPageShell>
     );
   }
 
   return (
-    <div className="bg-white min-h-screen dashboard-content">
-      {/* Page Header */}
-      <div className="px-4 pt-4">
-        <PageHeader
-          subtitle={getCurrentDate()}
-          breadcrumb={[]}
-          showSearch={true}
-          searchPlaceholder="Search anything..."
-          onSearchChange={setSearchQuery}
+    <PortalPageShell>
+      <PageHeader
+        subtitle={getCurrentDate()}
+        breadcrumb={[]}
+        showSearch={true}
+        searchPlaceholder="Search anything..."
+        onSearchChange={setSearchQuery}
+      />
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <KPICard
+          title="Total Projects"
+          value={kpiStats.totalProjects.toString()}
+          change={`${projects.length} active`}
+          changeType="increase"
+          icon={Folder}
+          colorScheme="orange"
+        />
+        <KPICard
+          title="Pending Tasks"
+          value={kpiStats.pendingTasks.toString()}
+          change="Action required"
+          changeType={kpiStats.pendingTasks > 0 ? "increase" : "decrease"}
+          icon={AlertCircle}
+          colorScheme="orange"
+        />
+        <KPICard
+          title="Total Tasks"
+          value={kpiStats.totalTasks.toString()}
+          change={`${kpiStats.pendingTasks} pending`}
+          changeType="increase"
+          icon={CheckSquare}
+          colorScheme="orange"
+        />
+        <KPICard
+          title="Task Completion"
+          value={`${kpiStats.taskCompletion}%`}
+          change="+0%"
+          changeType="increase"
+          icon={Target}
+          colorScheme="orange"
         />
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              title: "Total Projects",
-              value: kpiStats.totalProjects.toString(),
-              change: `${projects.length} active`,
-              changeType: "increase",
-              icon: Folder,
-            },
-            {
-              title: "Pending Tasks",
-              value: kpiStats.pendingTasks.toString(),
-              change: "Action required",
-              changeType: kpiStats.pendingTasks > 0 ? "increase" : "decrease",
-              icon: AlertCircle,
-            },
-            {
-              title: "Total Tasks",
-              value: kpiStats.totalTasks.toString(),
-              change: `${kpiStats.pendingTasks} pending`,
-              changeType: "increase",
-              icon: CheckSquare,
-            },
-            {
-              title: "Task Completion",
-              value: `${kpiStats.taskCompletion}%`,
-              change: "+0%",
-              changeType: "increase",
-              icon: Target,
-            },
-          ].map((stat, index) => {
-            const statConfig = [
-              {
-                color: "bg-xtrawrkx-50",
-                borderColor: "border-xtrawrkx-200",
-                iconColor: "text-xtrawrkx-600",
-                dotColor: "bg-xtrawrkx-500",
-              },
-              {
-                color: "bg-green-50",
-                borderColor: "border-green-200",
-                iconColor: "text-green-600",
-                dotColor: "bg-green-500",
-              },
-              {
-                color: "bg-purple-50",
-                borderColor: "border-purple-200",
-                iconColor: "text-purple-600",
-                dotColor: "bg-purple-500",
-              },
-              {
-                color: "bg-orange-50",
-                borderColor: "border-orange-200",
-                iconColor: "text-orange-600",
-                dotColor: "bg-orange-500",
-              },
-            ];
-
-            const config = statConfig[index];
-            const IconComponent = stat.icon;
-
-            return (
-              <div
-                key={index}
-                className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-600 mb-1 font-medium">
-                      {stat.title}
-                    </p>
-                    <p className="text-3xl font-black text-gray-800">
-                      {stat.value}
-                    </p>
-                    <div className="mt-2 flex items-center text-xs text-gray-500">
-                      <span
-                        className={`w-2 h-2 rounded-full mr-2 ${config.dotColor}`}
-                      ></span>
-                      <span
-                        className={
-                          stat.changeType === "increase"
-                            ? "text-green-600 font-medium"
-                            : "text-red-600 font-medium"
-                        }
-                      >
-                        {stat.change}
-                      </span>
-                      {stat.change !== "0" && (
-                        <span className="ml-1">this period</span>
-                      )}
-                    </div>
-                  </div>
-                  <div
-                    className={`w-16 h-16 ${config.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${config.borderColor}`}
-                  >
-                    <IconComponent className={`w-8 h-8 ${config.iconColor}`} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Enhanced Dashboard Sections */}
-      <div className="px-4">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           {/* Left Column - Tasks & Projects */}
           <div className="xl:col-span-2 space-y-4">
             {/* Tasks Section */}
@@ -1630,14 +1510,15 @@ export default function DashboardPage() {
               title="Tasks"
               subtitle="Track your current tasks and progress"
               actions={
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   onClick={() => setIsCreateTaskModalOpen(true)}
-                  className="px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 hover:border-white/40 transition-all duration-300 text-sm font-medium text-gray-900 flex items-center gap-2 shadow-lg"
+                  className="gap-2"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="h-4 w-4" />
                   New Task
-                </button>
+                </Button>
               }
             >
               {/* Filter Tabs */}
@@ -1648,7 +1529,7 @@ export default function DashboardPage() {
                     onClick={() => setTaskFilter(filter)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                       taskFilter === filter
-                        ? "bg-xtrawrkx-500 text-white shadow-md"
+                        ? "bg-brand-primary text-white shadow-md"
                         : "bg-white/20 backdrop-blur-md border border-white/30 text-gray-700 hover:bg-white/30 hover:border-white/40"
                     }`}
                   >
@@ -1661,7 +1542,7 @@ export default function DashboardPage() {
               {/* Tasks Table */}
               {tasksLoading ? (
                 <div className="flex justify-center items-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                 </div>
               ) : getFilteredTasks().length === 0 ? (
                 <div className="text-center py-12">
@@ -1825,8 +1706,8 @@ export default function DashboardPage() {
                                 <div className="flex items-center justify-center">
                                   {isActionRequired ? (
                                     <div className="relative">
-                                      <AlertCircle className="w-5 h-5 text-xtrawrkx-500 animate-pulse" />
-                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-xtrawrkx-500 rounded-full border-2 border-white"></div>
+                                      <AlertCircle className="w-5 h-5 text-brand-primary animate-pulse" />
+                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-brand-primary rounded-full border-2 border-white"></div>
                                     </div>
                                   ) : (
                                     <div className="w-5 h-5 flex items-center justify-center">
@@ -1977,7 +1858,7 @@ export default function DashboardPage() {
                                           );
                                         }
                                       }}
-                                      className="text-sm text-gray-700 hover:text-xtrawrkx-600 hover:underline truncate"
+                                      className="text-sm text-gray-700 hover:text-orange-600 hover:underline truncate"
                                     >
                                       {task.project.name}
                                     </button>
@@ -1992,7 +1873,7 @@ export default function DashboardPage() {
                                 <div className="flex items-center gap-2 min-w-[120px]">
                                   <div className="flex-1 bg-gray-200 rounded-full h-2">
                                     <div
-                                      className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
+                                      className="bg-brand-primary h-2 rounded-full transition-all"
                                       style={{
                                         width: `${task.progress || 0}%`,
                                       }}
@@ -2009,7 +1890,7 @@ export default function DashboardPage() {
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   {isActionRequired && (
-                                    <div className="px-2 py-1 bg-xtrawrkx-100 text-xtrawrkx-800 rounded-lg text-xs font-semibold border border-xtrawrkx-200 mr-2">
+                                    <div className="px-2 py-1 bg-orange-100 text-xtrawrkx-800 rounded-lg text-xs font-semibold border border-orange-200 mr-2">
                                       Action Required
                                     </div>
                                   )}
@@ -2018,7 +1899,7 @@ export default function DashboardPage() {
                                       e.stopPropagation();
                                       handleTaskClick(task);
                                     }}
-                                    className="p-1.5 text-xtrawrkx-600 hover:text-xtrawrkx-700 hover:bg-xtrawrkx-50 rounded transition-colors"
+                                    className="p-1.5 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
                                     title="View Task"
                                   >
                                     <Eye className="w-4 h-4" />
@@ -2052,7 +1933,7 @@ export default function DashboardPage() {
             >
               {projectsLoading ? (
                 <div className="flex justify-center items-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                 </div>
               ) : projects.length === 0 ? (
                 <div className="text-center py-12">
@@ -2090,7 +1971,7 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-4 mb-4 text-xs text-gray-600">
                               {projectCard.currentPhase && (
                                 <div className="flex items-center gap-1.5">
-                                  <Target className="w-3.5 h-3.5 text-xtrawrkx-500" />
+                                  <Target className="w-3.5 h-3.5 text-brand-primary" />
                                   <span className="font-medium">
                                     {projectCard.currentPhase}
                                   </span>
@@ -2119,7 +2000,7 @@ export default function DashboardPage() {
                               </div>
                               <div className="w-full bg-gray-200 rounded-full h-2.5">
                                 <div
-                                  className="bg-xtrawrkx-500 h-2.5 rounded-full transition-all duration-300"
+                                  className="bg-brand-primary h-2.5 rounded-full transition-all duration-300"
                                   style={{ width: `${projectCard.progress}%` }}
                                 />
                               </div>
@@ -2129,8 +2010,8 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-6 mb-5">
                               <div className="flex items-center gap-3">
                                 <div className="relative">
-                                  <div className="w-10 h-10 bg-gradient-to-br from-xtrawrkx-50 to-xtrawrkx-100 rounded-lg flex items-center justify-center border border-xtrawrkx-200 flex-shrink-0">
-                                    <CheckSquare className="w-5 h-5 text-xtrawrkx-600" />
+                                  <div className="w-10 h-10 bg-gradient-to-br from-xtrawrkx-50 to-xtrawrkx-100 rounded-lg flex items-center justify-center border border-orange-200 flex-shrink-0">
+                                    <CheckSquare className="w-5 h-5 text-orange-600" />
                                   </div>
                                   {projectCard.tasksTotal > 0 &&
                                     projectCard.tasksCompleted <
@@ -2153,7 +2034,7 @@ export default function DashboardPage() {
                                     <Bell className="w-5 h-5 text-purple-600" />
                                   </div>
                                   {projectCard.messagesUnread > 0 && (
-                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-xtrawrkx-500 rounded-full border-2 border-white flex items-center justify-center">
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-brand-primary rounded-full border-2 border-white flex items-center justify-center">
                                       <span className="text-[8px] text-white font-bold">
                                         {projectCard.messagesUnread > 9
                                           ? "9+"
@@ -2168,7 +2049,7 @@ export default function DashboardPage() {
                                   </p>
                                   <p className="text-base font-bold text-gray-900">
                                     {projectCard.messagesUnread > 0 ? (
-                                      <span className="text-xtrawrkx-600">
+                                      <span className="text-orange-600">
                                         {projectCard.messagesUnread}
                                       </span>
                                     ) : (
@@ -2190,7 +2071,7 @@ export default function DashboardPage() {
                                   );
                                 }
                               }}
-                              className="w-auto px-4 py-2 bg-xtrawrkx-500 text-white rounded-lg text-xs font-medium hover:bg-xtrawrkx-600 transition-colors shadow-sm"
+                              className="w-auto px-4 py-2 bg-brand-primary text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors shadow-sm"
                             >
                               View Project
                             </button>
@@ -2209,7 +2090,7 @@ export default function DashboardPage() {
                                   </p>
                                   <div className="flex items-center gap-3">
                                     <div className="relative flex-shrink-0">
-                                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-xtrawrkx-500 to-xtrawrkx-600 flex items-center justify-center text-white font-semibold text-sm shadow-md">
+                                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-primary to-orange-600 flex items-center justify-center text-white font-semibold text-sm shadow-md">
                                         {projectCard.assignedPerson.avatar ? (
                                           <img
                                             src={
@@ -2273,7 +2154,7 @@ export default function DashboardPage() {
               actions={
                 <button
                   onClick={() => router.push("/communities")}
-                  className="px-4 py-2 bg-xtrawrkx-500 text-white rounded-xl text-sm font-medium hover:bg-xtrawrkx-600 transition-colors shadow-lg"
+                  className="px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors shadow-lg"
                 >
                   Join
                 </button>
@@ -2281,7 +2162,7 @@ export default function DashboardPage() {
             >
               {communitiesLoading ? (
                 <div className="flex justify-center items-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                 </div>
               ) : communities.filter((community) => community.isMember).length === 0 ? (
                 <div className="text-center py-12">
@@ -2336,7 +2217,7 @@ export default function DashboardPage() {
                               onClick={() => {
                                 router.push(`/communities/${community.id}`);
                               }}
-                              className="w-full px-4 py-2 bg-xtrawrkx-500 text-white rounded-lg text-sm font-medium hover:bg-xtrawrkx-600 transition-colors shadow-md"
+                              className="w-full px-4 py-2 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors shadow-md"
                             >
                               View Community
                             </button>
@@ -2381,7 +2262,7 @@ export default function DashboardPage() {
             >
               {scheduleLoading ? (
                 <div className="flex justify-center items-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                 </div>
               ) : todaysSchedule.length === 0 ? (
                 <div className="text-center py-12">
@@ -2462,7 +2343,6 @@ export default function DashboardPage() {
             </Card>
           </div>
         </div>
-      </div>
 
       {/* Task Detail Modal */}
       {isTaskModalOpen && selectedTask && (
@@ -2599,9 +2479,10 @@ export default function DashboardPage() {
           } catch (error) {
             console.error("Error creating task:", error);
             alert(error.message || "Failed to create task");
+            throw error;
           }
         }}
       />
-    </div>
+    </PortalPageShell>
   );
 }

@@ -16,7 +16,7 @@ import {
   Link2,
   Video,
 } from 'lucide-react';
-import { calendarDayDiff, isCalendarDateBefore } from '@webfudge/utils';
+import { calendarDayDiff, isCalendarDateBefore, getTaskStatusLabel, TASK_STATUS_SELECT_OPTIONS } from '@webfudge/utils';
 import {
   Button,
   Table,
@@ -43,6 +43,7 @@ import strapiClient from '../../../lib/strapiClient';
 import leadCompanyService from '../../../lib/api/leadCompanyService';
 import clientAccountService from '../../../lib/api/clientAccountService';
 import dealService from '../../../lib/api/dealService';
+import { getClientWorkflowStageLabel } from '@webfudge/utils';
 
 function orgUserLabel(u) {
   if (!u || typeof u !== 'object') return '';
@@ -58,18 +59,12 @@ const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.clientsTasks.tableColumnVisibility';
 const COLUMN_ORDER_STORAGE_KEY = 'crm.clientsTasks.tableColumnOrder';
 const COLUMN_WIDTHS_STORAGE_KEY = 'crm.clientsTasks.tableColumnWidths';
 
-const TASK_STATUSES = [
-  'SCHEDULED',
-  'IN_PROGRESS',
-  'INTERNAL_REVIEW',
-  'ON_HOLD',
-  'OVERDUE',
-  'COMPLETED',
-  'CANCELLED',
-];
+const TASK_STATUSES = TASK_STATUS_SELECT_OPTIONS.map((o) => o.value);
 
 const TOGGLEABLE_COLUMNS = [
   { key: 'status', label: 'Status' },
+  { key: 'clientShared', label: 'Client shared' },
+  { key: 'clientStage', label: 'Client stage' },
   { key: 'priority', label: 'Priority' },
   { key: 'assignee', label: 'Assignee' },
   { key: 'scheduledDate', label: 'Scheduled' },
@@ -84,7 +79,7 @@ const TOGGLEABLE_COLUMNS = [
 
 const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key);
 
-const DEFAULT_ON_KEYS = new Set(['status', 'priority', 'assignee', 'scheduledDate', 'clientAccount', 'deal']);
+const DEFAULT_ON_KEYS = new Set(['status', 'clientShared', 'clientStage', 'priority', 'assignee', 'scheduledDate', 'clientAccount', 'deal']);
 
 const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
   acc[key] = DEFAULT_ON_KEYS.has(key);
@@ -560,6 +555,28 @@ export default function ClientsTasksPage() {
     []
   );
 
+  const handleShareWithClient = useCallback(async (task) => {
+    if (!task?.id) return;
+    const loadingKey = `${task.id}-share`;
+    setLoadingActions((prev) => ({ ...prev, [loadingKey]: true }));
+    try {
+      const next = !task.isSharedWithClient;
+      const result = await taskService.shareWithClient(task.id, {
+        isSharedWithClient: next,
+        note: next ? 'Shared from CRM client tasks' : 'Unshared from CRM client tasks',
+      });
+      const patch = result?.data ?? result;
+      setTasks((prev) =>
+        prev.map((t) => (t?.id === task.id ? { ...t, ...patch } : t))
+      );
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update client sharing.');
+    } finally {
+      setLoadingActions((prev) => ({ ...prev, [loadingKey]: false }));
+    }
+  }, []);
+
   const handleDeleteTask = async () => {
     if (!taskToDelete?.id) return;
     const loadingKey = `${taskToDelete.id}-delete`;
@@ -739,6 +756,39 @@ export default function ClientsTasksPage() {
             />
           );
         },
+      },
+      {
+        key: 'clientShared',
+        visibilityKey: 'clientShared',
+        label: 'CLIENT',
+        render: (_, task) => (
+          <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+              task.isSharedWithClient
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {task.isSharedWithClient ? 'Shared' : 'Internal'}
+          </span>
+        ),
+      },
+      {
+        key: 'clientStage',
+        visibilityKey: 'clientStage',
+        label: 'CLIENT STAGE',
+        render: (_, task) => (
+          <TableCellText
+            value={
+              task.clientWorkflowStage || task.status
+                ? getClientWorkflowStageLabel(task.clientWorkflowStage, {
+                    ...task,
+                    strapiStatus: task.status,
+                  })
+                : '—'
+            }
+          />
+        ),
       },
       {
         key: 'priority',
@@ -1145,7 +1195,7 @@ export default function ClientsTasksPage() {
               >
                 {TASK_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s.replace(/_/g, ' ')}
+                    {getTaskStatusLabel(s)}
                   </option>
                 ))}
               </select>
@@ -1323,7 +1373,7 @@ export default function ClientsTasksPage() {
                 >
                   {TASK_STATUSES.map((s) => (
                     <option key={s} value={s}>
-                      {s.replace(/_/g, ' ')}
+                      {getTaskStatusLabel(s)}
                     </option>
                   ))}
                 </select>
@@ -1376,7 +1426,7 @@ export default function ClientsTasksPage() {
                 <option value="">Any status</option>
                 {TASK_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s.replace(/_/g, ' ')}
+                    {getTaskStatusLabel(s)}
                   </option>
                 ))}
               </select>
@@ -1486,6 +1536,17 @@ export default function ClientsTasksPage() {
               >
                 <Link2 className="h-4 w-4 shrink-0 text-teal-600" />
                 Open linked deal
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-teal-50 hover:text-teal-700"
+                onClick={() => {
+                  setMoreActionMenu(null);
+                  void handleShareWithClient(row);
+                }}
+              >
+                <ClipboardList className="h-4 w-4 shrink-0 text-teal-600" />
+                {row.isSharedWithClient ? 'Stop sharing with client' : 'Share with client'}
               </button>
               <button
                 type="button"

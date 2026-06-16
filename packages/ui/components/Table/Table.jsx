@@ -154,7 +154,7 @@ export function Table({
       const key = columnKey(column, index)
       const fromState = columnWidths[key]
       if (typeof fromState === 'number' && Number.isFinite(fromState)) return fromState
-      return parseWidthPx(column.width)
+      return parseWidthPx(column.width) ?? parseWidthPx(column.defaultWidth)
     },
     [columnWidths]
   )
@@ -162,9 +162,10 @@ export function Table({
   const setColumnWidth = useCallback(
     (key, px) => {
       if (!onColumnWidthsChange) return
-      onColumnWidthsChange({ ...columnWidths, [key]: px })
+      onColumnWidthsChange((prev) => ({ ...(prev || {}), [key]: px }))
+      widthsRef.current = { ...(widthsRef.current || {}), [key]: px }
     },
-    [columnWidths, onColumnWidthsChange]
+    [onColumnWidthsChange]
   )
 
   const startResize = useCallback(

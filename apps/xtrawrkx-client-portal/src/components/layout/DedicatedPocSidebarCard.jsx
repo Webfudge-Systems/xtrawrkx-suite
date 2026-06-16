@@ -10,7 +10,7 @@ function ContactLink({ href, icon: Icon, label }) {
   return (
     <a
       href={href}
-      className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white/70 px-3 py-2 transition-colors hover:border-xtrawrkx-200 hover:bg-xtrawrkx-50/50"
+      className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white/70 px-3 py-2 transition-colors hover:border-orange-200 hover:bg-orange-50/50"
     >
       <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-50 border border-gray-100 text-gray-600">
         <Icon className="h-3.5 w-3.5" />
@@ -41,7 +41,7 @@ export default function DedicatedPocSidebarCard({ poc, collapsed = false }) {
             className="h-9 w-9 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-gray-200"
           />
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-xtrawrkx-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white ring-offset-1 ring-offset-gray-100">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-[10px] font-bold text-white shadow-sm ring-2 ring-white ring-offset-1 ring-offset-gray-100">
             {initials}
           </div>
         )}

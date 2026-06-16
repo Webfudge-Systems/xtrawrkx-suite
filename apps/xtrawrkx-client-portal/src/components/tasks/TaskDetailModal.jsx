@@ -25,6 +25,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { TaskWorkflowPipeline } from "@webfudge/ui";
+import { getClientWorkflowStageLabel } from "@webfudge/utils";
 
 const TaskDetailModal = ({
   isOpen,
@@ -272,8 +274,8 @@ const TaskDetailModal = ({
                 <div className="flex-shrink-0">
                   {isActionRequired && (
                     <div className="relative">
-                      <AlertCircle className="w-6 h-6 text-xtrawrkx-500 animate-pulse" />
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-xtrawrkx-500 rounded-full border-2 border-white"></div>
+                      <AlertCircle className="w-6 h-6 text-brand-primary animate-pulse" />
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-brand-primary rounded-full border-2 border-white"></div>
                     </div>
                   )}
                 </div>
@@ -288,7 +290,7 @@ const TaskDetailModal = ({
                           onOpenProject(safeTask.project.id);
                         }
                       }}
-                      className="text-sm text-xtrawrkx-600 hover:text-xtrawrkx-700 hover:underline mt-1 flex items-center gap-1"
+                      className="text-sm text-orange-600 hover:text-orange-700 hover:underline mt-1 flex items-center gap-1"
                     >
                       {safeTask.project.name}
                       <ExternalLink className="w-3 h-3" />
@@ -298,7 +300,7 @@ const TaskDetailModal = ({
               </div>
               <div className="flex items-center gap-2">
                 {isActionRequired && (
-                  <div className="px-3 py-1.5 bg-xtrawrkx-100 text-xtrawrkx-800 rounded-lg text-sm font-semibold border border-xtrawrkx-200">
+                  <div className="px-3 py-1.5 bg-orange-100 text-xtrawrkx-800 rounded-lg text-sm font-semibold border border-orange-200">
                     Action Required
                   </div>
                 )}
@@ -335,7 +337,7 @@ const TaskDetailModal = ({
                   onClick={() => setActiveTab("details")}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                     activeTab === "details"
-                      ? "bg-xtrawrkx-500 text-white"
+                      ? "bg-brand-primary text-white"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
@@ -345,7 +347,7 @@ const TaskDetailModal = ({
                   onClick={() => setActiveTab("status-time")}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                     activeTab === "status-time"
-                      ? "bg-xtrawrkx-500 text-white"
+                      ? "bg-brand-primary text-white"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
@@ -355,7 +357,7 @@ const TaskDetailModal = ({
                   onClick={() => setActiveTab("comments")}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors relative ${
                     activeTab === "comments"
-                      ? "bg-xtrawrkx-500 text-white"
+                      ? "bg-brand-primary text-white"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
@@ -370,7 +372,7 @@ const TaskDetailModal = ({
                   onClick={() => setActiveTab("attachments")}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors relative ${
                     activeTab === "attachments"
-                      ? "bg-xtrawrkx-500 text-white"
+                      ? "bg-brand-primary text-white"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
@@ -389,14 +391,14 @@ const TaskDetailModal = ({
                   <div className="space-y-6">
                     {/* Action Required Banner */}
                     {isActionRequired && (
-                      <div className="p-4 bg-xtrawrkx-50 border border-xtrawrkx-200 rounded-xl">
+                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
                         <div className="flex items-start gap-3">
-                          <AlertCircle className="w-5 h-5 text-xtrawrkx-600 flex-shrink-0 mt-0.5" />
+                          <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <h3 className="font-semibold text-xtrawrkx-900 mb-1">
                               Action Required
                             </h3>
-                            <p className="text-sm text-xtrawrkx-700 mb-3">
+                            <p className="text-sm text-orange-700 mb-3">
                               This task is pending your approval. Please review
                               and approve or reject it.
                             </p>
@@ -455,6 +457,20 @@ const TaskDetailModal = ({
                         </div>
                       </div>
                     )}
+
+                    {safeTask.isSharedWithClient || safeTask.clientWorkflowStage ? (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+                          Workflow — {getClientWorkflowStageLabel(safeTask.clientWorkflowStage, safeTask)}
+                        </h3>
+                        <TaskWorkflowPipeline
+                          status={safeTask.strapiStatus || safeTask.status}
+                          task={safeTask}
+                          variant="client"
+                          compact
+                        />
+                      </div>
+                    ) : null}
 
                     {/* Description */}
                     <div>
@@ -520,7 +536,7 @@ const TaskDetailModal = ({
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 bg-xtrawrkx-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                          <div className="w-6 h-6 bg-brand-primary rounded-full flex items-center justify-center text-white text-xs font-bold">
                             {safeTask.assignee?.name
                               ?.charAt(0)
                               ?.toUpperCase() || "U"}
@@ -544,7 +560,7 @@ const TaskDetailModal = ({
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
+                          className="bg-brand-primary h-2 rounded-full transition-all"
                           style={{ width: `${safeTask.progress}%` }}
                         />
                       </div>
@@ -619,7 +635,7 @@ const TaskDetailModal = ({
                             key={comment.id || index}
                             className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200"
                           >
-                            <div className="w-8 h-8 bg-xtrawrkx-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            <div className="w-8 h-8 bg-brand-primary rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                               {comment.author?.name?.charAt(0)?.toUpperCase() ||
                                 "U"}
                             </div>
@@ -656,7 +672,7 @@ const TaskDetailModal = ({
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
                         placeholder="Add a comment..."
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                         rows={3}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && e.shiftKey === false) {
@@ -688,7 +704,7 @@ const TaskDetailModal = ({
                         <button
                           onClick={handleSendComment}
                           disabled={!newComment.trim()}
-                          className="px-4 py-2 bg-xtrawrkx-500 text-white rounded-lg hover:bg-xtrawrkx-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2 font-medium text-sm"
+                          className="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2 font-medium text-sm"
                         >
                           <Send className="w-4 h-4" />
                           Send
@@ -707,11 +723,11 @@ const TaskDetailModal = ({
                             key={attachment.id || index}
                             className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors"
                           >
-                            <div className="w-10 h-10 bg-xtrawrkx-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                               {attachment.type?.startsWith("image/") ? (
-                                <ImageIcon className="w-5 h-5 text-xtrawrkx-600" />
+                                <ImageIcon className="w-5 h-5 text-orange-600" />
                               ) : (
-                                <File className="w-5 h-5 text-xtrawrkx-600" />
+                                <File className="w-5 h-5 text-orange-600" />
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -728,7 +744,7 @@ const TaskDetailModal = ({
                             <a
                               href={attachment.url}
                               download={attachment.name}
-                              className="p-2 text-gray-600 hover:text-xtrawrkx-600 hover:bg-xtrawrkx-50 rounded-lg transition-colors"
+                              className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                               title="Download"
                             >
                               <Download className="w-4 h-4" />

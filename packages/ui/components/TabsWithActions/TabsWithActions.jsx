@@ -68,6 +68,8 @@ export function TabsWithActions({
   pillTheme = 'light',
   /** `stretch` — track grows, tabs share width (list toolbars). `hug` — track fits tabs with even inner padding (header sub-nav). */
   pillTrack = 'stretch',
+  /** When true, removes the border from the pill track (for clean sub-nav without the rounded card look). */
+  noPillTrackBorder = false,
   /** When set, overrides default search input classes (Books dark toolbar). */
   searchInputClassName,
   ...props
@@ -104,8 +106,9 @@ export function TabsWithActions({
   }
 
   /** Light pill track — same as CRM/PM detail pages (white bar, orange active tab). */
-  const lightPillTrackShell =
-    'flex min-h-[48px] items-center gap-1 overflow-x-auto rounded-full border border-gray-200 bg-white px-2 py-1.5 shadow-[0_2px_12px_rgba(15,23,42,0.09),0_1px_3px_rgba(15,23,42,0.05)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+  const lightPillTrackShell = noPillTrackBorder
+    ? 'flex min-h-[48px] items-center gap-1 overflow-x-auto rounded-full bg-white px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+    : 'flex min-h-[48px] items-center gap-1 overflow-x-auto rounded-full border border-gray-200 bg-white px-2 py-1.5 shadow-[0_2px_12px_rgba(15,23,42,0.09),0_1px_3px_rgba(15,23,42,0.05)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
   const lightPillTrackStretchClass = `${lightPillTrackShell} min-w-0 flex-1`
   const lightPillTrackHugClass = `${lightPillTrackShell} w-fit max-w-full shrink-0`
 

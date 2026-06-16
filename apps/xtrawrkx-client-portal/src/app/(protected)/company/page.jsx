@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { KPICard } from "@webfudge/ui";
 import {
   deleteCompanyMemberManaged,
   listCompanyMembersManaged,
@@ -191,55 +192,36 @@ export default function CompanyMembersPage() {
               label: "Total Members",
               count: kpis.total,
               icon: Users,
-              color: "bg-xtrawrkx-50",
-              border: "border-xtrawrkx-200",
-              iconColor: "text-xtrawrkx-600",
             },
             {
               label: "Active Members",
               count: kpis.active,
               icon: UserCheck,
-              color: "bg-green-50",
-              border: "border-green-200",
-              iconColor: "text-green-600",
             },
             {
               label: "Full Access",
               count: kpis.accessOwners,
               icon: Shield,
-              color: "bg-yellow-50",
-              border: "border-yellow-200",
-              iconColor: "text-yellow-600",
             },
             {
               label: "Pending Invites",
               count: kpis.invited,
               icon: CircleCheck,
-              color: "bg-purple-50",
-              border: "border-purple-200",
-              iconColor: "text-purple-600",
             },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={item.label}
-                className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 font-medium">{item.label}</p>
-                    <p className="text-3xl font-black text-gray-800 mt-1">{item.count}</p>
-                  </div>
-                  <div
-                    className={`w-14 h-14 rounded-xl flex items-center justify-center ${item.color} ${item.border} border`}
-                  >
-                    <Icon className={`w-7 h-7 ${item.iconColor}`} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          ].map((item) => (
+            <KPICard
+              key={item.label}
+              title={item.label}
+              value={item.count.toString()}
+              subtitle={
+                item.count === 0
+                  ? "None"
+                  : `${item.count} ${item.count === 1 ? "member" : "members"}`
+              }
+              icon={item.icon}
+              colorScheme="orange"
+            />
+          ))}
         </div>
 
         <div className="flex items-center justify-between gap-3 bg-white/85 backdrop-blur-xl border border-white/50 rounded-2xl shadow-xl p-3">
@@ -250,7 +232,7 @@ export default function CompanyMembersPage() {
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
                   activeTab === tab.key
-                    ? "bg-xtrawrkx-500 text-white shadow-lg"
+                    ? "bg-brand-primary text-white shadow-lg"
                     : "bg-white/80 text-gray-700 hover:bg-white/90 border border-white/40"
                 }`}
               >
@@ -275,14 +257,14 @@ export default function CompanyMembersPage() {
               placeholder="Search members..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-64 pl-10 pr-4 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/15 transition-all duration-300 placeholder:text-gray-500 shadow-lg"
+              className="w-64 pl-10 pr-4 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary focus:bg-white/15 transition-all duration-300 placeholder:text-gray-500 shadow-lg"
             />
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={openAddModal}
-              className="w-10 h-10 rounded-full bg-xtrawrkx-500 text-white border border-xtrawrkx-500/50 flex items-center justify-center hover:bg-xtrawrkx-600 transition-colors"
+              className="w-10 h-10 rounded-full bg-brand-primary text-white border border-brand-primary/50 flex items-center justify-center hover:bg-orange-600 transition-colors"
               title="Add member"
             >
               <Plus className="w-5 h-5" />
@@ -291,7 +273,7 @@ export default function CompanyMembersPage() {
               onClick={() => setViewMode("list")}
               className={`w-10 h-10 rounded-full border flex items-center justify-center ${
                 viewMode === "list"
-                  ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
+                  ? "bg-brand-primary text-white border-brand-primary/50"
                   : "bg-white/80 text-gray-700 border-white/40"
               }`}
               title="List view"
@@ -302,7 +284,7 @@ export default function CompanyMembersPage() {
               onClick={() => setViewMode("grid")}
               className={`w-10 h-10 rounded-full border flex items-center justify-center ${
                 viewMode === "grid"
-                  ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
+                  ? "bg-brand-primary text-white border-brand-primary/50"
                   : "bg-white/80 text-gray-700 border-white/40"
               }`}
               title="Grid view"
@@ -315,7 +297,7 @@ export default function CompanyMembersPage() {
         {viewMode === "list" ? (
           <div className="overflow-x-auto rounded-3xl bg-white/70 backdrop-blur-xl border border-white/40">
             <table className="w-full min-w-[1200px]">
-              <thead className="bg-white/90 border-b border-xtrawrkx-200/50">
+              <thead className="bg-white/90 border-b border-orange-200/50">
                 <tr>
                   {[
                     "Member",
@@ -345,7 +327,7 @@ export default function CompanyMembersPage() {
                     "U";
                   const isActive = member.status === "ACTIVE";
                   return (
-                    <tr key={member.id} className="hover:bg-xtrawrkx-50/40 transition-colors">
+                    <tr key={member.id} className="hover:bg-orange-50/40 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3 min-w-[200px]">
                           <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-700">
@@ -387,7 +369,7 @@ export default function CompanyMembersPage() {
                         <div className="flex items-center gap-1 min-w-[120px]">
                           <button
                             onClick={() => router.push(`/company/${member.id}`)}
-                            className="p-1.5 text-gray-600 hover:text-xtrawrkx-600 hover:bg-xtrawrkx-50 rounded"
+                            className="p-1.5 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded"
                             title="View"
                           >
                             <Eye className="w-4 h-4" />
@@ -426,8 +408,8 @@ export default function CompanyMembersPage() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-xtrawrkx-100 flex items-center justify-center">
-                        <UserCircle className="w-6 h-6 text-xtrawrkx-600" />
+                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                        <UserCircle className="w-6 h-6 text-orange-600" />
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">{fullName}</p>
@@ -451,7 +433,7 @@ export default function CompanyMembersPage() {
                   <div className="mt-4 flex items-center gap-1">
                     <button
                       onClick={() => router.push(`/company/${member.id}`)}
-                      className="p-1.5 text-gray-600 hover:text-xtrawrkx-600 hover:bg-xtrawrkx-50 rounded"
+                      className="p-1.5 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded"
                       title="View"
                     >
                       <Eye className="w-4 h-4" />

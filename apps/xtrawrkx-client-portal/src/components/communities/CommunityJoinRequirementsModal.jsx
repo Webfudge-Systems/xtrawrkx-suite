@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Modal } from "@/components/ui/Modal";
+import { Modal, Button } from "@webfudge/ui";
 import { joinCommunityWithRequirements } from "@/lib/api/communityProgramService";
+import { XEN_MEMBERSHIP_TIERS } from "@webfudge/utils";
 
 const initialForm = {
   lookingFor: "",
   whyJoin: "",
+  selectedTier: "X0",
 };
 
 export default function CommunityJoinRequirementsModal({
@@ -113,6 +115,15 @@ export default function CommunityJoinRequirementsModal({
       communityName: community.name,
       communityEnum: community.strapiEnum,
       submittedAt: new Date().toISOString(),
+      ...(community?.strapiEnum === "XEN"
+        ? {
+            selectedTier: form.selectedTier,
+            tier: form.selectedTier,
+            tierName:
+              XEN_MEMBERSHIP_TIERS.find((t) => t.tier === form.selectedTier)?.name ||
+              form.selectedTier,
+          }
+        : {}),
     };
 
     setSubmitting(true);
@@ -201,6 +212,42 @@ export default function CommunityJoinRequirementsModal({
             </div>
           )}
         </div>
+
+        {community?.strapiEnum === "XEN" ? (
+          <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+            <h4 className="mb-2 text-sm font-semibold text-gray-900">XEN membership tier</h4>
+            <p className="mb-3 text-xs text-gray-600">
+              Choose your preferred tier. Paid tiers (X1–X5) include advisory hours and perks — final
+              approval and billing are confirmed by your Xtrawrkx account manager.
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {XEN_MEMBERSHIP_TIERS.map((tier) => (
+                <label
+                  key={tier.tier}
+                  className={`cursor-pointer rounded-lg border px-3 py-2 text-sm ${
+                    form.selectedTier === tier.tier
+                      ? "border-brand-primary bg-white shadow-sm"
+                      : "border-gray-200 bg-white/80"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="selectedTier"
+                    value={tier.tier}
+                    checked={form.selectedTier === tier.tier}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="font-semibold">{tier.tier}</span> — {tier.name}
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    {tier.price12Month}/yr · {tier.totalHours} hrs/mo
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             What are you looking for in this community?{" "}
@@ -231,21 +278,13 @@ export default function CommunityJoinRequirementsModal({
           />
         </div>
 
-        <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-gray-100">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
-          >
+        <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
+          <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="px-4 py-2 rounded-lg text-sm font-semibold bg-xtrawrkx-500 text-white hover:bg-xtrawrkx-600 disabled:opacity-60"
-          >
+          </Button>
+          <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? "Submitting…" : "Submit application"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

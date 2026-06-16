@@ -5,6 +5,8 @@ module.exports = {
     "../../packages/ui/src/**/*.{js,ts,jsx,tsx}",
     "../../packages/ui/components/**/*.{js,jsx}",
     "../../packages/ui/layouts/**/*.{js,jsx}",
+    "../../packages/ui/feedback/**/*.{js,ts,jsx,tsx}",
+    "../../packages/ui/utils/**/*.{js,ts,jsx,tsx}",
     "../../packages/ui/index.js"
   ],
   theme: {

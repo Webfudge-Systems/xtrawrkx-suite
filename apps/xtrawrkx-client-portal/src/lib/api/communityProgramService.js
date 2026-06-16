@@ -195,6 +195,32 @@ export async function listActiveMembershipsForClient(clientAccountId) {
       id: row.id || row.documentId,
       community: a.community,
       joinedAt: a.joinedAt,
+      membershipType: a.membershipType,
+      membershipData: a.membershipData,
     };
   });
+}
+
+/**
+ * GET /api/community-memberships/program-stats
+ * Active member counts per program community.
+ */
+export async function fetchCommunityProgramStats() {
+  const url = `${apiBase()}/community-memberships/program-stats`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: strapiClient.getHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return { byCommunity: {}, total: 0 };
+  }
+
+  const json = await res.json().catch(() => ({}));
+  const payload = json?.data || {};
+  return {
+    byCommunity: payload.byCommunity || {},
+    total: Number(payload.total) || 0,
+  };
 }

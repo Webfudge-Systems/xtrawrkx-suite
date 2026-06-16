@@ -5,6 +5,11 @@ import { ChatMessageText } from '../ChatMessageText';
 import { MentionComposer } from '../MentionComposer';
 import { mergeMentionUsers } from '../../utils/chatMentions';
 import {
+  resolveActivityActor,
+  activityActorLabel,
+  activityActorInitials,
+} from '../../utils/activityActor';
+import {
   Activity,
   MessageSquare,
   Send,
@@ -70,21 +75,11 @@ function isNextConnectReason(meta) {
 }
 
 function actorLabel(actor) {
-  if (!actor || typeof actor !== 'object') return 'User';
-  return (
-    actor.username?.trim() ||
-    actor.email?.split('@')[0]?.trim() ||
-    `User ${actor.id}`
-  );
+  return activityActorLabel(actor);
 }
 
 function actorInitials(actor) {
-  const name = actorLabel(actor);
-  const parts = name.split(/[\s._-]/);
-  if (parts.length >= 2 && parts[0] && parts[1]) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase() || 'U';
+  return activityActorInitials(actor);
 }
 
 /** Assign a stable gradient to a name deterministically */
@@ -178,9 +173,11 @@ function ChatMessage({ msg, highlighted, onReact, onPin, apiBase }) {
   const [reactions, setReactions] = useState({});
   const text = extractComment(msg);
   const attachments = extractAttachments(msg);
-  const actor = msg.actor;
+  const actor = resolveActivityActor(msg);
   const gradient = actorGradient(actor);
   const nextConnectReason = isNextConnectReason(msg.meta);
+  const aggregateSource =
+    msg?.meta && typeof msg.meta === 'object' ? msg.meta.aggregateSource : null;
 
   const handleReact = (emoji) => {
     setReactions((prev) => {
@@ -222,6 +219,11 @@ function ChatMessage({ msg, highlighted, onReact, onPin, apiBase }) {
           {nextConnectReason ? (
             <span className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200/80">
               Next connect reason
+            </span>
+          ) : null}
+          {aggregateSource?.label ? (
+            <span className="inline-flex max-w-[180px] truncate rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-700 ring-1 ring-slate-200/80">
+              {aggregateSource.section} · {aggregateSource.label}
             </span>
           ) : null}
           <span className="text-[10px] text-gray-400 tabular-nums whitespace-nowrap">
@@ -351,6 +353,10 @@ function PinnedMessageBanner({ message, onDismiss }) {
  *  - mentionUsers?: { id, name?, email?, username?, firstName?, lastName? }[] — @mention roster
  *  - fetchMentionUsers?: () => Promise<mentionUsers[]> — loads roster when chat opens (merged with mentionUsers)
  *  - composerAvatarFallback?: string — initials in composer (default "Y")
+ *  - sharedChatMessages?: object[] — parent-owned chat thread (Overview + Comments share one list)
+ *  - onSharedChatMessagesChange?: (updater) => void
+ *  - sharedChatLoading?: boolean
+ *  - onSharedChatReload?: () => Promise<void> — refetch when parent owns chat state
  */
 export function EntityActivityPanel({
   entityType: _entityType,
@@ -373,18 +379,44 @@ export function EntityActivityPanel({
   className = '',
   minHeightPx = 520,
   maxHeightPx = 720,
+  sharedChatMessages,
+  onSharedChatMessagesChange,
+  sharedChatLoading = false,
+  onSharedChatReload,
 }) {
+  const isSharedChat = sharedChatMessages !== undefined;
   const [panelTab, setPanelTab] = useState(defaultSubTab);
 
   useEffect(() => {
     setPanelTab(defaultSubTab);
   }, [defaultSubTab]);
 
-  // Chat state
+  useEffect(() => {
+    if (isSharedChat) return;
+    setChatLoaded(false);
+    setChatMessages([]);
+    setChatError(null);
+  }, [entityId, isSharedChat]);
+
+  // Chat state (internal when not using sharedChatMessages)
   const [chatMessages, setChatMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState(null);
   const [chatLoaded, setChatLoaded] = useState(false);
+
+  const displayedMessages = isSharedChat ? sharedChatMessages : chatMessages;
+  const displayedLoading = isSharedChat ? sharedChatLoading : chatLoading;
+
+  const updateChatMessages = useCallback(
+    (updater) => {
+      if (isSharedChat) {
+        onSharedChatMessagesChange?.(updater);
+        return;
+      }
+      setChatMessages(updater);
+    },
+    [isSharedChat, onSharedChatMessagesChange],
+  );
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -434,13 +466,24 @@ export function EntityActivityPanel({
   // ── Load chat messages ───────────────────────────────────────────────────
 
   const loadChat = useCallback(async () => {
-    if (!entityId || !fetchCommentsFn) return;
+    if (!entityId) return;
+    if (isSharedChat) {
+      if (onSharedChatReload) {
+        try {
+          await onSharedChatReload();
+        } catch (e) {
+          setChatError(e?.message || 'Could not load messages');
+        }
+      }
+      setChatLoaded(true);
+      return;
+    }
+    if (!fetchCommentsFn) return;
     setChatLoading(true);
     setChatError(null);
     try {
       const res = await fetchCommentsFn({ entityId });
       const msgs = Array.isArray(res?.data) ? res.data : [];
-      // API returns newest first; reverse to show oldest first
       setChatMessages([...msgs].reverse());
       setChatLoaded(true);
     } catch (e) {
@@ -448,13 +491,17 @@ export function EntityActivityPanel({
     } finally {
       setChatLoading(false);
     }
-  }, [entityId, fetchCommentsFn]);
+  }, [entityId, fetchCommentsFn, isSharedChat, onSharedChatReload]);
 
   useEffect(() => {
+    if (isSharedChat) {
+      setChatLoaded(true);
+      return;
+    }
     if (panelTab === 'chat' && !chatLoaded) {
       loadChat();
     }
-  }, [panelTab, chatLoaded, loadChat]);
+  }, [panelTab, chatLoaded, loadChat, isSharedChat]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -463,7 +510,7 @@ export function EntityActivityPanel({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 50);
     }
-  }, [chatMessages, panelTab]);
+  }, [displayedMessages, panelTab]);
 
   // Scroll-down button
   const handleScroll = () => {
@@ -491,10 +538,18 @@ export function EntityActivityPanel({
         comment: text,
         attachments,
       });
-      const newMsg = res?.data;
+      const newMsg = res?.data ?? (res?.id != null || res?.createdAt ? res : null);
       if (newMsg) {
-        setChatMessages((prev) => [...prev, newMsg]);
+        updateChatMessages((prev) => {
+          const newId = newMsg.id ?? newMsg.documentId;
+          if (newId != null && prev.some((m) => (m.id ?? m.documentId) === newId)) return prev;
+          return [...prev, newMsg];
+        });
+        setChatLoaded(true);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
+      } else {
+        setChatLoaded(false);
+        await loadChat();
       }
       setDraft('');
       setPendingFiles([]);
@@ -504,7 +559,7 @@ export function EntityActivityPanel({
       setSending(false);
       textareaRef.current?.focus();
     }
-  }, [draft, pendingFiles, entityId, addCommentFn, uploadFilesFn, canSendMessages, sending]);
+  }, [draft, pendingFiles, entityId, addCommentFn, uploadFilesFn, canSendMessages, sending, loadChat, updateChatMessages]);
 
   const handlePickFiles = () => {
     if (!uploadFilesFn || sending) return;
@@ -529,13 +584,13 @@ export function EntityActivityPanel({
 
   const filteredMessages = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return chatMessages;
-    return chatMessages.filter(
+    if (!q) return displayedMessages;
+    return displayedMessages.filter(
       (msg) =>
         extractComment(msg).toLowerCase().includes(q) ||
-        actorLabel(msg.actor).toLowerCase().includes(q)
+        actorLabel(resolveActivityActor(msg)).toLowerCase().includes(q)
     );
-  }, [chatMessages, searchQuery]);
+  }, [displayedMessages, searchQuery]);
 
   const messageGroups = useMemo(
     () => groupMessagesByDate(filteredMessages),
@@ -564,7 +619,7 @@ export function EntityActivityPanel({
             onClick={() => setPanelTab('chat')}
             icon={MessageSquare}
             label="Chats"
-            badge={chatMessages.length || undefined}
+            badge={displayedMessages.length || undefined}
           />
         </div>
         <div className="flex items-center gap-1">
@@ -667,7 +722,7 @@ export function EntityActivityPanel({
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-300" />
               <span className="text-[10px] font-medium text-gray-500">
-                {chatMessages.length} message{chatMessages.length !== 1 ? 's' : ''}
+                {displayedMessages.length} message{displayedMessages.length !== 1 ? 's' : ''}
               </span>
             </div>
             <div className="flex items-center gap-1 text-[10px] text-gray-400">
@@ -682,7 +737,7 @@ export function EntityActivityPanel({
             className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5"
             onScroll={handleScroll}
           >
-            {chatLoading ? (
+            {displayedLoading ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <LoadingSpinner message="Loading messages…" />
               </div>

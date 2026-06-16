@@ -18,7 +18,7 @@ export function Progress({
   };
 
   const variantClasses = {
-    default: "bg-xtrawrkx-600",
+    default: "bg-orange-600",
     success: "bg-green-600",
     warning: "bg-yellow-600",
     error: "bg-red-600",

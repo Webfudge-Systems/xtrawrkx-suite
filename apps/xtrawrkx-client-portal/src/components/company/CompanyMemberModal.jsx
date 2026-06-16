@@ -62,7 +62,7 @@ function formatRoleLabel(roleName) {
 }
 
 const selectClass =
-  "w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm focus:border-xtrawrkx-400 focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/25";
+  "w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/25";
 
 const emptyForm = {
   firstName: "",
@@ -521,7 +521,7 @@ export default function CompanyMemberModal({
                     <button
                       type="submit"
                       disabled={loading || loadingMember}
-                      className="flex-1 h-12 rounded-xl bg-xtrawrkx-500 text-white font-semibold hover:bg-xtrawrkx-600 disabled:opacity-60"
+                      className="flex-1 h-12 rounded-xl bg-brand-primary text-white font-semibold hover:bg-orange-600 disabled:opacity-60"
                     >
                       {loading
                         ? "Saving..."

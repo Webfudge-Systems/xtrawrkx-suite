@@ -17,7 +17,8 @@ Previously, the landing app called unauthenticated Strapi CRUD endpoints (`POST 
 1. User completes signup on the landing page (`publicUserService.signUp`).
 2. Landing API route `POST /api/public/profile` syncs the profile and calls Strapi `POST /api/client-accounts/website-signup`.
 3. Backend verifies `x-landing-signup-secret`, resolves the Xtrawrkx org, and idempotently:
-   - Creates or updates a **client account** linked to that organization
+   - Creates a **new client account** per distinct company name (same person may own multiple companies)
+   - Re-syncs an existing account only when **company name and signup email** already belong together (profile retry)
    - Ensures a **primary contact** (`contactRole: PRIMARY_CONTACT`, `source: WEBSITE`)
    - Ensures a default **onboarding project**
    - Optionally stores portal password on **client-portal-access** when `initialClientPassword` is sent
@@ -57,6 +58,18 @@ Body: website profile fields (`email`, `companyName`, `firstName`, `lastName`, `
 3. New landing signups appear under **CRM → Clients → Client Accounts** in the Xtrawrkx org.
 
 Existing website users can use **Retry Setup** on their profile (re-triggers profile sync + client account provisioning).
+
+## Landing login vs CRM client account
+
+Landing **login** uses **Firebase** (email/password). CRM **client accounts** are provisioned separately via Strapi `website-signup`.
+
+If CRM provisioning fails (duplicate company name, missing company, etc.), signup must **not** complete:
+
+- `POST /api/public/profile` returns **409/422** when `ensureClientAccount` fails
+- `publicUserService.signUp` **rolls back** the Firebase user and shows the error on the signup form
+- Duplicate companies are blocked in the UI (`CompanyNameField`) and on the backend (`409`)
+
+**Duplicate company example:** signing up with company **Webfudge Systems** when that client already exists creates a Firebase profile only if CRM sync is skipped or ignored — that path is now fixed.
 
 ## CRM contacts list — company & owner display
 

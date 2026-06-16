@@ -3,11 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { WorkspaceBackButton } from "@webfudge/ui";
+import {
+  WorkspaceBackButton,
+  Card,
+  WorkspaceSearchInput,
+} from "@webfudge/ui";
 import {
   ChevronRight,
   ChevronDown,
-  Search,
   Plus,
   Filter,
   Upload,
@@ -22,7 +25,6 @@ import {
   Check,
   CheckCheck,
 } from "lucide-react";
-import { Card } from "./Card";
 import { useSession } from "@/lib/auth";
 import { strapiClient } from "@/lib/strapiClient";
 import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
@@ -348,7 +350,7 @@ export function PageHeader({
             });
 
   return (
-    <div className="relative z-[40]">
+    <div className="relative z-10">
       <Card glass={true} padding={false}>
       <div className="flex items-center justify-between p-6">
         <div className="flex-1">
@@ -359,11 +361,11 @@ export function PageHeader({
           ) : null}
           {/* Breadcrumb */}
           {breadcrumbItems.length > 0 && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+            <div className="mb-2 flex items-center gap-2 text-sm text-brand-text-light">
               {breadcrumbItems.map((item, index) => (
                 <div key={index} className="flex items-center gap-2">
                   {index === breadcrumbItems.length - 1 ? (
-                    <span className="text-gray-900 font-medium">
+                    <span className="font-medium text-brand-foreground">
                       {typeof item.label === "string"
                         ? item.label
                         : String(item.label || "")}
@@ -371,7 +373,7 @@ export function PageHeader({
                   ) : (
                     <Link
                       href={item.href || "#"}
-                      className="text-gray-500 hover:text-gray-900 transition-colors duration-200 cursor-pointer"
+                      className="cursor-pointer text-brand-text-light transition-colors duration-200 hover:text-brand-foreground"
                     >
                       {typeof item.label === "string"
                         ? item.label
@@ -389,13 +391,13 @@ export function PageHeader({
           {/* Title and Subtitle */}
           {isDashboard ? (
             <div>
-              <h1 className="text-5xl font-light text-gray-900 tracking-tight mb-2">
+              <h1 className="mb-0.5 text-xl font-normal leading-snug tracking-tight text-brand-foreground sm:text-4xl">
                 {getGreeting()}, {getUserDisplayName()}
               </h1>
               {(getCompanyInfo() || subtitle) && (
                 <div className="mt-1 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-0">
                   {getCompanyInfo() && (
-                    <p className="text-2xl font-semibold text-xtrawrkx-500 leading-snug">
+                    <p className="text-lg font-semibold leading-snug text-brand-primary sm:text-2xl">
                       {getCompanyInfo()}
                     </p>
                   )}
@@ -406,7 +408,7 @@ export function PageHeader({
                     />
                   )}
                   {subtitle && (
-                    <p className="text-2xl font-medium leading-snug text-gray-700">
+                    <p className="text-base font-medium leading-snug text-brand-text-light sm:text-lg">
                       {subtitle}
                     </p>
                   )}
@@ -415,10 +417,10 @@ export function PageHeader({
             </div>
           ) : (
             <>
-              <h1 className="text-5xl font-light text-gray-900 mb-1 tracking-tight">
+              <h1 className="mb-0.5 text-xl font-normal tracking-tight text-brand-foreground sm:text-4xl">
                 {title}
               </h1>
-              {subtitle && <p className="text-gray-600">{subtitle}</p>}
+              {subtitle && <p className="text-brand-text-light">{subtitle}</p>}
             </>
           )}
         </div>
@@ -428,10 +430,8 @@ export function PageHeader({
           <div className="flex items-center gap-4 ml-4">
             {/* Search Bar */}
             {showSearch && (
-              <div className="relative hidden md:block">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
+              <div className="hidden md:block">
+                <WorkspaceSearchInput
                   placeholder={searchPlaceholder || "Search... (⌘K)"}
                   value={searchInputValue}
                   onChange={(e) => {
@@ -446,7 +446,6 @@ export function PageHeader({
                       e.preventDefault();
                     }
                   }}
-                  className="w-64 pl-10 pr-4 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/15 transition-all duration-300 placeholder:text-gray-500 shadow-lg"
                 />
               </div>
             )}
@@ -458,7 +457,7 @@ export function PageHeader({
                   {onAddClick && (
                     <button
                       onClick={onAddClick}
-                      className="p-2.5 bg-white/10 backdrop-blur-md border border-white/20 text-xtrawrkx-500 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 group shadow-lg"
+                      className="group rounded-xl border border-white/20 bg-white/10 p-2.5 text-brand-primary shadow-lg backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:bg-white/20"
                     >
                       <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
                     </button>
@@ -577,10 +576,8 @@ export function PageHeader({
                 onMouseLeave={() => setShowProfileDropdown(false)}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl flex items-center justify-center shadow-lg">
-                    <span className="text-xtrawrkx-500 text-sm font-medium">
-                      {getUserInitials()}
-                    </span>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-white bg-gradient-to-br from-orange-500 to-orange-600 text-sm font-bold text-white shadow-lg">
+                    <span>{getUserInitials()}</span>
                   </div>
                   <div className="text-left hidden lg:block">
                     <p className="text-sm font-semibold text-gray-900">
@@ -611,10 +608,8 @@ export function PageHeader({
                   >
                     <div className="p-4 border-b border-white/20">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl flex items-center justify-center shadow-lg">
-                          <span className="text-xtrawrkx-500 text-sm font-medium">
-                            {getUserInitials()}
-                          </span>
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-white bg-gradient-to-br from-orange-500 to-orange-600 text-sm font-bold text-white shadow-lg">
+                          <span>{getUserInitials()}</span>
                         </div>
                         <div>
                           <p className="font-semibold text-gray-900">

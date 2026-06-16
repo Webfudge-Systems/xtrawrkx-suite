@@ -13,7 +13,7 @@ import {
   LEAD_COMPANY_TYPES,
 } from "@/src/data/companyRegistrationOptions";
 import { usePublicAuth } from "@/src/contexts/PublicAuthContext";
-import { commonToasts, toastUtils } from "@/src/utils/toast";
+import { commonToasts } from "@/src/utils/toast";
 
 const signupInitialState = {
   firstName: "",
@@ -153,6 +153,9 @@ export default function AuthForm({
     if (!signupData.firstName.trim() || !signupData.lastName.trim()) return "Please complete your personal details.";
     if (!signupData.email.trim() || !signupData.password.trim()) return "Please provide your account email and password.";
     if (!signupData.companyName.trim() || !signupData.companyEmail.trim()) return "Please complete required company details.";
+    if (companyCheck.checking) {
+      return "Checking for similar company names — please wait a moment.";
+    }
     if (companyCheck.hasExactMatch) {
       return "This company is already registered. Sign in to your existing account instead.";
     }
@@ -187,7 +190,7 @@ export default function AuthForm({
     }
 
     try {
-      const signupResult = await signUp({
+      await signUp({
         ...signupData,
         company: signupData.companyName || signupData.company,
         location:
@@ -197,11 +200,6 @@ export default function AuthForm({
             .join(", "),
       });
       commonToasts.saveSuccess();
-      if (signupResult?.clientAccountSetup?.ok === false) {
-        toastUtils.warning(
-          `${signupResult.clientAccountSetup.error} Open your profile and use Retry Setup.`
-        );
-      }
 
       if (onSuccess) {
         onSuccess();

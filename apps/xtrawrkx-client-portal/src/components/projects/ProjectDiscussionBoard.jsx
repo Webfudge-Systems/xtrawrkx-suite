@@ -157,7 +157,7 @@ export default function ProjectDiscussionBoard({
                 placeholder="Search channel or message"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
               />
             </div>
           </div>
@@ -172,7 +172,7 @@ export default function ProjectDiscussionBoard({
                   onClick={() => setSelectedChannel(channel)}
                   className={`w-full p-3 rounded-lg text-left transition-colors ${
                     selectedChannel?.id === channel.id
-                      ? "bg-xtrawrkx-50 border border-xtrawrkx-200"
+                      ? "bg-orange-50 border border-orange-200"
                       : "hover:bg-gray-50 border border-transparent"
                   }`}
                 >

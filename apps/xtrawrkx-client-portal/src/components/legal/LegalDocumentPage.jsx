@@ -82,7 +82,7 @@ export default function LegalDocumentPage({
                     className={cn(
                       "w-full flex items-center space-x-3 p-3 text-left rounded-xl border transition-colors group",
                       isActive
-                        ? "bg-xtrawrkx-50 border-xtrawrkx-200"
+                        ? "bg-orange-50 border-orange-200"
                         : "border-transparent hover:bg-gray-50 hover:border-gray-200"
                     )}
                   >
@@ -90,7 +90,7 @@ export default function LegalDocumentPage({
                       className={cn(
                         "w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border bg-gray-50",
                         isActive
-                          ? "border-xtrawrkx-200 bg-white"
+                          ? "border-orange-200 bg-white"
                           : "border-gray-200 group-hover:border-gray-300"
                       )}
                     >
@@ -98,7 +98,7 @@ export default function LegalDocumentPage({
                         className={cn(
                           "h-5 w-5",
                           isActive
-                            ? "text-xtrawrkx-600"
+                            ? "text-orange-600"
                             : "text-gray-400 group-hover:text-gray-600"
                         )}
                       />

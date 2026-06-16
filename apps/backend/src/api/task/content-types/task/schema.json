@@ -21,8 +21,62 @@
     },
     "status": {
       "type": "enumeration",
-      "enum": ["SCHEDULED", "IN_PROGRESS", "INTERNAL_REVIEW", "ON_HOLD", "COMPLETED", "CANCELLED", "OVERDUE"],
+      "enum": [
+        "SCHEDULED",
+        "ASSIGNED",
+        "ACCEPTED",
+        "IN_PROGRESS",
+        "INTERNAL_REVIEW",
+        "PENDING_REVIEW",
+        "ON_HOLD",
+        "WAITING_FOR_CLIENT",
+        "REVISION_REQUIRED",
+        "COMPLETED",
+        "CANCELLED",
+        "OVERDUE"
+      ],
       "default": "SCHEDULED"
+    },
+    "isSharedWithClient": {
+      "type": "boolean",
+      "default": false
+    },
+    "createdBySource": {
+      "type": "enumeration",
+      "enum": ["internal", "client"],
+      "default": "internal"
+    },
+    "clientWorkflowStage": {
+      "type": "enumeration",
+      "enum": [
+        "CLIENT_SUBMITTED",
+        "XTRAWRKX_REVIEW",
+        "ACCEPTED",
+        "IN_PROGRESS",
+        "CLIENT_DECISION",
+        "CLIENT_REVIEW",
+        "CLOSED",
+        "CANCELLED"
+      ]
+    },
+    "clientActionRequired": {
+      "type": "boolean",
+      "default": false
+    },
+    "clientActionType": {
+      "type": "enumeration",
+      "enum": ["none", "quote", "financial_decision", "approval", "info"]
+    },
+    "clientActionNotes": {
+      "type": "text"
+    },
+    "clientApprovalStatus": {
+      "type": "enumeration",
+      "enum": ["none", "pending", "approved", "rejected", "closed"]
+    },
+    "stageHistory": {
+      "type": "json",
+      "default": []
     },
     "priority": {
       "type": "enumeration",

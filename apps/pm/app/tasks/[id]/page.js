@@ -20,6 +20,7 @@ import {
   TableCellCreated,
   TabsWithActions,
   TableCellTaskStatusSelect,
+  TaskStatusStepper,
   PM_TASK_STATUS_OPTIONS,
 } from '@webfudge/ui';
 import {
@@ -49,6 +50,7 @@ import {
 import PMPageHeader from '../../../components/PMPageHeader';
 import TaskDetailMetaBar from '../../../components/TaskDetailMetaBar';
 import TaskDetailsCard from '../../../components/TaskDetailsCard';
+import ClientTaskWorkflowPanel from '../../../components/ClientTaskWorkflowPanel';
 import PMRowActions from '../../../components/PMRowActions';
 import QuickCreateTaskModal from '../../../components/QuickCreateTaskModal';
 import { usePmTableSort } from '../../../hooks/usePmTableSort';
@@ -932,6 +934,12 @@ export default function TaskDetailPage() {
         <TaskDetailMetaBar task={displayTask} />
       </div>
 
+      <TaskStatusStepper
+        status={task.strapiStatus}
+        variant="internal"
+        task={displayTask}
+      />
+
       <div
         className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 ${
           isRecurring ? 'xl:grid-cols-3' : 'xl:grid-cols-4'
@@ -981,6 +989,12 @@ export default function TaskDetailPage() {
               }}
               onViewFiles={() => setActiveTab('files')}
               onViewSubtasks={() => setActiveTab('subtasks')}
+            />
+
+            <ClientTaskWorkflowPanel
+              task={task}
+              taskId={task.id}
+              onUpdated={loadTask}
             />
           </div>
 

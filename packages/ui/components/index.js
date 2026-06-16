@@ -53,6 +53,7 @@ export {
   ownerDisplayFromUser,
   LEAD_STATUS_OPTIONS,
   TASK_STATUS_OPTIONS,
+  TASK_PRIORITY_OPTIONS,
   DEAL_STAGE_OPTIONS,
   ACCOUNT_STATUS_OPTIONS,
   PM_TASK_STATUS_OPTIONS,
@@ -61,6 +62,7 @@ export {
   INVOICE_STATUS_OPTIONS,
   crmLeadTableSelectFillProps,
   crmTaskTableSelectFillProps,
+  crmTaskPriorityTableSelectFillProps,
   crmDealStageTableSelectFillProps,
   crmAccountTableSelectFillProps,
   crmPmTaskTableSelectFillProps,
@@ -74,6 +76,7 @@ export {
   TableCellInvoiceStatus,
   TableCellLeadStatusSelect,
   TableCellTaskStatusSelect,
+  TableCellTaskPrioritySelect,
   TableCellAccountStatusSelect,
   TableCellProjectStatusSelect,
   TableCellDealStageSelect,
@@ -125,6 +128,9 @@ export { ChatMessageAttachments } from './ChatMessageAttachments';
 export { LinkifiedText } from './LinkifiedText';
 export { ChatMessageText } from './ChatMessageText';
 export { MentionComposer } from './MentionComposer';
+export { TaskWorkflowPipeline } from './TaskWorkflowPipeline';
+export { TaskStatusStepper } from './TaskStatusStepper';
+export { ClientChatPanel } from './ClientChatPanel';
 
 // Workspace calendar (CRM + PM — meetings, tasks, project timelines)
 export { UnifiedWorkspaceCalendar } from './UnifiedWorkspaceCalendar';

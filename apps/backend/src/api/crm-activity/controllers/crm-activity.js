@@ -10,6 +10,7 @@ const CLIENT_ACCOUNT_UID = 'api::client-account.client-account';
 const MEETING_UID = 'api::meeting.meeting';
 const TASK_UID = 'api::task.task';
 const PROJECT_UID = 'api::project.project';
+const CHAT_MESSAGE_UID = 'api::chat-message.chat-message';
 
 const {
   emitCommentNotifications,
@@ -23,6 +24,23 @@ const {
   buildCommentMeta,
   syncChatAttachments,
 } = require('../../../utils/entity-attachments');
+
+function mapTimelineActor(row) {
+  if (!row) return row;
+  let meta = row.meta;
+  if (typeof meta === 'string') {
+    try {
+      meta = JSON.parse(meta);
+    } catch {
+      meta = {};
+    }
+  }
+  meta = meta && typeof meta === 'object' ? meta : {};
+  if (!row.actor && meta.clientActor) {
+    return { ...row, meta, actor: meta.clientActor };
+  }
+  return row;
+}
 
 async function notifyAfterComment(strapi, {
   organizationId,
@@ -304,7 +322,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
         ? filterActivitiesByCommentKind(results, commentKind)
         : results;
 
-    return { data: filtered, meta: { total: filtered.length } };
+    return { data: filtered.map(mapTimelineActor), meta: { total: filtered.length } };
   },
 
   /**
@@ -563,6 +581,23 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
         },
         populate: ['actor'],
       });
+
+      try {
+        await strapi.db.query(CHAT_MESSAGE_UID).create({
+          data: {
+            message: comment,
+            channelKey: '',
+            fromClient: false,
+            entityType: 'clientAccount',
+            entityId: String(clientAccountId),
+            clientAccount: clientAccountId,
+            authorUser: ctx.state.user?.id ?? null,
+            organization: ctx.state.orgId,
+          },
+        });
+      } catch (_) {
+        /* mirror to client portal thread */
+      }
 
       if (attachments.length) {
         await syncChatAttachments(strapi, {

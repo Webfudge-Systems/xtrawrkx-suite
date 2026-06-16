@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { KPICard } from "@webfudge/ui";
 import EventCard from "@/components/events/EventCard";
 import RegistrationDetails from "@/components/events/RegistrationDetails";
 import VirtualTicket from "@/components/events/VirtualTicket";
@@ -100,36 +101,24 @@ export default function EventsPage() {
     {
       label: "Total Events",
       count: eventStats.total,
-      color: "bg-xtrawrkx-50",
-      borderColor: "border-xtrawrkx-200",
-      iconColor: "text-xtrawrkx-600",
       icon: Calendar,
       hint: "Across all listings",
     },
     {
       label: "My registrations",
       count: eventStats.myRegistrations,
-      color: "bg-purple-50",
-      borderColor: "border-purple-200",
-      iconColor: "text-purple-600",
       icon: Ticket,
       hint: "Confirmed or attended",
     },
     {
       label: "Upcoming",
       count: eventStats.upcoming,
-      color: "bg-yellow-50",
-      borderColor: "border-yellow-200",
-      iconColor: "text-yellow-600",
       icon: Clock,
       hint: "Scheduled ahead",
     },
     {
       label: "Completed",
       count: eventStats.completed,
-      color: "bg-green-50",
-      borderColor: "border-green-200",
-      iconColor: "text-green-600",
       icon: CheckCircle2,
       hint: "Past events",
     },
@@ -225,37 +214,16 @@ export default function EventsPage() {
 
           {/* KPI row — matches Projects / Tasks */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {statusStats.map((stat) => {
-              const IconComponent = stat.icon;
-              return (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-600 mb-1 font-medium truncate">
-                        {stat.label}
-                      </p>
-                      <p className="text-3xl font-black text-gray-800">
-                        {stat.count}
-                      </p>
-                      <div className="mt-2 flex items-center text-xs text-gray-500">
-                        <span
-                          className={`w-2 h-2 rounded-full mr-2 shrink-0 ${stat.color.replace("-50", "-500")}`}
-                        />
-                        <span className="truncate">{stat.hint}</span>
-                      </div>
-                    </div>
-                    <div
-                      className={`w-16 h-16 shrink-0 ${stat.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${stat.borderColor}`}
-                    >
-                      <IconComponent className={`w-8 h-8 ${stat.iconColor}`} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {statusStats.map((stat) => (
+              <KPICard
+                key={stat.label}
+                title={stat.label}
+                value={stat.count.toString()}
+                subtitle={stat.hint}
+                icon={stat.icon}
+                colorScheme="orange"
+              />
+            ))}
           </div>
 
           {/* Tabs + search + filter — single toolbar like Projects / Tasks */}
@@ -271,7 +239,7 @@ export default function EventsPage() {
                     onClick={() => setEventCategoryTab(tab.key)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap ${
                       active
-                        ? "bg-xtrawrkx-500 text-white shadow-lg"
+                        ? "bg-brand-primary text-white shadow-lg"
                         : "bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white/90 border border-white/40"
                     }`}
                   >
@@ -299,7 +267,7 @@ export default function EventsPage() {
                   placeholder="Search events..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-9 py-2 bg-white/80 backdrop-blur-sm border border-white/40 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/90 transition-all duration-300 placeholder:text-gray-500 shadow-sm"
+                  className="w-full pl-10 pr-9 py-2 bg-white/80 backdrop-blur-sm border border-white/40 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary focus:bg-white/90 transition-all duration-300 placeholder:text-gray-500 shadow-sm"
                   aria-label="Search events"
                 />
                 {searchTerm ? (
@@ -320,7 +288,7 @@ export default function EventsPage() {
                   onClick={() => setShowFilters((v) => !v)}
                   className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-300 shadow-sm ${
                     showFilters || filterStatus !== "all"
-                      ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
+                      ? "bg-brand-primary text-white border-brand-primary/50"
                       : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
                   }`}
                 >
@@ -342,7 +310,7 @@ export default function EventsPage() {
                         }}
                         className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors ${
                           filterStatus === option.value
-                            ? "bg-xtrawrkx-50 text-xtrawrkx-700 font-medium"
+                            ? "bg-orange-50 text-orange-700 font-medium"
                             : "text-gray-800"
                         }`}
                       >
@@ -366,7 +334,7 @@ export default function EventsPage() {
                   <p className="text-sm text-gray-500">{listSectionSubtitle}</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs font-semibold shrink-0">
-                  <span className="px-2.5 py-1 rounded-lg bg-xtrawrkx-50 text-xtrawrkx-800 border border-xtrawrkx-100">
+                  <span className="px-2.5 py-1 rounded-lg bg-orange-50 text-xtrawrkx-800 border border-xtrawrkx-100">
                     {filteredEvents.filter((e) => e.status === "upcoming").length}{" "}
                     upcoming
                   </span>
@@ -379,7 +347,7 @@ export default function EventsPage() {
               <div className="p-4 space-y-3">
                 {eventsLoading ? (
                   <div className="text-center py-14 flex flex-col items-center gap-3">
-                    <Loader2 className="h-10 w-10 text-xtrawrkx-500 animate-spin" />
+                    <Loader2 className="h-10 w-10 text-brand-primary animate-spin" />
                     <p className="text-sm text-gray-600">Loading events from xtrawrkx.com…</p>
                   </div>
                 ) : filteredEvents.length === 0 ? (
@@ -439,37 +407,35 @@ export default function EventsPage() {
                     <p className="text-sm font-semibold text-gray-900 truncate">
                       {selectedEvent.title}
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("details")}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                          activeTab === "details"
-                            ? "bg-xtrawrkx-500 text-white shadow-md"
-                            : "bg-white/80 text-gray-700 border border-white/40 hover:bg-white"
-                        }`}
-                      >
-                        {selectedEvent.registrationStatus === "not_registered"
-                          ? "Registration"
-                          : "Registration details"}
-                      </button>
-                      {selectedEvent.registrationStatus !==
-                        "not_registered" && (
+                    {selectedEvent.registrationStatus !== "not_registered" && (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("details")}
+                          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                            activeTab === "details"
+                              ? "bg-brand-primary text-white shadow-md"
+                              : "bg-white/80 text-gray-700 border border-white/40 hover:bg-white"
+                          }`}
+                        >
+                          Registration details
+                        </button>
                         <button
                           type="button"
                           onClick={() => setActiveTab("ticket")}
                           className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
                             activeTab === "ticket"
-                              ? "bg-xtrawrkx-500 text-white shadow-md"
+                              ? "bg-brand-primary text-white shadow-md"
                               : "bg-white/80 text-gray-700 border border-white/40 hover:bg-white"
                           }`}
                         >
                           Ticket
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     <div className="rounded-2xl border border-white/40 bg-white/40 p-3">
-                      {activeTab === "details" && (
+                      {(activeTab === "details" ||
+                        selectedEvent.registrationStatus === "not_registered") && (
                         <RegistrationDetails
                           event={selectedEvent}
                           onEdit={() => {}}

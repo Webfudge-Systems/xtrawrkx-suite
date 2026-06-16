@@ -1,957 +1,1072 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { clsx } from "clsx";
 import {
   FolderOpen,
-  Calendar,
-  Users,
-  DollarSign,
-  Search,
-  Filter,
   Eye,
-  List,
-  Grid3X3,
   CheckCircle,
-  Clock,
-  XCircle,
-  AlertCircle,
-  Loader2,
-  Activity,
   Plus,
+  Table2,
+  Kanban,
+  ListTodo,
+  PlayCircle,
+  Link2,
+  Lock,
+  MessageSquarePlus,
+  SendHorizontal,
 } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import {
+  KPICard,
+  TabsWithActions,
+  Table,
+  Button,
+  Card,
+  Pagination,
+  TableCellProjectStatus,
+  TableCellTitleSubtitle,
+  TableCellCreated,
+  TableColumnPicker,
+  ViewToggleGroup,
+  ViewToggleButton,
+  useTableColumnPreferences,
+  useTableSort,
+  TableSortDropdown,
+  Avatar,
+  ProgressBar,
+  LoadingSpinner,
+  Textarea,
+  TableRowActionMenuPortal,
+  ownerDisplayFromUser,
+  PROJECT_STATUS_OPTIONS,
+} from "@webfudge/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import { useSession } from "@/lib/auth";
 import strapiClient from "@/lib/strapiClient";
 import { buildProjectSlug } from "@/lib/projectUtils";
+import {
+  listProjectsForClient,
+  createClientProject,
+} from "@/lib/api/clientProjectService";
+import {
+  addClientProjectComment,
+  fetchClientProjectComments,
+  fetchClientProjectCommentCounts,
+} from "@/lib/api/clientProjectActivityService";
+
+// ─── constants (aligned with PM projects list) ───────────────────────────────
+
+const COLUMN_VISIBILITY_STORAGE_KEY = "portal.projects.tableColumnVisibility";
+const COLUMN_ORDER_STORAGE_KEY = "portal.projects.tableColumnOrder";
+const COLUMN_WIDTHS_STORAGE_KEY = "portal.projects.tableColumnWidths.v3";
+const TABLE_SORT_STORAGE_KEY = "portal.projects.tableSort";
+
+const STATUS_TABS = [
+  { key: "all", label: "All Projects" },
+  { key: "ACTIVE", label: "Active" },
+  { key: "PLANNING", label: "Planning" },
+  { key: "IN_PROGRESS", label: "In Progress" },
+  { key: "ON_HOLD", label: "On Hold" },
+  { key: "COMPLETED", label: "Completed" },
+];
+
+const TOGGLEABLE_COLUMNS = [
+  { key: "status", label: "Status" },
+  { key: "progress", label: "Progress %" },
+  { key: "projectManager", label: "Owner" },
+  { key: "endDate", label: "Due date" },
+  { key: "startDate", label: "Start date" },
+  { key: "tasks", label: "Tasks (done / total)" },
+  { key: "team", label: "Team" },
+  { key: "budget", label: "Budget" },
+  { key: "description", label: "Description" },
+  { key: "createdAt", label: "Created" },
+  { key: "updatedAt", label: "Last updated" },
+];
+
+const DEFAULT_ON_COLUMNS = new Set(["status", "progress", "projectManager", "endDate"]);
+const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, { key }) => {
+  acc[key] = DEFAULT_ON_COLUMNS.has(key);
+  return acc;
+}, {});
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((c) => c.key);
+
+const DEFAULT_COLUMN_WIDTHS = {
+  name: 280,
+  status: 170,
+  progress: 150,
+  projectManager: 200,
+  endDate: 130,
+  startDate: 130,
+  tasks: 110,
+  team: 130,
+  budget: 120,
+  description: 200,
+  createdAt: 120,
+  updatedAt: 120,
+  actions: 130,
+};
+const MIN_COLUMN_WIDTHS = { actions: 120 };
+
+const SORT_COLUMN_OPTIONS = [
+  { key: "name", label: "Project name" },
+  { key: "status", label: "Status" },
+  { key: "progress", label: "Progress" },
+  { key: "projectManager", label: "Owner" },
+  { key: "endDate", label: "Due date" },
+  { key: "startDate", label: "Start date" },
+  { key: "tasks", label: "Tasks" },
+  { key: "budget", label: "Budget" },
+  { key: "description", label: "Description" },
+  { key: "createdAt", label: "Created" },
+  { key: "updatedAt", label: "Last updated" },
+];
+
+const SORTABLE_COLUMN_KEYS = SORT_COLUMN_OPTIONS.map((o) => o.key);
+
+const PROJECT_STATUS_ORDER = {
+  PLANNING: 1,
+  ACTIVE: 2,
+  IN_PROGRESS: 3,
+  ON_HOLD: 4,
+  COMPLETED: 5,
+  CANCELLED: 6,
+};
+
+const KANBAN_STATUSES = PROJECT_STATUS_OPTIONS.filter((o) => o.value !== "CANCELLED");
+const PAGE_SIZE = 12;
+
+function formatCommentTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function actorDisplay(actor) {
+  if (!actor || typeof actor !== "object") return "Unknown";
+  return actor.username || actor.name || actor.email || "Unknown";
+}
+
+function commentTextFromMeta(meta) {
+  if (meta == null) return "";
+  if (typeof meta === "string") {
+    try {
+      const parsed = JSON.parse(meta);
+      return typeof parsed?.comment === "string" ? parsed.comment : "";
+    } catch {
+      return meta;
+    }
+  }
+  if (typeof meta === "object" && typeof meta.comment === "string") {
+    return meta.comment;
+  }
+  return "";
+}
+
+const TEAM_STACK_RINGS = [
+  "ring-2 ring-sky-400 ring-offset-[2px] ring-offset-white",
+  "ring-2 ring-amber-400 ring-offset-[2px] ring-offset-white",
+  "ring-2 ring-rose-400 ring-offset-[2px] ring-offset-white",
+];
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function isProjectOverdue(project) {
+  if (!project?.endDate) return false;
+  const due = new Date(project.endDate);
+  if (Number.isNaN(due.getTime())) return false;
+  const st = (project.strapiStatus || project.status || "").toUpperCase();
+  return due < new Date() && st !== "COMPLETED" && st !== "CANCELLED";
+}
+
+function TeamAvatarStack({ members, maxShown = 4, className }) {
+  const list = Array.isArray(members) ? members.filter(Boolean) : [];
+  if (!list.length) return <span className={clsx("text-xs text-gray-400", className)}>—</span>;
+  const shown = list.slice(0, maxShown);
+  const overflow = list.length - shown.length;
+  return (
+    <div className={clsx("flex items-center pt-0.5", className)} title={list.map((m) => m.name).join(", ")}>
+      {shown.map((m, i) => {
+        const derived = ownerDisplayFromUser(m);
+        return (
+          <Avatar
+            key={m.id ?? `t-${i}`}
+            src={m.avatar || undefined}
+            alt={derived.label}
+            fallback={derived.avatarFallback}
+            size="sm"
+            className={clsx(
+              "relative border-2 border-white bg-gray-600 text-white",
+              TEAM_STACK_RINGS[i % TEAM_STACK_RINGS.length],
+              i > 0 && "-ml-2"
+            )}
+            style={{ zIndex: 10 + i }}
+          />
+        );
+      })}
+      {overflow > 0 ? (
+        <span
+          className="-ml-2 inline-flex h-7 min-w-[1.625rem] items-center justify-center rounded-full border-2 border-white bg-gray-200 px-1 text-[10px] font-bold text-gray-800 ring-2 ring-gray-300 ring-offset-2 ring-offset-white"
+          style={{ zIndex: 20 + shown.length }}
+        >
+          +{overflow}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function KanbanProjectCard({ project, router }) {
+  const overdue = isProjectOverdue(project);
+  return (
+    <div
+      onClick={() => router.push(`/projects/${project.slug || project.id}`)}
+      className="cursor-pointer rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm transition-all hover:border-orange-200 hover:shadow-md"
+    >
+      <p className="line-clamp-2 text-sm font-semibold text-gray-900 group-hover:text-orange-600">
+        {project.name}
+      </p>
+      {project.description ? (
+        <p className="mt-1 line-clamp-2 text-xs text-gray-500">{project.description}</p>
+      ) : null}
+      <div className="mt-2.5">
+        <ProgressBar value={project.progress || 0} />
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+        <span>{project.managerName || "Unassigned"}</span>
+        {project.endDate ? (
+          <span className={overdue ? "font-semibold text-red-600" : ""}>
+            {new Date(project.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ProjectsKanbanView({ projects, router }) {
+  const byStatus = useMemo(() => {
+    const map = {};
+    KANBAN_STATUSES.forEach((s) => { map[s.value] = []; });
+    for (const p of projects) {
+      const k = p.strapiStatus && map[p.strapiStatus] != null ? p.strapiStatus : "PLANNING";
+      map[k].push(p);
+    }
+    return map;
+  }, [projects]);
+
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-4 pt-1">
+      {KANBAN_STATUSES.map(({ value, label }) => {
+        const col = byStatus[value] || [];
+        return (
+          <div
+            key={value}
+            className="flex min-h-[380px] min-w-[272px] max-w-[300px] shrink-0 flex-col rounded-2xl border border-gray-200 bg-gray-50/60"
+          >
+            <div className="flex items-center justify-between rounded-t-2xl border-b border-gray-200 bg-white px-4 py-3">
+              <h3 className="text-[11px] font-extrabold uppercase tracking-widest text-gray-700">{label}</h3>
+              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold text-gray-700">{col.length}</span>
+            </div>
+            <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3">
+              {col.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white/40 p-4 text-center">
+                  <p className="text-[11px] text-gray-400">No projects</p>
+                </div>
+              ) : (
+                col.map((p) => <KanbanProjectCard key={p.id} project={p} router={router} />)
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+async function resolveAccountId(session) {
+  let accountId =
+    session?.account?.id ||
+    session?.account?.documentId ||
+    session?.user?.id ||
+    session?.user?.profile?.id ||
+    session?.id ||
+    session?.documentId;
+
+  if (!accountId && typeof window !== "undefined") {
+    const raw = localStorage.getItem("client_account");
+    if (raw) {
+      try {
+        const a = JSON.parse(raw);
+        accountId = a.id || a.documentId;
+      } catch { /* ignore */ }
+    }
+  }
+  if (!accountId) accountId = strapiClient.getCurrentAccountId();
+  if (!accountId) {
+    try {
+      const currentUser = await strapiClient.getCurrentUser();
+      accountId = currentUser?.account?.id || currentUser?.account?.documentId;
+    } catch { /* ignore */ }
+  }
+  return accountId;
+}
+
+// ─── page ────────────────────────────────────────────────────────────────────
 
 export default function ProjectsPage() {
   const router = useRouter();
   const { data: session } = useSession();
+
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [activeView, setActiveView] = useState("list");
-  const [activeFilters, setActiveFilters] = useState([]);
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortPickerOpen, setSortPickerOpen] = useState(false);
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
+  const [commentComposerMenu, setCommentComposerMenu] = useState(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentsByProject, setCommentsByProject] = useState({});
+  const [commentCountsByProjectId, setCommentCountsByProjectId] = useState({});
+  const [commentLoadingProjectId, setCommentLoadingProjectId] = useState(null);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentError, setCommentError] = useState("");
 
-  const resolveAccountId = async () => {
-    let accountId =
-      session?.account?.id ||
-      session?.account?.documentId ||
-      session?.user?.id ||
-      session?.user?.profile?.id ||
-      session?.id ||
-      session?.documentId;
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
+  });
 
-    if (!accountId && typeof window !== "undefined") {
-      const accountData = localStorage.getItem("client_account");
-      if (accountData) {
-        try {
-          const account = JSON.parse(accountData);
-          accountId = account.id || account.documentId;
-        } catch (error) {
-          console.error("Error parsing client account data:", error);
-        }
-      }
-    }
+  const {
+    sortRules,
+    sortData,
+    addSortRule,
+    removeSortRule,
+    setRuleDirection,
+    moveSortRule,
+    clearSort,
+    maxRules: sortMaxRules,
+    hasActiveSort,
+    bindSortableColumns,
+  } = useTableSort({ storageKey: TABLE_SORT_STORAGE_KEY });
 
-    if (!accountId) {
-      accountId = strapiClient.getCurrentAccountId();
-    }
-
-    if (!accountId) {
-      try {
-        const currentUser = await strapiClient.getCurrentUser();
-        if (currentUser?.account) {
-          accountId =
-            currentUser.account.id || currentUser.account.documentId;
-        }
-      } catch (error) {
-        console.warn("Could not get current user:", error);
-      }
-    }
-
-    return accountId;
-  };
-
-  // Fetch projects from API
-  useEffect(() => {
-    if (session) {
-      fetchProjects();
-    }
-  }, [session]);
-
-  const fetchProjects = async () => {
+  const loadProjects = useCallback(async () => {
+    if (!session) return;
     try {
       setLoading(true);
-
-      const accountId = await resolveAccountId();
-
+      const accountId = await resolveAccountId(session);
       if (!accountId) {
-        console.warn("No account ID found in session or localStorage");
         setProjects([]);
-        setLoading(false);
         return;
       }
-
-
-      // Fetch all projects and filter by clientAccount client-side
-      // This is more reliable than server-side filtering until the relation is fully set up
-      const queryParams = strapiClient.buildQueryString({
-        populate: ["projectManager", "teamMembers", "account", "clientAccount"],
-        pagination: {
-          pageSize: 100,
-        },
-      });
-
-      // Build full URL using buildURL method
-      const fullUrl = strapiClient.buildURL("/projects", {});
-      const urlWithParams = `${fullUrl}?${queryParams}`;
-
-
-      let response;
-      try {
-        response = await strapiClient.request(urlWithParams, {
-          method: "GET",
-        });
-      } catch (error) {
-        console.error("Error fetching projects - request failed:", error);
-        console.error("Error details:", {
-          message: error.message,
-          url: urlWithParams,
-        });
-
-        // If it's a JSON parse error (HTML response), log the actual response
-        if (
-          error.message?.includes("JSON") ||
-          error.message?.includes("DOCTYPE")
-        ) {
-          try {
-            const errorResponse = await fetch(urlWithParams, {
-              method: "GET",
-              headers: strapiClient.getHeaders(),
-            });
-            const errorText = await errorResponse.text();
-            console.error(
-              "Server returned HTML instead of JSON. Status:",
-              errorResponse.status
-            );
-            console.error("Response preview:", errorText.substring(0, 500));
-            console.error("Full URL attempted:", urlWithParams);
-          } catch (fetchError) {
-            console.error("Could not fetch error details:", fetchError);
-          }
-        }
-
-        // Set empty projects and stop loading
-        setProjects([]);
-        setLoading(false);
-        return;
-      }
-
-
-      // Handle different response structures
-      let allProjects = [];
-      if (Array.isArray(response?.data)) {
-        allProjects = response.data;
-      } else if (Array.isArray(response)) {
-        allProjects = response;
-      } else if (response?.data?.data) {
-        allProjects = response.data.data;
-      }
-
-
-      // Log the first project's full structure to debug
-      if (allProjects.length > 0) {
-      }
-
-      // Filter projects by clientAccount ID with comprehensive matching
-      const projectsData = allProjects.filter((project) => {
-        const projectData = project.attributes || project;
-
-        // Check direct clientAccount relation - handle multiple possible structures
-        let projectClientAccount = null;
-        let projectClientAccountId = null;
-
-        // Try different ways to access clientAccount
-        if (projectData.clientAccount) {
-          if (projectData.clientAccount.attributes) {
-            projectClientAccount = projectData.clientAccount.attributes;
-            projectClientAccountId =
-              projectClientAccount.id || projectClientAccount.documentId;
-          } else if (
-            projectData.clientAccount.id ||
-            projectData.clientAccount.documentId
-          ) {
-            projectClientAccount = projectData.clientAccount;
-            projectClientAccountId =
-              projectClientAccount.id || projectClientAccount.documentId;
-          } else if (
-            typeof projectData.clientAccount === "number" ||
-            typeof projectData.clientAccount === "string"
-          ) {
-            // clientAccount might be just an ID
-            projectClientAccountId = projectData.clientAccount;
-          }
-        }
-
-        // Debug logging for each project
-
-        // If clientAccount is null or undefined, log it but don't skip yet
-        // Sometimes projects might not have clientAccount set but still belong to the account
-        if (!projectClientAccountId) {
-          // Don't return false immediately - check if account matches
-          // Some projects might use 'account' instead of 'clientAccount'
-          const projectAccount =
-            projectData.account?.attributes || projectData.account;
-          if (projectAccount) {
-            const projectAccountId =
-              projectAccount.id || projectAccount.documentId;
-            if (projectAccountId) {
-              projectClientAccountId = projectAccountId;
-            }
-          }
-
-          // If still no ID, skip
-          if (!projectClientAccountId) {
-            return false;
-          }
-        }
-
-        // Normalize IDs for comparison
-        const accountIdNum =
-          typeof accountId === "string" ? parseInt(accountId, 10) : accountId;
-        const projectClientAccountIdNum =
-          typeof projectClientAccountId === "string"
-            ? parseInt(projectClientAccountId, 10)
-            : projectClientAccountId;
-
-        // Try multiple comparison methods
-        const matches =
-          projectClientAccountIdNum === accountIdNum ||
-          projectClientAccountId?.toString() === accountId?.toString() ||
-          projectClientAccountId == accountId ||
-          projectClientAccountId === parseInt(accountId) ||
-          parseInt(projectClientAccountId) === parseInt(accountId);
-
-        if (matches) {
-        } else {
-        }
-
-        return matches;
-      });
-
-
-      // TEMPORARY DEBUG: If no projects found, show all projects for debugging
-      if (projectsData.length === 0 && allProjects.length > 0) {
-        console.warn(
-          "⚠️ No projects matched the filter. Showing all projects for debugging:"
-        );
-        allProjects.forEach((project, index) => {
-          const projectData = project.attributes || project;
-        });
-      }
-
-      // Transform projects to match UI format
-      const transformedProjects = projectsData.map((project) => {
-        const projectData = project.attributes || project;
-        const projectManager =
-          projectData.projectManager?.attributes || projectData.projectManager;
-
-        return {
-          id: project.id || project.documentId,
-          slug: projectData.slug || null,
-          name: projectData.name || "Unnamed Project",
-          status: projectData.status || "PLANNING",
-          progress: projectData.progress || 0,
-          startDate: projectData.startDate || null,
-          endDate: projectData.endDate || null,
-          manager: projectManager
-            ? `${projectManager.firstName || ""} ${
-                projectManager.lastName || ""
-              }`.trim() ||
-              projectManager.username ||
-              "Unassigned"
-            : "Unassigned",
-          description: projectData.description || "",
-          budget: projectData.budget || 0,
-          spent: projectData.spent || 0,
-        };
-      });
-
-      setProjects(transformedProjects);
-    } catch (error) {
-      console.error("Error fetching projects:", error);
+      const rows = await listProjectsForClient(accountId);
+      setProjects(rows);
+    } catch (e) {
+      console.error("Error fetching projects:", e);
       setProjects([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [session]);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    const ids = projects.map((p) => p?.id).filter(Boolean);
+    if (!ids.length) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const counts = await fetchClientProjectCommentCounts({ projectIds: ids });
+        if (!cancelled) setCommentCountsByProjectId((prev) => ({ ...prev, ...counts }));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projects]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
+
+  useEffect(() => {
+    if (!columnPickerOpen && !sortPickerOpen) return;
+    const onDocMouseDown = (e) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setColumnPickerOpen(false);
+        setSortPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [columnPickerOpen, sortPickerOpen, setColumnPickerOpen, toolbarRef]);
 
   const handleCreateProject = async (projectInput) => {
-    const accountId = await resolveAccountId();
-    if (!accountId) {
-      throw new Error("Could not determine your account. Please sign in again.");
-    }
-
-    const numericAccountId = Number(accountId);
     const slug = buildProjectSlug(projectInput.name);
-    const icon = projectInput.name.charAt(0).toUpperCase() || "P";
-
     const payload = {
       name: projectInput.name,
       slug,
       description: projectInput.description || "",
       status: projectInput.status || "PLANNING",
-      icon,
-      color: "from-blue-400 to-blue-600",
-      clientAccount: !isNaN(numericAccountId) ? numericAccountId : accountId,
+      icon: projectInput.name.charAt(0).toUpperCase() || "P",
     };
-
     if (projectInput.startDate) {
-      payload.startDate = new Date(
-        `${projectInput.startDate}T00:00:00`
-      ).toISOString();
+      payload.startDate = new Date(`${projectInput.startDate}T00:00:00`).toISOString();
     }
     if (projectInput.endDate) {
-      payload.endDate = new Date(
-        `${projectInput.endDate}T00:00:00`
-      ).toISOString();
+      payload.endDate = new Date(`${projectInput.endDate}T00:00:00`).toISOString();
     }
-
-    const projectsUrl = strapiClient.buildURL("/projects", {});
-    const response = await fetch(projectsUrl, {
-      method: "POST",
-      headers: strapiClient.getHeaders(),
-      body: JSON.stringify({ data: payload }),
-    });
-
-    if (!response.ok) {
-      const errPayload = await response.json().catch(() => ({}));
-      throw new Error(
-        errPayload?.error?.message || "Failed to create project"
-      );
-    }
-
-    await fetchProjects();
+    await createClientProject(payload);
+    await loadProjects();
   };
 
-  // Calculate project statistics
-  const projectStats = {
-    all: projects.length,
-    active: projects.filter(
-      (p) =>
-        p.status === "IN_PROGRESS" ||
-        p.status === "ACTIVE" ||
-        p.status === "in-progress" ||
-        p.status === "active"
-    ).length,
-    planning: projects.filter(
-      (p) =>
-        p.status === "PLANNING" ||
-        p.status === "PLANNED" ||
-        p.status === "planning" ||
-        p.status === "planned"
-    ).length,
-    completed: projects.filter(
-      (p) => p.status === "COMPLETED" || p.status === "completed"
-    ).length,
-    onHold: projects.filter(
-      (p) =>
-        p.status === "ON_HOLD" ||
-        p.status === "ONHOLD" ||
-        p.status === "on-hold" ||
-        p.status === "on_hold"
-    ).length,
-  };
+  const copyProjectLink = useCallback(async (project) => {
+    const href = `${window.location.origin}/projects/${project.slug || project.id}`;
+    await navigator.clipboard?.writeText(href);
+  }, []);
 
-  // Status stats for KPI cards
-  const statusStats = [
-    {
-      label: "Active",
-      count: projectStats.active,
-      color: "bg-xtrawrkx-50",
-      borderColor: "border-xtrawrkx-200",
-      iconColor: "text-xtrawrkx-600",
-      icon: Activity,
-    },
-    {
-      label: "Planning",
-      count: projectStats.planning,
-      color: "bg-yellow-50",
-      borderColor: "border-yellow-200",
-      iconColor: "text-yellow-600",
-      icon: Clock,
-    },
-    {
-      label: "Completed",
-      count: projectStats.completed,
-      color: "bg-green-50",
-      borderColor: "border-green-200",
-      iconColor: "text-green-600",
-      icon: CheckCircle,
-    },
-    {
-      label: "On Hold",
-      count: projectStats.onHold,
-      color: "bg-red-50",
-      borderColor: "border-red-200",
-      iconColor: "text-red-600",
-      icon: XCircle,
-    },
-  ];
+  const openCommentComposer = useCallback(async (projectId, anchor) => {
+    setCommentComposerMenu(anchor ? { id: projectId, ...anchor } : { id: projectId });
+    setCommentDraft("");
+    setCommentError("");
+    setCommentLoadingProjectId(projectId);
+    try {
+      const res = await fetchClientProjectComments({ projectId, limit: 20 });
+      setCommentsByProject((prev) => ({ ...prev, [projectId]: res?.data || [] }));
+    } catch (e) {
+      setCommentError(e?.message || "Could not load comments");
+      setCommentsByProject((prev) => ({ ...prev, [projectId]: prev[projectId] || [] }));
+    } finally {
+      setCommentLoadingProjectId(null);
+    }
+  }, []);
 
-  // Tab items
-  const tabItems = [
-    { key: "all", label: "All Projects", badge: projectStats.all.toString() },
-    {
-      key: "active",
-      label: "Active",
-      badge: projectStats.active.toString(),
-    },
-    {
-      key: "planning",
-      label: "Planning",
-      badge: projectStats.planning.toString(),
-    },
-    {
-      key: "completed",
-      label: "Completed",
-      badge: projectStats.completed.toString(),
-    },
-    {
-      key: "on-hold",
-      label: "On Hold",
-      badge: projectStats.onHold.toString(),
-    },
-  ];
+  const closeCommentComposer = useCallback(() => {
+    setCommentComposerMenu(null);
+    setCommentDraft("");
+    setCommentError("");
+  }, []);
 
-  // Filter projects based on active tab and search
-  const getFilteredProjects = () => {
-    let filtered = projects;
+  const submitProjectComment = useCallback(async () => {
+    const projectId = commentComposerMenu?.id;
+    const text = commentDraft.trim();
+    if (!projectId || !text) return;
+    setCommentSubmitting(true);
+    setCommentError("");
+    try {
+      const res = await addClientProjectComment({ projectId, comment: text });
+      const newComment = res?.data;
+      if (newComment) {
+        setCommentsByProject((prev) => ({
+          ...prev,
+          [projectId]: [newComment, ...(Array.isArray(prev[projectId]) ? prev[projectId] : [])],
+        }));
+      }
+      setCommentCountsByProjectId((prev) => ({
+        ...prev,
+        [String(projectId)]: Math.max(
+          1,
+          (Number(prev[String(projectId)] || prev[projectId] || 0)) + (newComment ? 1 : 0)
+        ),
+      }));
+      setCommentDraft("");
+    } catch (e) {
+      setCommentError(e?.message || "Could not post comment");
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }, [commentComposerMenu, commentDraft]);
 
-    // Filter by tab
+  const tabCounts = useMemo(() => {
+    const counts = { all: projects.length };
+    for (const p of projects) {
+      const st = p.strapiStatus || "PLANNING";
+      counts[st] = (counts[st] || 0) + 1;
+    }
+    return counts;
+  }, [projects]);
+
+  const projectKpis = useMemo(() => {
+    let active = 0, inProgress = 0, completed = 0;
+    for (const p of projects) {
+      if (p.strapiStatus === "ACTIVE") active++;
+      if (p.strapiStatus === "IN_PROGRESS") inProgress++;
+      if (p.strapiStatus === "COMPLETED") completed++;
+    }
+    return { total: projects.length, active, inProgress, completed };
+  }, [projects]);
+
+  const filteredProjects = useMemo(() => {
+    let list = projects;
     if (activeTab !== "all") {
-      filtered = filtered.filter((project) => {
-        const status = project.status?.toUpperCase() || "";
-        switch (activeTab) {
-          case "active":
-            return (
-              status === "IN_PROGRESS" ||
-              status === "ACTIVE" ||
-              status === "IN-PROGRESS"
-            );
-          case "planning":
-            return status === "PLANNING" || status === "PLANNED";
-          case "completed":
-            return status === "COMPLETED";
-          case "on-hold":
-            return status === "ON_HOLD" || status === "ONHOLD";
-          default:
-            return true;
-        }
-      });
+      list = list.filter((p) => p.strapiStatus === activeTab);
     }
-
-    // Filter by search query
     if (searchQuery) {
-      filtered = filtered.filter(
-        (project) =>
-          project.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          project.description
-            ?.toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          project.manager?.toLowerCase().includes(searchQuery.toLowerCase())
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.name?.toLowerCase().includes(q) ||
+          p.description?.toLowerCase().includes(q) ||
+          p.managerName?.toLowerCase().includes(q)
       );
     }
+    return list;
+  }, [projects, activeTab, searchQuery]);
 
-    return filtered;
-  };
+  const sortedProjects = useMemo(
+    () =>
+      sortData(filteredProjects, (row, key) => {
+        if (key === "name") return (row.name || "").toLowerCase();
+        if (key === "status") return PROJECT_STATUS_ORDER[row.strapiStatus] ?? 99;
+        if (key === "progress") return Number(row.progress) || 0;
+        if (key === "projectManager") return (row.managerName || "").toLowerCase();
+        if (key === "endDate") return row.endDate ? new Date(row.endDate).getTime() : Infinity;
+        if (key === "startDate") return row.startDate ? new Date(row.startDate).getTime() : 0;
+        if (key === "tasks") {
+          const total = row.totalTasks || 0;
+          return total > 0 ? (row.completedTasks || 0) / total : -1;
+        }
+        if (key === "budget") return Number(row.budget) || 0;
+        if (key === "description") return (row.description || "").toLowerCase();
+        if (key === "createdAt") return row.createdAt ? new Date(row.createdAt).getTime() : 0;
+        if (key === "updatedAt") return row.updatedAt ? new Date(row.updatedAt).getTime() : 0;
+        return "";
+      }),
+    [filteredProjects, sortData]
+  );
 
-  const filteredProjects = getFilteredProjects();
+  const totalPages = Math.max(1, Math.ceil(sortedProjects.length / PAGE_SIZE));
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sortedProjects.slice(start, start + PAGE_SIZE);
+  }, [sortedProjects, currentPage]);
 
-  const getStatusColor = (status) => {
-    const statusUpper = status?.toUpperCase() || "";
-    switch (statusUpper) {
-      case "COMPLETED":
-        return "bg-green-100 text-green-800 border-green-400";
-      case "IN_PROGRESS":
-      case "ACTIVE":
-      case "IN-PROGRESS":
-        return "bg-yellow-100 text-yellow-800 border-yellow-400";
-      case "PLANNING":
-      case "PLANNED":
-        return "bg-blue-100 text-blue-800 border-blue-400";
-      case "ON_HOLD":
-      case "ONHOLD":
-        return "bg-yellow-100 text-yellow-800 border-yellow-400";
-      case "CANCELLED":
-        return "bg-gray-100 text-gray-800 border-gray-400";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-400";
-    }
-  };
+  const tabsWithBadges = STATUS_TABS.map((tab) => ({
+    ...tab,
+    badge: tabCounts[tab.key] ?? 0,
+  }));
 
-  const formatStatus = (status) => {
-    const statusMap = {
-      PLANNING: "Planning",
-      IN_PROGRESS: "In Progress",
-      COMPLETED: "Completed",
-      ON_HOLD: "On Hold",
-      CANCELLED: "Cancelled",
-      PLANNED: "Planned",
-      ACTIVE: "Active",
-    };
-    return (
-      statusMap[status?.toUpperCase()] ||
-      status?.replace("_", " ") ||
-      "Planning"
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="bg-white min-h-screen">
-        <div className="px-4 pt-4">
-          <PageHeader
-            title="Projects"
-            subtitle="Manage and track all your projects"
-          />
-        </div>
-        <div className="p-4">
-          <div className="flex justify-center items-center h-64">
-            <div className="flex items-center gap-3">
-              <Loader2 className="w-6 h-6 animate-spin text-xtrawrkx-500" />
-              <span className="text-gray-600">Loading projects...</span>
+  const allProjectColumns = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "PROJECT NAME",
+        className: "align-top",
+        render: (_, row) => {
+          const initial = (row.name || "P").trim().charAt(0).toUpperCase();
+          const commentCount = Number(commentCountsByProjectId[String(row.id)] || 0);
+          return (
+            <div className="group flex min-w-0 max-w-full items-start gap-3">
+              <Avatar fallback={initial} alt={row.name} size="sm" className="flex-shrink-0 bg-gray-600 text-white" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/projects/${row.slug || row.id}`)}
+                    className="min-w-0 flex-1 text-left hover:text-orange-600"
+                  >
+                    <TableCellTitleSubtitle
+                      title={
+                        <span className="inline-flex items-center gap-1.5">
+                          {row.name}
+                          {row.isPrivate ? (
+                            <Lock className="inline h-3 w-3 shrink-0 text-gray-400" title="Private project" />
+                          ) : null}
+                        </span>
+                      }
+                      subtitle={row.description || "No description"}
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      openCommentComposer(row.id, {
+                        top: r.bottom + 8,
+                        left: r.left,
+                        triggerEl: e.currentTarget,
+                      });
+                    }}
+                    className={`relative mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition ${
+                      commentCount > 0
+                        ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                        : "border-transparent text-gray-400 hover:border-gray-300 hover:bg-white hover:text-gray-600"
+                    } ${commentComposerMenu?.id === row.id ? "border-gray-300 bg-white text-gray-700" : ""} ${
+                      commentCount > 0 ? "" : "opacity-0 group-hover:opacity-100"
+                    }`}
+                    title="Add comment"
+                  >
+                    <MessageSquarePlus className="h-3.5 w-3.5" />
+                    {commentCount > 0 ? (
+                      <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-white" />
+                    ) : null}
+                  </button>
+                </div>
+              </div>
             </div>
+          );
+        },
+      },
+      {
+        key: "status",
+        visibilityKey: "status",
+        label: "STATUS",
+        className: "align-middle",
+        render: (_, row) => <TableCellProjectStatus status={row.strapiStatus} compact />,
+      },
+      {
+        key: "progress",
+        visibilityKey: "progress",
+        label: "PROGRESS %",
+        className: "align-middle",
+        render: (_, row) => <ProgressBar value={row.progress || 0} />,
+      },
+      {
+        key: "projectManager",
+        visibilityKey: "projectManager",
+        label: "OWNER",
+        className: "align-middle",
+        render: (_, row) => {
+          const pm = row.projectManager;
+          const derived = ownerDisplayFromUser(pm);
+          const label = pm?.name || "—";
+          return (
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Avatar
+                src={pm?.avatar || undefined}
+                fallback={pm ? derived.avatarFallback : "?"}
+                alt={label}
+                size="sm"
+                className={`flex-shrink-0 text-white ${pm ? "bg-gray-600" : "bg-gray-300 text-gray-600"}`}
+              />
+              <span className="min-w-0 truncate text-xs font-semibold text-gray-900">{label}</span>
+            </div>
+          );
+        },
+      },
+      {
+        key: "endDate",
+        visibilityKey: "endDate",
+        label: "DUE DATE",
+        className: "align-middle",
+        render: (_, row) => (
+          <div className={isProjectOverdue(row) ? "[&_.font-semibold]:text-red-700 [&_.text-gray-500]:text-red-600/90" : ""}>
+            <TableCellCreated dateString={row.endDate} dateMode="calendar" emptyLabel="—" />
           </div>
-        </div>
-      </div>
-    );
-  }
+        ),
+      },
+      {
+        key: "startDate",
+        visibilityKey: "startDate",
+        label: "START",
+        className: "align-middle",
+        render: (_, row) => <TableCellCreated dateString={row.startDate} dateMode="calendar" emptyLabel="—" />,
+      },
+      {
+        key: "tasks",
+        visibilityKey: "tasks",
+        label: "TASKS",
+        className: "align-middle",
+        render: (_, row) => (
+          <span className="text-xs font-semibold tabular-nums text-gray-800">
+            {row.completedTasks ?? 0}/{row.totalTasks ?? 0}
+          </span>
+        ),
+      },
+      {
+        key: "team",
+        visibilityKey: "team",
+        label: "TEAM",
+        className: "align-middle",
+        render: (_, row) => <TeamAvatarStack members={row.teamMembers ?? row.team ?? []} />,
+      },
+      {
+        key: "budget",
+        visibilityKey: "budget",
+        label: "BUDGET",
+        className: "align-middle",
+        render: (_, row) =>
+          row.budget != null && row.budget !== "" ? (
+            <span className="text-xs font-semibold tabular-nums text-gray-800">
+              {Number(row.budget).toLocaleString("en-IN")}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-400">—</span>
+          ),
+      },
+      {
+        key: "description",
+        visibilityKey: "description",
+        label: "DESCRIPTION",
+        className: "align-middle max-w-xs",
+        render: (_, row) => (
+          <p className="line-clamp-2 text-sm text-gray-600">{row.description || "—"}</p>
+        ),
+      },
+      {
+        key: "createdAt",
+        visibilityKey: "createdAt",
+        label: "CREATED",
+        className: "align-middle",
+        render: (_, row) => <TableCellCreated dateString={row.createdAt} dateMode="calendar" />,
+      },
+      {
+        key: "updatedAt",
+        visibilityKey: "updatedAt",
+        label: "UPDATED",
+        className: "align-middle",
+        render: (_, row) => <TableCellCreated dateString={row.updatedAt} dateMode="calendar" />,
+      },
+      {
+        key: "actions",
+        label: "ACTIONS",
+        resizable: false,
+        headerClassName: "whitespace-nowrap",
+        className: "align-middle whitespace-nowrap",
+        render: (_, row) => (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="rounded-lg p-1.5 text-orange-600 transition-colors hover:bg-orange-50"
+              title="View project"
+              onClick={() => router.push(`/projects/${row.slug || row.id}`)}
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              title="Copy link"
+              onClick={() => copyProjectLink(row)}
+            >
+              <Link2 className="h-4 w-4" />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [router, copyProjectLink, commentCountsByProjectId, commentComposerMenu, openCommentComposer]
+  );
+
+  const visibleProjectColumns = useMemo(() => {
+    const byKey = Object.fromEntries(allProjectColumns.map((c) => [c.key, c]));
+    const out = [];
+    if (byKey.name) out.push(byKey.name);
+    for (const key of columnOrder) {
+      const col = byKey[key];
+      if (!col?.visibilityKey) continue;
+      if (columnVisibility[col.visibilityKey] === false) continue;
+      out.push(col);
+    }
+    if (byKey.actions) out.push(byKey.actions);
+    return bindSortableColumns(out, SORTABLE_COLUMN_KEYS);
+  }, [allProjectColumns, columnOrder, columnVisibility, bindSortableColumns]);
+
+  const projectViewSwitcher = (
+    <ViewToggleGroup aria-label="Project layout">
+      <ViewToggleButton active={activeView === "list"} title="List view" onClick={() => setActiveView("list")}>
+        <Table2 className="h-4 w-4" />
+      </ViewToggleButton>
+      <ViewToggleButton active={activeView === "kanban"} title="Kanban view" onClick={() => setActiveView("kanban")}>
+        <Kanban className="h-4 w-4" />
+      </ViewToggleButton>
+    </ViewToggleGroup>
+  );
 
   return (
-    <div className="bg-white min-h-screen">
-      {/* Page Header */}
-      <div className="px-4 pt-4">
-        <PageHeader
-          title="Projects"
-          subtitle="Manage and track all your projects"
-          showActions={true}
+    <PortalPageShell>
+      <PageHeader
+        title="Projects"
+        subtitle="Manage and track all your projects"
+        showActions
+        onAddClick={() => setIsCreateProjectModalOpen(true)}
+        hasActiveFilters={Boolean(searchQuery)}
+      />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <KPICard title="Total Projects" value={String(projectKpis.total)} icon={FolderOpen} colorScheme="orange" />
+        <KPICard title="Active" value={String(projectKpis.active)} icon={ListTodo} colorScheme="orange" />
+        <KPICard title="In Progress" value={String(projectKpis.inProgress)} icon={PlayCircle} colorScheme="orange" />
+        <KPICard title="Completed" value={String(projectKpis.completed)} icon={CheckCircle} colorScheme="orange" />
+      </div>
+
+      <div className="relative" ref={toolbarRef}>
+        <TabsWithActions
+          variant="glass"
+          tabs={tabsWithBadges}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          afterTabs={projectViewSwitcher}
+          showSearch
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Search projects..."
+          showAdd
           onAddClick={() => setIsCreateProjectModalOpen(true)}
-          onFilterClick={() => setShowFilterModal(true)}
-          hasActiveFilters={activeFilters.length > 0 || searchQuery.length > 0}
+          addTitle="Create project"
+          showColumnVisibility={activeView === "list"}
+          onColumnVisibilityClick={() => setColumnPickerOpen((o) => !o)}
+          columnVisibilityTitle="Show / hide columns"
+          showSort={activeView === "list"}
+          onSortClick={() => setSortPickerOpen((o) => !o)}
+          sortActive={hasActiveSort}
+        />
+        <TableColumnPicker
+          open={columnPickerOpen && activeView === "list"}
+          description="Project name and actions always stay visible. Drag to reorder columns."
+          reorderableRows={TOGGLEABLE_COLUMNS}
+          columnVisibility={columnVisibility}
+          columnOrder={columnOrder}
+          columnDropIndicator={columnDropIndicator}
+          onSetVisible={setColumnVisible}
+          onDragStart={handleColumnDragStart}
+          onDragEnd={handleColumnDragEnd}
+          onRowDragOver={handleColumnRowDragOver}
+          onListDragLeave={handleColumnListDragLeave}
+          onDrop={handleColumnDrop}
+          onReset={resetColumnTablePreferences}
+        />
+        <TableSortDropdown
+          open={sortPickerOpen && activeView === "list"}
+          columnOptions={SORT_COLUMN_OPTIONS}
+          sortRules={sortRules}
+          maxRules={sortMaxRules}
+          onAddRule={addSortRule}
+          onRemoveRule={removeSortRule}
+          onSetDirection={setRuleDirection}
+          onMoveRule={moveSortRule}
+          onClear={clearSort}
         />
       </div>
 
-      <div className="px-3 mt-6">
-        <div className="space-y-4">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {statusStats.map((stat) => {
-              const IconComponent = stat.icon;
-              return (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600 mb-1 font-medium">
-                        {stat.label} Projects
-                      </p>
-                      <p className="text-3xl font-black text-gray-800">
-                        {stat.count}
-                      </p>
-                      <div className="mt-2 flex items-center text-xs text-gray-500">
-                        <span
-                          className={`w-2 h-2 rounded-full mr-2 ${stat.color.replace(
-                            "-50",
-                            "-500"
-                          )}`}
-                        ></span>
-                        {stat.count === 0
-                          ? "No projects"
-                          : `${stat.count} ${
-                              stat.count === 1 ? "project" : "projects"
-                            }`}
-                      </div>
-                    </div>
-                    <div
-                      className={`w-16 h-16 ${stat.color} backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border ${stat.borderColor}`}
-                    >
-                      <IconComponent className={`w-8 h-8 ${stat.iconColor}`} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      <p className="text-sm text-gray-600">
+        Showing <span className="font-semibold text-gray-900">{filteredProjects.length}</span> result
+        {filteredProjects.length !== 1 ? "s" : ""}
+      </p>
 
-          {/* Tabs and View Toggle */}
-          <div className="flex items-center justify-between gap-3 bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-xl p-3">
-            {/* Left: Tabs */}
-            <div className="flex items-center gap-2 flex-1 overflow-x-auto">
-              {tabItems.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap ${
-                    activeTab === tab.key
-                      ? "bg-xtrawrkx-500 text-white shadow-lg"
-                      : "bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white/90 border border-white/40"
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={`ml-2 px-2 py-0.5 text-xs font-bold rounded-full ${
-                      activeTab === tab.key
-                        ? "bg-white/30 text-white"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {tab.badge}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* Center: Search Bar */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Search projects..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 pl-10 pr-4 py-2 bg-white/80 backdrop-blur-sm border border-white/40 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-xtrawrkx-500/30 focus:border-xtrawrkx-500 focus:bg-white/90 transition-all duration-300 placeholder:text-gray-500 shadow-sm"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                )}
+      {loading ? (
+        <Card variant="elevated" className="flex justify-center rounded-xl p-12">
+          <LoadingSpinner message="Loading projects..." />
+        </Card>
+      ) : activeView === "kanban" ? (
+        filteredProjects.length === 0 ? (
+          <Card variant="elevated" className="rounded-xl p-12 text-center">
+            <FolderOpen className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+            <p className="font-medium text-gray-700">No projects found</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {searchQuery || activeTab !== "all" ? "Try adjusting your filters" : "Get started by creating your first project"}
+            </p>
+            {!searchQuery && activeTab === "all" ? (
+              <Button type="button" className="mt-4 gap-2" onClick={() => setIsCreateProjectModalOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Create Project
+              </Button>
+            ) : null}
+          </Card>
+        ) : (
+          <ProjectsKanbanView projects={sortedProjects} router={router} />
+        )
+      ) : (
+        <>
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <Table
+              columns={visibleProjectColumns}
+              data={paginatedProjects}
+              keyField="id"
+              variant="modernEmbedded"
+              {...tableResizeProps}
+              onRowClick={(row) => router.push(`/projects/${row.slug || row.id}`)}
+            />
+            {paginatedProjects.length === 0 ? (
+              <div className="border-t border-gray-200 p-12 text-center">
+                <FolderOpen className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+                <p className="font-medium text-gray-700">No projects found</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {searchQuery || activeTab !== "all" ? "Try adjusting your filters" : "Get started by creating your first project"}
+                </p>
+                {!searchQuery && activeTab === "all" ? (
+                  <Button type="button" className="mt-4 gap-2" onClick={() => setIsCreateProjectModalOpen(true)}>
+                    <Plus className="h-4 w-4" />
+                    Create Project
+                  </Button>
+                ) : null}
               </div>
-            </div>
-
-            {/* Right: Create + View Toggle */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={() => setIsCreateProjectModalOpen(true)}
-                className="w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center bg-xtrawrkx-500 text-white border-xtrawrkx-500/50 hover:bg-xtrawrkx-600"
-                title="Create Project"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setActiveView("list")}
-                className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
-                  activeView === "list"
-                    ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
-                    : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
-                }`}
-                title="List View"
-              >
-                <List className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setActiveView("grid")}
-                className={`w-10 h-10 rounded-full backdrop-blur-sm border transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center ${
-                  activeView === "grid"
-                    ? "bg-xtrawrkx-500 text-white border-xtrawrkx-500/50"
-                    : "bg-white/80 text-gray-700 border-white/40 hover:bg-white/90"
-                }`}
-                title="Grid View"
-              >
-                <Grid3X3 className="w-5 h-5" />
-              </button>
-            </div>
+            ) : null}
           </div>
-
-          {/* Projects List/Grid */}
-          {activeView === "list" ? (
-            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 rounded-3xl bg-white/70 backdrop-blur-xl border border-white/40 transition-shadow duration-300">
-              <table className="w-full rounded-3xl overflow-hidden min-w-[1600px]">
-                <thead className="bg-white/90 backdrop-blur-lg border-b border-xtrawrkx-200/50 shadow-sm">
-                  <tr>
-                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
-                      PROJECT NAME
-                    </th>
-                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
-                      STATUS
-                    </th>
-                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
-                      MANAGER
-                    </th>
-                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
-                      PROGRESS
-                    </th>
-                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
-                      BUDGET
-                    </th>
-                    <th className="px-6 py-5 text-left text-xs font-black text-gray-800 uppercase tracking-wider first:rounded-tl-3xl last:rounded-tr-3xl shadow-sm">
-                      ACTIONS
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white/60 backdrop-blur-sm divide-y divide-white/20">
-                  {filteredProjects.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center">
-                          <FolderOpen className="w-12 h-12 text-gray-400 mb-4" />
-                          <p className="text-gray-600 font-medium">
-                            No projects found
-                          </p>
-                          <p className="text-sm text-gray-500 mt-1">
-                            {searchQuery || activeTab !== "all"
-                              ? "Try adjusting your filters"
-                              : "Get started by creating your first project"}
-                          </p>
-                          {!searchQuery && activeTab === "all" && (
-                            <button
-                              type="button"
-                              onClick={() => setIsCreateProjectModalOpen(true)}
-                              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-xtrawrkx-500 text-white text-sm font-semibold rounded-xl hover:bg-xtrawrkx-600 transition-colors"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Create Project
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredProjects.map((project) => (
-                      <tr
-                        key={project.id}
-                        className="hover:bg-xtrawrkx-50/50 hover:shadow-lg transition-all duration-300 group bg-white/40 shadow-sm hover:shadow-xtrawrkx-100/50 cursor-pointer"
-                        onClick={() => {
-                          if (project.slug || project.id) {
-                            router.push(
-                              `/projects/${project.slug || project.id}`
-                            );
-                          }
-                        }}
-                      >
-                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300">
-                          <div className="min-w-[200px]">
-                            <div className="font-medium text-gray-900 truncate">
-                              {project.name}
-                            </div>
-                            {project.description && (
-                              <div className="text-sm text-gray-500 truncate mt-1">
-                                {project.description}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
-                          <div className="min-w-[100px]">
-                            <span
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(
-                                project.status
-                              )}`}
-                            >
-                              {formatStatus(project.status)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
-                          <div className="flex items-center gap-2 min-w-[140px]">
-                            {project.manager ? (
-                              <div className="flex items-center gap-1">
-                                <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0 border border-white">
-                                  {project.manager?.charAt(0)?.toUpperCase() ||
-                                    "U"}
-                                </div>
-                                <span className="text-sm text-gray-600 truncate ml-1">
-                                  {project.manager}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-500">
-                                Unassigned
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
-                          <div className="min-w-[120px]">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-xtrawrkx-500 h-2 rounded-full transition-all"
-                                  style={{ width: `${project.progress || 0}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-medium text-gray-900">
-                                {project.progress || 0}%
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
-                          {project.budget > 0 ? (
-                            <div className="min-w-[120px]">
-                              <span className="font-semibold text-gray-900 whitespace-nowrap">
-                                ₹{(project.budget || 0).toLocaleString()}
-                              </span>
-                              {project.spent > 0 && (
-                                <div className="text-xs text-gray-500">
-                                  Spent: ₹
-                                  {(project.spent || 0).toLocaleString()}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-400">
-                              Not set
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-800 group-hover:text-gray-900 transition-colors duration-300 whitespace-nowrap">
-                          <div
-                            className="flex items-center gap-1 min-w-[120px]"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              className="p-1.5 text-xtrawrkx-600 hover:text-xtrawrkx-700 hover:bg-xtrawrkx-50 rounded transition-colors"
-                              title="View Project"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (project.slug || project.id) {
-                                  router.push(
-                                    `/projects/${project.slug || project.id}`
-                                  );
-                                }
-                              }}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredProjects.length === 0 ? (
-                <div className="col-span-full rounded-3xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-12 text-center">
-                  <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 font-medium">No projects found</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {searchQuery || activeTab !== "all"
-                      ? "Try adjusting your filters"
-                      : "Get started by creating your first project"}
-                  </p>
-                  {!searchQuery && activeTab === "all" && (
-                    <button
-                      type="button"
-                      onClick={() => setIsCreateProjectModalOpen(true)}
-                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-xtrawrkx-500 text-white text-sm font-semibold rounded-xl hover:bg-xtrawrkx-600 transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Create Project
-                    </button>
-                  )}
-                </div>
-              ) : (
-                filteredProjects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5 hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
-                    onClick={() => {
-                      if (project.slug || project.id) {
-                        router.push(`/projects/${project.slug || project.id}`);
-                      }
-                    }}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate text-lg">
-                          {project.name}
-                        </h3>
-                        {project.description && (
-                          <p className="text-sm text-gray-600 truncate mt-1">
-                            {project.description}
-                          </p>
-                        )}
-                      </div>
-                      <span
-                        className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(
-                          project.status
-                        )}`}
-                      >
-                        {formatStatus(project.status)}
-                      </span>
-                    </div>
-
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="font-medium">
-                          {project.progress || 0}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-xtrawrkx-500 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${project.progress || 0}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-sm text-gray-600">
-                      {project.manager && (
-                        <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4" />
-                          <span>{project.manager}</span>
-                        </div>
-                      )}
-                      {project.endDate && (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>
-                            {new Date(project.endDate).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
-                      {project.budget > 0 && (
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-4 h-4" />
-                          <span>
-                            ₹{(project.spent || 0).toLocaleString()} / ₹
-                            {(project.budget || 0).toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+          {sortedProjects.length > PAGE_SIZE ? (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={sortedProjects.length}
+              itemsPerPage={PAGE_SIZE}
+            />
+          ) : null}
+        </>
+      )}
 
       <CreateProjectModal
         isOpen={isCreateProjectModalOpen}
         onClose={() => setIsCreateProjectModalOpen(false)}
         onProjectCreate={handleCreateProject}
       />
-    </div>
+
+      {commentComposerMenu && (() => {
+        const projectRow =
+          paginatedProjects.find((p) => p.id === commentComposerMenu.id) ||
+          sortedProjects.find((p) => p.id === commentComposerMenu.id) ||
+          projects.find((p) => p.id === commentComposerMenu.id);
+        if (!projectRow) return null;
+        const projectComments = Array.isArray(commentsByProject[projectRow.id])
+          ? commentsByProject[projectRow.id]
+          : [];
+        return (
+          <TableRowActionMenuPortal
+            open
+            anchor={{
+              top: commentComposerMenu.top,
+              left: commentComposerMenu.left,
+              triggerEl: commentComposerMenu.triggerEl,
+            }}
+            onClose={closeCommentComposer}
+            menuClassName="w-[360px] rounded-2xl border border-gray-200 bg-white p-0 shadow-2xl"
+            menuWidthPx={360}
+          >
+            <div className="overflow-hidden rounded-2xl">
+              <div className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-900">Comments</p>
+                  <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
+                    {projectComments.length}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs text-gray-500">{projectRow.name || "Project"}</p>
+              </div>
+
+              <div className="max-h-56 overflow-y-auto bg-gray-50/50 px-4 py-3">
+                {commentLoadingProjectId === projectRow.id ? (
+                  <div className="py-4">
+                    <LoadingSpinner size="sm" message="Loading comments..." />
+                  </div>
+                ) : projectComments.length > 0 ? (
+                  <ul className="relative m-0 list-none space-y-3 p-0 pr-1">
+                    {projectComments.map((cRow) => (
+                      <li key={cRow.id} className="relative flex gap-3">
+                        <div className="relative z-[1] flex w-6 shrink-0 justify-center pt-0.5">
+                          <Avatar
+                            size="xs"
+                            alt={actorDisplay(cRow.actor)}
+                            fallback={actorDisplay(cRow.actor).charAt(0).toUpperCase()}
+                            className="bg-gray-600 text-white shadow-sm ring-2 ring-white"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
+                          <div className="mb-1.5 flex flex-wrap items-center gap-x-2">
+                            <p className="text-xs font-semibold text-gray-800">{actorDisplay(cRow.actor)}</p>
+                            <span className="text-xs text-gray-400">· {formatCommentTime(cRow.createdAt)}</span>
+                          </div>
+                          <p className="whitespace-pre-wrap break-words text-sm text-gray-700">
+                            {commentTextFromMeta(cRow.meta)}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-gray-200 bg-white px-3 py-3 text-xs text-gray-500">
+                    No comments yet. Start the thread.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2.5 border-t border-gray-100 bg-white px-4 py-3">
+                {commentError ? (
+                  <p className="rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+                    {commentError}
+                  </p>
+                ) : null}
+                <Textarea
+                  value={commentDraft}
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  rows={2}
+                  resize="none"
+                  autoFocus
+                  placeholder="Add a comment..."
+                  className="rounded-xl border-orange-200 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-orange-500/20"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      closeCommentComposer();
+                    }
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      submitProjectComment();
+                    }
+                  }}
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-gray-400">Enter to post · Shift+Enter new line</p>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="muted" size="sm" onClick={closeCommentComposer}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      disabled={commentSubmitting || !commentDraft.trim()}
+                      onClick={submitProjectComment}
+                      className="gap-1.5"
+                    >
+                      {commentSubmitting ? (
+                        <LoadingSpinner size="xs" />
+                      ) : (
+                        <SendHorizontal className="h-3.5 w-3.5" />
+                      )}
+                      Post
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TableRowActionMenuPortal>
+        );
+      })()}
+    </PortalPageShell>
   );
 }

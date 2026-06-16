@@ -52,10 +52,13 @@ async function ensureActiveMembership(strapi, {
   accountId,
   communityEnum,
   membershipData,
+  membershipType,
 }) {
   if (!communityEnum) {
     throw new Error('communityEnum is required');
   }
+
+  const resolvedType = membershipType || 'FREE';
 
   const existing = await strapi.db
     .query('api::community-membership.community-membership')
@@ -68,6 +71,15 @@ async function ensureActiveMembership(strapi, {
     });
 
   if (existing) {
+    if (membershipData || membershipType) {
+      await strapi.db.query('api::community-membership.community-membership').update({
+        where: { id: existing.id },
+        data: {
+          ...(membershipType ? { membershipType: resolvedType } : {}),
+          ...(membershipData ? { membershipData } : {}),
+        },
+      });
+    }
     await registerCommunityOnClientAccount(strapi, accountId, communityEnum);
     return { entry: existing, alreadyMember: true };
   }
@@ -77,7 +89,7 @@ async function ensureActiveMembership(strapi, {
     .create({
       data: {
         community: communityEnum,
-        membershipType: 'FREE',
+        membershipType: resolvedType,
         status: 'ACTIVE',
         joinedAt: new Date(),
         membershipData: membershipData || null,

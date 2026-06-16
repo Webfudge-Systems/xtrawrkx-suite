@@ -165,6 +165,8 @@ module.exports = createCoreController(
         documentId: bodyDocumentId,
         reviewNotes,
         reviewedById,
+        membershipType,
+        tier,
       } = ctx.request.body;
 
       const submission = await findSubmission(strapi, {
@@ -201,10 +203,23 @@ module.exports = createCoreController(
           },
         });
 
+      const submissionData = submission.submissionData || {};
+      const resolvedTier = tier || submissionData.selectedTier || submissionData.tier || null;
+      const resolvedMembershipType =
+        membershipType ||
+        (resolvedTier && resolvedTier !== 'X0' ? 'PREMIUM' : 'FREE');
+
+      const membershipPayload = {
+        ...(submissionData && typeof submissionData === 'object' ? submissionData : {}),
+        ...(resolvedTier ? { tier: resolvedTier, selectedTier: resolvedTier } : {}),
+        approvedAt: now.toISOString(),
+      };
+
       const { entry: membership } = await ensureActiveMembership(strapi, {
         accountId,
         communityEnum: submission.community,
-        membershipData: submission.submissionData,
+        membershipData: membershipPayload,
+        membershipType: resolvedMembershipType,
       });
 
       return ctx.send({

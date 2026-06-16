@@ -20,6 +20,7 @@ export {
 export {
   LEAD_STATUS_OPTIONS,
   TASK_STATUS_OPTIONS,
+  TASK_PRIORITY_OPTIONS,
   DEAL_STAGE_OPTIONS,
   ACCOUNT_STATUS_OPTIONS,
   PM_TASK_STATUS_OPTIONS,
@@ -28,6 +29,7 @@ export {
   INVOICE_STATUS_OPTIONS,
   crmLeadTableSelectFillProps,
   crmTaskTableSelectFillProps,
+  crmTaskPriorityTableSelectFillProps,
   crmDealStageTableSelectFillProps,
   crmAccountTableSelectFillProps,
   crmPmTaskTableSelectFillProps,
@@ -41,6 +43,7 @@ export {
   TableCellProjectStatus,
   TableCellLeadStatusSelect,
   TableCellTaskStatusSelect,
+  TableCellTaskPrioritySelect,
   TableCellAccountStatusSelect,
   TableCellProjectStatusSelect,
   TableCellDealStageSelect,

@@ -2,6 +2,7 @@
 
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
@@ -281,9 +282,8 @@ export const publicUserService = {
       const clientAccountSync = syncResult.data?.clientAccountSync;
       const clientAccountSetupOk =
         syncResult.ok &&
-        (clientAccountSync == null ||
-          !clientAccountSync.attempted ||
-          clientAccountSync.ok !== false);
+        clientAccountSync?.ok !== false &&
+        Boolean(syncResult.data?.clientAccount);
 
       if (!clientAccountSetupOk) {
         const warningMessage =
@@ -296,20 +296,21 @@ export const publicUserService = {
           profileSyncOk: syncResult.data?.profileSync?.ok,
           clientAccountSync,
         });
-        setClientAccountSetupWarning(credential.user.uid, warningMessage);
-      } else {
-        setClientAccountSetupWarning(credential.user.uid, null);
+        try {
+          await deleteUser(credential.user);
+        } catch (rollbackError) {
+          console.error("Failed to roll back Firebase user after CRM setup failure:", rollbackError);
+        }
+        throw new Error(warningMessage);
       }
+
+      setClientAccountSetupWarning(credential.user.uid, null);
 
       return {
         user: credential.user,
         clientAccountSetup: {
-          ok: clientAccountSetupOk,
-          error: clientAccountSetupOk
-            ? null
-            : syncResult.message ||
-              clientAccountSync?.error ||
-              "Client account setup failed. Use Retry Setup on your profile.",
+          ok: true,
+          error: null,
         },
       };
     } catch (error) {
@@ -405,8 +406,11 @@ export const publicUserService = {
       if (!response.ok) {
         return {
           ok: false,
-          data: null,
-          message: data?.error || "Unable to sync profile with community services.",
+          data,
+          message:
+            data?.clientAccountSync?.error ||
+            data?.error ||
+            "Unable to sync profile with community services.",
         };
       }
 
@@ -492,7 +496,11 @@ export const publicUserService = {
     });
 
     if (payload?.uid) {
-      if (result.ok && result.data?.clientAccountSync?.ok !== false) {
+      const retryOk =
+        result.ok &&
+        result.data?.clientAccountSync?.ok !== false &&
+        Boolean(result.data?.clientAccount);
+      if (retryOk) {
         setClientAccountSetupWarning(payload.uid, null);
       } else {
         setClientAccountSetupWarning(

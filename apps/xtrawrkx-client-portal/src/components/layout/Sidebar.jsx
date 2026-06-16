@@ -10,7 +10,9 @@ import {
   ChevronDown,
   ChevronRight as ChevronRightIcon,
 } from "lucide-react";
+import { SidebarProductBranding } from "@webfudge/ui";
 import { cn } from "@/lib/utils";
+import { PORTAL_SITE } from "@/lib/site";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/lib/auth";
 import {
@@ -88,14 +90,32 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
     };
   }, [refreshClientAccount, pathname]);
 
-  // Keep Settings & System expanded when viewing settings or legal pages
+  // Keep relevant sections expanded when viewing their child routes
   useEffect(() => {
+    const managementPaths = ["/company", "/files", "/billing"];
     const settingsPaths = ["/settings", "/about", "/privacy", "/terms"];
-    if (settingsPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-      setExpandedSections((prev) => ({
-        ...prev,
-        "settings-system": true,
-      }));
+    const next = {};
+
+    if (
+      managementPaths.some(
+        (p) => pathname === p || pathname.startsWith(`${p}/`)
+      )
+    ) {
+      next.management = true;
+    }
+
+    if (
+      settingsPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+    ) {
+      next["settings-system"] = true;
+    }
+
+    if (Object.keys(next).length > 0) {
+      setExpandedSections((prev) => ({ ...prev, ...next }));
+    }
+
+    if (pathname === "/billing" || pathname.startsWith("/billing/")) {
+      setExpandedSubmenus((prev) => ({ ...prev, billing: true }));
     }
   }, [pathname]);
 
@@ -157,7 +177,7 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
           className={cn(
             "group relative flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200",
             isActive
-              ? "bg-xtrawrkx-500 text-white shadow-md"
+              ? "bg-brand-primary text-white shadow-md"
               : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           )}
           title={item.label}
@@ -181,11 +201,12 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
       return (
         <div key={item.id} className="space-y-1">
           <button
+            type="button"
             onClick={() => toggleSubmenu(item.id)}
             className={cn(
               "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
               isActive
-                ? "bg-xtrawrkx-500 text-white shadow-sm"
+                ? "bg-brand-primary text-white shadow-sm"
                 : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
             )}
           >
@@ -200,37 +221,29 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
               )}
             />
           </button>
-          <AnimatePresence>
-            {isSubmenuExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden pl-8 space-y-1"
-              >
-                {visibleSubmenuItems.map((subItem) => {
-                  const SubIcon = subItem.icon;
-                  const isSubActive = isActiveRoute(subItem.href);
-                  return (
-                    <Link
-                      key={subItem.id}
-                      href={subItem.href}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200",
-                        isSubActive
-                          ? "bg-xtrawrkx-500/20 text-xtrawrkx-700 font-medium"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      )}
-                    >
-                      <SubIcon className="w-4 h-4 flex-shrink-0" />
-                      <span>{subItem.label}</span>
-                    </Link>
-                  );
-                })}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {isSubmenuExpanded ? (
+            <div className="space-y-1 pl-8">
+              {visibleSubmenuItems.map((subItem) => {
+                const SubIcon = subItem.icon;
+                const isSubActive = isActiveRoute(subItem.href);
+                return (
+                  <Link
+                    key={subItem.id}
+                    href={subItem.href}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200",
+                      isSubActive
+                        ? "bg-orange-50 text-orange-700 font-medium"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    )}
+                  >
+                    <SubIcon className="w-4 h-4 flex-shrink-0" />
+                    <span>{subItem.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       );
     }
@@ -243,7 +256,7 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
         className={cn(
           "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
           isActive
-            ? "bg-xtrawrkx-500 text-white shadow-sm"
+            ? "bg-brand-primary text-white shadow-sm"
             : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
         )}
       >
@@ -292,8 +305,10 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
         {section.collapsible ? (
           <>
             <button
+              type="button"
               onClick={() => toggleSection(section.id)}
               className="w-full flex items-center justify-between px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition-colors"
+              aria-expanded={isExpanded}
             >
               <span>{section.label}</span>
               {isExpanded ? (
@@ -302,19 +317,11 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
                 <ChevronRightIcon className="w-4 h-4" />
               )}
             </button>
-            <AnimatePresence>
-              {isExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden space-y-1"
-                >
-                  {visibleItems.map((item) => renderMenuItem(item))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {isExpanded ? (
+              <div className="space-y-1">
+                {visibleItems.map((item) => renderMenuItem(item))}
+              </div>
+            ) : null}
           </>
         ) : (
           <>
@@ -347,22 +354,22 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Sidebar — fixed overlay on mobile; in-flow column on lg+ (matches PM/CRM) */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-30 bg-white border-r border-gray-200 transition-all duration-300",
-          "flex flex-col",
+          "flex h-full min-h-0 flex-col flex-shrink-0 border-r border-gray-200 bg-white shadow-sm transition-all duration-300",
           collapsed ? "w-16" : "w-64",
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-          "lg:flex-shrink-0 shadow-sm"
+          "fixed inset-y-0 left-0 z-30 lg:relative lg:inset-auto lg:z-auto",
+          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between border-b border-gray-200 p-4">
           {!collapsed && (
-            <h2 className="text-lg font-semibold text-gray-900">
-              Client Portal
-            </h2>
+            <SidebarProductBranding
+              productName={PORTAL_SITE.name}
+              companyName={PORTAL_SITE.brandName}
+            />
           )}
           <button
             onClick={() => {

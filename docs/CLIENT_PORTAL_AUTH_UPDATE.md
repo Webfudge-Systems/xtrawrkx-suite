@@ -49,6 +49,26 @@ If login returns **401 Invalid email or password** (not 405):
 
 - Confirm the email matches a CRM contact with an active `client-portal-access` row.
 - Reset or set the portal password in CRM / re-run website signup sync with `initialClientPassword`.
+- Signup may have **silently skipped** CRM provisioning if company name was missing or duplicated (see below).
+
+### Local dev: same database as CRM
+
+| App | Config | Strapi URL | Data store |
+|-----|--------|------------|------------|
+| Backend | `apps/backend/.env` | `:1337` | Railway Postgres when `DATABASE_CLIENT=postgres` |
+| CRM | `apps/crm/.env.local` | `http://localhost:1337` | Same DB via Strapi |
+| Client portal | `apps/xtrawrkx-client-portal/.env.local` | `http://localhost:1337` | Same DB via Strapi |
+
+Strapi loads **`apps/backend/.env` only** (not `.env.local`). CRM and portal both talk to local Strapi, which uses the Postgres URL in `.env` — so you are on the **same environment** as production data when that file points at Railway.
+
+### Signup did not create a client in CRM
+
+Website signup can return HTTP 200 without creating a client when:
+
+- **Company name is missing** on the profile sync payload.
+- **Company name matches an existing client** (e.g. `"Test"`) → backend returns **409** — sign in to the existing account or use a unique company name.
+
+After a successful signup you should see a new row in CRM Clients and `check-email` should return `{ "exists": true }`.
 
 ## Before / after
 

@@ -16,3 +16,8 @@ export function pmAddProjectUrl(clientAccountId) {
   if (clientAccountId == null || clientAccountId === '') return base;
   return `${base}?clientAccount=${encodeURIComponent(String(clientAccountId))}`;
 }
+
+export function pmTaskDetailUrl(taskId) {
+  if (taskId == null || taskId === '') return `${getPmAppBaseUrl()}/tasks`;
+  return `${getPmAppBaseUrl()}/tasks/${encodeURIComponent(String(taskId))}`;
+}
