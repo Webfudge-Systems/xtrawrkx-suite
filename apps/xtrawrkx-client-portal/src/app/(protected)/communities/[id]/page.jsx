@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, notFound } from "next/navigation";
+import { useParams, notFound, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Users,
@@ -22,7 +22,6 @@ import {
 import { ModernButton } from "../../../../components/ui";
 import { KPICard } from "@webfudge/ui";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
-import CommunityJoinRequirementsModal from "@/components/communities/CommunityJoinRequirementsModal";
 import { getCommunityById, avatarClassFor } from "@/data/communitiesCatalog";
 import {
   getXenTierByCode,
@@ -34,7 +33,6 @@ import {
   listSubmissionsForClient,
 } from "@/lib/api/communityProgramService";
 import { strapiClient } from "@/lib/strapiClient";
-import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
 import { CommunityChannelChat } from "@/components/chat/CommunityChannelChat";
 
 /** Rich sections — sample content until wired to Strapi events/resources APIs. */
@@ -153,6 +151,7 @@ const DETAIL_TEMPLATE = {
 
 export default function CommunityDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = Number(params?.id);
 
   const base = useMemo(() => {
@@ -165,8 +164,6 @@ export default function CommunityDetailPage() {
   const [isPending, setIsPending] = useState(false);
   const [activeMembership, setActiveMembership] = useState(null);
   const [clientAccountId, setClientAccountId] = useState(null);
-  const [accountDefaults, setAccountDefaults] = useState({});
-  const [joinModalOpen, setJoinModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,27 +171,6 @@ export default function CommunityDetailPage() {
     (async () => {
       const accId = strapiClient.getCurrentAccountId();
       if (!cancelled) setClientAccountId(accId);
-
-      if (typeof window !== "undefined" && accId) {
-        const raw = localStorage.getItem("client_account");
-        if (raw) {
-          try {
-            const acc = JSON.parse(raw);
-            const attrs = acc.attributes || acc;
-            if (!cancelled) {
-              setAccountDefaults({
-                company:
-                  resolveClientAccountCompanyName(acc) ||
-                  resolveClientAccountCompanyName(attrs),
-                jobTitle: attrs.jobTitle || acc.jobTitle || "",
-                phone: attrs.phone || acc.phone || "",
-              });
-            }
-          } catch {
-            /* ignore */
-          }
-        }
-      }
 
       if (!accId || !base) return;
 
@@ -302,7 +278,7 @@ export default function CommunityDetailPage() {
                   size="sm"
                   text="Join community"
                   icon={Plus}
-                  onClick={() => setJoinModalOpen(true)}
+                  onClick={() => router.push(`/communities/${id}/join`)}
                 />
               ) : null}
               {isPending && !communityData.isMember ? (
@@ -704,17 +680,6 @@ export default function CommunityDetailPage() {
         </div>
       </div>
 
-      <CommunityJoinRequirementsModal
-        isOpen={joinModalOpen}
-        onClose={() => setJoinModalOpen(false)}
-        community={base}
-        clientAccountId={clientAccountId}
-        accountDefaults={accountDefaults}
-        onSuccess={() => {
-          setIsPending(true);
-          setJoinModalOpen(false);
-        }}
-      />
     </div>
   );
 }

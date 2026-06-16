@@ -43,10 +43,12 @@ import {
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import { useSession } from "@/lib/auth";
+import { exportItemsToCSV } from "@/lib/exportUtils";
 import CreateTaskModal from "@/components/tasks/CreateTaskModal";
 import { listCompanyMembers } from "@/lib/api/companyMembersService";
 import { listTasksForClient, createClientTask } from "@/lib/api/clientTaskService";
 import { listProjectsForClient } from "@/lib/api/clientProjectService";
+import { resolveClientAccountId, mapProjectsForTaskSelect } from "@/lib/clientAccountId";
 import { getTaskStatusLabel } from "@webfudge/utils";
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -261,7 +263,7 @@ export default function TasksPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [activeView, setActiveView] = useState("table");
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
-  const [clientProjects, setClientProjects] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [clientMembers, setClientMembers] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
   const [sortPickerOpen, setSortPickerOpen] = useState(false);
@@ -322,38 +324,19 @@ export default function TasksPage() {
       try {
         setLoading(true);
 
-        let accountId =
-          session?.account?.id ||
-          session?.account?.documentId ||
-          session?.user?.id ||
-          session?.user?.profile?.id ||
-          session?.id ||
-          session?.documentId;
-
-        if (!accountId && typeof window !== "undefined") {
-          const raw = localStorage.getItem("client_account");
-          if (raw) {
-            try { const a = JSON.parse(raw); accountId = a.id || a.documentId; } catch {}
-          }
-        }
-        if (!accountId) {
-          const { default: sc } = await import("@/lib/strapiClient");
-          accountId = sc.getCurrentAccountId();
-        }
+        const accountId = await resolveClientAccountId(session);
 
         try {
           const m = await listCompanyMembers();
           setClientMembers(m?.data || []);
         } catch { setClientMembers([]); }
 
-        if (!accountId) { setTasks([]); setLoading(false); return; }
+        if (!accountId) { setTasks([]); setProjects([]); setLoading(false); return; }
 
         try {
           const rows = await listProjectsForClient(accountId);
-          setClientProjects(
-            rows.map((p) => ({ id: p.id || p.documentId, name: p.name || "Untitled" })).filter((p) => p.id),
-          );
-        } catch { setClientProjects([]); }
+          setProjects(rows);
+        } catch { setProjects([]); }
 
         const raw = await listTasksForClient(accountId);
 
@@ -410,15 +393,41 @@ export default function TasksPage() {
 
   const handleCreateTask = async (taskInput) => {
     const priority = (taskInput.priority || "medium").toLowerCase();
+    const projectId = taskInput.projectId ? String(taskInput.projectId).trim() : "";
     await createClientTask({
       name: taskInput.title,
       description: taskInput.description || "",
-      projects: taskInput.projectId ? { set: [Number(taskInput.projectId)] } : undefined,
+      projects: projectId ? { set: [projectId] } : undefined,
       scheduledDate: taskInput.dueDate ? new Date(`${taskInput.dueDate}T00:00:00`).toISOString() : null,
       priority: priority === "urgent" ? "high" : priority,
     });
     setReloadKey((p) => p + 1);
   };
+
+  const loadProjectsForTaskModal = useCallback(async () => {
+    if (!session) return;
+    try {
+      const accountId = await resolveClientAccountId(session);
+      if (!accountId) {
+        setProjects([]);
+        return;
+      }
+      const rows = await listProjectsForClient(accountId);
+      setProjects(rows);
+    } catch {
+      setProjects([]);
+    }
+  }, [session]);
+
+  const openCreateTaskModal = () => {
+    setIsCreateTaskModalOpen(true);
+    loadProjectsForTaskModal();
+  };
+
+  const taskProjectOptions = useMemo(
+    () => mapProjectsForTaskSelect(projects),
+    [projects],
+  );
 
   // ── comment handlers ──────────────────────────────────────────────────────
 
@@ -775,7 +784,11 @@ export default function TasksPage() {
         title="Tasks"
         subtitle="Manage and track all your tasks"
         showActions
-        onAddClick={() => setIsCreateTaskModalOpen(true)}
+        onExportClick={() =>
+          exportItemsToCSV(sortedTasks, {
+            filename: "client-portal-tasks_export.csv",
+          })
+        }
       />
 
       {/* KPI Cards */}
@@ -819,7 +832,7 @@ export default function TasksPage() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           showAdd
-          onAddClick={() => setIsCreateTaskModalOpen(true)}
+          onAddClick={openCreateTaskModal}
           addTitle="Add Task"
           showSort={activeView === "table"}
           onSortClick={() => { setColumnPickerOpen(false); setSortPickerOpen((o) => !o); }}
@@ -880,7 +893,7 @@ export default function TasksPage() {
               variant="primary"
               size="sm"
               className="mt-4 gap-1.5"
-              onClick={() => setIsCreateTaskModalOpen(true)}
+              onClick={openCreateTaskModal}
             >
               <Plus className="h-4 w-4" /> Create task
             </Button>
@@ -912,7 +925,7 @@ export default function TasksPage() {
               variant="primary"
               size="sm"
               className="mt-4 gap-1.5"
-              onClick={() => setIsCreateTaskModalOpen(true)}
+              onClick={openCreateTaskModal}
             >
               <Plus className="h-4 w-4" /> Create task
             </Button>
@@ -926,7 +939,7 @@ export default function TasksPage() {
       <CreateTaskModal
         isOpen={isCreateTaskModalOpen}
         onClose={() => setIsCreateTaskModalOpen(false)}
-        projects={clientProjects}
+        projects={taskProjectOptions}
         clientMembers={clientMembers}
         onTaskCreate={async (taskData) => {
           try {

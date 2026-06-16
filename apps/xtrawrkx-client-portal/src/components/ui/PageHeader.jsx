@@ -11,23 +11,18 @@ import {
 import {
   ChevronRight,
   ChevronDown,
-  Plus,
-  Filter,
-  Upload,
   Download,
-  FileText,
-  FileSpreadsheet,
   Settings,
   User,
   Share,
   Bell,
-  Image,
   Check,
   CheckCheck,
 } from "lucide-react";
 import { useSession } from "@/lib/auth";
 import { strapiClient } from "@/lib/strapiClient";
 import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
+import GlobalSearchModal from "@/components/search/GlobalSearchModal";
 
 export function PageHeader({
   title,
@@ -38,17 +33,13 @@ export function PageHeader({
   showProfile = true,
   searchPlaceholder,
   onSearchChange,
-  onAddClick,
-  onFilterClick,
-  onImportClick,
   onExportClick,
-  onShareImageClick,
   actions,
   children,
-  hasActiveFilters = false,
   showBack: showBackProp,
   onBack,
   backLabel = "Back",
+  renderGlobalSearchModal,
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -57,8 +48,25 @@ export function PageHeader({
   const [showNotificationDropdown, setShowNotificationDropdown] =
     useState(false);
   const [searchInputValue, setSearchInputValue] = useState("");
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [contacts, setContacts] = useState(null);
   const notificationDropdownRef = useRef(null);
+
+  const globalSearchEnabled = showSearch && (renderGlobalSearchModal || !onSearchChange);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k" && globalSearchEnabled) {
+        e.preventDefault();
+        setShowGlobalSearch(true);
+      }
+      if (e.key === "Escape" && showGlobalSearch) {
+        setShowGlobalSearch(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [globalSearchEnabled, showGlobalSearch]);
 
   // Fetch contacts if not in localStorage
   useEffect(() => {
@@ -442,8 +450,9 @@ export function PageHeader({
                     }
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === "Enter" && globalSearchEnabled) {
                       e.preventDefault();
+                      setShowGlobalSearch(true);
                     }
                   }}
                 />
@@ -454,52 +463,13 @@ export function PageHeader({
             {children ||
               (showActions && (
                 <div className="flex items-center gap-2">
-                  {onAddClick && (
-                    <button
-                      onClick={onAddClick}
-                      className="group rounded-xl border border-white/20 bg-white/10 p-2.5 text-brand-primary shadow-lg backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:bg-white/20"
-                    >
-                      <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                    </button>
-                  )}
-
-                  {onFilterClick && (
-                    <button
-                      onClick={onFilterClick}
-                      className="relative p-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 shadow-lg"
-                    >
-                      <Filter className="w-5 h-5 text-gray-600" />
-                      {hasActiveFilters && (
-                        <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white/95 shadow-sm"></span>
-                      )}
-                    </button>
-                  )}
-
-                  {onImportClick && (
-                    <button
-                      onClick={onImportClick}
-                      className="p-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 shadow-lg"
-                    >
-                      <Upload className="w-5 h-5 text-gray-600" />
-                    </button>
-                  )}
-
                   {onExportClick && (
                     <button
                       onClick={onExportClick}
-                      className="p-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 shadow-lg"
+                      className="flex items-center gap-2 px-3 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 shadow-lg"
                     >
                       <Download className="w-5 h-5 text-gray-600" />
-                    </button>
-                  )}
-
-                  {onShareImageClick && (
-                    <button
-                      onClick={onShareImageClick}
-                      className="p-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl hover:bg-white/20 hover:border-white/30 transition-all duration-300 shadow-lg"
-                      title="Share Image"
-                    >
-                      <Image className="w-5 h-5 text-gray-600" />
+                      <span className="text-sm font-bold text-gray-600">Export</span>
                     </button>
                   )}
                 </div>
@@ -625,13 +595,30 @@ export function PageHeader({
                       </div>
                     </div>
                     <div className="p-2">
-                      <button className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 rounded-lg transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowProfileDropdown(false);
+                          if (typeof window !== "undefined") {
+                            sessionStorage.setItem("portal_profile_edit", "1");
+                          }
+                          router.push("/profile");
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                      >
                         <User className="w-4 h-4 text-gray-500" />
                         <span className="text-sm text-gray-900">
-                          View Profile
+                          Complete Profile
                         </span>
                       </button>
-                      <button className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 rounded-lg transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowProfileDropdown(false);
+                          router.push("/settings");
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                      >
                         <Settings className="w-4 h-4 text-gray-500" />
                         <span className="text-sm text-gray-900">Settings</span>
                       </button>
@@ -659,6 +646,14 @@ export function PageHeader({
         )}
       </div>
     </Card>
+
+      {globalSearchEnabled
+        ? (renderGlobalSearchModal || ((props) => <GlobalSearchModal {...props} />))({
+            isOpen: showGlobalSearch,
+            onClose: () => setShowGlobalSearch(false),
+            initialQuery: searchInputValue,
+          })
+        : null}
     </div>
   );
 }

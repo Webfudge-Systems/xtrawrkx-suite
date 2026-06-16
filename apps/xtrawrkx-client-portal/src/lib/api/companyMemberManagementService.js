@@ -36,64 +36,62 @@ function authUrl(path) {
   return `${strapiClient.baseURL}${strapiClient.apiPath}/auth${path}`;
 }
 
+function cacheContacts(members) {
+  if (typeof window === "undefined" || !Array.isArray(members)) {
+    return;
+  }
+
+  try {
+    const contacts = members.map((member) => ({
+      id: member.id,
+      firstName: member.firstName || String(member.name || "").split(/\s+/)[0] || "Member",
+      lastName:
+        member.lastName ||
+        String(member.name || "")
+          .trim()
+          .split(/\s+/)
+          .slice(1)
+          .join(" ") ||
+        "",
+      email: member.email,
+      phone: member.phone,
+      role: member.role,
+      portalAccessLevel: member.portalAccessLevel,
+      status: member.status,
+    }));
+    localStorage.setItem("client_contacts", JSON.stringify(contacts));
+  } catch {
+    // Best-effort cache refresh.
+  }
+}
+
 export async function listCompanyMembersManaged() {
   const accountId = getAccountId();
   if (!accountId) {
     return { data: [], roles: [] };
   }
 
-  const [memberResponse, contactsResponse] = await Promise.all([
-    fetch(
-      `${authUrl("/company-members")}?accountId=${encodeURIComponent(
-        String(accountId)
-      )}`,
-      {
-        method: "GET",
-        headers: strapiClient.getHeaders(),
-        cache: "no-store",
-      }
-    ).then(parseResponse),
-    strapiClient.get(`/contacts/client-account/${accountId}`, {
-      populate: ["portalAccess", "clientAccount"],
-    }),
-  ]);
-
-  const contacts = Array.isArray(contactsResponse?.data)
-    ? contactsResponse.data
-    : Array.isArray(contactsResponse)
-      ? contactsResponse
-      : [];
-
-  const contactMap = new Map(
-    contacts.map((contact) => [String(contact.id), contact])
-  );
-
-  const data = (Array.isArray(memberResponse?.data) ? memberResponse.data : []).map(
-    (member) => {
-      const contact = contactMap.get(String(member.id));
-      return {
-        ...member,
-        phone: contact?.phone || null,
-        location: contact?.location || null,
-        portalAccessLevel: contact?.portalAccessLevel || "READ_ONLY",
-        role: member?.role || contact?.portalAccess?.roleName || "MEMBER",
-      };
+  const response = await fetch(
+    `${authUrl("/company-members")}?accountId=${encodeURIComponent(
+      String(accountId)
+    )}`,
+    {
+      method: "GET",
+      headers: strapiClient.getHeaders(),
+      cache: "no-store",
     }
-  );
+  ).then(parseResponse);
 
-  return { ...memberResponse, data };
+  const data = Array.isArray(response?.data) ? response.data : [];
+  cacheContacts(data);
+  return response;
 }
 
 export async function createCompanyRole({ name, permissions = [] }) {
-  const accountId = getAccountId();
-  if (!accountId) {
-    throw new Error("No account ID found");
-  }
-
   const response = await fetch(authUrl("/company-roles"), {
     method: "POST",
     headers: strapiClient.getHeaders(),
-    body: JSON.stringify({ accountId, name, permissions }),
+    body: JSON.stringify({ name, permissions }),
   });
   return parseResponse(response);
 }
@@ -107,12 +105,20 @@ export async function addCompanyMemberManaged(payload) {
   const body = {
     accountId,
     name: payload.name,
+    firstName: payload.firstName,
+    lastName: payload.lastName,
     email: payload.email,
+    phone: payload.phone,
     role: payload.role,
+    portalAccessLevel: payload.portalAccessLevel,
     password: payload.password,
   };
   if (payload.loginId && String(payload.loginId).trim()) {
     body.loginId = String(payload.loginId).trim();
+  }
+  if (payload.isCustomRole) {
+    body.isCustomRole = true;
+    body.permissions = payload.permissions;
   }
 
   const response = await fetch(authUrl("/company-members"), {
@@ -121,7 +127,9 @@ export async function addCompanyMemberManaged(payload) {
     body: JSON.stringify(body),
   });
 
-  return parseResponse(response);
+  const result = await parseResponse(response);
+  await listCompanyMembersManaged().catch(() => null);
+  return result;
 }
 
 export async function updateCompanyMemberManaged(memberId, payload) {
@@ -130,7 +138,9 @@ export async function updateCompanyMemberManaged(memberId, payload) {
     headers: strapiClient.getHeaders(),
     body: JSON.stringify(payload),
   });
-  return parseResponse(response);
+  const result = await parseResponse(response);
+  await listCompanyMembersManaged().catch(() => null);
+  return result;
 }
 
 export async function deleteCompanyMemberManaged(memberId) {
@@ -138,16 +148,34 @@ export async function deleteCompanyMemberManaged(memberId) {
     method: "DELETE",
     headers: strapiClient.getHeaders(),
   });
-  return parseResponse(response);
+  const result = await parseResponse(response);
+  await listCompanyMembersManaged().catch(() => null);
+  return result;
+}
+
+export async function suspendCompanyMemberManaged(memberId, suspend = true) {
+  const response = await fetch(
+    authUrl(`/company-members/${memberId}/suspend`),
+    {
+      method: "PUT",
+      headers: strapiClient.getHeaders(),
+      body: JSON.stringify({ suspend }),
+    }
+  );
+  const result = await parseResponse(response);
+  await listCompanyMembersManaged().catch(() => null);
+  return result;
 }
 
 export async function getContactById(memberId) {
-  return strapiClient.get(`/contacts/${memberId}`, {
-    populate: ["portalAccess", "clientAccount"],
+  const response = await fetch(authUrl(`/company-members/${memberId}`), {
+    method: "GET",
+    headers: strapiClient.getHeaders(),
+    cache: "no-store",
   });
+  return parseResponse(response);
 }
 
 export async function updateContactById(memberId, data) {
-  return strapiClient.put(`/contacts/${memberId}`, data);
+  return updateCompanyMemberManaged(memberId, data);
 }
-

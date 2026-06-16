@@ -12,15 +12,34 @@ const {
   loadClientAccount,
   serializeDedicatedPocUser,
   mapPortalSignupBody,
+  buildSettingsProfile,
+  validatePortalPassword,
   JWT_SECRET,
+  CLIENT_ACCOUNT_UID,
+  PORTAL_ACCESS_UID,
 } = require('../../../utils/client-auth');
 const {
   verifyLandingSignupSecret,
   ensureWebsiteClientAccount,
 } = require('../../../utils/website-signup');
 const { handleSimilarCompaniesRequest } = require('../../../utils/similar-companies-handler');
+const {
+  resolveClientPortalSession,
+  clientAccountIdFromSession,
+} = require('../../../utils/client-portal-request');
+const {
+  canManageMembers,
+  listCompanyMembers,
+  getCompanyMember,
+  addCompanyMember,
+  updateCompanyMember,
+  deleteCompanyMember,
+  setCompanyMemberSuspended,
+  registerCompanyRole,
+} = require('../../../utils/company-members');
 
 const ORG_MEMBERSHIP_UID = 'api::organization-user.organization-user';
+const CONTACT_UID = 'api::contact.contact';
 
 function readBearerToken(ctx) {
   const authHeader = ctx.request.headers.authorization;
@@ -431,6 +450,330 @@ module.exports = {
 
   async websiteSimilarCompanies(ctx) {
     return handleSimilarCompaniesRequest(strapi, ctx);
+  },
+
+  async companyMembersList(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) {
+      return ctx.badRequest('Client account not found in session');
+    }
+
+    try {
+      const result = await listCompanyMembers(strapi, accountId);
+      ctx.send(result);
+    } catch (error) {
+      console.error('Company members list error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async companyMemberFindOne(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) {
+      return ctx.badRequest('Client account not found in session');
+    }
+
+    try {
+      const member = await getCompanyMember(strapi, accountId, ctx.params.id);
+      if (!member) {
+        return ctx.notFound('Member not found');
+      }
+      ctx.send({ data: member });
+    } catch (error) {
+      console.error('Company member find error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async companyMembersCreate(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+    if (!canManageMembers(session)) {
+      return ctx.forbidden('You do not have permission to manage company members');
+    }
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) {
+      return ctx.badRequest('Client account not found in session');
+    }
+
+    try {
+      const result = await addCompanyMember(strapi, accountId, ctx.request.body || {});
+      if (!result.ok) {
+        return ctx.send({ error: { message: result.message } }, result.status || 400);
+      }
+      ctx.send({ member: result.member });
+    } catch (error) {
+      console.error('Company member create error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async companyMembersUpdate(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+    if (!canManageMembers(session)) {
+      return ctx.forbidden('You do not have permission to manage company members');
+    }
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) {
+      return ctx.badRequest('Client account not found in session');
+    }
+
+    try {
+      const result = await updateCompanyMember(
+        strapi,
+        accountId,
+        ctx.params.id,
+        ctx.request.body || {}
+      );
+      if (!result.ok) {
+        return ctx.send({ error: { message: result.message } }, result.status || 400);
+      }
+      ctx.send({ member: result.member });
+    } catch (error) {
+      console.error('Company member update error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async companyMembersDelete(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+    if (!canManageMembers(session)) {
+      return ctx.forbidden('You do not have permission to manage company members');
+    }
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) {
+      return ctx.badRequest('Client account not found in session');
+    }
+
+    try {
+      const result = await deleteCompanyMember(strapi, accountId, ctx.params.id);
+      if (!result.ok) {
+        return ctx.send({ error: { message: result.message } }, result.status || 400);
+      }
+      ctx.send({ success: true });
+    } catch (error) {
+      console.error('Company member delete error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async companyMemberSuspend(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+    if (!canManageMembers(session)) {
+      return ctx.forbidden('You do not have permission to manage company members');
+    }
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) {
+      return ctx.badRequest('Client account not found in session');
+    }
+
+    const body = ctx.request.body || {};
+    const suspend = body.suspend !== false;
+
+    try {
+      const result = await setCompanyMemberSuspended(
+        strapi,
+        accountId,
+        ctx.params.id,
+        suspend
+      );
+      if (!result.ok) {
+        return ctx.send({ error: { message: result.message } }, result.status || 400);
+      }
+      ctx.send({ member: result.member });
+    } catch (error) {
+      console.error('Company member suspend error:', error);
+      ctx.badRequest(error.message);
+    }
+  },
+
+  async companyRolesCreate(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+    if (!canManageMembers(session)) {
+      return ctx.forbidden('You do not have permission to manage company members');
+    }
+
+    const body = ctx.request.body || {};
+    const result = registerCompanyRole(body.name);
+    if (!result.ok) {
+      return ctx.send({ error: { message: result.message } }, result.status || 400);
+    }
+    ctx.send({ role: result.role });
+  },
+
+  async updateProfile(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+
+    const accountId = clientAccountIdFromSession(session);
+    if (!accountId) {
+      return ctx.badRequest('Client account not found');
+    }
+
+    try {
+      const account = await loadClientAccount(strapi, accountId);
+      if (!account) {
+        return ctx.notFound('Client account not found');
+      }
+
+      const body = ctx.request.body || {};
+      const incomingOnboardingData =
+        body.onboardingData && typeof body.onboardingData === 'object'
+          ? body.onboardingData
+          : {};
+      const incomingContact =
+        body.contact && typeof body.contact === 'object' ? body.contact : {};
+
+      const onboardingData =
+        account.onboardingData && typeof account.onboardingData === 'object'
+          ? { ...account.onboardingData }
+          : {};
+      const mergedOnboardingData = {
+        ...onboardingData,
+        ...incomingOnboardingData,
+      };
+
+      const preferences =
+        mergedOnboardingData.preferences &&
+        typeof mergedOnboardingData.preferences === 'object'
+          ? { ...mergedOnboardingData.preferences }
+          : {};
+
+      if (body.notifications && typeof body.notifications === 'object') {
+        preferences.notifications = {
+          email: body.notifications.email !== false,
+          projectUpdates: body.notifications.projectUpdates !== false,
+          messages: body.notifications.messages !== false,
+        };
+      }
+
+      mergedOnboardingData.preferences = preferences;
+
+      await strapi.entityService.update(CLIENT_ACCOUNT_UID, accountId, {
+        data: { onboardingData: mergedOnboardingData },
+      });
+
+      const portalAccessId = session.portalAccessId || session.contact?.portalAccess?.id;
+      const access = portalAccessId
+        ? await strapi.entityService.findOne(PORTAL_ACCESS_UID, portalAccessId, {
+            populate: ['contact'],
+          })
+        : null;
+      const contactId =
+        session.contact?.id ?? access?.contact?.id ?? access?.contact;
+
+      if (incomingContact && contactId) {
+        const contactData = {};
+        if (incomingContact.firstName !== undefined)
+          contactData.firstName = incomingContact.firstName;
+        if (incomingContact.lastName !== undefined)
+          contactData.lastName = incomingContact.lastName;
+        if (incomingContact.phone !== undefined)
+          contactData.phone = incomingContact.phone;
+        if (incomingContact.jobTitle !== undefined)
+          contactData.jobTitle = incomingContact.jobTitle;
+
+        if (Object.keys(contactData).length > 0) {
+          await strapi.entityService.update(CONTACT_UID, contactId, {
+            data: contactData,
+          });
+        }
+      }
+
+      const contact = contactId
+        ? await strapi.entityService.findOne(CONTACT_UID, contactId, {
+            populate: ['clientAccount'],
+          })
+        : null;
+      const updatedAccount = await loadClientAccount(strapi, accountId);
+
+      ctx.send({
+        success: true,
+        profile: buildSettingsProfile(contact, access, updatedAccount),
+        account: session.account,
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
+      ctx.badRequest(error.message || 'Failed to update profile');
+    }
+  },
+
+  async changePassword(ctx) {
+    const session = await resolveClientPortalSession(strapi, ctx);
+    if (!session) {
+      return ctx.unauthorized('Client authentication required');
+    }
+
+    const { currentPassword, newPassword } = ctx.request.body || {};
+    if (!currentPassword || !newPassword) {
+      return ctx.badRequest('Current and new password are required');
+    }
+    if (String(newPassword).length < 8) {
+      return ctx.badRequest('New password must be at least 8 characters');
+    }
+
+    const portalAccessId = session.portalAccessId || session.contact?.portalAccess?.id;
+    if (!portalAccessId) {
+      return ctx.badRequest('Portal access not found');
+    }
+
+    try {
+      const access = await strapi.entityService.findOne(PORTAL_ACCESS_UID, portalAccessId);
+      if (!access) {
+        return ctx.notFound('Portal access not found');
+      }
+
+      const valid = await validatePortalPassword(
+        strapi,
+        currentPassword,
+        access.password
+      );
+      if (!valid) {
+        return ctx.badRequest('Current password is incorrect');
+      }
+
+      await strapi.entityService.update(PORTAL_ACCESS_UID, portalAccessId, {
+        data: {
+          password: newPassword,
+          forcePasswordReset: false,
+        },
+      });
+
+      ctx.send({ success: true });
+    } catch (error) {
+      console.error('Change password error:', error);
+      ctx.badRequest(error.message || 'Failed to change password');
+    }
   },
 
   async me(ctx) {

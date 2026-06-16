@@ -11,20 +11,16 @@ import {
   Select,
   Textarea,
   FormSectionCard,
-  useIndustrySelectOptions,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../../components/CRMPageHeader';
 import clientAccountService from '../../../../../lib/api/clientAccountService';
 import strapiClient from '../../../../../lib/strapiClient';
 import { canWriteCRM } from '../../../../../lib/rbac';
 import {
-  companyTypes,
-  INDUSTRY_OTHER_VALUE,
-  industryFormFromStored,
-  resolveIndustryForSave,
+  companyTypeSelectOptions,
+  getLeadSubTypeSelectOptions,
   canonicalCompanyTypeValue,
 } from '@webfudge/utils';
-import { fetchStoredIndustriesForCrm } from '../../../../../lib/industryOptionsLoader';
 import {
   ArrowLeft,
   AtSign,
@@ -87,9 +83,8 @@ function toDateInput(iso) {
 
 const initialForm = {
   companyName: '',
-  industry: '',
-  industryOther: '',
-  type: '',
+  companyType: '',
+  companySubType: '',
   website: '',
   phone: '',
   email: '',
@@ -123,24 +118,30 @@ export default function EditClientAccountPage() {
   const id = params?.id;
   const canEditClientAccount = canWriteCRM('client_accounts');
 
-  const { options: industrySelectOptions, onIndustrySaved } = useIndustrySelectOptions({
-    fetchStoredIndustries: fetchStoredIndustriesForCrm,
-  });
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [accountLabel, setAccountLabel] = useState('');
+  const [onboardingBase, setOnboardingBase] = useState({});
 
   const [form, setForm] = useState(initialForm);
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
-  const companyTypeSelectOptions = useMemo(
-    () => companyTypes.map((t) => ({ value: t.id, label: t.name })),
-    []
+  const companySubTypeOptions = useMemo(
+    () => getLeadSubTypeSelectOptions(form.companyType, form.companySubType),
+    [form.companyType, form.companySubType]
   );
+
+  const profileTypeSelectOptions = useMemo(() => {
+    const v = form.companyType?.trim();
+    if (!v) return companyTypeSelectOptions;
+    if (companyTypeSelectOptions.some((o) => o.value === v)) return companyTypeSelectOptions;
+    const hit = companyTypeSelectOptions.find((o) => o.value === canonicalCompanyTypeValue(v));
+    if (hit) return companyTypeSelectOptions;
+    return [{ value: v, label: v }, ...companyTypeSelectOptions];
+  }, [form.companyType]);
 
   useEffect(() => {
     if (!canEditClientAccount) {
@@ -200,12 +201,15 @@ export default function EditClientAccountPage() {
             d.assignedTo && typeof d.assignedTo === 'object'
               ? d.assignedTo.id
               : d.assignedTo;
-          const { industry, industryOther } = industryFormFromStored(d.industry ?? '');
+          const od =
+            d.onboardingData && typeof d.onboardingData === 'object' && !Array.isArray(d.onboardingData)
+              ? d.onboardingData
+              : {};
+          setOnboardingBase(od);
           setForm({
             companyName: name,
-            industry,
-            industryOther,
-            type: canonicalCompanyTypeValue(d.type ?? ''),
+            companyType: canonicalCompanyTypeValue(od.companyType ?? ''),
+            companySubType: od.companySubType ?? '',
             website: d.website ?? '',
             phone: d.phone ?? '',
             email: d.email ?? '',
@@ -245,11 +249,10 @@ export default function EditClientAccountPage() {
 
   const handleChange = (field, value) => {
     setForm((prev) => {
-      const next = { ...prev, [field]: value };
-      if (field === 'industry' && value !== INDUSTRY_OTHER_VALUE) {
-        next.industryOther = '';
+      if (field === 'companyType') {
+        return { ...prev, companyType: value, companySubType: '' };
       }
-      return next;
+      return { ...prev, [field]: value };
     });
     setSubmitError('');
   };
@@ -258,15 +261,17 @@ export default function EditClientAccountPage() {
     const hsRaw = parseInt(String(form.healthScore), 10);
     const payload = {
       companyName: form.companyName.trim(),
-      industry: resolveIndustryForSave(form.industry, form.industryOther),
       status: form.status,
       accountType: form.accountType,
       billingCycle: form.billingCycle,
       paymentTerms: form.paymentTerms,
       healthScore: Number.isNaN(hsRaw) ? 75 : Math.min(100, Math.max(0, hsRaw)),
+      onboardingData: {
+        ...onboardingBase,
+        companyType: form.companyType.trim() || null,
+        companySubType: form.companySubType.trim() || null,
+      },
     };
-
-    if (form.type) payload.type = form.type;
     if (form.website?.trim()) payload.website = form.website.trim();
     if (form.phone?.trim()) payload.phone = form.phone.trim();
     if (form.email?.trim()) payload.email = form.email.trim();
@@ -310,15 +315,6 @@ export default function EditClientAccountPage() {
       setSubmitError('Company name is required');
       return;
     }
-    const resolvedIndustry = resolveIndustryForSave(form.industry, form.industryOther);
-    if (!resolvedIndustry) {
-      setSubmitError('Industry is required');
-      return;
-    }
-    if (form.industry === INDUSTRY_OTHER_VALUE && !form.industryOther?.trim()) {
-      setSubmitError('Please specify your industry');
-      return;
-    }
     if (!form.email.trim()) {
       setSubmitError('Company email is required');
       return;
@@ -332,7 +328,6 @@ export default function EditClientAccountPage() {
     try {
       const payload = buildPayload();
       await clientAccountService.update(id, payload);
-      onIndustrySaved(payload.industry);
       setShowSuccess(true);
       window.setTimeout(() => {
         router.push(`/clients/accounts/${id}`);
@@ -461,31 +456,23 @@ export default function EditClientAccountPage() {
                   />
                 </div>
                 <Select
-                  label="Industry *"
-                  value={form.industry}
-                  onChange={(v) => handleChange('industry', v)}
-                  options={industrySelectOptions}
-                  placeholder="Select industry"
-                  icon={Building2}
-                  allowCustom
-                  searchable
-                />
-                {form.industry === INDUSTRY_OTHER_VALUE ? (
-                  <Input
-                    label="Specify industry *"
-                    value={form.industryOther}
-                    onChange={(e) => handleChange('industryOther', e.target.value)}
-                    placeholder="Enter your industry"
-                    icon={Briefcase}
-                  />
-                ) : null}
-                <Select
-                  label="Company type"
-                  value={form.type}
-                  onChange={(v) => handleChange('type', v)}
-                  options={companyTypeSelectOptions}
-                  placeholder="Select company type"
+                  label="Type"
+                  value={form.companyType}
+                  onChange={(v) => handleChange('companyType', v)}
+                  options={profileTypeSelectOptions}
+                  placeholder="Select type"
                   icon={Layers}
+                />
+                <Select
+                  label="Sub-type"
+                  value={form.companySubType}
+                  onChange={(v) => handleChange('companySubType', v)}
+                  options={companySubTypeOptions}
+                  placeholder={
+                    form.companyType ? 'Select sub-type' : 'Select type first'
+                  }
+                  disabled={!form.companyType}
+                  searchable
                 />
                 <Input
                   label="Website"

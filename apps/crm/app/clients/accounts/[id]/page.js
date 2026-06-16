@@ -57,7 +57,6 @@ import {
   TableCellDealStageSelect,
   TableCellTaskStatusSelect,
   TableCellTaskPrioritySelect,
-  useIndustrySelectOptions,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
 import clientAccountService from '../../../../lib/api/clientAccountService';
@@ -77,15 +76,12 @@ import { canWriteCRM, canEditCRMRecord } from '../../../../lib/rbac';
 import { fetchChatMentionUsers } from '../../../../lib/chatMentionUsers';
 import { pmAddProjectUrl, pmProjectDetailUrl, pmTaskDetailUrl } from '../../../../lib/pmAppUrl';
 import {
+  companyTypes,
   companyTypeSelectOptions,
-  INDUSTRY_OTHER_VALUE,
-  industryFormFromStored,
-  resolveIndustryForSave,
+  getLeadSubTypeSelectOptions,
   canonicalCompanyTypeValue,
   getClientWorkflowStageLabel,
 } from '@webfudge/utils';
-import { fetchStoredIndustriesForCrm } from '../../../../lib/industryOptionsLoader';
-import { getIndustryVisual } from '@webfudge/ui/utils/industryVisuals';
 import ClientAccountCommunitiesPanel from '../../../../components/ClientAccountCommunitiesPanel';
 
 function formatCurrency(value) {
@@ -139,6 +135,18 @@ function formatRelativeTime(dateString) {
   }
   const y = Math.floor(diffDay / 365);
   return `${y} year${y !== 1 ? 's' : ''} ago`;
+}
+
+function getAccountOnboardingData(account) {
+  const od = account?.onboardingData;
+  return od && typeof od === 'object' && !Array.isArray(od) ? od : {};
+}
+
+function resolveProfileCompanyTypeLabel(typeId) {
+  const canonical = canonicalCompanyTypeValue(typeId);
+  if (!canonical) return '';
+  const hit = companyTypes.find((t) => t.id === canonical);
+  return hit?.name || humanizeSource(canonical);
 }
 
 function getClientTaskVisibility(task) {
@@ -351,11 +359,6 @@ export default function ClientAccountDetailPage() {
   const canCreateDeals = canWriteCRM('deals');
   const canCreateInvoices = canWriteCRM('client_invoices');
   const canCreateProjects = canWriteCRM('client_projects');
-
-  const { options: industrySelectOptions, onIndustrySaved } = useIndustrySelectOptions({
-    fetchStoredIndustries: fetchStoredIndustriesForCrm,
-    seedIndustries: account?.industry ? [account.industry] : [],
-  });
 
   const [editingCompanyInfo, setEditingCompanyInfo] = useState(false);
   const [companyInfoDraft, setCompanyInfoDraft] = useState(null);
@@ -755,7 +758,7 @@ export default function ClientAccountDetailPage() {
 
   const subtitle = useMemo(() => {
     if (!account || loading) return null;
-    const typeBit = humanizeSource(account.type || account.industry || 'Client');
+    const typeBit = humanizeSource(account.type || 'Client');
     const accType = humanizeSource(account.accountType || 'Customer');
     return `Client Account • ${typeBit} • ${accType}`;
   }, [account, loading]);
@@ -768,14 +771,26 @@ export default function ClientAccountDetailPage() {
     return parts.length ? parts.join(', ') : '';
   }, [account]);
 
-  const industryVisual = useMemo(() => {
-    const raw =
-      editingCompanyInfo && companyInfoDraft?.industry != null
-        ? companyInfoDraft.industry
-        : account?.industry;
-    return getIndustryVisual(raw);
-  }, [account?.industry, editingCompanyInfo, companyInfoDraft?.industry]);
-  const IndustryIcon = industryVisual.Icon;
+  const profileCompanyType = useMemo(() => {
+    const od = getAccountOnboardingData(account);
+    return canonicalCompanyTypeValue(od.companyType || '');
+  }, [account]);
+
+  const profileCompanySubType = useMemo(() => {
+    return getAccountOnboardingData(account).companySubType || '';
+  }, [account]);
+
+  const profileCompanyTypeLabel = useMemo(
+    () => resolveProfileCompanyTypeLabel(profileCompanyType),
+    [profileCompanyType]
+  );
+
+  const profileTypeSummary = useMemo(() => {
+    if (profileCompanyTypeLabel && profileCompanySubType) {
+      return `${profileCompanyTypeLabel} • ${profileCompanySubType}`;
+    }
+    return profileCompanyTypeLabel || profileCompanySubType || 'Client account';
+  }, [profileCompanyTypeLabel, profileCompanySubType]);
 
   const statusUpper = (account?.status || 'ACTIVE').toString().replace(/_/g, ' ').toUpperCase();
   const activityCount = crmTimelineTotal;
@@ -810,11 +825,11 @@ export default function ClientAccountDetailPage() {
   const openCompanyInfoEdit = () => {
     if (!canEditClientAccount) return;
     if (!account) return;
-    const { industry, industryOther } = industryFormFromStored(account.industry ?? '');
+    const od = getAccountOnboardingData(account);
     setCompanyInfoDraft({
-      industry,
-      industryOther,
-      type: canonicalCompanyTypeValue(account.type ?? ''),
+      companyType: canonicalCompanyTypeValue(od.companyType ?? ''),
+      companySubType: od.companySubType ?? '',
+      type: account.type ?? '',
       employees: account.employees != null ? String(account.employees) : '',
       billingCycle: account.billingCycle ?? '',
       accountType: account.accountType ?? '',
@@ -836,12 +851,21 @@ export default function ClientAccountDetailPage() {
     setCompanyInfoDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
   };
 
-  const typeSelectOptions = useMemo(() => {
-    const v = companyInfoDraft?.type?.trim();
+  const profileTypeSelectOptions = useMemo(() => {
+    const v = companyInfoDraft?.companyType?.trim();
     if (!v) return companyTypeSelectOptions;
     if (companyTypeSelectOptions.some((o) => o.value === v)) return companyTypeSelectOptions;
-    return [{ value: v, label: humanizeSource(v) }, ...companyTypeSelectOptions];
-  }, [companyInfoDraft?.type]);
+    return [{ value: v, label: resolveProfileCompanyTypeLabel(v) }, ...companyTypeSelectOptions];
+  }, [companyInfoDraft?.companyType]);
+
+  const profileSubTypeSelectOptions = useMemo(
+    () =>
+      getLeadSubTypeSelectOptions(
+        companyInfoDraft?.companyType,
+        companyInfoDraft?.companySubType
+      ),
+    [companyInfoDraft?.companyType, companyInfoDraft?.companySubType]
+  );
 
   const saveCompanyInfo = async () => {
     if (!id || !companyInfoDraft) return;
@@ -849,25 +873,8 @@ export default function ClientAccountDetailPage() {
     setSavingCompanyInfo(true);
     setCompanyInfoSaveError('');
     try {
-      const resolvedIndustry = resolveIndustryForSave(
-        companyInfoDraft.industry,
-        companyInfoDraft.industryOther
-      );
-      if (!resolvedIndustry) {
-        setCompanyInfoSaveError('Industry is required');
-        setSavingCompanyInfo(false);
-        return;
-      }
-      if (
-        companyInfoDraft.industry === INDUSTRY_OTHER_VALUE &&
-        !companyInfoDraft.industryOther?.trim()
-      ) {
-        setCompanyInfoSaveError('Please specify your industry');
-        setSavingCompanyInfo(false);
-        return;
-      }
+      const existingOd = getAccountOnboardingData(account);
       const payload = {
-        industry: resolvedIndustry,
         type: companyInfoDraft.type.trim() || null,
         employees: companyInfoDraft.employees.trim() || null,
         billingCycle: companyInfoDraft.billingCycle.trim() || null,
@@ -875,9 +882,13 @@ export default function ClientAccountDetailPage() {
         founded: companyInfoDraft.founded.trim() || null,
         onboardingDate: companyInfoDraft.clientSince.trim() || null,
         description: companyInfoDraft.description.trim() || null,
+        onboardingData: {
+          ...existingOd,
+          companyType: companyInfoDraft.companyType.trim() || null,
+          companySubType: companyInfoDraft.companySubType.trim() || null,
+        },
       };
       await clientAccountService.update(id, payload);
-      onIndustrySaved(resolvedIndustry);
       const refreshed = await clientAccountService.getOne(id);
       if (refreshed?.data) setAccount(refreshed.data);
       setEditingCompanyInfo(false);
@@ -1766,15 +1777,15 @@ export default function ClientAccountDetailPage() {
         <>
           <Card
             variant="elevated"
-            className={`rounded-2xl border bg-gradient-to-r p-4 sm:p-5 ${industryVisual.cardBorderClass} ${industryVisual.cardGradientClass}`}
+            className="rounded-2xl border border-orange-100 bg-gradient-to-r from-orange-50/80 via-white to-white p-4 sm:p-5"
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 flex-1 items-start gap-4">
                 <div
-                  className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl shadow-inner ring-1 ${industryVisual.iconBgClass} ${industryVisual.accentClass} ${industryVisual.iconRingClass}`}
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-inner ring-1 ring-orange-200"
                   aria-hidden
                 >
-                  <IndustryIcon className="h-8 w-8" strokeWidth={1.75} />
+                  <Layers className="h-8 w-8" strokeWidth={1.75} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -1789,8 +1800,8 @@ export default function ClientAccountDetailPage() {
                     </span>
                   </div>
                   <div className="mt-1.5 flex items-center gap-1.5 text-xs sm:text-sm text-gray-600">
-                    <IndustryIcon className={`h-3.5 w-3.5 shrink-0 ${industryVisual.accentClass}`} aria-hidden />
-                    <span className="font-medium text-gray-700">{industryVisual.label}</span>
+                    <Layers className="h-3.5 w-3.5 shrink-0 text-orange-600" aria-hidden />
+                    <span className="font-medium text-gray-700">{profileTypeSummary}</span>
                   </div>
                 </div>
               </div>
@@ -1840,43 +1851,41 @@ export default function ClientAccountDetailPage() {
                       <InfoSection title="Company profile" icon={Building2} isFirst>
                         <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                           <Select
-                            label="Industry"
-                            value={companyInfoDraft.industry}
+                            label="Type"
+                            value={companyInfoDraft.companyType}
                             onChange={(value) => {
                               setCompanyInfoDraft((prev) =>
                                 prev
                                   ? {
                                       ...prev,
-                                      industry: value,
-                                      industryOther:
-                                        value === INDUSTRY_OTHER_VALUE ? prev.industryOther : '',
+                                      companyType: value,
+                                      companySubType: '',
                                     }
                                   : prev
                               );
                             }}
-                            options={industrySelectOptions}
-                            placeholder="Select industry"
-                            icon={IndustryIcon}
-                            allowCustom
+                            options={profileTypeSelectOptions}
+                            placeholder="Select type"
+                            icon={Layers}
+                          />
+                          <Select
+                            label="Sub-type"
+                            value={companyInfoDraft.companySubType}
+                            onChange={(value) => setCompanyInfoDraftField('companySubType', value)}
+                            options={profileSubTypeSelectOptions}
+                            placeholder={
+                              companyInfoDraft.companyType
+                                ? 'Select sub-type'
+                                : 'Select type first'
+                            }
+                            disabled={!companyInfoDraft.companyType}
                             searchable
                           />
-                          {companyInfoDraft.industry === INDUSTRY_OTHER_VALUE ? (
-                            <Input
-                              label="Specify industry"
-                              value={companyInfoDraft.industryOther}
-                              onChange={(e) =>
-                                setCompanyInfoDraftField('industryOther', e.target.value)
-                              }
-                              placeholder="Enter your industry"
-                            />
-                          ) : null}
-                          <Select
-                            label="Company type"
+                          <Input
+                            label="Account category"
                             value={companyInfoDraft.type}
-                            onChange={(value) => setCompanyInfoDraftField('type', value)}
-                            options={typeSelectOptions}
-                            placeholder="Select company type"
-                            icon={Layers}
+                            onChange={(e) => setCompanyInfoDraftField('type', e.target.value)}
+                            placeholder="Customer"
                           />
                           <Input
                             label="Company size"
@@ -1945,15 +1954,20 @@ export default function ClientAccountDetailPage() {
                       <InfoSection title="Company profile" icon={Building2} isFirst>
                         <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                           <InfoRow
-                            label="Industry"
-                            value={industryVisual.label}
-                            icon={IndustryIcon}
+                            label="Type"
+                            value={profileCompanyTypeLabel}
+                            icon={Layers}
                             emphasize
+                          />
+                          <InfoRow
+                            label="Sub-type"
+                            value={profileCompanySubType}
+                            icon={Layers}
                           />
                           <InfoRow
                             label="Company type"
                             value={account.type ? humanizeSource(account.type) : ''}
-                            icon={Layers}
+                            icon={Briefcase}
                           />
                           <InfoRow
                             label="Company size"

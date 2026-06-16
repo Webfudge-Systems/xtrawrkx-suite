@@ -22,6 +22,7 @@ import VirtualTicket from "@/components/events/VirtualTicket";
 import EventGalleryModal from "@/components/events/EventGalleryModal";
 import { fetchWebsiteEventsCatalogWithRegistrations } from "@/lib/websiteEventsService";
 import { useSession } from "@/lib/auth";
+import { exportItemsToCSV } from "@/lib/exportUtils";
 
 const filterOptions = [
   { value: "all", label: "All Events" },
@@ -181,9 +182,6 @@ export default function EventsPage() {
   const pageSubtitle =
     "Events are loaded from the xtrawrkx website catalog (Firebase). Register on the site; portal shows the same listings.";
 
-  const hasActiveFilters =
-    filterStatus !== "all" || searchTerm.length > 0;
-
   return (
     <div className="min-h-screen bg-white">
       <div className="px-4 pt-4">
@@ -192,8 +190,11 @@ export default function EventsPage() {
           subtitle={pageSubtitle}
           breadcrumb={[]}
           showActions
-          onFilterClick={() => setShowFilters((v) => !v)}
-          hasActiveFilters={hasActiveFilters}
+          onExportClick={() =>
+            exportItemsToCSV(filteredEvents, {
+              filename: "client-portal-events_export.csv",
+            })
+          }
         />
       </div>
 

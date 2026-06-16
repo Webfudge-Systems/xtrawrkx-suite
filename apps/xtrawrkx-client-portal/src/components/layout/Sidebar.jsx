@@ -28,7 +28,6 @@ import {
   getDedicatedPoc,
   isPocAssigned,
 } from "@/lib/pocUtils";
-import DedicatedPocSidebarCard from "./DedicatedPocSidebarCard";
 import SupportAssistanceCard from "./SupportAssistanceCard";
 
 export function Sidebar({ isOpen, onClose, onToggle }) {
@@ -119,11 +118,14 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
     }
   }, [pathname]);
 
-  const showPocCard = pocSnapshot.pocAssigned;
   const pocForCard =
     pocSnapshot.dedicatedPoc ||
     (pocSnapshot.pocAssigned
-      ? { fullName: "Dedicated POC", designation: "Point of Contact", teamName: "Customer Success" }
+      ? {
+          fullName: "Dedicated POC",
+          designation: "Point of Contact",
+          teamName: "Customer Success",
+        }
       : null);
 
   // Toggle section expansion
@@ -404,11 +406,10 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
             )}
             aria-label="Point of contact"
           >
-            {showPocCard && pocForCard ? (
-              <DedicatedPocSidebarCard poc={pocForCard} collapsed={collapsed} />
-            ) : (
-              <SupportAssistanceCard collapsed={collapsed} />
-            )}
+            <SupportAssistanceCard
+              collapsed={collapsed}
+              poc={pocForCard}
+            />
           </div>
         </nav>
       </div>

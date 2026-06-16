@@ -1,13 +1,22 @@
 import strapiClient from "../strapiClient";
+import { listCompanyMembersManaged } from "./companyMemberManagementService";
 
 function normalizeMember(member) {
   if (!member || typeof member !== "object") {
     return null;
   }
 
+  const firstName =
+    member.firstName || String(member.name || "").trim().split(/\s+/)[0] || "";
+  const lastName =
+    member.lastName ||
+    String(member.name || "")
+      .trim()
+      .split(/\s+/)
+      .slice(1)
+      .join(" ") ||
+    "";
   const role = member.role || member.portalAccessLevel || "MEMBER";
-  const firstName = member.firstName || "";
-  const lastName = member.lastName || "";
   const fullName = `${firstName} ${lastName}`.trim();
   const fallbackName = member.name || member.email?.split("@")[0] || "Unknown";
 
@@ -18,7 +27,7 @@ function normalizeMember(member) {
       member.email ||
       `member-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: fullName || fallbackName,
-    role: role.replaceAll("_", " "),
+    role: String(role).replaceAll("_", " "),
     email: member.email || null,
   };
 }
@@ -47,26 +56,40 @@ function readStoredContacts() {
 }
 
 export async function listCompanyMembers() {
-  const cachedMembers = readStoredContacts();
-  if (cachedMembers.length > 0) {
-    return { data: cachedMembers };
-  }
-
   try {
-    const response = await strapiClient.getAccountContacts();
-    const contacts = Array.isArray(response?.contacts)
-      ? response.contacts
-      : Array.isArray(response?.data)
-        ? response.data
-        : Array.isArray(response)
-          ? response
-          : [];
-
+    const response = await listCompanyMembersManaged();
+    const contacts = Array.isArray(response?.data) ? response.data : [];
     const members = contacts.map(normalizeMember).filter(Boolean);
     return { data: members };
   } catch (error) {
     console.warn("Failed to fetch company members", error);
-    return { data: [] };
+    const cachedMembers = readStoredContacts();
+    return { data: cachedMembers };
   }
 }
 
+export async function refreshCompanyMembersCache() {
+  try {
+    const response = await fetch(
+      `${strapiClient.baseURL}${strapiClient.apiPath}/auth/me`,
+      {
+        method: "GET",
+        headers: strapiClient.getHeaders(),
+        cache: "no-store",
+      }
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const data = await response.json();
+    if (data?.type === "client" && Array.isArray(data.contacts)) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("client_contacts", JSON.stringify(data.contacts));
+      }
+      return data.contacts;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

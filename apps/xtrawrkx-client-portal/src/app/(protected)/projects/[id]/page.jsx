@@ -9,15 +9,14 @@ import {
   FileText,
   Clock,
   CheckCircle2,
-  Building2,
   Target,
   AlignLeft,
   TrendingUp,
   Share2,
   RefreshCw,
-  FolderOpen,
   Activity,
-  MessageSquare,
+  IndianRupee,
+  FolderOpen,
 } from "lucide-react";
 import {
   KPICard,
@@ -27,7 +26,6 @@ import {
   EmptyState,
   LoadingSpinner,
   Avatar,
-  ProgressBar,
   InfoRow,
   InfoSection,
   SidebarCardTitle,
@@ -73,32 +71,70 @@ function formatShortDate(iso) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function isPresent(value) {
+  if (value == null) return false;
+  const s = String(value).trim();
+  return s.length > 0 && s !== "—";
+}
+
+function userLabel(user) {
+  return user?.name || user?.username || user?.email || `User ${user?.id}`;
+}
+
 function projectStatusHeaderVisual(status) {
   const label = getProjectStatusLabel(status);
   const s = (status || "PLANNING").toUpperCase();
   if (s === "COMPLETED") {
     return {
-      pillClass: "border border-emerald-300/90 bg-gradient-to-br from-emerald-50 to-emerald-100/90 text-emerald-950 ring-emerald-200/70",
+      pillClass:
+        "border border-emerald-300/90 bg-gradient-to-br from-emerald-50 via-emerald-50 to-emerald-100/90 text-emerald-950 ring-emerald-200/70",
       Icon: CheckCircle2,
       label,
     };
   }
-  if (s === "IN_PROGRESS" || s === "ACTIVE") {
+  if (s === "CANCELLED") {
     return {
-      pillClass: "border border-orange-300/90 bg-gradient-to-br from-orange-50 to-orange-100/90 text-orange-950 ring-orange-200/70",
+      pillClass:
+        "border border-red-300/90 bg-gradient-to-br from-red-50 via-red-50 to-red-100/90 text-red-950 ring-red-200/70",
+      Icon: Target,
+      label,
+    };
+  }
+  if (s === "ON_HOLD") {
+    return {
+      pillClass:
+        "border border-violet-300/90 bg-gradient-to-br from-violet-50 via-violet-50 to-violet-100/90 text-violet-950 ring-violet-200/70",
+      Icon: Target,
+      label,
+    };
+  }
+  if (s === "IN_PROGRESS") {
+    return {
+      pillClass:
+        "border border-orange-300/90 bg-gradient-to-br from-orange-50 via-orange-50 to-orange-100/90 text-orange-950 ring-orange-200/70",
+      Icon: Target,
+      label,
+    };
+  }
+  if (s === "ACTIVE") {
+    return {
+      pillClass:
+        "border border-cyan-300/90 bg-gradient-to-br from-cyan-50 via-cyan-50 to-cyan-100/90 text-cyan-950 ring-cyan-200/70",
       Icon: Target,
       label,
     };
   }
   if (s === "PLANNING") {
     return {
-      pillClass: "border border-blue-300/90 bg-gradient-to-br from-blue-50 to-blue-100/90 text-blue-950 ring-blue-200/70",
+      pillClass:
+        "border border-blue-300/90 bg-gradient-to-br from-blue-50 via-blue-50 to-blue-100/90 text-blue-950 ring-blue-200/70",
       Icon: Target,
       label,
     };
   }
   return {
-    pillClass: "border border-gray-300/90 bg-gradient-to-br from-gray-50 to-gray-100/90 text-gray-950 ring-gray-200/70",
+    pillClass:
+      "border border-gray-300/90 bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100/90 text-gray-950 ring-gray-200/70",
     Icon: Target,
     label,
   };
@@ -272,7 +308,7 @@ export default function ProjectDetailsPage() {
       await createClientTask({
         name: taskInput.title,
         description: taskInput.description || "",
-        projects: { set: [Number(taskInput.projectId || project.id)] },
+        projects: { set: [String(taskInput.projectId || project.id)] },
         scheduledDate: taskInput.dueDate ? new Date(`${taskInput.dueDate}T00:00:00`).toISOString() : null,
         priority: priority === "urgent" ? "high" : priority,
       });
@@ -392,14 +428,15 @@ export default function ProjectDetailsPage() {
       <TabsWithActions variant="pill" tabs={tabsWithBadges} activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "overview" ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <Card variant="elevated" className="rounded-xl">
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 pr-2">
                   <h2 className="text-xl font-semibold text-gray-900">Project information</h2>
-                  <p className="mt-1.5 text-base text-gray-500">Scope, timeline, ownership, and how work is tracking.</p>
+                  <p className="mt-1.5 text-base text-gray-500">
+                    Scope, timeline, ownership, and how work is tracking.
+                  </p>
                 </div>
                 <span
                   className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold uppercase tracking-widest shadow-md ring-2 ${statusVisual.pillClass}`}
@@ -409,54 +446,70 @@ export default function ProjectDetailsPage() {
                   {statusVisual.label}
                 </span>
               </div>
+              <div className="space-y-5">
+                <InfoSection title="Key info" icon={Target} isFirst>
+                  <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                    <InfoRow
+                      label="Owner"
+                      value={project.projectManager ? userLabel(project.projectManager) : ""}
+                    />
+                    <InfoRow label="Start date" value={formatShortDate(project.startDate)} icon={Calendar} />
+                    <InfoRow label="Due date" value={formatShortDate(project.endDate)} icon={Clock} />
+                  </div>
+                </InfoSection>
 
-              <InfoSection title="Key info" icon={Target} isFirst>
-                <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                  <InfoRow label="Owner" value={project.projectManager?.name || "—"} />
-                  <InfoRow label="Organization" icon={Building2} value={project.clientName || "—"} />
-                  <InfoRow label="Start date" value={formatShortDate(project.startDate)} icon={Calendar} />
-                  <InfoRow label="Due date" value={formatShortDate(project.endDate)} icon={Clock} />
-                </div>
-              </InfoSection>
-
-              <section className="border-t border-gray-100 pt-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <AlignLeft className="h-5 w-5 shrink-0 text-orange-500" aria-hidden />
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">About</h3>
-                </div>
-                {project.description ? (
-                  <p className="mt-2.5 whitespace-pre-wrap text-base leading-relaxed text-gray-800">{project.description}</p>
-                ) : (
-                  <p className="mt-2.5 text-base text-gray-400">—</p>
-                )}
-              </section>
+                <section className="border-t border-gray-100 pt-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <AlignLeft className="h-5 w-5 shrink-0 text-orange-500" aria-hidden />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">About</h3>
+                  </div>
+                  {isPresent(project.description) ? (
+                    <p className="mt-2.5 whitespace-pre-wrap text-base font-normal leading-relaxed text-gray-800">
+                      {project.description}
+                    </p>
+                  ) : (
+                    <p className="mt-2.5 text-base font-normal text-gray-400">—</p>
+                  )}
+                </section>
+              </div>
             </Card>
 
             <Card variant="elevated" className="rounded-xl">
-              <div className="mb-6 flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Team members</h2>
-                  <p className="mt-1.5 text-base text-gray-500">People assigned to deliver work on this project.</p>
+              <div className="mb-6">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Team members</h2>
+                    <p className="mt-1.5 text-base text-gray-500">
+                      People assigned to deliver work on this project.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">
+                    {(project.team || []).length}
+                  </span>
                 </div>
-                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">
-                  {(project.team || []).length}
-                </span>
               </div>
               {(project.team || []).length === 0 ? (
-                <EmptyState icon={Users} title="No team members" description="Team members will appear here when assigned." />
+                <EmptyState
+                  icon={Users}
+                  title="No team members"
+                  description="Team members will appear here when assigned to this project."
+                />
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {project.team.map((member) => (
-                    <div key={member.id} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                    <div
+                      key={member.id}
+                      className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3"
+                    >
                       <Avatar
-                        src={member.avatar || undefined}
-                        fallback={member.initials || (member.name || "U").charAt(0)}
+                        fallback={(member.initials || member.name || "U").charAt(0).toUpperCase()}
                         size="sm"
-                        className="bg-gray-600 text-white"
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-gray-900">{member.name}</p>
-                        <p className="truncate text-xs text-gray-500">{member.email || "Team member"}</p>
+                        <p className="truncate text-sm font-semibold text-gray-900">{userLabel(member)}</p>
+                        <p className="truncate text-xs text-gray-500">
+                          {member.role || member.email || "Team member"}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -467,108 +520,127 @@ export default function ProjectDetailsPage() {
 
           <div className="space-y-4">
             <Card variant="elevated" className="rounded-xl">
-              <SidebarCardTitle title="Project owner" icon={Users} />
-              {project.projectManager ? (
-                <div className="flex items-center gap-3">
+              <h2 className="mb-4 text-xl font-semibold text-gray-900">Project owner</h2>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                   <Avatar
-                    src={project.projectManager.avatar || undefined}
-                    fallback={project.projectManager.initials}
-                    size="md"
-                    className="bg-gray-600 text-white"
+                    fallback={
+                      project.projectManager
+                        ? (project.projectManager.initials || userLabel(project.projectManager))
+                            .slice(0, 2)
+                            .toUpperCase()
+                        : "?"
+                    }
+                    alt={project.projectManager ? userLabel(project.projectManager) : "Unassigned"}
+                    size="lg"
+                    className="shrink-0 !bg-brand-primary font-semibold text-white shadow-sm ring-2 ring-brand-primary/25"
                   />
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-gray-900">{project.projectManager.name}</p>
-                    <p className="truncate text-sm text-gray-500">{project.projectManager.email || "Project manager"}</p>
-                  </div>
+                  <p className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900">
+                    {project.projectManager ? userLabel(project.projectManager) : "Unassigned"}
+                  </p>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-400">Unassigned</p>
-              )}
+              </div>
             </Card>
 
             <Card variant="elevated" className="rounded-xl">
-              <SidebarCardTitle title="Delivery progress" icon={TrendingUp} />
-              <div className="space-y-4">
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Overall progress</span>
-                    <span className="font-bold text-gray-900">{taskStats.progress}%</span>
-                  </div>
-                  <ProgressBar value={taskStats.progress} />
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-lg bg-gray-50 p-3">
-                    <p className="text-gray-500">Tasks done</p>
-                    <p className="text-lg font-bold text-gray-900">
-                      {taskStats.completed}/{taskStats.total}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-gray-50 p-3">
-                    <p className="text-gray-500">In progress</p>
-                    <p className="text-lg font-bold text-gray-900">{taskStats.inProgress}</p>
-                  </div>
-                </div>
-                <div className="space-y-2 border-t border-gray-100 pt-3 text-sm text-gray-600">
-                  <div className="flex justify-between">
-                    <span>Created</span>
-                    <span className="font-medium text-gray-800">{formatShortDate(project.createdAt)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Updated</span>
-                    <span className="font-medium text-gray-800">{formatShortDate(project.updatedAt)}</span>
-                  </div>
-                  {project.budget != null && project.budget !== "" ? (
-                    <div className="flex justify-between">
-                      <span>Budget</span>
-                      <span className="font-medium text-gray-800">
-                        {Number(project.budget).toLocaleString("en-IN")}
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                <h2 className="text-xl font-semibold text-gray-900">Delivery progress</h2>
+                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ring-orange-200/80 bg-orange-50 text-orange-900">
+                  {taskStats.progress}% complete
+                </span>
+              </div>
+
+              <div className="rounded-xl bg-gradient-to-br from-slate-50 to-gray-50/90 p-4 ring-1 ring-gray-100">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
+                  <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-stretch sm:gap-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500 sm:hidden">Progress</p>
+                    <div className="flex min-w-[5.5rem] flex-col items-center justify-center rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-orange-100/90">
+                      <span className="text-3xl font-bold tabular-nums leading-none text-orange-700">
+                        {taskStats.progress}
+                      </span>
+                      <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        Percent
                       </span>
                     </div>
-                  ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="hidden text-xs font-medium uppercase tracking-wide text-gray-500 sm:block">
+                      Overall completion
+                    </p>
+                    <p className="mt-0 text-sm text-gray-600 sm:mt-1">
+                      Based on tasks marked complete for this project.
+                    </p>
+                    <div
+                      className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/90 shadow-inner ring-1 ring-gray-100/80"
+                      role="progressbar"
+                      aria-valuenow={taskStats.progress}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label="Project completion"
+                    >
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-500 ease-out"
+                        style={{ width: `${taskStats.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-5">
+                <div>
+                  <h3 className="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <CheckSquare className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+                    Tasks
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-gray-100 bg-white px-3.5 py-3 shadow-sm">
+                      <p className="text-xs font-medium text-gray-500">Total tasks</p>
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-gray-900">{taskStats.total}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-100 bg-white px-3.5 py-3 shadow-sm">
+                      <p className="text-xs font-medium text-gray-500">Completed</p>
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-gray-900">{taskStats.completed}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100 pt-5">
+                  <h3 className="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <FolderOpen className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+                    Record &amp; budget
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-gray-100 bg-white px-3.5 py-3 shadow-sm">
+                      <p className="text-xs font-medium text-gray-500">Created</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">
+                        {formatShortDate(project.createdAt)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-gray-100 bg-white px-3.5 py-3 shadow-sm">
+                      <p className="text-xs font-medium text-gray-500">Updated</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">
+                        {formatShortDate(project.updatedAt)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-gray-100 bg-white px-3.5 py-3 shadow-sm sm:col-span-2">
+                      <p className="text-xs font-medium text-gray-500">Budget</p>
+                      <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+                        {project.budget != null && String(project.budget).trim() !== "" ? (
+                          <>
+                            <IndianRupee className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+                            {project.budget}
+                          </>
+                        ) : (
+                          <span className="font-semibold text-gray-400">—</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </Card>
-
-            <Card variant="elevated" className="rounded-xl">
-              <SidebarCardTitle title="Quick links" icon={FolderOpen} />
-              <div className="flex flex-col gap-2">
-                <Button type="button" variant="outline" className="justify-start" onClick={() => setActiveTab("tasks")}>
-                  View project tasks ({projectTasks.length})
-                </Button>
-                <Button type="button" variant="outline" className="justify-start" onClick={() => setActiveTab("comments")}>
-                  Open discussion
-                </Button>
-              </div>
-            </Card>
           </div>
-          </div>
-
-          <section className="min-w-0" aria-label="Project discussion">
-            <div className="mb-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <MessageSquare className="h-5 w-5 shrink-0 text-orange-500" aria-hidden />
-                <h2 className="text-lg font-semibold text-gray-900">Discussion</h2>
-              </div>
-              <p className="mt-1 text-sm text-gray-500">
-                Team chat for this project — same thread as the{" "}
-                <button
-                  type="button"
-                  className="font-medium text-orange-600 hover:underline"
-                  onClick={() => setActiveTab("comments")}
-                >
-                  Comments
-                </button>{" "}
-                tab.
-              </p>
-            </div>
-            <EntityActivityPanel
-              key={`project-chat-${projectApiId}`}
-              {...discussionPanelProps}
-              defaultSubTab="chat"
-              minHeightPx={440}
-              maxHeightPx={680}
-            />
-          </section>
         </div>
       ) : null}
 
@@ -594,7 +666,7 @@ export default function ProjectDetailsPage() {
       {activeTab === "activity" ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5 lg:items-start">
           <Card variant="elevated" className="rounded-xl lg:col-span-2">
-            <SidebarCardTitle title="Activity summary" icon={Activity} />
+            <SidebarCardTitle title="Activity Summary" icon={Activity} />
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-xl border border-orange-100 bg-orange-50/70 px-3 py-2.5">
                 <span className="text-xs font-medium text-orange-700">Total events</span>
@@ -605,23 +677,13 @@ export default function ProjectDetailsPage() {
                 <span className="text-xs font-semibold text-gray-800">{lastActivityDisplay}</span>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-                <span className="text-xs font-medium text-gray-600">Project manager</span>
-                <span className="truncate pl-2 text-right text-xs font-semibold text-gray-800">
-                  {project.projectManager?.name || "—"}
-                </span>
+                <span className="text-xs font-medium text-gray-600">Tasks</span>
+                <span className="text-xs font-semibold tabular-nums text-gray-800">{taskStats.total}</span>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-                <span className="text-xs font-medium text-gray-600">Organization</span>
-                <span className="truncate pl-2 text-right text-xs font-semibold text-gray-800">
-                  {project.clientName || "—"}
-                </span>
-              </div>
-              <div className="flex items-start justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-                <span className="shrink-0 text-xs font-medium text-gray-600">Team</span>
-                <span className="line-clamp-3 text-right text-xs font-semibold text-gray-800">
-                  {(project.team || []).length
-                    ? (project.team || []).map((m) => m.name).filter(Boolean).join(", ")
-                    : "None"}
+                <span className="text-xs font-medium text-gray-600">Completion</span>
+                <span className="inline-flex rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-900 ring-1 ring-orange-200/80">
+                  {taskStats.progress}%
                 </span>
               </div>
             </div>

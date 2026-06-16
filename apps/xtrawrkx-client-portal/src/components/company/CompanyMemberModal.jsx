@@ -1,24 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  X,
-  UserPlus,
-  Pencil,
-  AlertCircle,
-  CheckCircle2,
-  KeyRound,
-} from "lucide-react";
-import { Input } from "@/components/ui/Input";
+import { AlertCircle, CheckCircle2, UserPlus } from "lucide-react";
+import { Modal, Button, Input } from "@webfudge/ui";
+import { Select } from "@/components/ui/Select";
+import { Input as PasswordInput } from "@/components/ui/Input";
 import {
   addCompanyMemberManaged,
   createCompanyRole,
   getContactById,
   listCompanyMembersManaged,
   updateCompanyMemberManaged,
-  updateContactById,
 } from "@/lib/api/companyMemberManagementService";
 
 function generatePassword() {
@@ -44,6 +36,12 @@ const PORTAL_ROLE_LABELS = {
   UX_DESIGNER: "UX Designer",
 };
 
+const PORTAL_ACCESS_OPTIONS = [
+  { value: "FULL_ACCESS", label: "Admin" },
+  { value: "STANDARD_ACCESS", label: "Manager" },
+  { value: "READ_ONLY", label: "Member" },
+];
+
 function toApiPortalRole(role, customRoleName = "") {
   if (role === "CUSTOM") {
     return customRoleName.trim().toUpperCase().replaceAll(" ", "_");
@@ -60,9 +58,6 @@ function formatRoleLabel(roleName) {
     String(roleName || "").replaceAll("_", " ")
   );
 }
-
-const selectClass =
-  "w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/25";
 
 const emptyForm = {
   firstName: "",
@@ -93,6 +88,22 @@ export default function CompanyMemberModal({
   const [successMessage, setSuccessMessage] = useState("");
   const [formData, setFormData] = useState(emptyForm);
   const [memberStatus, setMemberStatus] = useState("ACTIVE");
+  const [changePassword, setChangePassword] = useState(false);
+
+  const resetState = () => {
+    setError("");
+    setFieldErrors({});
+    setSuccessMessage("");
+    setChangePassword(false);
+    setFormData(emptyForm);
+    setMemberStatus("ACTIVE");
+  };
+
+  const handleClose = () => {
+    if (loading) return;
+    resetState();
+    onClose();
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -102,6 +113,7 @@ export default function CompanyMemberModal({
     setError("");
     setFieldErrors({});
     setSuccessMessage("");
+    setChangePassword(false);
 
     const loadRoles = async () => {
       try {
@@ -128,7 +140,7 @@ export default function CompanyMemberModal({
     loadRoles();
 
     if (!isEdit) {
-      setFormData({ ...emptyForm, password: generatePassword() });
+      setFormData({ ...emptyForm });
       setMemberStatus("ACTIVE");
       return;
     }
@@ -139,7 +151,7 @@ export default function CompanyMemberModal({
         let data = null;
         if (memberId) {
           const response = await getContactById(memberId);
-          data = response?.data || response;
+          data = response?.data || response?.member || response;
         } else if (initialMember) {
           data = {
             firstName: initialMember.firstName,
@@ -167,7 +179,11 @@ export default function CompanyMemberModal({
             data?.portalAccess?.roleName ||
             (data?.role === "PRIMARY_CONTACT" ? "ADMIN" : data?.role || "MEMBER"),
           customRoleName: "",
-          portalAccessLevel: data?.portalAccessLevel || "READ_ONLY",
+          portalAccessLevel: ["FULL_ACCESS", "STANDARD_ACCESS", "READ_ONLY"].includes(
+            data?.portalAccessLevel
+          )
+            ? data?.portalAccessLevel
+            : "READ_ONLY",
           password: "",
           newPassword: "",
         });
@@ -184,6 +200,17 @@ export default function CompanyMemberModal({
   const resolvedRole = useMemo(
     () => toApiPortalRole(formData.role, formData.customRoleName),
     [formData.role, formData.customRoleName]
+  );
+
+  const roleOptions = useMemo(
+    () => [
+      ...roles.map((role) => ({
+        value: role,
+        label: formatRoleLabel(role),
+      })),
+      ...(isEdit ? [] : [{ value: "CUSTOM", label: "+ Create New Role" }]),
+    ],
+    [roles, isEdit]
   );
 
   const handleChange = (field, value) => {
@@ -207,11 +234,12 @@ export default function CompanyMemberModal({
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       next.email = "Enter a valid email address.";
     }
-    if (!isEdit && !formData.password.trim()) {
-      next.password = "Password is required.";
-    }
-    if (isEdit && formData.newPassword.trim() && formData.newPassword.trim().length < 6) {
-      next.newPassword = "Password must be at least 6 characters.";
+    if (isEdit && changePassword) {
+      if (!formData.newPassword.trim()) {
+        next.newPassword = "Enter a new password.";
+      } else if (formData.newPassword.trim().length < 6) {
+        next.newPassword = "Password must be at least 6 characters.";
+      }
     }
     if (formData.role === "CUSTOM" && !formData.customRoleName.trim()) {
       next.customRoleName = "Please enter a name for the new role.";
@@ -230,6 +258,7 @@ export default function CompanyMemberModal({
     setLoading(true);
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+      const password = formData.password.trim() || generatePassword();
 
       if (!isEdit) {
         if (formData.role === "CUSTOM") {
@@ -241,18 +270,15 @@ export default function CompanyMemberModal({
 
         const created = await addCompanyMemberManaged({
           name: fullName,
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
           email: formData.email.trim(),
+          phone: formData.phone || null,
           role: resolvedRole,
-          password: formData.password,
+          portalAccessLevel: formData.portalAccessLevel,
+          password,
+          isCustomRole: formData.role === "CUSTOM",
         });
-
-        const newMemberId = created?.member?.id;
-        if (newMemberId) {
-          await updateContactById(newMemberId, {
-            phone: formData.phone || null,
-            portalAccessLevel: formData.portalAccessLevel,
-          }).catch(() => null);
-        }
 
         setSuccessMessage(
           `Member added. Login: ${created?.member?.email || formData.email}`
@@ -261,28 +287,26 @@ export default function CompanyMemberModal({
         const id = memberId || initialMember?.id;
         const memberPayload = {
           name: fullName,
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone || null,
           role: resolvedRole,
+          portalAccessLevel: formData.portalAccessLevel,
           status: memberStatus,
         };
-        if (formData.newPassword.trim()) {
+        if (changePassword && formData.newPassword.trim()) {
           memberPayload.password = formData.newPassword.trim();
         }
 
-        await Promise.all([
-          updateCompanyMemberManaged(id, memberPayload),
-          updateContactById(id, {
-            email: formData.email.trim(),
-            phone: formData.phone || null,
-            portalAccessLevel: formData.portalAccessLevel,
-          }),
-        ]);
+        await updateCompanyMemberManaged(id, memberPayload);
 
         setSuccessMessage("Member updated successfully.");
       }
 
       onSuccess?.();
       setTimeout(() => {
-        setSuccessMessage("");
+        resetState();
         onClose();
       }, 1200);
     } catch (submitError) {
@@ -292,252 +316,169 @@ export default function CompanyMemberModal({
     }
   };
 
-  const roleOptions = [
-    ...roles.map((role) => ({
-      value: role,
-      label: formatRoleLabel(role),
-    })),
-    ...(isEdit ? [] : [{ value: "CUSTOM", label: "+ Create New Role" }]),
-  ];
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={isEdit ? "Edit Member" : "Add Member"}
+      subtitle={
+        isEdit
+          ? "Update details, access, or reset password"
+          : "Set up a new member profile and access level"
+      }
+      size="lg"
+      closeOnBackdrop={!loading && !loadingMember}
+    >
+      {successMessage ? (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      ) : null}
 
-  if (typeof document === "undefined") {
-    return null;
-  }
+      {loadingMember ? (
+        <p className="py-8 text-center text-gray-600">Loading member...</p>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Input
+              label="First Name"
+              required
+              value={formData.firstName}
+              onChange={(e) => handleChange("firstName", e.target.value)}
+              placeholder="Enter first name"
+              error={fieldErrors.firstName}
+            />
+            <Input
+              label="Last Name"
+              value={formData.lastName}
+              onChange={(e) => handleChange("lastName", e.target.value)}
+              placeholder="Enter last name"
+            />
+          </div>
 
-  const modalContent = (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-          <motion.button
-            type="button"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={onClose}
-            aria-label="Close modal"
-          />
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Input
+              label="Email"
+              required
+              type="email"
+              value={formData.email}
+              onChange={(e) => handleChange("email", e.target.value)}
+              placeholder="name@company.com"
+              error={fieldErrors.email}
+            />
+            <Input
+              label="Phone"
+              value={formData.phone}
+              onChange={(e) => handleChange("phone", e.target.value)}
+              placeholder="+91 xxxxx xxxxx"
+            />
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 12 }}
-            transition={{ duration: 0.2 }}
-            className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-3xl bg-white border border-white/40 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
-                    isEdit ? "bg-green-100" : "bg-pink-100"
-                  }`}
-                >
-                  {isEdit ? (
-                    <Pencil className="h-6 w-6 text-green-600" />
-                  ) : (
-                    <UserPlus className="h-6 w-6 text-pink-600" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-2xl font-semibold text-gray-900 truncate">
-                    {isEdit ? "Edit Member" : "Add Member"}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {isEdit
-                      ? "Update details, access, or reset password"
-                      : "Set up a new member profile and access level"}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Select
+              label="Role"
+              value={formData.role}
+              onChange={(value) => handleChange("role", value)}
+              options={roleOptions}
+              allowEmpty={false}
+              searchPlaceholder="Search roles…"
+            />
+            <Select
+              label="Portal Access"
+              value={formData.portalAccessLevel}
+              onChange={(value) => handleChange("portalAccessLevel", value)}
+              options={PORTAL_ACCESS_OPTIONS}
+              allowEmpty={false}
+              searchPlaceholder="Search access levels…"
+            />
+          </div>
+
+          {formData.role === "CUSTOM" ? (
+            <Input
+              label="New Role Name"
+              value={formData.customRoleName}
+              onChange={(e) => handleChange("customRoleName", e.target.value)}
+              placeholder="e.g. Operations Manager"
+              error={fieldErrors.customRoleName}
+            />
+          ) : null}
+
+          {isEdit ? (
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={changePassword}
+                  onChange={(e) => {
+                    setChangePassword(e.target.checked);
+                    if (!e.target.checked) {
+                      handleChange("newPassword", "");
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                />
+                Change password
+              </label>
+              {changePassword ? (
+                <div className="space-y-1.5">
+                  <PasswordInput
+                    label="New Password"
+                    type="password"
+                    value={formData.newPassword}
+                    onChange={(e) => handleChange("newPassword", e.target.value)}
+                    placeholder="Enter new password"
+                    autoComplete="new-password"
+                    error={fieldErrors.newPassword}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Minimum 6 characters. The member will sign in with this
+                    password.
                   </p>
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 rounded-lg hover:bg-gray-100 shrink-0"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
+              ) : null}
             </div>
-
-            <div className="overflow-y-auto max-h-[calc(90vh-88px)] px-6 py-5">
-              {successMessage && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>{successMessage}</span>
-                </div>
-              )}
-
-              {loadingMember ? (
-                <p className="text-gray-600 py-8 text-center">Loading member...</p>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
-                      label="First Name"
-                      required
-                      value={formData.firstName}
-                      onChange={(e) => handleChange("firstName", e.target.value)}
-                      placeholder="Enter first name"
-                      error={fieldErrors.firstName}
-                    />
-                    <Input
-                      label="Last Name"
-                      value={formData.lastName}
-                      onChange={(e) => handleChange("lastName", e.target.value)}
-                      placeholder="Enter last name"
-                    />
-                    <Input
-                      label="Email"
-                      required
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => handleChange("email", e.target.value)}
-                      placeholder="name@company.com"
-                      error={fieldErrors.email}
-                    />
-                    <Input
-                      label="Phone"
-                      value={formData.phone}
-                      onChange={(e) => handleChange("phone", e.target.value)}
-                      placeholder="+91 xxxxx xxxxx"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Role
-                      </label>
-                      <select
-                        value={formData.role}
-                        onChange={(e) => handleChange("role", e.target.value)}
-                        className={selectClass}
-                      >
-                        {roleOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Portal Access
-                      </label>
-                      <select
-                        value={formData.portalAccessLevel}
-                        onChange={(e) =>
-                          handleChange("portalAccessLevel", e.target.value)
-                        }
-                        className={selectClass}
-                      >
-                        <option value="FULL_ACCESS">Full Access</option>
-                        <option value="STANDARD_ACCESS">Standard Access</option>
-                        <option value="PROJECT_VIEW">Project View</option>
-                        <option value="INVOICE_VIEW">Invoice View</option>
-                        <option value="READ_ONLY">Read Only</option>
-                        <option value="BILLING_ONLY">Billing Only</option>
-                        <option value="NO_ACCESS">No Access</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {formData.role === "CUSTOM" && (
-                    <Input
-                      label="New Role Name"
-                      value={formData.customRoleName}
-                      onChange={(e) =>
-                        handleChange("customRoleName", e.target.value)
-                      }
-                      placeholder="e.g. Operations Manager"
-                      error={fieldErrors.customRoleName}
-                    />
-                  )}
-
-                  <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <KeyRound className="h-4 w-4 text-amber-600" />
-                      <p className="text-sm font-semibold text-gray-900">
-                        {isEdit ? "Change Password" : "Temporary Password"}
-                      </p>
-                    </div>
-                    {isEdit ? (
-                      <>
-                        <p className="text-xs text-gray-500 mb-2">
-                          Leave blank to keep the current password.
-                        </p>
-                        <Input
-                          label="New Password"
-                          type="password"
-                          value={formData.newPassword}
-                          onChange={(e) =>
-                            handleChange("newPassword", e.target.value)
-                          }
-                          placeholder="Enter new password"
-                          error={fieldErrors.newPassword}
-                        />
-                      </>
-                    ) : (
-                      <div className="flex gap-2">
-                        <Input
-                          label="Password"
-                          type="password"
-                          value={formData.password}
-                          onChange={(e) =>
-                            handleChange("password", e.target.value)
-                          }
-                          placeholder="Temporary password"
-                          error={fieldErrors.password}
-                          containerClassName="flex-1"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleChange("password", generatePassword())
-                          }
-                          className="self-end shrink-0 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                        >
-                          Generate
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {error && (
-                    <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="flex-1 h-12 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading || loadingMember}
-                      className="flex-1 h-12 rounded-xl bg-brand-primary text-white font-semibold hover:bg-orange-600 disabled:opacity-60"
-                    >
-                      {loading
-                        ? "Saving..."
-                        : isEdit
-                          ? "Update Member"
-                          : "Save Member"}
-                    </button>
-                  </div>
-                </form>
-              )}
+          ) : (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">
+                Temporary Password (optional)
+              </label>
+              <Input
+                type="text"
+                value={formData.password}
+                onChange={(e) => handleChange("password", e.target.value)}
+                placeholder="Auto-generated if left empty"
+              />
+              <p className="text-xs text-gray-500">
+                If left empty, a secure password will be generated
+                automatically.
+              </p>
             </div>
-          </motion.div>
-        </div>
+          )}
+
+          {error ? (
+            <p className="flex items-center gap-2 text-sm text-red-600">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </p>
+          ) : null}
+
+          <div className="flex flex-col-reverse gap-2 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="muted"
+              onClick={handleClose}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={loading}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              {loading ? "Saving..." : isEdit ? "Update Member" : "Save Member"}
+            </Button>
+          </div>
+        </form>
       )}
-    </AnimatePresence>
+    </Modal>
   );
-
-  return createPortal(modalContent, document.body);
 }

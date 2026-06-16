@@ -29,7 +29,6 @@ import {
 import { getXenTierByCode } from "@webfudge/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
-import CommunityJoinRequirementsModal from "@/components/communities/CommunityJoinRequirementsModal";
 import {
   COMMUNITIES_LIST,
   getCommunityById,
@@ -43,7 +42,6 @@ import {
 } from "@/lib/api/communityProgramService";
 import { fetchWebsiteEventsCatalog } from "@/lib/websiteEventsService";
 import { strapiClient } from "@/lib/strapiClient";
-import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
 
 const TAB_KEYS = {
   ALL: "all",
@@ -183,13 +181,15 @@ export default function CommunitiesPage() {
   const [totalNetworkMembers, setTotalNetworkMembers] = useState(0);
   const [eventsThisMonth, setEventsThisMonth] = useState(0);
   const [clientAccountId, setClientAccountId] = useState(null);
-  const [accountDefaults, setAccountDefaults] = useState({});
-  const [joinModalOpen, setJoinModalOpen] = useState(false);
-  const [joinTarget, setJoinTarget] = useState(null);
 
   const [activeTab, setActiveTab] = useState(TAB_KEYS.ALL);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeView, setActiveView] = useState("gallery");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "pending") setActiveTab(TAB_KEYS.PENDING);
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,62 +198,6 @@ export default function CommunitiesPage() {
       setLoading(true);
       const id = strapiClient.getCurrentAccountId();
       if (!cancelled) setClientAccountId(id);
-
-      if (typeof window !== "undefined") {
-        const raw = localStorage.getItem("client_account");
-        if (raw) {
-          try {
-            const acc = JSON.parse(raw);
-            const attrs = acc.attributes || acc;
-            const onboardingData =
-              attrs.onboardingData && typeof attrs.onboardingData === "object"
-                ? attrs.onboardingData
-                : {};
-            setAccountDefaults({
-              company:
-                resolveClientAccountCompanyName(acc) ||
-                resolveClientAccountCompanyName(attrs),
-              companyEmail:
-                onboardingData.companyEmail || attrs.companyEmail || "",
-              jobTitle:
-                onboardingData.jobTitle || attrs.jobTitle || acc.jobTitle || "",
-              phone:
-                onboardingData.phone ||
-                attrs.phone ||
-                acc.phone ||
-                onboardingData.companyPhone ||
-                "",
-              companyPhone:
-                onboardingData.companyPhone || attrs.companyPhone || "",
-              industry:
-                onboardingData.industry || attrs.industry || acc.industry || "",
-              website: onboardingData.website || attrs.website || "",
-              companyType:
-                onboardingData.companyType || attrs.companyType || "",
-              companySubType:
-                onboardingData.companySubType || attrs.companySubType || "",
-              companyDescription:
-                onboardingData.companyDescription || attrs.companyDescription || "",
-              addressLine1:
-                onboardingData.addressLine1 || attrs.addressLine1 || "",
-              addressLine2:
-                onboardingData.addressLine2 || attrs.addressLine2 || "",
-              city: onboardingData.city || attrs.city || "",
-              state: onboardingData.state || attrs.state || "",
-              country: onboardingData.country || attrs.country || "",
-              postalCode: onboardingData.postalCode || attrs.postalCode || "",
-              linkedin: onboardingData.linkedin || attrs.linkedin || "",
-              xProfile: onboardingData.xProfile || attrs.xProfile || "",
-              interests: onboardingData.interests || attrs.interests || "",
-              registrationLookingFor:
-                onboardingData.lookingFor || attrs.lookingFor || "",
-              bio: onboardingData.bio || attrs.bio || "",
-            });
-          } catch {
-            /* ignore */
-          }
-        }
-      }
 
       const statsPromise = fetchCommunityProgramStats();
       const eventsPromise = fetchWebsiteEventsCatalog().catch(() => []);
@@ -312,9 +256,15 @@ export default function CommunitiesPage() {
       return;
     }
     joinPromptConsumed.current = true;
-    setJoinTarget(c);
-    setJoinModalOpen(true);
-  }, [loading, joinedEnums, pendingEnums, clientAccountId, searchParams]);
+    router.replace(`/communities/${c.id}/join`);
+  }, [loading, joinedEnums, pendingEnums, clientAccountId, searchParams, router]);
+
+  const openJoin = useCallback(
+    (community) => {
+      router.push(`/communities/${community.id}/join`);
+    },
+    [router]
+  );
 
   const communitiesData = useMemo(
     () =>
@@ -397,20 +347,6 @@ export default function CommunitiesPage() {
     },
   ];
 
-  const openJoinModal = useCallback((community) => {
-    setJoinTarget(community);
-    setJoinModalOpen(true);
-  }, []);
-
-  const handleJoinSuccess = (community) => {
-    if (!community?.strapiEnum) return;
-    setPendingEnums((prev) =>
-      prev.includes(community.strapiEnum)
-        ? prev
-        : [...prev, community.strapiEnum]
-    );
-  };
-
   const tableColumns = useMemo(
     () => [
       {
@@ -484,7 +420,7 @@ export default function CommunitiesPage() {
                 size="sm"
                 className="gap-1 px-2 text-orange-600 hover:bg-orange-50"
                 title="Join community"
-                onClick={() => openJoinModal(row)}
+                onClick={() => openJoin(row)}
               >
                 <UserPlus className="h-4 w-4" />
                 Join
@@ -494,7 +430,7 @@ export default function CommunitiesPage() {
         ),
       },
     ],
-    [openJoinModal, router]
+    [openJoin, router]
   );
 
   if (loading) {
@@ -634,23 +570,12 @@ export default function CommunitiesPage() {
             <CommunityGalleryCard
               key={community.id}
               community={community}
-              onJoin={openJoinModal}
+              onJoin={openJoin}
             />
           ))}
         </div>
       )}
 
-      <CommunityJoinRequirementsModal
-        isOpen={joinModalOpen}
-        onClose={() => {
-          setJoinModalOpen(false);
-          setJoinTarget(null);
-        }}
-        community={joinTarget}
-        clientAccountId={clientAccountId}
-        accountDefaults={accountDefaults}
-        onSuccess={handleJoinSuccess}
-      />
     </PortalPageShell>
   );
 }

@@ -45,12 +45,13 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import { useSession } from "@/lib/auth";
-import strapiClient from "@/lib/strapiClient";
+import { exportItemsToCSV } from "@/lib/exportUtils";
 import { buildProjectSlug } from "@/lib/projectUtils";
 import {
   listProjectsForClient,
   createClientProject,
 } from "@/lib/api/clientProjectService";
+import { resolveClientAccountId } from "@/lib/clientAccountId";
 import {
   addClientProjectComment,
   fetchClientProjectComments,
@@ -294,31 +295,7 @@ function ProjectsKanbanView({ projects, router }) {
 }
 
 async function resolveAccountId(session) {
-  let accountId =
-    session?.account?.id ||
-    session?.account?.documentId ||
-    session?.user?.id ||
-    session?.user?.profile?.id ||
-    session?.id ||
-    session?.documentId;
-
-  if (!accountId && typeof window !== "undefined") {
-    const raw = localStorage.getItem("client_account");
-    if (raw) {
-      try {
-        const a = JSON.parse(raw);
-        accountId = a.id || a.documentId;
-      } catch { /* ignore */ }
-    }
-  }
-  if (!accountId) accountId = strapiClient.getCurrentAccountId();
-  if (!accountId) {
-    try {
-      const currentUser = await strapiClient.getCurrentUser();
-      accountId = currentUser?.account?.id || currentUser?.account?.documentId;
-    } catch { /* ignore */ }
-  }
-  return accountId;
+  return resolveClientAccountId(session);
 }
 
 // ─── page ────────────────────────────────────────────────────────────────────
@@ -814,8 +791,11 @@ export default function ProjectsPage() {
         title="Projects"
         subtitle="Manage and track all your projects"
         showActions
-        onAddClick={() => setIsCreateProjectModalOpen(true)}
-        hasActiveFilters={Boolean(searchQuery)}
+        onExportClick={() =>
+          exportItemsToCSV(sortedProjects, {
+            filename: "client-portal-projects_export.csv",
+          })
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

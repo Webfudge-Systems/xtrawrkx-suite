@@ -35,7 +35,7 @@ function inferOnboardingCompleted(account) {
     (typeof od.signupCompany === 'string' && od.signupCompany.trim()) ||
     (typeof account.companyName === 'string' && account.companyName.trim()) ||
     '';
-  return Boolean(company && account.industry && account.email && account.phone);
+  return Boolean(company && account.email && account.phone);
 }
 
 function serializeClientAccount(account, assignedUser) {
@@ -315,6 +315,34 @@ async function authenticateClientCredentials(strapi, email, password) {
   };
 }
 
+function buildSettingsProfile(contact, access, account) {
+  const base = serializeContact(contact, access);
+  const od =
+    account?.onboardingData && typeof account.onboardingData === 'object'
+      ? account.onboardingData
+      : {};
+  const prefs =
+    od.preferences && typeof od.preferences === 'object' ? od.preferences : {};
+  const notifications =
+    prefs.notifications && typeof prefs.notifications === 'object'
+      ? prefs.notifications
+      : {};
+
+  return {
+    ...base,
+    bio: od.bio || '',
+    timezone: prefs.timezone || 'America/Los_Angeles',
+    notifications: {
+      email: notifications.email !== false,
+      projectUpdates: notifications.projectUpdates !== false,
+      messages: notifications.messages !== false,
+    },
+    appearance: prefs.appearance || { theme: 'light' },
+    language: prefs.language || 'en',
+    avatarUrl: od.avatarUrl || null,
+  };
+}
+
 async function resolveClientSession(strapi, portalAccessId) {
   const access = await strapi.entityService.findOne(PORTAL_ACCESS_UID, portalAccessId, {
     populate: ['contact', 'clientAccount'],
@@ -341,7 +369,8 @@ async function resolveClientSession(strapi, portalAccessId) {
     account: serializeClientAccount(account, account.assignedTo),
     contacts,
     contact: serializeContact(contact, access),
-    profile: serializeContact(contact, access),
+    profile: buildSettingsProfile(contact, access, account),
+    portalAccessId: access.id,
   };
 }
 
@@ -371,7 +400,8 @@ function mapPortalSignupBody(body) {
     industry: body?.industry,
     website: body?.website,
     companyType: body?.companyType,
-    companySubType: body?.subType,
+    companySubType: body?.companySubType || body?.subType,
+    jobTitle: body?.jobTitle,
     addressLine1: body?.address,
     city: body?.city,
     state: body?.state,
@@ -394,9 +424,13 @@ module.exports = {
   emailHasPortalAccess,
   serializeClientAccount,
   serializeDedicatedPocUser,
+  buildSettingsProfile,
   loadClientAccount,
   mapPortalSignupBody,
   findPortalAccessByEmail,
   resolveClientAccountId,
+  validatePortalPassword,
   JWT_SECRET,
+  CLIENT_ACCOUNT_UID,
+  PORTAL_ACCESS_UID,
 };

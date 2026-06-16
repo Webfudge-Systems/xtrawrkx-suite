@@ -346,13 +346,12 @@ function buildClientAccountPayload(body, orgId, companyName) {
   const email =
     normalizeString(body?.companyEmail).toLowerCase() ||
     normalizeString(body?.email).toLowerCase();
-  const industry =
-    normalizeString(body?.industry) || normalizeString(body?.jobTitle) || 'General';
 
   return {
     email,
     companyName,
-    industry,
+    industry: normalizeString(body?.industry) || null,
+    onboardingData: buildOnboardingData(body),
     type: 'CUSTOMER',
     status: 'ACTIVE',
     accountType: 'STANDARD',
@@ -505,6 +504,12 @@ async function ensureWebsiteClientAccount(strapi, body) {
 
   const existing = await findClientAccountForSignupRetry(strapi, orgId, body);
   if (existing) {
+    await strapi.entityService.update(CLIENT_ACCOUNT_UID, existing.id, {
+      data: {
+        onboardingData: buildOnboardingData(body, existing.onboardingData),
+      },
+    });
+
     const primaryContactSync = await ensureSignupContact(
       strapi,
       orgId,

@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import {
   deleteCompanyMemberManaged,
   getContactById,
+  listCompanyMembersManaged,
 } from "@/lib/api/companyMemberManagementService";
 
 export default function ViewCompanyMemberPage() {
@@ -28,13 +29,16 @@ export default function ViewCompanyMemberPage() {
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [error, setError] = useState("");
+  const [totalMembers, setTotalMembers] = useState(null);
+
+  const isDeleteDisabled = totalMembers !== null ? totalMembers <= 1 : false;
 
   useEffect(() => {
     const loadMember = async () => {
       try {
         setLoading(true);
         const response = await getContactById(memberId);
-        const data = response?.data || response;
+        const data = response?.data || response?.member || response;
         if (!data?.id) {
           setMember(null);
           return;
@@ -46,7 +50,9 @@ export default function ViewCompanyMemberPage() {
           email: data.email || "No email",
           phone: data.phone || "No phone",
           location: data.location || "Not specified",
-          role: data.role || "MEMBER",
+          role: data.isPrimaryContact
+            ? "PRIMARY_CONTACT"
+            : data.role || "MEMBER",
           status: data.status || "ACTIVE",
           portalAccessLevel: data.portalAccessLevel || "READ_ONLY",
         });
@@ -60,6 +66,21 @@ export default function ViewCompanyMemberPage() {
       loadMember();
     }
   }, [memberId]);
+
+  useEffect(() => {
+    const loadTotalMembers = async () => {
+      try {
+        const response = await listCompanyMembersManaged();
+        const rows = Array.isArray(response?.data) ? response.data : [];
+        setTotalMembers(rows.length);
+      } catch (e) {
+        // If we fail to determine the total, don't block deletion.
+        setTotalMembers(null);
+      }
+    };
+
+    loadTotalMembers();
+  }, []);
   const fullName = member
     ? `${member.firstName} ${member.lastName}`.trim() || "Unknown Member"
     : "Member Not Found";
@@ -110,7 +131,10 @@ export default function ViewCompanyMemberPage() {
                     <Download className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => setDeleteOpen(true)}
+                    onClick={() => {
+                      if (isDeleteDisabled) return;
+                      setDeleteOpen(true);
+                    }}
                     className="w-10 h-10 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center"
                     title="Delete"
                   >
@@ -186,12 +210,12 @@ export default function ViewCompanyMemberPage() {
       </div>
 
       {deleteOpen && member && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-2">
           <button
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setDeleteOpen(false)}
           />
-          <div className="relative w-full max-w-xl rounded-3xl bg-white border border-white/40 shadow-2xl p-6">
+          <div className="relative w-full max-w-xl rounded-3xl bg-white border border-gray-200 shadow-2xl p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center">
@@ -226,10 +250,16 @@ export default function ViewCompanyMemberPage() {
               </button>
               <button
                 onClick={async () => {
+                  if (isDeleteDisabled) return;
                   await deleteCompanyMemberManaged(member.id);
                   router.push("/company");
                 }}
-                className="flex-1 h-12 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700"
+                disabled={isDeleteDisabled}
+                className={`flex-1 h-12 rounded-xl font-semibold ${
+                  isDeleteDisabled
+                    ? "bg-gray-200 text-gray-500 cursor-not-allowed hover:bg-gray-200"
+                    : "bg-red-600 text-white hover:bg-red-700"
+                }`}
               >
                 Delete Member
               </button>

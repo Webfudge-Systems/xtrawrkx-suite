@@ -1,56 +1,167 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import CompanyMemberModal from "@/components/company/CompanyMemberModal";
+import CompanyMemberDetailsModal from "@/components/company/CompanyMemberDetailsModal";
 import {
-  UserCircle,
-  Search,
-  Plus,
-  List,
-  Grid3X3,
-  Mail,
-  Phone,
-  Shield,
   Users,
-  CircleCheck,
   UserCheck,
-  Eye,
+  Shield,
+  CircleCheck,
+  Plus,
   Pencil,
   Trash2,
-  ChevronRight,
   AlertTriangle,
   X,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { KPICard } from "@webfudge/ui";
+import {
+  Avatar,
+  Button,
+  Card,
+  KPICard,
+  Table,
+  TableCellCreated,
+  TableColumnPicker,
+  TableSortDropdown,
+  TabsWithActions,
+  useTableColumnPreferences,
+  useTableSort,
+} from "@webfudge/ui";
+import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import {
   deleteCompanyMemberManaged,
   listCompanyMembersManaged,
+  suspendCompanyMemberManaged,
 } from "@/lib/api/companyMemberManagementService";
+import { exportItemsToCSV } from "@/lib/exportUtils";
 
-const roleTabs = [
+const ROLE_TABS = [
   { key: "all", label: "All Members" },
   { key: "primary", label: "Primary Contact" },
   { key: "admin", label: "Admin / Finance" },
   { key: "members", label: "Members" },
 ];
 
+const COLUMN_VISIBILITY_STORAGE_KEY = "portal.companyMembers.tableColumnVisibility";
+const COLUMN_ORDER_STORAGE_KEY = "portal.companyMembers.tableColumnOrder";
+const COLUMN_WIDTHS_STORAGE_KEY = "portal.companyMembers.tableColumnWidths.v1";
+const TABLE_SORT_STORAGE_KEY = "portal.companyMembers.tableSort";
+
+const TOGGLEABLE_COLUMNS = [
+  { key: "role", label: "Role" },
+  { key: "portalAccessLevel", label: "Access" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "createdAt", label: "Created" },
+  { key: "location", label: "Location" },
+  { key: "lastActive", label: "Last Active" },
+  { key: "status", label: "Status" },
+];
+
+const DEFAULT_COLUMN_VISIBILITY = TOGGLEABLE_COLUMNS.reduce((acc, col) => {
+  acc[col.key] = true;
+  return acc;
+}, {});
+
+const DEFAULT_COLUMN_WIDTHS = {
+  member: 300,
+  role: 180,
+  portalAccessLevel: 180,
+  email: 240,
+  phone: 170,
+  createdAt: 170,
+  location: 220,
+  lastActive: 180,
+  status: 120,
+  actions: 130,
+};
+
+const MIN_COLUMN_WIDTHS = { actions: 120 };
+const REORDERABLE_COLUMN_KEYS = TOGGLEABLE_COLUMNS.map((col) => col.key);
+
+const SORT_COLUMN_OPTIONS = [
+  { key: "member", label: "Member name" },
+  { key: "role", label: "Role" },
+  { key: "portalAccessLevel", label: "Access" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "createdAt", label: "Created" },
+  { key: "location", label: "Location" },
+  { key: "lastActive", label: "Last Active" },
+  { key: "status", label: "Status" },
+];
+
+const SORTABLE_COLUMN_KEYS = SORT_COLUMN_OPTIONS.map((o) => o.key);
+
+const STATUS_ORDER = {
+  ACTIVE: 1,
+  INVITED: 2,
+  SUSPENDED: 3,
+  INACTIVE: 4,
+};
+
 export default function CompanyMembersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
-  const [viewMode, setViewMode] = useState("list");
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [memberModal, setMemberModal] = useState(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [detailsMember, setDetailsMember] = useState(null);
+  const [sortPickerOpen, setSortPickerOpen] = useState(false);
   const [actionState, setActionState] = useState({ kind: "", message: "" });
+  const isDeleteDisabled = members.length <= 1;
+
+  const {
+    columnVisibility,
+    columnOrder,
+    columnPickerOpen,
+    setColumnPickerOpen,
+    columnDropIndicator,
+    toolbarRef,
+    setColumnVisible,
+    handleColumnDragStart,
+    handleColumnDragEnd,
+    handleColumnRowDragOver,
+    handleColumnListDragLeave,
+    handleColumnDrop,
+    resetColumnTablePreferences,
+    tableResizeProps,
+  } = useTableColumnPreferences({
+    visibilityStorageKey: COLUMN_VISIBILITY_STORAGE_KEY,
+    orderStorageKey: COLUMN_ORDER_STORAGE_KEY,
+    widthsStorageKey: COLUMN_WIDTHS_STORAGE_KEY,
+    defaultVisibility: DEFAULT_COLUMN_VISIBILITY,
+    reorderableKeys: REORDERABLE_COLUMN_KEYS,
+    defaultWidths: DEFAULT_COLUMN_WIDTHS,
+    minWidths: MIN_COLUMN_WIDTHS,
+  });
+
+  const {
+    sortRules,
+    sortData,
+    addSortRule,
+    removeSortRule,
+    setRuleDirection,
+    moveSortRule,
+    clearSort,
+    maxRules: sortMaxRules,
+    hasActiveSort,
+    bindSortableColumns,
+  } = useTableSort({ storageKey: TABLE_SORT_STORAGE_KEY });
 
   const openAddModal = () => setMemberModal({ mode: "add" });
-  const openEditModal = (member) =>
-    setMemberModal({ mode: "edit", memberId: member.id, member });
+  const openEditModal = useCallback(
+    (member) => setMemberModal({ mode: "edit", memberId: member.id, member }),
+    []
+  );
   const closeMemberModal = () => {
     setMemberModal(null);
     if (searchParams?.get("add") || searchParams?.get("edit")) {
@@ -58,27 +169,54 @@ export default function CompanyMembersPage() {
     }
   };
 
-  const loadMembers = async () => {
+  const openDetailsModal = (member) => {
+    setDetailsMember(member);
+    setDetailsModalOpen(true);
+  };
+
+  const closeDetailsModal = () => {
+    setDetailsModalOpen(false);
+    setDetailsMember(null);
+    if (searchParams?.get("details")) {
+      router.replace("/company");
+    }
+  };
+
+  const loadMembers = useCallback(async () => {
     try {
       setLoadingMembers(true);
       const response = await listCompanyMembersManaged();
       const rows = Array.isArray(response?.data) ? response.data : [];
       setMembers(
         rows.map((member) => {
-          const nameParts = String(member.name || "").trim().split(/\s+/);
+          const firstName =
+            member.firstName ||
+            String(member.name || "").trim().split(/\s+/)[0] ||
+            "Member";
+          const lastName =
+            member.lastName ||
+            String(member.name || "").trim().split(/\s+/).slice(1).join(" ") ||
+            "";
+          const role = member.role
+            ? String(member.role).replaceAll(" ", "_").toUpperCase()
+            : member.isPrimaryContact
+              ? "PRIMARY_CONTACT"
+              : "MEMBER";
           return {
             id: member.id,
-            firstName: nameParts[0] || "Member",
-            lastName: nameParts.slice(1).join(" ") || "",
+            firstName,
+            lastName,
             email: member.email || "No email",
-            phone: member.phone || "No phone",
-            role: (member.role || "MEMBER").replaceAll(" ", "_").toUpperCase(),
+            phone: member.phone || null,
+            role,
+            roleLabel: member.roleLabel || member.role || role,
             portalAccessLevel: member.portalAccessLevel || "FULL_ACCESS",
+            portalAccessLabel: member.portalAccessLabel || member.portalAccessLevel,
             status: member.status || "ACTIVE",
             location: member.location || "Not specified",
-            lastActive: member.lastActivity
-              ? new Date(member.lastActivity).toLocaleString()
-              : "No activity",
+            createdAt: member.createdAt || null,
+            lastActive: member.lastActivity || null,
+            isPrimaryContact: Boolean(member.isPrimaryContact),
           };
         })
       );
@@ -90,23 +228,60 @@ export default function CompanyMembersPage() {
     } finally {
       setLoadingMembers(false);
     }
-  };
+  }, []);
+
+  const handleSuspendMember = useCallback(
+    async (member, suspend) => {
+      if (!member?.id) return;
+      if (member.isPrimaryContact && suspend) {
+        throw new Error("Primary contact cannot be suspended");
+      }
+
+      const res = await suspendCompanyMemberManaged(
+        member.id,
+        Boolean(suspend)
+      );
+      const updated = res?.member;
+
+      await loadMembers();
+      if (updated) setDetailsMember(updated);
+    },
+    [loadMembers]
+  );
 
   useEffect(() => {
     loadMembers();
-  }, []);
+  }, [loadMembers]);
 
   useEffect(() => {
     const add = searchParams?.get("add");
     const editId = searchParams?.get("edit");
+    const detailsId = searchParams?.get("details");
     if (add === "1" || add === "true") {
       setMemberModal({ mode: "add" });
       return;
     }
     if (editId) {
       setMemberModal({ mode: "edit", memberId: editId, member: null });
+      return;
+    }
+    if (detailsId) {
+      setDetailsMember({ id: detailsId });
+      setDetailsModalOpen(true);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!columnPickerOpen && !sortPickerOpen) return;
+    const onDocMouseDown = (e) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+        setColumnPickerOpen(false);
+        setSortPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [columnPickerOpen, sortPickerOpen, setColumnPickerOpen, toolbarRef]);
 
   const filteredMembers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -142,26 +317,29 @@ export default function CompanyMembersPage() {
     });
   }, [members, searchQuery, activeTab]);
 
-  const getTabCount = (tabKey) => {
-    if (tabKey === "all") {
-      return members.length;
-    }
-    return members.filter((member) => {
-      const roleUpper = member.role.toUpperCase();
-      if (tabKey === "primary") return roleUpper === "PRIMARY_CONTACT";
-      if (tabKey === "admin") {
-        return roleUpper.includes("FINANCE") || roleUpper.includes("ADMIN");
+  const getTabCount = useCallback(
+    (tabKey) => {
+      if (tabKey === "all") {
+        return members.length;
       }
-      if (tabKey === "members") {
-        return (
-          roleUpper !== "PRIMARY_CONTACT" &&
-          !roleUpper.includes("ADMIN") &&
-          !roleUpper.includes("FINANCE")
-        );
-      }
-      return true;
-    }).length;
-  };
+      return members.filter((member) => {
+        const roleUpper = member.role.toUpperCase();
+        if (tabKey === "primary") return roleUpper === "PRIMARY_CONTACT";
+        if (tabKey === "admin") {
+          return roleUpper.includes("FINANCE") || roleUpper.includes("ADMIN");
+        }
+        if (tabKey === "members") {
+          return (
+            roleUpper !== "PRIMARY_CONTACT" &&
+            !roleUpper.includes("ADMIN") &&
+            !roleUpper.includes("FINANCE")
+          );
+        }
+        return true;
+      }).length;
+    },
+    [members]
+  );
 
   const kpis = useMemo(() => {
     const total = members.length;
@@ -174,18 +352,270 @@ export default function CompanyMembersPage() {
     return { total, active, invited, accessOwners };
   }, [members]);
 
+  const sortedMembers = useMemo(
+    () =>
+      sortData(filteredMembers, (row, key) => {
+        if (key === "member") {
+          return `${row.firstName || ""} ${row.lastName || ""}`.trim().toLowerCase();
+        }
+        if (key === "role") return String(row.role || "").toLowerCase();
+        if (key === "portalAccessLevel") {
+          return String(row.portalAccessLevel || "").toLowerCase();
+        }
+        if (key === "email") return String(row.email || "").toLowerCase();
+        if (key === "phone") return String(row.phone || "").toLowerCase();
+        if (key === "location") return String(row.location || "").toLowerCase();
+        if (key === "createdAt") {
+          if (!row.createdAt) return 0;
+          const t = new Date(row.createdAt).getTime();
+          return Number.isFinite(t) ? t : 0;
+        }
+        if (key === "lastActive") {
+          if (!row.lastActive) return 0;
+          const t = new Date(row.lastActive).getTime();
+          return Number.isFinite(t) ? t : 0;
+        }
+        if (key === "status") return STATUS_ORDER[row.status] ?? 99;
+        return "";
+      }),
+    [filteredMembers, sortData]
+  );
+
+  const tableTabs = useMemo(
+    () =>
+      ROLE_TABS.map((tab) => ({
+        ...tab,
+        badge: getTabCount(tab.key),
+      })),
+    [getTabCount]
+  );
+
+  const allColumns = useMemo(
+    () => [
+      {
+        key: "member",
+        label: "MEMBER",
+        className: "align-top",
+        render: (_, member) => {
+          const fullName =
+            `${member.firstName || ""} ${member.lastName || ""}`.trim() || "Unknown";
+          const initials =
+            `${member.firstName?.[0] || ""}${member.lastName?.[0] || ""}` || "U";
+          return (
+            <div className="flex min-w-0 items-start gap-3">
+              <Avatar
+                fallback={initials.toUpperCase()}
+                alt={fullName}
+                size="sm"
+                className="flex-shrink-0 bg-gray-600 text-white"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-gray-900">{fullName}</p>
+                <p className="truncate text-xs text-gray-500">{member.location || "Not specified"}</p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: "role",
+        visibilityKey: "role",
+        label: "ROLE",
+        className: "align-middle",
+        render: (_, member) => (
+          <span className="text-xs font-semibold text-gray-900">
+            {member.roleLabel || String(member.role || "MEMBER").replaceAll("_", " ")}
+          </span>
+        ),
+      },
+      {
+        key: "portalAccessLevel",
+        visibilityKey: "portalAccessLevel",
+        label: "ACCESS",
+        className: "align-middle",
+        render: (_, member) => (
+          <span className="inline-flex whitespace-nowrap rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
+            {member.portalAccessLabel || String(member.portalAccessLevel || "READ_ONLY").replaceAll("_", " ")}
+          </span>
+        ),
+      },
+      {
+        key: "email",
+        visibilityKey: "email",
+        label: "EMAIL",
+        className: "align-middle",
+        render: (_, member) => (
+          <span className="text-xs font-medium text-gray-700">{member.email || "No email"}</span>
+        ),
+      },
+      {
+        key: "phone",
+        visibilityKey: "phone",
+        label: "PHONE",
+        className: "align-middle",
+        render: (_, member) => (
+          <span className="text-xs font-medium text-gray-700">{member.phone || "No phone"}</span>
+        ),
+      },
+      {
+        key: "createdAt",
+        visibilityKey: "createdAt",
+        label: "CREATED",
+        className: "align-middle",
+        render: (_, member) =>
+          member.createdAt ? (
+            <TableCellCreated dateString={member.createdAt} dateMode="calendar" emptyLabel="—" />
+          ) : (
+            <span className="text-xs text-gray-400">—</span>
+          ),
+      },
+      {
+        key: "location",
+        visibilityKey: "location",
+        label: "LOCATION",
+        className: "align-middle",
+        render: (_, member) => (
+          <span className="text-xs text-gray-700">{member.location || "Not specified"}</span>
+        ),
+      },
+      {
+        key: "lastActive",
+        visibilityKey: "lastActive",
+        label: "LAST ACTIVE",
+        className: "align-middle",
+        render: (_, member) =>
+          member.lastActive ? (
+            <TableCellCreated dateString={member.lastActive} dateMode="calendar" />
+          ) : (
+            <span className="text-xs text-gray-400">No activity</span>
+          ),
+      },
+      {
+        key: "status",
+        visibilityKey: "status",
+        label: "STATUS",
+        className: "align-middle",
+        render: (_, member) => {
+          const s = String(member.status || "ACTIVE").toUpperCase();
+          const isActive = s === "ACTIVE";
+          const isSuspended = s === "SUSPENDED";
+          const isInactive = s === "INACTIVE";
+          const isInvited = s === "INVITED";
+
+          return (
+            <span
+              className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${
+                isActive
+                  ? "border-green-200 bg-green-100 text-green-700"
+                  : isSuspended
+                    ? "border-amber-200 bg-amber-100 text-amber-800"
+                    : isInactive
+                      ? "border-gray-200 bg-gray-100 text-gray-600"
+                      : isInvited
+                        ? "border-yellow-200 bg-yellow-100 text-yellow-700"
+                        : "border-yellow-200 bg-yellow-100 text-yellow-700"
+              }`}
+            >
+              {isActive ? "Active" : isSuspended ? "Suspended" : isInactive ? "Inactive" : isInvited ? "Invited" : s}
+            </span>
+          );
+        },
+      },
+      {
+        key: "actions",
+        label: "ACTIONS",
+        resizable: false,
+        headerClassName: "whitespace-nowrap",
+        className: "align-middle whitespace-nowrap",
+        render: (_, member) => (
+          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+            {(() => {
+              const statusKey = String(member?.status || "ACTIVE").toUpperCase();
+              const shouldActivate = statusKey === "SUSPENDED" || statusKey === "INACTIVE";
+              return (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1.5 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+              title={
+                shouldActivate ? "Activate portal access" : "Suspend portal access"
+              }
+              onClick={() =>
+                handleSuspendMember(member, !shouldActivate)
+              }
+              aria-disabled={member?.isPrimaryContact ? true : false}
+              disabled={Boolean(member?.isPrimaryContact)}
+            >
+              {shouldActivate ? (
+                <Unlock className="h-4 w-4" />
+              ) : (
+                <Lock className="h-4 w-4" />
+              )}
+            </Button>
+              );
+            })()}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1.5 text-green-600 hover:bg-green-50"
+              title="Edit member"
+              onClick={() => openEditModal(member)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`p-1.5 text-red-600 hover:bg-red-50 ${
+                isDeleteDisabled ? "opacity-50 cursor-not-allowed hover:bg-transparent" : ""
+              }`}
+              title="Delete member"
+              onClick={() => {
+                if (isDeleteDisabled) return;
+                setDeleteTarget(member);
+              }}
+              aria-disabled={isDeleteDisabled}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [handleSuspendMember, openEditModal, isDeleteDisabled]
+  );
+
+  const visibleColumns = useMemo(() => {
+    const byKey = Object.fromEntries(allColumns.map((c) => [c.key, c]));
+    const out = [];
+    if (byKey.member) out.push(byKey.member);
+    for (const key of columnOrder) {
+      const col = byKey[key];
+      if (!col?.visibilityKey) continue;
+      if (columnVisibility[col.visibilityKey] === false) continue;
+      out.push(col);
+    }
+    if (byKey.actions) out.push(byKey.actions);
+    return bindSortableColumns(out, SORTABLE_COLUMN_KEYS);
+  }, [allColumns, columnVisibility, columnOrder, bindSortableColumns]);
+
   return (
-    <div className="bg-white min-h-screen">
-      <div className="px-4 pt-4">
+    <PortalPageShell>
+      <div className="px-1 pt-1">
         <PageHeader
           title="Company Members"
           subtitle="Manage your company contacts and portal access"
           showSearch={false}
-          showActions={false}
+          showActions
+          onExportClick={() =>
+            exportItemsToCSV(sortedMembers, {
+              filename: "client-portal-company-members_export.csv",
+            })
+          }
         />
       </div>
 
-      <div className="px-3 mt-6 space-y-4">
+      <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {[
             {
@@ -224,252 +654,102 @@ export default function CompanyMembersPage() {
           ))}
         </div>
 
-        <div className="flex items-center justify-between gap-3 bg-white/85 backdrop-blur-xl border border-white/50 rounded-2xl shadow-xl p-3">
-          <div className="flex items-center gap-2 flex-1 overflow-x-auto">
-            {roleTabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
-                  activeTab === tab.key
-                    ? "bg-brand-primary text-white shadow-lg"
-                    : "bg-white/80 text-gray-700 hover:bg-white/90 border border-white/40"
-                }`}
-              >
-                {tab.label}
-                <span
-                  className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
-                    activeTab === tab.key
-                      ? "bg-white/30 text-white"
-                      : "bg-gray-100 text-gray-700"
-                  }`}
-                >
-                  {getTabCount(tab.key)}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search members..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-64 pl-10 pr-4 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary focus:bg-white/15 transition-all duration-300 placeholder:text-gray-500 shadow-lg"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={openAddModal}
-              className="w-10 h-10 rounded-full bg-brand-primary text-white border border-brand-primary/50 flex items-center justify-center hover:bg-orange-600 transition-colors"
-              title="Add member"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setViewMode("list")}
-              className={`w-10 h-10 rounded-full border flex items-center justify-center ${
-                viewMode === "list"
-                  ? "bg-brand-primary text-white border-brand-primary/50"
-                  : "bg-white/80 text-gray-700 border-white/40"
-              }`}
-              title="List view"
-            >
-              <List className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`w-10 h-10 rounded-full border flex items-center justify-center ${
-                viewMode === "grid"
-                  ? "bg-brand-primary text-white border-brand-primary/50"
-                  : "bg-white/80 text-gray-700 border-white/40"
-              }`}
-              title="Grid view"
-            >
-              <Grid3X3 className="w-5 h-5" />
-            </button>
-          </div>
+        <div className="relative" ref={toolbarRef}>
+          <TabsWithActions
+            variant="glass"
+            tabs={tableTabs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            showSearch
+            searchPlaceholder="Search members..."
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            showAdd
+            onAddClick={openAddModal}
+            addTitle="Add Member"
+            showSort
+            onSortClick={() => {
+              setColumnPickerOpen(false);
+              setSortPickerOpen((prev) => !prev);
+            }}
+            sortActive={hasActiveSort}
+            showColumnVisibility
+            onColumnVisibilityClick={() => {
+              setSortPickerOpen(false);
+              setColumnPickerOpen((prev) => !prev);
+            }}
+            columnVisibilityTitle="Show / hide columns"
+          />
+          <TableSortDropdown
+            open={sortPickerOpen}
+            columnOptions={SORT_COLUMN_OPTIONS}
+            sortRules={sortRules}
+            maxRules={sortMaxRules}
+            onAddRule={addSortRule}
+            onRemoveRule={removeSortRule}
+            onSetDirection={setRuleDirection}
+            onMoveRule={moveSortRule}
+            onClear={clearSort}
+          />
+          <TableColumnPicker
+            open={columnPickerOpen}
+            description="Member and actions columns always stay visible. Drag to reorder."
+            reorderableRows={TOGGLEABLE_COLUMNS}
+            columnVisibility={columnVisibility}
+            columnOrder={columnOrder}
+            columnDropIndicator={columnDropIndicator}
+            onSetVisible={setColumnVisible}
+            onDragStart={handleColumnDragStart}
+            onDragEnd={handleColumnDragEnd}
+            onRowDragOver={handleColumnRowDragOver}
+            onListDragLeave={handleColumnListDragLeave}
+            onDrop={handleColumnDrop}
+            onReset={resetColumnTablePreferences}
+          />
         </div>
 
-        {viewMode === "list" ? (
-          <div className="overflow-x-auto rounded-3xl bg-white/70 backdrop-blur-xl border border-white/40">
-            <table className="w-full min-w-[1200px]">
-              <thead className="bg-white/90 border-b border-orange-200/50">
-                <tr>
-                  {[
-                    "Member",
-                    "Role",
-                    "Access",
-                    "Email",
-                    "Phone",
-                    "Last Active",
-                    "Status",
-                    "Actions",
-                  ].map((head) => (
-                    <th
-                      key={head}
-                      className="px-6 py-4 text-left text-xs font-black text-gray-800 uppercase tracking-wider"
-                    >
-                      {head}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/20">
-                  {filteredMembers.map((member) => {
-                  const fullName =
-                    `${member.firstName} ${member.lastName}`.trim() || "Unknown";
-                  const initials =
-                    `${member.firstName?.[0] || ""}${member.lastName?.[0] || ""}` ||
-                    "U";
-                  const isActive = member.status === "ACTIVE";
-                  return (
-                    <tr key={member.id} className="hover:bg-orange-50/40 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3 min-w-[200px]">
-                          <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-700">
-                            {initials.toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{fullName}</p>
-                            <p className="text-xs text-gray-500">{member.location}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
-                        {member.role.replaceAll("_", " ")}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 rounded-md text-xs font-semibold border bg-blue-100 text-blue-700 border-blue-200">
-                          <span className="inline-flex whitespace-nowrap">
-                            {member.portalAccessLevel.replaceAll("_", " ")}
-                          </span>
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{member.email}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
-                        {member.phone || "No phone"}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{member.lastActive}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-2 py-1 rounded-md text-xs font-semibold border ${
-                            isActive
-                              ? "bg-green-100 text-green-700 border-green-200"
-                              : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                          }`}
-                        >
-                          {isActive ? "Active" : "Invited"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 min-w-[120px]">
-                          <button
-                            onClick={() => router.push(`/company/${member.id}`)}
-                            className="p-1.5 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded"
-                            title="View"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => openEditModal(member)}
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                            title="Edit"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(member)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        <p className="text-sm text-gray-600">
+          Showing <span className="font-semibold text-gray-900">{sortedMembers.length}</span>{" "}
+          result{sortedMembers.length !== 1 ? "s" : ""}
+        </p>
+
+        {loadingMembers ? (
+          <Card variant="elevated" className="rounded-xl p-12 text-center">
+            <p className="text-gray-600">Loading members...</p>
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredMembers.map((member) => {
-              const fullName =
-                `${member.firstName} ${member.lastName}`.trim() || "Unknown";
-              return (
-                <div
-                  key={member.id}
-                  className="rounded-2xl bg-gradient-to-br from-white/70 to-white/40 backdrop-blur-xl border border-white/30 shadow-xl p-5"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                        <UserCircle className="w-6 h-6 text-orange-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">{fullName}</p>
-                        <p className="text-xs text-gray-500">
-                          {member.role.replaceAll("_", " ")}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  </div>
-                  <div className="mt-4 space-y-2 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      <span>{member.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      <span>{member.phone || "No phone"}</span>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center gap-1">
-                    <button
-                      onClick={() => router.push(`/company/${member.id}`)}
-                      className="p-1.5 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded"
-                      title="View"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => openEditModal(member)}
-                      className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                      title="Edit"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(member)}
-                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <Table
+              columns={visibleColumns}
+              data={sortedMembers}
+              keyField="id"
+              variant="modernEmbedded"
+              onRowClick={(row) => openDetailsModal(row)}
+              {...tableResizeProps}
+            />
+            {sortedMembers.length === 0 ? (
+              <div className="border-t border-gray-200 p-12 text-center">
+                <Users className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+                <p className="font-medium text-gray-700">No members found</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {searchQuery.trim()
+                    ? "Try adjusting your search or tab filter."
+                    : "Add your first company contact to get started."}
+                </p>
+                {!searchQuery.trim() ? (
+                  <Button type="button" className="mt-4 gap-2" onClick={openAddModal}>
+                    <Plus className="h-4 w-4" />
+                    Add Member
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         )}
       </div>
 
-      {loadingMembers && (
-        <div className="px-3">
-          <div className="rounded-xl bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 text-sm">
-            Loading members...
-          </div>
-        </div>
-      )}
-
       {!loadingMembers && actionState.message && (
-        <div className="px-3">
+        <div>
           <div
             className={`rounded-xl px-4 py-3 text-sm border ${
               actionState.kind === "error"
@@ -481,6 +761,22 @@ export default function CompanyMembersPage() {
           </div>
         </div>
       )}
+
+      <CompanyMemberDetailsModal
+        isOpen={detailsModalOpen}
+        onClose={closeDetailsModal}
+        memberId={detailsMember?.id}
+        initialMember={detailsMember}
+        onEdit={(member) => {
+          closeDetailsModal();
+          openEditModal(member);
+        }}
+        onSuspend={handleSuspendMember}
+        onDelete={(member) => {
+          closeDetailsModal();
+          setDeleteTarget(member);
+        }}
+      />
 
       <CompanyMemberModal
         isOpen={Boolean(memberModal)}
@@ -501,13 +797,13 @@ export default function CompanyMembersPage() {
       />
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-2">
           <button
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setDeleteTarget(null)}
             aria-label="Close delete modal"
           />
-          <div className="relative w-full max-w-xl rounded-3xl bg-white border border-white/40 shadow-2xl p-6">
+          <div className="relative w-full max-w-xl rounded-3xl bg-white border border-gray-200 shadow-2xl p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center">
@@ -557,6 +853,7 @@ export default function CompanyMembersPage() {
               </button>
               <button
                 onClick={async () => {
+                  if (isDeleteDisabled) return;
                   try {
                     await deleteCompanyMemberManaged(deleteTarget.id);
                     setActionState({
@@ -573,7 +870,12 @@ export default function CompanyMembersPage() {
                     setDeleteTarget(null);
                   }
                 }}
-                className="flex-1 h-12 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700"
+                disabled={isDeleteDisabled}
+                className={`flex-1 h-12 rounded-xl font-semibold ${
+                  isDeleteDisabled
+                    ? "bg-gray-200 text-gray-500 cursor-not-allowed hover:bg-gray-200"
+                    : "bg-red-600 text-white hover:bg-red-700"
+                }`}
               >
                 Delete Member
               </button>
@@ -581,7 +883,7 @@ export default function CompanyMembersPage() {
           </div>
         </div>
       )}
-    </div>
+    </PortalPageShell>
   );
 }
 

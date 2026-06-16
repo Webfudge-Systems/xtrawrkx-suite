@@ -3,6 +3,7 @@
  */
 
 import { strapiClient } from "../strapiClient";
+import { listProjectsForClient } from "./clientProjectService";
 import { formatDistanceToNow } from "date-fns";
 import {
   messageSourceType,
@@ -175,43 +176,6 @@ export function mapStrapiChatToBubble(raw, myClientAccountId, channelLookups = {
   };
 }
 
-function projectBelongsToAccount(projectData, accountId) {
-  let projectClientAccountId = null;
-  if (projectData.clientAccount) {
-    if (projectData.clientAccount.attributes) {
-      const attrs = projectData.clientAccount.attributes;
-      projectClientAccountId = attrs.id || attrs.documentId;
-    } else if (
-      projectData.clientAccount.id != null ||
-      projectData.clientAccount.documentId != null
-    ) {
-      projectClientAccountId =
-        projectData.clientAccount.id || projectData.clientAccount.documentId;
-    } else if (
-      typeof projectData.clientAccount === "number" ||
-      typeof projectData.clientAccount === "string"
-    ) {
-      projectClientAccountId = projectData.clientAccount;
-    }
-  }
-  if (!projectClientAccountId && projectData.account) {
-    const acc = projectData.account.attributes || projectData.account;
-    projectClientAccountId = acc?.id || acc?.documentId;
-  }
-  if (!projectClientAccountId) return false;
-  const accountIdNum =
-    typeof accountId === "string" ? parseInt(accountId, 10) : accountId;
-  const projectIdNum =
-    typeof projectClientAccountId === "string"
-      ? parseInt(projectClientAccountId, 10)
-      : projectClientAccountId;
-  return (
-    projectIdNum === accountIdNum ||
-    String(projectClientAccountId) === String(accountId) ||
-    projectClientAccountId == accountId
-  );
-}
-
 /** Map project id / documentId / slug → display name for chat source labels. */
 export async function fetchClientProjectNameMap(accountId) {
   const map = {};
@@ -219,29 +183,14 @@ export async function fetchClientProjectNameMap(accountId) {
   if (!idRaw) return map;
 
   try {
-    const queryParams = strapiClient.buildQueryString({
-      populate: ["clientAccount", "account"],
-      pagination: { pageSize: 100 },
-    });
-    const fullUrl = strapiClient.buildURL("/projects", {});
-    const res = await strapiClient.request(`${fullUrl}?${queryParams}`, {
-      method: "GET",
-    });
-    let allProjects = [];
-    if (Array.isArray(res?.data)) allProjects = res.data;
-    else if (Array.isArray(res)) allProjects = res;
-    else if (res?.data?.data) allProjects = res.data.data;
-
-    for (const project of allProjects) {
-      const projectData = project.attributes || project;
-      if (!projectBelongsToAccount(projectData, idRaw)) continue;
-      const name = (projectData.name || "Unnamed Project").trim();
-      const numericId = project.id ?? projectData.id;
-      const docId = project.documentId ?? projectData.documentId;
-      const slug = projectData.slug;
-      if (numericId != null && numericId !== "") map[String(numericId)] = name;
-      if (docId != null && docId !== "") map[String(docId)] = name;
-      if (slug) map[String(slug)] = name;
+    const projects = await listProjectsForClient(idRaw);
+    for (const project of projects) {
+      const name = (project.name || "Unnamed Project").trim();
+      if (project.id != null && project.id !== "") map[String(project.id)] = name;
+      if (project.documentId != null && project.documentId !== "") {
+        map[String(project.documentId)] = name;
+      }
+      if (project.slug) map[String(project.slug)] = name;
     }
   } catch (e) {
     console.warn("Could not load project names for chat labels", e);

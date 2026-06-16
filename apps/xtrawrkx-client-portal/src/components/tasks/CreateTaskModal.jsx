@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Modal, Button, Input, Select, Textarea } from "@webfudge/ui";
-import {
-  CP_STATUS_SELECT_OPTIONS,
-  getEditableStatusOptions,
-} from "@/lib/taskStatusConstants";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Modal, Button, Input, Textarea } from "@webfudge/ui";
+import { Select } from "@/components/ui/Select";
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
@@ -14,6 +12,11 @@ const PRIORITY_OPTIONS = [
   { value: "urgent", label: "Urgent" },
 ];
 
+const TASK_STATUS_ASSIGNED = {
+  value: "ASSIGNED",
+  label: "Assigned",
+};
+
 const EMPTY_FORM = {
   title: "",
   description: "",
@@ -21,10 +24,6 @@ const EMPTY_FORM = {
   dueDate: "",
   timeAllotted: "",
   priority: "medium",
-  status: "ACCEPTED",
-  autoAccept: true,
-  assignmentScope: "internal",
-  assigneeMemberId: "",
 };
 
 export default function CreateTaskModal({
@@ -32,36 +31,38 @@ export default function CreateTaskModal({
   onClose,
   onTaskCreate,
   projects = [],
-  clientMembers = [],
   defaultProjectId = "",
 }) {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setFormData((prev) => ({
-      ...EMPTY_FORM,
-      project: defaultProjectId ? String(defaultProjectId) : prev.project || "",
-    }));
-    setErrors({});
-  }, [isOpen, defaultProjectId]);
-
-  const statuses = getEditableStatusOptions(
-    formData.autoAccept ? "Accepted" : formData.status,
-    CP_STATUS_SELECT_OPTIONS,
+  const projectOptions = useMemo(
+    () =>
+      projects.map((project) => ({
+        value: String(project.id),
+        label: project.name,
+      })),
+    [projects],
   );
 
-  const projectOptions = projects.map((project) => ({
-    value: String(project.id),
-    label: project.name,
-  }));
+  const hasProjects = projectOptions.length > 0;
+  const projectLocked = Boolean(defaultProjectId);
 
-  const memberOptions = clientMembers.map((member) => ({
-    value: String(member.id),
-    label: `${member.name} (${member.role})`,
-  }));
+  useEffect(() => {
+    if (!isOpen) return;
+    const defaultProject =
+      defaultProjectId != null && String(defaultProjectId).trim() !== ""
+        ? String(defaultProjectId)
+        : projectOptions.length === 1
+          ? projectOptions[0].value
+          : "";
+    setFormData({
+      ...EMPTY_FORM,
+      project: defaultProject,
+    });
+    setErrors({});
+  }, [isOpen, defaultProjectId, projectOptions]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -73,6 +74,9 @@ export default function CreateTaskModal({
   const validateForm = () => {
     const newErrors = {};
     if (!formData.title.trim()) newErrors.title = "Task title is required";
+    if (hasProjects && !formData.project) {
+      newErrors.project = "Select a project for this task";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -104,11 +108,7 @@ export default function CreateTaskModal({
           ? parseFloat(formData.timeAllotted)
           : null,
         priority: formData.priority,
-        status: formData.autoAccept ? "ACCEPTED" : formData.status,
-        autoAccept: !!formData.autoAccept,
-        assignmentScope: formData.assignmentScope,
-        assigneeMemberId: formData.assigneeMemberId || null,
-        sharePreferenceSetAtCreation: true,
+        status: TASK_STATUS_ASSIGNED.value,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -158,14 +158,33 @@ export default function CreateTaskModal({
           error={errors.description}
         />
 
-        <Select
-          label="Project"
-          value={formData.project}
-          onChange={(e) => handleInputChange("project", e.target.value)}
-          options={projectOptions}
-          placeholder="Select a project"
-          error={errors.project}
-        />
+        {hasProjects ? (
+          <Select
+            label="Project"
+            required
+            value={formData.project}
+            onChange={(value) => handleInputChange("project", value)}
+            options={projectOptions}
+            placeholder="Select a project"
+            error={errors.project}
+            disabled={projectLocked}
+            searchPlaceholder="Search projects…"
+          />
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-medium text-amber-900">No projects available</p>
+            <p className="mt-1 text-sm text-amber-800">
+              Create a project first, then you can assign tasks to it.
+            </p>
+            <Link
+              href="/projects"
+              className="mt-2 inline-block text-sm font-medium text-brand-primary hover:text-orange-700"
+              onClick={handleClose}
+            >
+              Go to Projects
+            </Link>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input
@@ -186,80 +205,19 @@ export default function CreateTaskModal({
           <Select
             label="Priority"
             value={formData.priority}
-            onChange={(e) => handleInputChange("priority", e.target.value)}
+            onChange={(value) => handleInputChange("priority", value)}
             options={PRIORITY_OPTIONS}
             allowEmpty={false}
           />
           <Select
             label="Status"
-            value={formData.status}
-            onChange={(e) => handleInputChange("status", e.target.value)}
-            options={statuses}
+            value={TASK_STATUS_ASSIGNED.value}
+            options={[TASK_STATUS_ASSIGNED]}
             allowEmpty={false}
-            disabled={formData.autoAccept}
+            disabled
+            onChange={() => {}}
           />
         </div>
-
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-          <p className="mb-2 text-sm font-medium text-gray-800">
-            Auto-accept for assignee
-          </p>
-          <div className="flex flex-wrap gap-4">
-            <label className="inline-flex cursor-pointer items-center gap-2">
-              <input
-                type="radio"
-                name="autoAccept"
-                checked={formData.autoAccept === true}
-                onChange={() => {
-                  handleInputChange("autoAccept", true);
-                  handleInputChange("status", "ACCEPTED");
-                }}
-                className="text-brand-primary focus:ring-brand-primary"
-              />
-              <span className="text-sm text-gray-700">
-                Auto-accept (default)
-              </span>
-            </label>
-            <label className="inline-flex cursor-pointer items-center gap-2">
-              <input
-                type="radio"
-                name="autoAccept"
-                checked={formData.autoAccept === false}
-                onChange={() => {
-                  handleInputChange("autoAccept", false);
-                  handleInputChange("status", "ASSIGNED");
-                }}
-                className="text-brand-primary focus:ring-brand-primary"
-              />
-              <span className="text-sm text-gray-700">
-                Require manual accept
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <Select
-          label="Assign To"
-          value={formData.assignmentScope}
-          onChange={(e) => handleInputChange("assignmentScope", e.target.value)}
-          options={[
-            { value: "internal", label: "Internal Team" },
-            { value: "client", label: "Client Members" },
-          ]}
-          allowEmpty={false}
-        />
-
-        {formData.assignmentScope === "client" && (
-          <Select
-            label="Client Member"
-            value={formData.assigneeMemberId}
-            onChange={(e) =>
-              handleInputChange("assigneeMemberId", e.target.value)
-            }
-            options={memberOptions}
-            placeholder="Unassigned"
-          />
-        )}
 
         <div className="flex flex-col-reverse gap-2 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end">
           <Button
@@ -270,7 +228,11 @@ export default function CreateTaskModal({
           >
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={submitting}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={submitting || (!hasProjects && !projectLocked)}
+          >
             {submitting ? "Creating…" : "Create Task"}
           </Button>
         </div>
