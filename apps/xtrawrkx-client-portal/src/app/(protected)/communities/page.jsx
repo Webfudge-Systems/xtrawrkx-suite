@@ -27,7 +27,7 @@ import {
   TableCellTitleSubtitle,
 } from "@webfudge/ui";
 import { getXenTierByCode } from "@webfudge/utils";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import {
   COMMUNITIES_LIST,

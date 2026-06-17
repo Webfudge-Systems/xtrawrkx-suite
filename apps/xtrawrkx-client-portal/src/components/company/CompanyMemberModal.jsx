@@ -2,9 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, UserPlus } from "lucide-react";
-import { Modal, Button, Input } from "@webfudge/ui";
-import { Select } from "@/components/ui/Select";
-import { Input as PasswordInput } from "@/components/ui/Input";
+import { Modal, Button, Input, Select } from "@webfudge/ui";
 import {
   addCompanyMemberManaged,
   createCompanyRole,
@@ -377,6 +375,8 @@ export default function CompanyMemberModal({
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Select
+              searchable
+              menuPortal
               label="Role"
               value={formData.role}
               onChange={(value) => handleChange("role", value)}
@@ -385,6 +385,8 @@ export default function CompanyMemberModal({
               searchPlaceholder="Search roles…"
             />
             <Select
+              searchable
+              menuPortal
               label="Portal Access"
               value={formData.portalAccessLevel}
               onChange={(value) => handleChange("portalAccessLevel", value)}
@@ -422,7 +424,7 @@ export default function CompanyMemberModal({
               </label>
               {changePassword ? (
                 <div className="space-y-1.5">
-                  <PasswordInput
+                  <Input
                     label="New Password"
                     type="password"
                     value={formData.newPassword}

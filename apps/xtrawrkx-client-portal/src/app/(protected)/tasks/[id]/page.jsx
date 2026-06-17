@@ -45,7 +45,7 @@ import {
 import ClientTaskDetailsCard, { getTaskStatusPillVisual } from "@/components/tasks/ClientTaskDetailsCard";
 import ClientTaskDetailMetaBar from "@/components/tasks/ClientTaskDetailMetaBar";
 import CreateSubtaskModal from "@/components/tasks/CreateSubtaskModal";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 
 const headerIconBtnClass =

@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { KPICard } from "@webfudge/ui";
 import EventCard from "@/components/events/EventCard";
 import RegistrationDetails from "@/components/events/RegistrationDetails";

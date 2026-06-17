@@ -18,9 +18,7 @@ import {
   Share2,
   Smartphone,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import ModernButton from "@/components/ui/ModernButton";
+import { Card, Badge, Button } from "@webfudge/ui";
 
 export default function VirtualTicket({ event, onDownload }) {
   const [showQRCode, setShowQRCode] = useState(true);
@@ -101,8 +99,8 @@ export default function VirtualTicket({ event, onDownload }) {
         </div>
 
         {/* QR Code Section */}
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-          <CardContent className="p-6">
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200" padding={false}>
+          <div className="p-6">
             <div className="text-center">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <QrCode className="h-5 w-5 text-blue-600" />
@@ -144,7 +142,7 @@ export default function VirtualTicket({ event, onDownload }) {
                 </button>
               </div>
             </div>
-          </CardContent>
+          </div>
         </Card>
 
         {/* Event Details */}
@@ -217,34 +215,40 @@ export default function VirtualTicket({ event, onDownload }) {
 
         {/* Action Buttons */}
         <div className="space-y-2">
-          <ModernButton
-            type="primary"
+          <Button
+            type="button"
+            variant="primary"
             size="sm"
-            text="Download Ticket"
-            icon={Download}
+            className="w-full gap-2"
             onClick={onDownload}
-            className="w-full"
-          />
+          >
+            <Download className="h-4 w-4" />
+            Download Ticket
+          </Button>
 
           <div className="grid grid-cols-2 gap-2">
-            <ModernButton
-              type="secondary"
+            <Button
+              type="button"
+              variant="secondary"
               size="sm"
-              text="Copy Ticket ID"
-              icon={Copy}
+              className="gap-2 text-xs"
               onClick={() =>
                 copyToClipboard(event.registrationDetails.ticketNumber)
               }
-              className="text-xs"
-            />
-            <ModernButton
-              type="secondary"
+            >
+              <Copy className="h-4 w-4" />
+              Copy Ticket ID
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
               size="sm"
-              text="Share"
-              icon={Share2}
+              className="gap-2 text-xs"
               onClick={shareTicket}
-              className="text-xs"
-            />
+            >
+              <Share2 className="h-4 w-4" />
+              Share
+            </Button>
           </div>
         </div>
 

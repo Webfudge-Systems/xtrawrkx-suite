@@ -1,41 +1,29 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Avatar } from "@/components/ui/Avatar";
+import { Avatar, EmptyState, ChatMessageText } from "@webfudge/ui";
 import { formatDistanceToNow } from "date-fns";
 import { MessageCircle } from "lucide-react";
-import { EmptyState } from "@/components/ui/EmptyState";
-
-const URL_SPLIT = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 
 function MessageBody({ text, isClient }) {
   if (text == null || text === "") {
     return null;
   }
-  const parts = text.split(URL_SPLIT);
   return (
     <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-      {parts.map((part, i) => {
-        if (/^https?:\/\//i.test(part) || /^www\./i.test(part)) {
-          const href = part.startsWith("www.") ? `https://${part}` : part;
-          return (
-            <a
-              key={`${i}-${part.slice(0, 24)}`}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={
-                isClient
-                  ? "font-medium text-white underline decoration-white/70 underline-offset-2 hover:decoration-white"
-                  : "font-medium text-pink-600 underline decoration-pink-300 underline-offset-2 hover:text-pink-700"
-              }
-            >
-              {part}
-            </a>
-          );
+      <ChatMessageText
+        text={text}
+        linkClassName={
+          isClient
+            ? "font-medium text-white underline decoration-white/70 underline-offset-2 hover:decoration-white"
+            : "font-medium text-pink-600 underline decoration-pink-300 underline-offset-2 hover:text-pink-700"
         }
-        return <span key={i}>{part}</span>;
-      })}
+        mentionClassName={
+          isClient
+            ? "font-semibold text-white/95 bg-white/20 rounded px-0.5"
+            : "font-semibold text-orange-700 bg-orange-50/90 rounded px-0.5"
+        }
+      />
     </p>
   );
 }
@@ -114,10 +102,10 @@ function MessageItem({ message, isLast, showSenderNames = false }) {
         {isTeam && (
           <Avatar
             src={message.avatarUrl || undefined}
-            name={message.senderName || "Xtrawrkx"}
-            color="bg-gradient-to-br from-orange-400 to-pink-500"
+            alt={message.senderName || "Xtrawrkx"}
+            fallback={(message.senderName || "Xtrawrkx").charAt(0).toUpperCase()}
             size="sm"
-            className="h-8 w-8 shrink-0 shadow-sm"
+            className="h-8 w-8 shrink-0 shadow-sm bg-gradient-to-br from-orange-400 to-pink-500"
           />
         )}
 
@@ -164,11 +152,10 @@ function MessageItem({ message, isLast, showSenderNames = false }) {
         {isClient && (
           <Avatar
             src={message.clientAvatarUrl || undefined}
-            name={message.senderName || "You"}
-            initials="ME"
-            color="bg-gradient-to-br from-orange-500 to-pink-500"
+            alt={message.senderName || "You"}
+            fallback="ME"
             size="sm"
-            className="h-8 w-8 shrink-0 shadow-sm"
+            className="h-8 w-8 shrink-0 shadow-sm bg-gradient-to-br from-orange-500 to-pink-500"
           />
         )}
         </div>

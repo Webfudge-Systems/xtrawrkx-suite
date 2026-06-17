@@ -10,7 +10,7 @@ import {
   Calendar,
   File,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@webfudge/ui";
 import {
   fetchClientDocuments,
   getAttachments,

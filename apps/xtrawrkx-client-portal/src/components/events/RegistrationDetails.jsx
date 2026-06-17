@@ -7,7 +7,7 @@ import {
   AlertCircle,
   Shield,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@webfudge/ui";
 
 export default function RegistrationDetails({ event }) {
   const editedDetails = event.registrationDetails || {};

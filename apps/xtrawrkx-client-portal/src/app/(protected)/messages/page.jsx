@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import PortalChatHub from "@/components/chat/PortalChatHub";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import { strapiClient } from "@/lib/strapiClient";
 import { listTasksForClient } from "@/lib/api/clientTaskService";

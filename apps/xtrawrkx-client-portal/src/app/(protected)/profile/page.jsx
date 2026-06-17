@@ -22,9 +22,9 @@ import {
   Phone,
   User,
 } from "lucide-react";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@webfudge/ui";
 import { resolveCommunityJoinDefaults } from "@/lib/communityJoinDefaults";
 import { updateSettingsProfile } from "@/lib/api/settingsService";
 import { useRouter } from "next/navigation";

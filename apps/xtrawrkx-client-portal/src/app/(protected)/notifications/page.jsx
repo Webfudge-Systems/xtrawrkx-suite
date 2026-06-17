@@ -2,8 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Bell, CheckCircle2, AlertCircle, Info, Settings } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Button, Badge } from "@webfudge/ui";
 
 const notifications = [
   {

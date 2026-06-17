@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { LoadingSpinner } from "@webfudge/ui";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import CommunityJoinForm from "@/components/communities/CommunityJoinForm";
 import { getCommunityById } from "@/data/communitiesCatalog";

@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
-import { Modal, Button, Input, Textarea } from "@webfudge/ui";
-import { Select } from "@/components/ui/Select";
+import { Modal, Button, Input, Textarea, Select } from "@webfudge/ui";
 
 const STATUS_OPTIONS = [
   { value: "PLANNING", label: "Planning" },
@@ -110,6 +109,8 @@ export default function CreateProjectModal({ isOpen, onClose, onProjectCreate })
         />
 
         <Select
+          searchable
+          menuPortal
           label="Status"
           value={formData.status}
           onChange={(value) => handleInputChange("status", value)}

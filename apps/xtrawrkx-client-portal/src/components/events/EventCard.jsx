@@ -13,8 +13,7 @@ import {
   ArrowRight,
   Camera,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import ModernButton from "@/components/ui/ModernButton";
+import { Button, Badge } from "@webfudge/ui";
 
 export default function EventCard({
   event,
@@ -158,36 +157,41 @@ export default function EventCard({
             </div>
 
             <div className="flex items-center gap-2">
-              <ModernButton
-                type="tertiary"
+              <Button
+                type="button"
+                variant="outline"
                 size="sm"
-                text="View Website"
-                icon={ExternalLink}
+                className="gap-2 text-xs"
                 onClick={(e) => {
                   e.stopPropagation();
                   onViewWebsite();
                 }}
-                className="text-xs"
-              />
+              >
+                <ExternalLink className="h-4 w-4" />
+                View Website
+              </Button>
               {event.status === "completed" && onOpenGallery && (
-                <ModernButton
-                  type="secondary"
+                <Button
+                  type="button"
+                  variant="secondary"
                   size="sm"
-                  text="Gallery"
-                  icon={Camera}
+                  className="gap-2 text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
                     onOpenGallery(event);
                   }}
-                  className="text-xs"
-                />
+                >
+                  <Camera className="h-4 w-4" />
+                  Gallery
+                </Button>
               )}
               {event.registrationStatus === "not_registered" &&
                 event.status === "upcoming" && (
-                  <ModernButton
-                    type="primary"
+                  <Button
+                    type="button"
+                    variant="primary"
                     size="sm"
-                    text="Register Now"
+                    className="text-xs"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (event.websiteUrl) {
@@ -198,8 +202,9 @@ export default function EventCard({
                         );
                       }
                     }}
-                    className="text-xs"
-                  />
+                  >
+                    Register Now
+                  </Button>
                 )}
               {event.registrationStatus !== "not_registered" && (
                 <div className="flex items-center text-gray-400">

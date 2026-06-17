@@ -10,10 +10,9 @@ import {
   ChevronDown,
   ChevronRight as ChevronRightIcon,
 } from "lucide-react";
-import { SidebarProductBranding } from "@webfudge/ui";
+import { SidebarProductBranding, Button } from "@webfudge/ui";
 import { cn } from "@/lib/utils";
 import { PORTAL_SITE } from "@/lib/site";
-import { Button } from "@/components/ui/Button";
 import { useSession } from "@/lib/auth";
 import {
   sidebarMenuConfig,
@@ -386,9 +385,9 @@ export function Sidebar({ isOpen, onClose, onToggle }) {
           {isOpen && (
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={onClose}
-              className="lg:hidden"
+              className="lg:hidden p-2"
             >
               <X className="h-5 w-5" />
             </Button>

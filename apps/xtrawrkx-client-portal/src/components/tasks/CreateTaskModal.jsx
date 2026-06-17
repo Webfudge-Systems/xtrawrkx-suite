@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Modal, Button, Input, Textarea } from "@webfudge/ui";
-import { Select } from "@/components/ui/Select";
+import { Modal, Button, Input, Textarea, Select } from "@webfudge/ui";
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
@@ -160,6 +159,8 @@ export default function CreateTaskModal({
 
         {hasProjects ? (
           <Select
+            searchable
+            menuPortal
             label="Project"
             required
             value={formData.project}
@@ -203,6 +204,8 @@ export default function CreateTaskModal({
             onChange={(e) => handleInputChange("timeAllotted", e.target.value)}
           />
           <Select
+            searchable
+            menuPortal
             label="Priority"
             value={formData.priority}
             onChange={(value) => handleInputChange("priority", value)}
@@ -210,6 +213,8 @@ export default function CreateTaskModal({
             allowEmpty={false}
           />
           <Select
+            searchable
+            menuPortal
             label="Status"
             value={TASK_STATUS_ASSIGNED.value}
             options={[TASK_STATUS_ASSIGNED]}

@@ -19,9 +19,7 @@ import {
   FileText,
   Download,
 } from "lucide-react";
-import { ModernButton } from "../../../../components/ui";
-import { KPICard } from "@webfudge/ui";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
+import { Button, KPICard } from "@webfudge/ui";
 import { getCommunityById, avatarClassFor } from "@/data/communitiesCatalog";
 import {
   getXenTierByCode,
@@ -245,14 +243,16 @@ export default function CommunityDetailPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-6 py-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <Link href="/communities" className="shrink-0">
-                <ModernButton
-                  type="secondary"
-                  size="sm"
-                  text="Back to Communities"
-                  icon={ArrowLeft}
-                />
-              </Link>
+              <Button
+                as={Link}
+                href="/communities"
+                variant="secondary"
+                size="sm"
+                className="shrink-0 gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Communities
+              </Button>
               <div className="flex items-center gap-4">
                 <div
                   className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg shadow-gray-900/10 ${headAvatarClass}`}
@@ -273,37 +273,34 @@ export default function CommunityDetailPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {!communityData.isMember && !isPending ? (
-                <ModernButton
-                  type="gradient"
+                <Button
+                  type="button"
+                  variant="primary"
                   size="sm"
-                  text="Join community"
-                  icon={Plus}
+                  className="gap-2"
                   onClick={() => router.push(`/communities/${id}/join`)}
-                />
+                >
+                  <Plus className="h-4 w-4" />
+                  Join community
+                </Button>
               ) : null}
               {isPending && !communityData.isMember ? (
                 <span className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900">
                   Approval pending
                 </span>
               ) : null}
-              <ModernButton
-                type="secondary"
-                size="sm"
-                text="Notifications"
-                icon={Bell}
-              />
-              <ModernButton
-                type="secondary"
-                size="sm"
-                text="Share"
-                icon={Share2}
-              />
-              <ModernButton
-                type="gradient"
-                size="sm"
-                text="Create Post"
-                icon={Plus}
-              />
+              <Button type="button" variant="secondary" size="sm" className="gap-2">
+                <Bell className="h-4 w-4" />
+                Notifications
+              </Button>
+              <Button type="button" variant="secondary" size="sm" className="gap-2">
+                <Share2 className="h-4 w-4" />
+                Share
+              </Button>
+              <Button type="button" variant="primary" size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />
+                Create Post
+              </Button>
             </div>
           </div>
         </div>
@@ -400,12 +397,9 @@ export default function CommunityDetailPage() {
 
               {communityData.canUpgrade && (
                 <div className="mt-6 border-t border-gray-100 pt-6">
-                  <ModernButton
-                    type="gradient"
-                    size="sm"
-                    text={`Upgrade to ${communityData.nextTierName}`}
-                    className="w-full"
-                  />
+                  <Button type="button" variant="primary" size="sm" className="w-full">
+                    {`Upgrade to ${communityData.nextTierName}`}
+                  </Button>
                 </div>
               )}
 
@@ -515,11 +509,9 @@ export default function CommunityDetailPage() {
                                 </p>
                               </div>
                               <div className="mt-4 shrink-0 sm:mt-0">
-                                <ModernButton
-                                  type="secondary"
-                                  size="sm"
-                                  text="Read"
-                                />
+                                <Button type="button" variant="secondary" size="sm">
+                                  Read
+                                </Button>
                               </div>
                             </div>
                           </article>
@@ -535,12 +527,10 @@ export default function CommunityDetailPage() {
                       <h3 className="text-base font-semibold text-gray-900">
                         Upcoming events
                       </h3>
-                      <ModernButton
-                        type="gradient"
-                        size="sm"
-                        text="Create Event"
-                        icon={Plus}
-                      />
+                      <Button type="button" variant="primary" size="sm" className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Create Event
+                      </Button>
                     </div>
 
                     <div className="space-y-3">
@@ -578,16 +568,12 @@ export default function CommunityDetailPage() {
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <ModernButton
-                                type="secondary"
-                                size="sm"
-                                text="Details"
-                              />
-                              <ModernButton
-                                type="primary"
-                                size="sm"
-                                text="Join"
-                              />
+                              <Button type="button" variant="secondary" size="sm">
+                                Details
+                              </Button>
+                              <Button type="button" variant="primary" size="sm">
+                                Join
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -625,12 +611,10 @@ export default function CommunityDetailPage() {
                       <h3 className="text-base font-semibold text-gray-900">
                         Community resources
                       </h3>
-                      <ModernButton
-                        type="gradient"
-                        size="sm"
-                        text="Upload Resource"
-                        icon={Plus}
-                      />
+                      <Button type="button" variant="primary" size="sm" className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Upload Resource
+                      </Button>
                     </div>
 
                     <div className="space-y-3">
@@ -661,12 +645,10 @@ export default function CommunityDetailPage() {
                               </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-2 sm:justify-end">
-                              <ModernButton
-                                type="secondary"
-                                size="sm"
-                                text="Download"
-                                icon={Download}
-                              />
+                              <Button type="button" variant="secondary" size="sm" className="gap-2">
+                                <Download className="h-4 w-4" />
+                                Download
+                              </Button>
                             </div>
                           </div>
                         </div>

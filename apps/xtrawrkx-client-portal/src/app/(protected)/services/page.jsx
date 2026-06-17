@@ -22,9 +22,8 @@ import {
   Crown,
   ArrowUpRight,
 } from "lucide-react";
-import { Card } from "@/components/ui/Card";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { KPICard } from "@webfudge/ui";
+import { Card, KPICard } from "@webfudge/ui";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import Link from "next/link";
 
 // Mock services data with community segregation

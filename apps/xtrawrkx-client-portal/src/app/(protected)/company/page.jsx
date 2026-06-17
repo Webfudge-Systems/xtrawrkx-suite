@@ -17,7 +17,7 @@ import {
   Lock,
   Unlock,
 } from "lucide-react";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import {
   Avatar,
   Button,

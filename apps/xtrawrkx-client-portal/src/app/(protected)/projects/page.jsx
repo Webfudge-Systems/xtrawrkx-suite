@@ -41,7 +41,7 @@ import {
   ownerDisplayFromUser,
   PROJECT_STATUS_OPTIONS,
 } from "@webfudge/ui";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import { useSession } from "@/lib/auth";

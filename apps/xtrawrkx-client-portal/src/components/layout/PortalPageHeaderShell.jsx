@@ -16,15 +16,12 @@ import {
   User,
   Share,
   Bell,
-  Check,
-  CheckCheck,
 } from "lucide-react";
-import { useSession } from "@/lib/auth";
+import { useSession, useAuth } from "@/lib/auth";
 import { strapiClient } from "@/lib/strapiClient";
 import { resolveClientAccountCompanyName } from "@/utils/clientAccountCompany";
-import GlobalSearchModal from "@/components/search/GlobalSearchModal";
 
-export function PageHeader({
+export function PortalPageHeaderShell({
   title,
   subtitle,
   breadcrumb = [],
@@ -44,6 +41,7 @@ export function PageHeader({
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
+  const { signOut } = useAuth();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] =
     useState(false);
@@ -52,7 +50,8 @@ export function PageHeader({
   const [contacts, setContacts] = useState(null);
   const notificationDropdownRef = useRef(null);
 
-  const globalSearchEnabled = showSearch && (renderGlobalSearchModal || !onSearchChange);
+  const globalSearchEnabled =
+    showSearch && (renderGlobalSearchModal || !onSearchChange);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -624,13 +623,10 @@ export function PageHeader({
                       </button>
                       <div className="h-px bg-gray-200 my-2 mx-3"></div>
                       <button
-                        onClick={() => {
-                          // Handle logout
-                          if (typeof window !== "undefined") {
-                            localStorage.removeItem("auth_token");
-                            localStorage.removeItem("client_token");
-                            window.location.href = "/auth";
-                          }
+                        type="button"
+                        onClick={async () => {
+                          setShowProfileDropdown(false);
+                          await signOut();
                         }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-red-50 rounded-lg transition-colors text-red-600"
                       >
@@ -647,8 +643,8 @@ export function PageHeader({
       </div>
     </Card>
 
-      {globalSearchEnabled
-        ? (renderGlobalSearchModal || ((props) => <GlobalSearchModal {...props} />))({
+      {globalSearchEnabled && renderGlobalSearchModal
+        ? renderGlobalSearchModal({
             isOpen: showGlobalSearch,
             onClose: () => setShowGlobalSearch(false),
             initialQuery: searchInputValue,

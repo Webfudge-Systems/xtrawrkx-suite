@@ -15,9 +15,7 @@ import {
   Camera,
   Image as ImageIcon,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-// import ModernButton from "@/components/ui/ModernButton";
+import { Card, Badge } from "@webfudge/ui";
 
 // Mock gallery data for past events
 const mockGalleryData = {
@@ -226,7 +224,7 @@ export default function EventGalleryModal({ event, isOpen, onClose }) {
                     className="group cursor-pointer"
                     onClick={() => handleImageClick(index)}
                   >
-                    <Card className="overflow-hidden hover:shadow-xl transition-all duration-300">
+                    <Card className="overflow-hidden hover:shadow-xl transition-all duration-300" padding={false}>
                       <div className="relative aspect-video bg-gray-100">
                         <div className="absolute inset-0 flex items-center justify-center">
                           <ImageIcon className="h-12 w-12 text-gray-400" />
@@ -244,7 +242,7 @@ export default function EventGalleryModal({ event, isOpen, onClose }) {
                           </Badge>
                         </div>
                       </div>
-                      <CardContent className="p-4">
+                      <div className="p-4">
                         <h3 className="font-semibold text-gray-900 mb-1">
                           {image.title}
                         </h3>
@@ -302,7 +300,7 @@ export default function EventGalleryModal({ event, isOpen, onClose }) {
                             </button>
                           </div>
                         </div>
-                      </CardContent>
+                      </div>
                     </Card>
                   </motion.div>
                 ))}

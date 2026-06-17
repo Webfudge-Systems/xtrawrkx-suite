@@ -13,7 +13,7 @@ import {
 import { format } from "date-fns";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { EmptyState } from "@webfudge/ui";
 
 function actorLabel(actor) {
   if (!actor || typeof actor !== "object") return "User";

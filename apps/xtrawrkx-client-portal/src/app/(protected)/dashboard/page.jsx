@@ -26,7 +26,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { Card, KPICard } from '@webfudge/ui'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { PageHeader } from '@/components/layout/PortalPageHeader'
 import { PortalPageShell } from '@/components/layout/PortalPageShell'
 import { useSession } from '@/lib/auth'
 import strapiClient from '@/lib/strapiClient'

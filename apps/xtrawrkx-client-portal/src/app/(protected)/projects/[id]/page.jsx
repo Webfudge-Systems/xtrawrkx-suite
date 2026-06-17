@@ -33,7 +33,7 @@ import {
   formatRelativeTime,
   PROJECT_STATUS_OPTIONS,
 } from "@webfudge/ui";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import ClientProjectDetailMetaBar from "@/components/projects/ClientProjectDetailMetaBar";
 import ClientProjectTasksPanel from "@/components/projects/ClientProjectTasksPanel";

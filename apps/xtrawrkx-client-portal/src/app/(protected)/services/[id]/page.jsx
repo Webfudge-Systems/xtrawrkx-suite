@@ -32,10 +32,7 @@ import {
   Settings,
 } from "lucide-react";
 import Link from "next/link";
-import ModernButton from "@/components/ui/ModernButton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
+import { Card, Badge, Button, Avatar } from "@webfudge/ui";
 
 // Mock service data - this would come from props or API
 const serviceData = {
@@ -202,14 +199,16 @@ export default function ServiceDetailPage({ params }) {
           className="bg-gradient-to-r from-white via-blue-50/30 to-indigo-50/50 backdrop-blur-sm border border-white/50 shadow-xl rounded-3xl p-8 mb-8"
         >
           <div className="flex items-center gap-4 mb-6">
-            <Link href="/services">
-              <ModernButton
-                type="secondary"
-                icon={ArrowLeft}
-                text="Back to Services"
-                size="sm"
-              />
-            </Link>
+            <Button
+              as={Link}
+              href="/services"
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Services
+            </Button>
           </div>
 
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
@@ -268,18 +267,24 @@ export default function ServiceDetailPage({ params }) {
             </div>
 
             <div className="flex flex-col sm:flex-row lg:flex-col gap-3">
-              <ModernButton
-                type="secondary"
-                text="Contact Team"
-                icon={MessageCircle}
+              <Button
+                type="button"
+                variant="secondary"
+                className="gap-2"
                 onClick={() => console.log("Contact team")}
-              />
-              <ModernButton
-                type="primary"
-                text="Manage Service"
-                icon={Settings}
+              >
+                <MessageCircle className="h-4 w-4" />
+                Contact Team
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                className="gap-2"
                 onClick={() => console.log("Manage service")}
-              />
+              >
+                <Settings className="h-4 w-4" />
+                Manage Service
+              </Button>
             </div>
           </div>
         </motion.div>
@@ -411,19 +416,21 @@ export default function ServiceDetailPage({ params }) {
                 {service.team.map((member, index) => (
                   <Card
                     key={index}
+                    padding={false}
                     className="bg-white/50 backdrop-blur-sm border border-gray-200/50"
                   >
-                    <CardContent className="p-6">
+                    <div className="p-6">
                       <div className="flex items-center space-x-4 mb-4">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={member.avatar} />
-                          <AvatarFallback className="bg-gradient-to-br from-pink-500 to-red-500 text-white font-semibold">
-                            {member.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
+                        <Avatar
+                          src={member.avatar}
+                          alt={member.name}
+                          fallback={member.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                          size="xl"
+                          className="h-12 w-12 bg-gradient-to-br from-pink-500 to-red-500 font-semibold"
+                        />
                         <div>
                           <h5 className="font-semibold text-gray-900">
                             {member.name}
@@ -451,22 +458,28 @@ export default function ServiceDetailPage({ params }) {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 mt-4">
-                        <ModernButton
-                          type="ghost"
-                          text="Message"
+                        <Button
+                          type="button"
+                          variant="ghost"
                           size="sm"
-                          icon={MessageCircle}
+                          className="gap-2"
                           onClick={() => console.log(`Message ${member.name}`)}
-                        />
-                        <ModernButton
-                          type="ghost"
-                          text="Call"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          Message
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
                           size="sm"
-                          icon={Phone}
+                          className="gap-2"
                           onClick={() => console.log(`Call ${member.name}`)}
-                        />
+                        >
+                          <Phone className="h-4 w-4" />
+                          Call
+                        </Button>
                       </div>
-                    </CardContent>
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -579,20 +592,26 @@ export default function ServiceDetailPage({ params }) {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <ModernButton
-                      type="ghost"
-                      text="Download"
+                    <Button
+                      type="button"
+                      variant="ghost"
                       size="sm"
-                      icon={Download}
+                      className="gap-2"
                       onClick={() => console.log(`Download ${doc}`)}
-                    />
-                    <ModernButton
-                      type="ghost"
-                      text="Share"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
                       size="sm"
-                      icon={Share2}
+                      className="gap-2"
                       onClick={() => console.log(`Share ${doc}`)}
-                    />
+                    >
+                      <Share2 className="h-4 w-4" />
+                      Share
+                    </Button>
                   </div>
                 </div>
               ))}

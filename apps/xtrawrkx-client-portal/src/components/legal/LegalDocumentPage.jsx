@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@webfudge/ui";
 import { legalRelatedPages } from "@/data/legalContent";
 
 function SectionContent({ section }) {

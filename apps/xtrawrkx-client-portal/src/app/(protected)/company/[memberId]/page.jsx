@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   X,
 } from "lucide-react";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import {
   deleteCompanyMemberManaged,
   getContactById,

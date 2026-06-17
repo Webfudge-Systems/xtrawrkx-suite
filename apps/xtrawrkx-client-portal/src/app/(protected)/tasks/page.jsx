@@ -40,7 +40,7 @@ import {
   useTableSort,
   useTableColumnPreferences,
 } from "@webfudge/ui";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/layout/PortalPageHeader";
 import { PortalPageShell } from "@/components/layout/PortalPageShell";
 import { useSession } from "@/lib/auth";
 import { exportItemsToCSV } from "@/lib/exportUtils";

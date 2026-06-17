@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, Button, Input, Textarea } from "@webfudge/ui";
-import { Select } from "@/components/ui/Select";
+import { Modal, Button, Input, Textarea, Select } from "@webfudge/ui";
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
@@ -109,6 +108,8 @@ export default function CreateSubtaskModal({
             onChange={(e) => handleInputChange("dueDate", e.target.value)}
           />
           <Select
+            searchable
+            menuPortal
             label="Priority"
             value={formData.priority}
             onChange={(value) => handleInputChange("priority", value)}
