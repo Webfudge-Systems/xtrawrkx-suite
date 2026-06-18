@@ -1,0 +1,22 @@
+/**
+ * Xtrawrkx brand tokens for the LinkedIn extension.
+ * Mirrors packages/config/src/brand/colors.js — keep in sync with CRM/PM.
+ */
+:root {
+  --brand-primary: #F5630F;
+  --brand-primary-dark: #ea580c;
+  --brand-primary-light: #fb923c;
+  --brand-dark: #1A1A1A;
+  --brand-light: #FFFAF7;
+  --brand-foreground: #2d2d2d;
+  --brand-text-muted: #666666;
+  --brand-border: #e8e8e8;
+
+  --brand-gradient: linear-gradient(135deg, #F5630F 0%, #fb923c 50%, #eab308 100%);
+  --brand-gradient-subtle: linear-gradient(135deg, #fff7ed 0%, #FFFAF7 100%);
+  --brand-shadow: 0 4px 14px 0 rgba(245, 99, 15, 0.25);
+  --brand-shadow-sm: 0 2px 8px 0 rgba(245, 99, 15, 0.15);
+
+  --shadow-card: 0 3px 16px rgba(15, 23, 42, 0.1), 0 2px 5px rgba(15, 23, 42, 0.06);
+  --radius-card: 12px;
+}

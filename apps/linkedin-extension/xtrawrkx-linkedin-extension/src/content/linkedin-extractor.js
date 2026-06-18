@@ -7,6 +7,7 @@ if (typeof window.LinkedInExtractor === 'undefined') {
                 this.logger.log('LinkedIn Extractor initialized');
             }
             this.currentPageData = null;
+            this._profileExtractPromise = null;
             this.setupExtractor();
         }
 
@@ -15,14 +16,19 @@ if (typeof window.LinkedInExtractor === 'undefined') {
             this.observeUrlChanges();
             this.setupMessageListener();
 
-            // Extract data shortly after load (reduced from 2000ms for faster sidebar display)
+            // Scroll + expand lazy sections, then extract (profiles need this for Experience)
             setTimeout(() => {
                 if (this.logger) {
-                    this.logger.log('Initial data extraction on page load...');
+                    this.logger.log('Initial profile extraction with DOM prep...');
                 }
-                this.extractCurrentPageData();
-                this.sendPageDataToSidebar();
-            }, 600);
+                const pathname = window.location.pathname;
+                if (this.isLinkedInProfilePath(pathname)) {
+                    this.extractProfileWithDomPrep();
+                } else {
+                    this.extractCurrentPageData();
+                    this.sendPageDataToSidebar();
+                }
+            }, 800);
         }
 
         injectToggleButton() {
@@ -85,8 +91,12 @@ if (typeof window.LinkedInExtractor === 'undefined') {
                     if (this.logger) {
                         this.logger.log('SidePanel opened successfully');
                     }
-                    // Send current page data to sidebar
-                    this.sendPageDataToSidebar();
+                    const pathname = window.location.pathname;
+                    if (this.isLinkedInProfilePath(pathname)) {
+                        this.extractProfileWithDomPrep();
+                    } else {
+                        this.sendPageDataToSidebar();
+                    }
                 } else {
                     if (this.logger) {
                         this.logger.error('Failed to open sidePanel:', response?.error);
@@ -104,6 +114,19 @@ if (typeof window.LinkedInExtractor === 'undefined') {
             // Function to handle URL change
             const handleUrlChange = (newUrl, reason = 'unknown') => {
                 if (newUrl === this.lastUrl) return;
+
+                // Extraction scrolls can flip Activity tabs (/recent-activity/images) — ignore.
+                if (this._profileExtractPromise) {
+                    this.lastUrl = newUrl;
+                    return;
+                }
+                if (
+                    typeof LinkedInProfileUrl !== 'undefined' &&
+                    LinkedInProfileUrl.isSameProfileUrl(this.lastUrl, newUrl)
+                ) {
+                    this.lastUrl = newUrl;
+                    return;
+                }
                 
                 if (this.logger) {
                     this.logger.log(`URL changed (${reason}):`, this.lastUrl, '→', newUrl);
@@ -138,7 +161,12 @@ if (typeof window.LinkedInExtractor === 'undefined') {
                     }
 
                     const pathname = window.location.pathname;
-                    if (pathname.includes('/in/') || pathname.includes('/company/') || pathname.includes('/search/')) {
+                    if (this.isLinkedInProfilePath(pathname)) {
+                        this.extractProfileWithDomPrep();
+                    } else if (
+                        pathname.includes('/company/') ||
+                        pathname.includes('/search/')
+                    ) {
                         this.extractCurrentPageData();
                         this.sendPageDataToSidebar();
                     } else {
@@ -219,13 +247,20 @@ if (typeof window.LinkedInExtractor === 'undefined') {
             }
         }
 
+        isLinkedInProfilePath(pathname) {
+            if (typeof LinkedInProfileUrl !== 'undefined') {
+                return LinkedInProfileUrl.isProfilePath(pathname);
+            }
+            return pathname.includes('/in/') && !pathname.includes('/feed/');
+        }
+
         extractCurrentPageData() {
             try {
                 const pathname = window.location.pathname;
                 let extractedData = null;
 
                 // Check if we're on a profile page (including activity tab)
-                if (pathname.includes('/in/') && !pathname.includes('/feed/')) {
+                if (this.isLinkedInProfilePath(pathname)) {
                     if (this.logger) {
                         this.logger.log('Extracting profile data...');
                     }
@@ -258,14 +293,16 @@ if (typeof window.LinkedInExtractor === 'undefined') {
         }
 
         extractProfileData() {
-            const rawTitle = document.title || '';
-            const name = rawTitle.split(/\s*[|\-–]\s*/)[0].trim() || rawTitle;
+            const canonicalUrl =
+                typeof LinkedInProfileUrl !== 'undefined'
+                    ? LinkedInProfileUrl.getCanonicalProfileUrl(window.location.href)
+                    : window.location.href.split('?')[0];
 
             const data = {
-                profileUrl: window.location.href,
-                linkedInUrl: window.location.href,
+                profileUrl: canonicalUrl,
+                linkedInUrl: canonicalUrl,
                 pageTitle: document.title,
-                name,
+                name: '',
             };
 
             if (typeof ProfileStructuredParser !== 'undefined') {
@@ -275,36 +312,67 @@ if (typeof window.LinkedInExtractor === 'undefined') {
                 Object.assign(data, structured);
             }
 
+            if (!data.name) {
+                const rawTitle = document.title || '';
+                data.name = rawTitle.split(/\s*[|\-–]\s*/)[0].trim() || rawTitle;
+            }
+
             return {
                 type: 'profile',
-                url: window.location.href,
+                url: canonicalUrl,
                 data,
             };
         }
 
-        async captureProfileHtmlPayload() {
-            if (typeof ProfilePageCapture === 'undefined') {
-                throw new Error('ProfilePageCapture is not available');
-            }
-            await ProfilePageCapture.autoScrollForLazyContent(window, document);
-            await ProfilePageCapture.expandLazyProfileSections(document);
-            await ProfilePageCapture.autoScrollForLazyContent(window, document, {
-                maxIterations: 40,
-                pauseMs: 500,
-            });
-
-            let structured = null;
-            if (typeof ProfileStructuredParser !== 'undefined') {
-                structured = ProfileStructuredParser.parseFromDocument(document, {
-                    title: document.title,
-                });
+        async extractProfileWithDomPrep() {
+            if (this._profileExtractPromise) {
+                return this._profileExtractPromise;
             }
 
-            return ProfilePageCapture.buildSnapshotPayload(document, window, {
-                structured,
+            this._profileExtractPromise = this._runProfileExtraction().finally(() => {
+                this._profileExtractPromise = null;
             });
+
+            return this._profileExtractPromise;
         }
 
+        async _runProfileExtraction() {
+            if (typeof LinkedInProfileUrl !== 'undefined') {
+                const status = await LinkedInProfileUrl.ensureMainProfilePage(window);
+                if (status === 'redirecting') {
+                    return null;
+                }
+            }
+
+            this.sendExtractionStatus('loading');
+
+            if (typeof ProfileDomPrep !== 'undefined') {
+                await ProfileDomPrep.prepareProfileDom(window, document);
+            }
+
+            const pageData = this.extractProfileData();
+            if (pageData?.data) {
+                pageData.data.extractionComplete = true;
+            }
+
+            this.currentPageData = pageData;
+            this.sendPageDataToSidebar();
+            this.sendExtractionStatus('complete');
+            return pageData;
+        }
+
+        sendExtractionStatus(status) {
+            if (!chrome.runtime?.id) return;
+            try {
+                chrome.runtime.sendMessage({
+                    type: 'PROFILE_EXTRACTION_STATUS',
+                    status,
+                    url: window.location.href,
+                });
+            } catch {
+                /* ignore */
+            }
+        }
 
         extractCompanyData() {
             const selectors = {
@@ -484,27 +552,42 @@ if (typeof window.LinkedInExtractor === 'undefined') {
             chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 switch (message.type) {
                     case 'EXTRACT_CURRENT_PAGE': {
+                        const pathname = window.location.pathname;
+                        if (this.isLinkedInProfilePath(pathname)) {
+                            (async () => {
+                                try {
+                                    const data = await this.extractProfileWithDomPrep();
+                                    sendResponse({ success: true, data });
+                                } catch (err) {
+                                    sendResponse({
+                                        success: false,
+                                        error: err?.message || String(err),
+                                    });
+                                }
+                            })();
+                            return true;
+                        }
                         const currentData = this.extractCurrentPageData();
                         sendResponse({
                             success: true,
-                            data: currentData
+                            data: currentData,
                         });
                         break;
                     }
 
-                    case 'CAPTURE_PROFILE_HTML': {
+                    case 'EXTRACT_PROFILE_PREPARED': {
                         (async () => {
                             try {
                                 const pathname = window.location.pathname;
-                                if (!pathname.includes('/in/') || pathname.includes('/feed/')) {
+                                if (!this.isLinkedInProfilePath(pathname)) {
                                     sendResponse({
                                         success: false,
                                         error: 'Not a LinkedIn profile page',
                                     });
                                     return;
                                 }
-                                const payload = await this.captureProfileHtmlPayload();
-                                sendResponse({ success: true, payload });
+                                const data = await this.extractProfileWithDomPrep();
+                                sendResponse({ success: true, data });
                             } catch (err) {
                                 sendResponse({
                                     success: false,

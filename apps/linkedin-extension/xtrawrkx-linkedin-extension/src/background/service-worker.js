@@ -284,8 +284,18 @@ class BackgroundService {
                     break;
 
                 case 'GET_CONTACT_RELATED_DATA':
-                    const relatedData = await this.handleGetContactRelatedData(message.contactId);
+                    const relatedData = await this.handleGetContactRelatedData(
+                        message.contact || { id: message.contactId },
+                    );
                     sendResponse(relatedData);
+                    break;
+
+                case 'UPDATE_CONTACT':
+                    const updateResult = await this.handleUpdateContact(
+                        message.contactId,
+                        message.data,
+                    );
+                    sendResponse(updateResult);
                     break;
 
                 case 'GET_COMPANY_DATA':
@@ -301,16 +311,6 @@ class BackgroundService {
                 case 'IMPORT_CURRENT_PAGE':
                     const result = await this.handleImportCurrentPage(message.data);
                     sendResponse(result);
-                    break;
-
-                case 'SUBMIT_PROFILE_HTML_CAPTURE':
-                    const captureResult = await this.handleSubmitProfileHtmlCapture(message.payload);
-                    sendResponse(captureResult);
-                    break;
-
-                case 'GENERATE_LINKEDIN_OUTREACH':
-                    const outreachResult = await this.handleGenerateLinkedInOutreach(message.payload);
-                    sendResponse(outreachResult);
                     break;
 
                 case 'IMPORT_BULK':
@@ -357,6 +357,10 @@ class BackgroundService {
                     sendResponse(pageDataResult);
                     break;
 
+                case 'PROFILE_EXTRACTION_STATUS':
+                    sendResponse({ success: true });
+                    break;
+
                 case 'OPEN_POPUP_FALLBACK':
                     // Fallback for older Chrome versions - open popup
                     try {
@@ -395,17 +399,29 @@ class BackgroundService {
         }
     }
 
-    async handleGetContactRelatedData(contactId) {
+    async handleGetContactRelatedData(contact) {
 
         try {
             await this.apiClient.init();
 
-            const relatedData = await this.apiClient.getContactRelatedData(contactId);
+            const relatedData = await this.apiClient.getContactRelatedData(contact);
 
             return { success: true, data: relatedData };
 
         } catch (error) {
             console.error('❌ Error fetching contact related data:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async handleUpdateContact(contactId, data) {
+        try {
+            await this.apiClient.init();
+
+            const result = await this.apiClient.updateContact(contactId, data);
+            return { success: true, data: result.data };
+        } catch (error) {
+            console.error('❌ Error updating contact:', error);
             return { success: false, error: error.message };
         }
     }
@@ -508,55 +524,6 @@ class BackgroundService {
         }
     }
 
-    async handleSubmitProfileHtmlCapture(payload) {
-        try {
-            if (!payload || typeof payload.html !== 'string' || !payload.url) {
-                throw new Error('Invalid capture payload');
-            }
-
-            const isAuthenticated = await this.apiClient.verifyAuth();
-            if (!isAuthenticated) {
-                throw new Error('Not authenticated. Please sign in through the extension options.');
-            }
-
-            const userId = await this.apiClient.getUserId();
-            const data = await this.apiClient.syncLinkedInEnrichedProfile({
-                ...payload,
-                assignedTo: userId || undefined,
-                storeHtml: true,
-            });
-
-            return {
-                success: true,
-                data,
-            };
-        } catch (error) {
-            console.error('Profile HTML capture submit failed:', error);
-            return {
-                success: false,
-                error: error.message,
-            };
-        }
-    }
-
-    async handleGenerateLinkedInOutreach(payload) {
-        try {
-            await this.apiClient.init();
-            const raw = await this.apiClient.generateLinkedInOutreach(payload);
-            const variants = raw && raw.data !== undefined ? raw.data : raw;
-            return {
-                success: true,
-                data: variants,
-            };
-        } catch (error) {
-            console.error('Generate LinkedIn outreach failed:', error);
-            return {
-                success: false,
-                error: error.message,
-            };
-        }
-    }
-
     async importProfile(profileData, userId) {
 
         // Check for duplicates if enabled
@@ -573,62 +540,25 @@ class BackgroundService {
             }
         }
 
-        // Step 1: Create lead company if currentCompany exists
-        let leadCompanyResult = null;
-        const companyName = profileData.currentCompany || profileData.company;
-
-        if (companyName) {
-
-            try {
-                // Check for duplicate company if enabled
-                if (settings.checkDuplicates) {
-                    const isDuplicateCompany = await this.apiClient.checkDuplicateCompany(
-                        profileData.linkedInUrl || profileData.profileUrl
-                    );
-
-                    if (isDuplicateCompany) {
-                        // Try to find existing company by name
-                        // For now, we'll still create the contact without linking
-                    } else {
-                        // Map company data from profile
-                        const leadCompanyData = this.dataMapper.mapProfileCompanyToLeadCompany(profileData, userId);
-
-                        if (leadCompanyData) {
-                            // Validate company data
-                            const companyValidation = this.dataMapper.validateLeadCompany(leadCompanyData);
-                            if (companyValidation.isValid) {
-                                // Create lead company
-                                leadCompanyResult = await this.apiClient.createLeadCompany(leadCompanyData);
-                            } else {
-                            }
-                        }
-                    }
-                } else {
-                    // Map company data from profile
-                    const leadCompanyData = this.dataMapper.mapProfileCompanyToLeadCompany(profileData, userId);
-
-                    if (leadCompanyData) {
-                        // Validate company data
-                        const companyValidation = this.dataMapper.validateLeadCompany(leadCompanyData);
-                        if (companyValidation.isValid) {
-                            // Create lead company
-                            leadCompanyResult = await this.apiClient.createLeadCompany(leadCompanyData);
-                        } else {
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Error creating lead company:', error);
-                // Continue with contact creation even if company creation fails
-            }
-        }
+        // Step 1: Reuse or create the company record for this profile's employer
+        const companyResolution = await this.resolveCompanyForContactImport(profileData, userId);
 
         // Step 2: Map profile data to contact format
         const contactData = this.dataMapper.mapProfileToContact(profileData, userId);
 
-        // Link contact to lead company if created
-        if (leadCompanyResult && leadCompanyResult.data && leadCompanyResult.data.id) {
-            contactData.leadCompany = leadCompanyResult.data.id;
+        // Link contact to the shared company record
+        if (companyResolution?.record?.id) {
+            if (companyResolution.kind === 'clientAccount') {
+                contactData.clientAccount = companyResolution.record.id;
+            } else {
+                contactData.leadCompany = companyResolution.record.id;
+            }
+
+            contactData.companyName =
+                companyResolution.record.companyName ||
+                this.dataMapper.resolveProfileCompanyName(profileData) ||
+                contactData.companyName ||
+                '';
         }
 
         // Validate contact data
@@ -645,24 +575,75 @@ class BackgroundService {
             id: contactResult.data.id,
             name: `${contactData.firstName} ${contactData.lastName}`.trim(),
             data: contactResult.data,
-            leadCompany: leadCompanyResult ? {
-                id: leadCompanyResult.data.id,
-                name: leadCompanyResult.data.companyName,
-                data: leadCompanyResult.data
-            } : null
+            company: companyResolution ? {
+                kind: companyResolution.kind,
+                reused: companyResolution.reused === true,
+                id: companyResolution.record.id,
+                name: companyResolution.record.companyName,
+                data: companyResolution.record,
+            } : null,
+            leadCompany: companyResolution?.kind === 'leadCompany' ? {
+                id: companyResolution.record.id,
+                name: companyResolution.record.companyName,
+                data: companyResolution.record,
+            } : null,
         };
     }
 
+    async resolveCompanyForContactImport(profileData, userId) {
+        const companyName = this.dataMapper.resolveProfileCompanyName(profileData);
+
+        if (!companyName) return null;
+
+        const companyLinkedInUrl = this.dataMapper.extractCompanyLinkedInUrl(profileData);
+
+        try {
+            const existing = await this.apiClient.findExistingCompanyForImport({
+                companyName,
+                companyLinkedInUrl,
+            });
+
+            if (existing?.record) {
+                return {
+                    kind: existing.kind,
+                    reused: true,
+                    record: existing.record,
+                };
+            }
+
+            const leadCompanyData = this.dataMapper.mapProfileCompanyToLeadCompany(profileData, userId);
+            if (!leadCompanyData) return null;
+
+            const companyValidation = this.dataMapper.validateLeadCompany(leadCompanyData);
+            if (!companyValidation.isValid) return null;
+
+            const created = await this.apiClient.createLeadCompany(leadCompanyData);
+            if (!created?.data) return null;
+
+            return {
+                kind: 'leadCompany',
+                reused: false,
+                record: created.data,
+            };
+        } catch (error) {
+            console.error('❌ Error resolving company for contact import:', error);
+            return null;
+        }
+    }
+
     async importCompany(companyData, userId) {
-        // Check for duplicates if enabled
         const settings = await this.getImportSettings();
+        const companyLinkedInUrl =
+            companyData.linkedInUrl || companyData.companyUrl || companyData.linkedIn || '';
+        const companyName = companyData.name || companyData.companyName || '';
 
         if (settings.checkDuplicates) {
-            const isDuplicate = await this.apiClient.checkDuplicateCompany(
-                companyData.linkedInUrl || companyData.companyUrl
-            );
+            const existing = await this.apiClient.findExistingCompanyForImport({
+                companyName,
+                companyLinkedInUrl,
+            });
 
-            if (isDuplicate) {
+            if (existing?.record) {
                 throw new Error('Company already exists in CRM');
             }
         }

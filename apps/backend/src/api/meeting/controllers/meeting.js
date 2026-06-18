@@ -69,6 +69,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       if (extra.deal) filters.deal = extra.deal;
       if (extra.clientAccount) filters.clientAccount = extra.clientAccount;
       if (extra.leadCompany) filters.leadCompany = extra.leadCompany;
+      if (extra.contact) filters.contact = extra.contact;
       if (extra.assignedTo) filters.assignedTo = extra.assignedTo;
     }
 

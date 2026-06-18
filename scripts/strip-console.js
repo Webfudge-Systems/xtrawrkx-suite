@@ -13,7 +13,6 @@ const dirs = [
   'xtrawrkx-client-portal/src',
   'xtrawrkx-linkedin-extension/src',
   'xtrawrkx-linkedin-extension/scripts',
-  'xtrawrkx-linkedin-extract-api/src',
   'client/src',
   // monorepo apps (added when webfudge apps are brought in)
   // 'apps/crm/src',

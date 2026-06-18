@@ -162,18 +162,19 @@ class ExtensionApiClient {
                 this.logger.log('Authenticating with:', this.baseURL);
             }
 
-            const response = await this.request('/auth/internal/login', {
+            const response = await this.request('/auth/login', {
                 method: 'POST',
-                body: { email, password }
+                body: { identifier: email, password }
             });
 
-            if (response.token && response.user) {
-                this.token = response.token;
+            const token = response.jwt || response.token;
+            if (token && response.user) {
+                this.token = token;
                 await chrome.storage.sync.set({
-                    authToken: response.token,
+                    authToken: token,
                     userId: response.user.id,
                     userEmail: response.user.email,
-                    userName: response.user.name || `${response.user.firstName} ${response.user.lastName}`.trim()
+                    userName: response.user.name || `${response.user.firstName || ''} ${response.user.lastName || ''}`.trim()
                 });
                 if (this.logger) {
                     this.logger.log('Authentication successful, token stored');
@@ -257,45 +258,200 @@ class ExtensionApiClient {
         });
     }
 
-    /**
-     * Syncs captured LinkedIn HTML to CRM: Strapi calls extract service (LINKEDIN_EXTRACT_API_URL), upserts contact, logs activity.
-     * Body: { url, html, title?, capturedAt?, storeHtml?, assignedTo? }
-     */
-    async syncLinkedInEnrichedProfile(payload) {
-        return this.request('/contacts/sync-linkedin-enriched', {
-            method: 'POST',
-            body: payload,
-        });
-    }
-
-    /**
-     * AI outreach variants (short DM, pitch, sales). Proxied via Strapi to extract service.
-     */
-    async generateLinkedInOutreach(payload) {
-        return this.request('/contacts/generate-linkedin-outreach', {
-            method: 'POST',
-            body: payload,
-        });
-    }
-
     async checkDuplicateCompany(linkedInUrl) {
+        const existing = await this.findLeadCompanyByLinkedIn(linkedInUrl);
+        return Boolean(existing);
+    }
+
+    async findLeadCompanyByLinkedIn(linkedInUrl) {
         try {
+            const normalized = this.normalizeCompanyLinkedInUrl(linkedInUrl);
+            if (!normalized) return null;
+
+            const slug = normalized.match(/\/company\/([^/?#]+)/i)?.[1]?.toLowerCase() || '';
+
             const queryParams = new URLSearchParams({
-                'filters[linkedIn][$eq]': linkedInUrl,
-                'pagination[pageSize]': '1'
+                'filters[linkedIn][$eq]': normalized,
+                'pagination[pageSize]': '25',
+                'populate[convertedAccount]': 'true',
             });
 
             const response = await this.request(`/lead-companies?${queryParams}`, {
-                method: 'GET'
+                method: 'GET',
             });
 
-            return response.data && response.data.length > 0;
+            let rows = response.data || [];
+            let match = rows.find(
+                (row) => this.normalizeCompanyLinkedInUrl(row.linkedIn) === normalized,
+            );
+            if (match) return match;
+
+            if (!slug) return null;
+
+            const fallbackParams = new URLSearchParams({
+                'pagination[pageSize]': '200',
+                'populate[convertedAccount]': 'true',
+            });
+            const fallback = await this.request(`/lead-companies?${fallbackParams}`, {
+                method: 'GET',
+            });
+            rows = fallback.data || [];
+
+            return (
+                rows.find((row) => {
+                    const rowUrl = this.normalizeCompanyLinkedInUrl(row.linkedIn);
+                    if (!rowUrl) return false;
+                    if (rowUrl === normalized) return true;
+                    return rowUrl.toLowerCase().includes(`/company/${slug}`);
+                }) || null
+            );
         } catch (error) {
             if (this.logger) {
-                this.logger.error('Error checking duplicate company:', error);
+                this.logger.error('Error finding lead company by LinkedIn URL:', error);
             }
-            return false;
+            return null;
         }
+    }
+
+    normalizeCompanyLinkedInUrl(href) {
+        if (!href || typeof href !== 'string') return '';
+
+        const trimmed = href.trim();
+        if (!trimmed) return '';
+
+        if (/^https?:\/\//i.test(trimmed)) {
+            try {
+                const url = new URL(trimmed.split('?')[0]);
+                if (url.pathname.includes('/company/')) {
+                    return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
+                }
+            } catch {
+                return '';
+            }
+        }
+
+        const slugMatch = trimmed.match(/\/company\/([^/?#]+)/i);
+        if (slugMatch?.[1]) {
+            return `https://www.linkedin.com/company/${slugMatch[1]}`;
+        }
+
+        return '';
+    }
+
+    normalizeCompanyName(name) {
+        return String(name || '')
+            .replace(/\u00a0/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    cleanCompanyName(name) {
+        return String(name || '')
+            .replace(/\u00a0/g, ' ')
+            .replace(/\s+logo$/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    pickExactCompanyNameMatch(rows, companyName) {
+        if (!Array.isArray(rows) || !rows.length) return null;
+
+        const target = this.normalizeCompanyName(this.cleanCompanyName(companyName));
+        if (!target) return null;
+
+        return rows.find((row) => this.normalizeCompanyName(row.companyName) === target) || null;
+    }
+
+    async findLeadCompanyByExactName(companyName) {
+        try {
+            const name = this.cleanCompanyName(companyName);
+            if (!name) return null;
+
+            const queryParams = new URLSearchParams({
+                'filters[companyName][$eqi]': name,
+                'pagination[pageSize]': '50',
+                'populate[convertedAccount]': 'true',
+            });
+
+            const response = await this.request(`/lead-companies?${queryParams}`, {
+                method: 'GET',
+            });
+
+            let match = this.pickExactCompanyNameMatch(response.data, name);
+            if (match) return match;
+
+            const fallbackParams = new URLSearchParams({
+                'pagination[pageSize]': '200',
+                'populate[convertedAccount]': 'true',
+            });
+            const fallback = await this.request(`/lead-companies?${fallbackParams}`, {
+                method: 'GET',
+            });
+
+            return this.pickExactCompanyNameMatch(fallback.data, name);
+        } catch (error) {
+            if (this.logger) {
+                this.logger.error('Error finding lead company by name:', error);
+            }
+            return null;
+        }
+    }
+
+    async findClientAccountByExactName(companyName) {
+        try {
+            const name = this.cleanCompanyName(companyName);
+            if (!name) return null;
+
+            // Client-account list endpoint ignores REST filters — filter client-side.
+            const queryParams = new URLSearchParams({
+                'pagination[pageSize]': '200',
+            });
+
+            const response = await this.request(`/client-accounts?${queryParams}`, {
+                method: 'GET',
+            });
+
+            return this.pickExactCompanyNameMatch(response.data, name);
+        } catch (error) {
+            if (this.logger) {
+                this.logger.error('Error finding client account by name:', error);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Reuse an existing lead company / client account before creating a duplicate.
+     * Profile imports always prefer lead companies; client accounts only when no lead exists.
+     */
+    async findExistingCompanyForImport({ companyName, companyLinkedInUrl } = {}) {
+        const linkedInUrl = this.normalizeCompanyLinkedInUrl(companyLinkedInUrl);
+        const trimmedName = this.cleanCompanyName(companyName);
+
+        if (linkedInUrl) {
+            const byUrl = await this.findLeadCompanyByLinkedIn(linkedInUrl);
+            if (byUrl) {
+                byUrl._companyType = 'lead';
+                return { kind: 'leadCompany', record: byUrl };
+            }
+        }
+
+        if (!trimmedName) return null;
+
+        const lead = await this.findLeadCompanyByExactName(trimmedName);
+        if (lead) {
+            lead._companyType = 'lead';
+            return { kind: 'leadCompany', record: lead };
+        }
+
+        const client = await this.findClientAccountByExactName(trimmedName);
+        if (client) {
+            client._companyType = 'client';
+            return { kind: 'clientAccount', record: client };
+        }
+
+        return null;
     }
 
     // Contact methods
@@ -366,28 +522,97 @@ class ExtensionApiClient {
         }
     }
 
-    // Related data methods
-    async getContactRelatedData(contactId) {
-        try {
-            // Fetch deals, tasks, files, activities, and chats in parallel
-            const [dealsResponse, tasksResponse, filesResponse, activitiesResponse, chatsResponse] = await Promise.all([
-                this.getContactDeals(contactId),
-                this.getContactTasks(contactId),
-                this.getContactFiles(contactId),
-                this.getContactActivities(contactId),
-                this.getContactChats(contactId)
-            ]);
+    async updateContact(contactId, data) {
+        return this.request(`/contacts/${contactId}`, {
+            method: 'PUT',
+            body: { data },
+        });
+    }
 
-            const relatedData = {
+    // Related data methods
+    relationId(relation) {
+        if (relation == null) return null;
+        if (typeof relation === 'object') return relation.id ?? null;
+        return relation;
+    }
+
+    mergeById(items) {
+        const map = new Map();
+        for (const item of items || []) {
+            if (item?.id != null) map.set(item.id, item);
+        }
+        return [...map.values()];
+    }
+
+    matchesContactScope(record, scope) {
+        const { contactId, leadCompanyId, clientAccountId } = scope;
+        const recordContactId = this.relationId(record.contact);
+        const recordLeadId = this.relationId(record.leadCompany);
+        const recordClientId = this.relationId(record.clientAccount);
+
+        if (contactId && recordContactId != null && String(recordContactId) === String(contactId)) {
+            return true;
+        }
+        if (leadCompanyId && recordLeadId != null && String(recordLeadId) === String(leadCompanyId)) {
+            return true;
+        }
+        if (clientAccountId && recordClientId != null && String(recordClientId) === String(clientAccountId)) {
+            return true;
+        }
+        return false;
+    }
+
+    buildContactScope(contact) {
+        return {
+            contactId: contact?.id ?? null,
+            leadCompanyId: this.relationId(contact?.leadCompany),
+            clientAccountId: this.relationId(contact?.clientAccount),
+        };
+    }
+
+    async fetchList(endpoint, filterPairs, options = {}) {
+        const queryParams = new URLSearchParams({
+            populate: options.populate || '*',
+            sort: options.sort || 'createdAt:desc',
+            'pagination[pageSize]': String(options.pageSize || 25),
+        });
+
+        for (const [key, value] of filterPairs) {
+            if (value != null && value !== '') {
+                queryParams.set(key, value);
+            }
+        }
+
+        if (options.scope) {
+            queryParams.set('scope', options.scope);
+        }
+
+        const response = await this.request(`${endpoint}?${queryParams}`, { method: 'GET' });
+        return response.data || [];
+    }
+
+    async getContactRelatedData(contact) {
+        try {
+            const scope = typeof contact === 'object'
+                ? this.buildContactScope(contact)
+                : { contactId: contact, leadCompanyId: null, clientAccountId: null };
+
+            const [dealsResponse, tasksResponse, filesResponse, activitiesResponse, chatsResponse] =
+                await Promise.all([
+                    this.getRelatedDeals(scope),
+                    this.getRelatedTasks(scope),
+                    this.getRelatedFiles(scope),
+                    this.getRelatedMeetings(scope),
+                    scope.contactId ? this.getContactChats(scope.contactId) : Promise.resolve([]),
+                ]);
+
+            return {
                 deals: dealsResponse,
                 tasks: tasksResponse,
                 files: filesResponse,
                 activities: activitiesResponse,
-                chats: chatsResponse
+                chats: chatsResponse,
             };
-
-            return relatedData;
-
         } catch (error) {
             if (this.logger) {
                 this.logger.error('Error fetching contact related data:', error);
@@ -396,152 +621,129 @@ class ExtensionApiClient {
         }
     }
 
-    async getContactDeals(contactId) {
-        try {
-            const queryParams = new URLSearchParams({
-                'filters[contact][id][$eq]': contactId,
-                'populate': '*',
-                'sort': 'createdAt:desc',
-                'pagination[pageSize]': '10'
-            });
+    async getRelatedDeals(scope) {
+        const { contactId, leadCompanyId, clientAccountId } = scope;
+        const requests = [];
 
-            const response = await this.request(`/deals?${queryParams}`, {
-                method: 'GET'
-            });
-
-            return response.data || [];
-
-        } catch (error) {
-            if (this.logger) {
-                this.logger.error('Error fetching contact deals:', error);
-            }
-            return [];
+        if (contactId) {
+            requests.push(this.fetchList('/deals', [['filters[contact][id][$eq]', contactId]]));
         }
+        if (leadCompanyId) {
+            requests.push(this.fetchList('/deals', [['filters[leadCompany][id][$eq]', leadCompanyId]]));
+        }
+        if (clientAccountId) {
+            requests.push(this.fetchList('/deals', [['filters[clientAccount][id][$eq]', clientAccountId]]));
+        }
+
+        if (!requests.length) return [];
+
+        const batches = await Promise.all(requests);
+        const merged = this.mergeById(batches.flat());
+        return merged
+            .filter((deal) => this.matchesContactScope(deal, scope))
+            .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+            .slice(0, 25);
+    }
+
+    async getRelatedTasks(scope) {
+        const { leadCompanyId, clientAccountId } = scope;
+        const requests = [];
+
+        if (leadCompanyId) {
+            requests.push(this.fetchList('/tasks', [['filters[leadCompany][id][$eq]', leadCompanyId]], {
+                sort: 'scheduledDate:desc',
+                pageSize: 50,
+                scope: 'crm',
+            }));
+        }
+        if (clientAccountId) {
+            requests.push(this.fetchList('/tasks', [['filters[clientAccount][id][$eq]', clientAccountId]], {
+                sort: 'scheduledDate:desc',
+                pageSize: 50,
+                scope: 'crm',
+            }));
+        }
+
+        if (!requests.length) return [];
+
+        const batches = await Promise.all(requests);
+        return this.mergeById(batches.flat())
+            .filter((task) => this.matchesContactScope(task, scope))
+            .sort((a, b) => new Date(b.scheduledDate || b.createdAt || 0) - new Date(a.scheduledDate || a.createdAt || 0))
+            .slice(0, 25);
+    }
+
+    async getRelatedFiles(scope) {
+        const { leadCompanyId, clientAccountId } = scope;
+        const requests = [];
+
+        if (leadCompanyId) {
+            requests.push(this.fetchList('/proposals', [['filters[leadCompany][id][$eq]', leadCompanyId]], {
+                populate: 'proposalFile,leadCompany,clientAccount,deal',
+                pageSize: 25,
+            }));
+        }
+        if (clientAccountId) {
+            requests.push(this.fetchList('/proposals', [['filters[clientAccount][id][$eq]', clientAccountId]], {
+                populate: 'proposalFile,leadCompany,clientAccount,deal',
+                pageSize: 25,
+            }));
+        }
+
+        if (!requests.length) return [];
+
+        const batches = await Promise.all(requests);
+        return this.mergeById(batches.flat())
+            .filter((proposal) => this.matchesContactScope(proposal, scope))
+            .slice(0, 25);
+    }
+
+    async getRelatedMeetings(scope) {
+        const { contactId, leadCompanyId, clientAccountId } = scope;
+        const requests = [];
+
+        if (contactId) {
+            requests.push(this.fetchList('/meetings', [['filters[contact][id][$eq]', contactId]], {
+                sort: 'startTime:desc',
+                pageSize: 25,
+            }));
+        }
+        if (leadCompanyId) {
+            requests.push(this.fetchList('/meetings', [['filters[leadCompany][id][$eq]', leadCompanyId]], {
+                sort: 'startTime:desc',
+                pageSize: 25,
+            }));
+        }
+        if (clientAccountId) {
+            requests.push(this.fetchList('/meetings', [['filters[clientAccount][id][$eq]', clientAccountId]], {
+                sort: 'startTime:desc',
+                pageSize: 25,
+            }));
+        }
+
+        if (!requests.length) return [];
+
+        const batches = await Promise.all(requests);
+        return this.mergeById(batches.flat())
+            .filter((meeting) => this.matchesContactScope(meeting, scope))
+            .sort((a, b) => new Date(b.startTime || b.createdAt || 0) - new Date(a.startTime || a.createdAt || 0))
+            .slice(0, 25);
+    }
+
+    async getContactDeals(contactId) {
+        return this.getRelatedDeals({ contactId, leadCompanyId: null, clientAccountId: null });
     }
 
     async getContactTasks(contactId) {
-        try {
-            // Try multiple filter approaches to ensure we get the right tasks
-            const approaches = [
-                // Approach 1: Standard Strapi filter
-                {
-                    name: 'Standard Filter',
-                    params: new URLSearchParams({
-                        'filters[contact][id][$eq]': contactId,
-                        'populate': 'contact',
-                        'sort': 'createdAt:desc',
-                        'pagination[pageSize]': '50'
-                    })
-                },
-                // Approach 2: Alternative filter syntax
-                {
-                    name: 'Alternative Filter',
-                    params: new URLSearchParams({
-                        'filters[contact][$eq]': contactId,
-                        'populate': 'contact',
-                        'sort': 'createdAt:desc',
-                        'pagination[pageSize]': '50'
-                    })
-                }
-            ];
-
-            let allTasks = [];
-
-            for (const approach of approaches) {
-                try {
-                    const url = `/tasks?${approach.params}`;
-
-                    const response = await this.request(url, {
-                        method: 'GET'
-                    });
-
-                    if (response.data && response.data.length > 0) {
-                        allTasks = response.data;
-                        break; // Use the first approach that returns data
-                    }
-                } catch (error) {
-                    if (this.logger) {
-                        this.logger.warn(`Filter approach failed:`, error.message);
-                    }
-                }
-            }
-
-            // If no approach worked, try getting all tasks and filter client-side
-            if (allTasks.length === 0) {
-                try {
-                    const response = await this.request('/tasks?populate=contact&pagination[pageSize]=100', {
-                        method: 'GET'
-                    });
-                    allTasks = response.data || [];
-                } catch (error) {
-                    if (this.logger) {
-                        this.logger.error('Fallback approach failed:', error);
-                    }
-                    return [];
-                }
-            }
-
-            // Client-side filtering to ensure we only get tasks for this contact
-            const filteredTasks = allTasks.filter(task => {
-                const taskContactId = task.contact?.id || task.contact;
-                return taskContactId == contactId;
-            });
-
-            return filteredTasks;
-
-        } catch (error) {
-            if (this.logger) {
-                this.logger.error('Error fetching contact tasks:', error);
-            }
-            return [];
-        }
+        return this.getRelatedTasks({ contactId, leadCompanyId: null, clientAccountId: null });
     }
 
     async getContactFiles(contactId) {
-        try {
-            const queryParams = new URLSearchParams({
-                'filters[contact][id][$eq]': contactId,
-                'populate': '*',
-                'sort': 'createdAt:desc',
-                'pagination[pageSize]': '10'
-            });
-
-            const response = await this.request(`/files?${queryParams}`, {
-                method: 'GET'
-            });
-
-            return response.data || [];
-
-        } catch (error) {
-            if (this.logger) {
-                this.logger.error('Error fetching contact files:', error);
-            }
-            return [];
-        }
+        return this.getRelatedFiles({ contactId, leadCompanyId: null, clientAccountId: null });
     }
 
     async getContactActivities(contactId) {
-        try {
-            const queryParams = new URLSearchParams({
-                'filters[contact][id][$eq]': contactId,
-                'filters[activityType][$in]': 'MEETING,CALL,DEMO',
-                'populate': '*',
-                'sort': 'scheduledDate:desc',
-                'pagination[pageSize]': '10'
-            });
-
-            const response = await this.request(`/activities?${queryParams}`, {
-                method: 'GET'
-            });
-
-            return response.data || [];
-
-        } catch (error) {
-            if (this.logger) {
-                this.logger.error('Error fetching contact activities:', error);
-            }
-            return [];
-        }
+        return this.getRelatedMeetings({ contactId, leadCompanyId: null, clientAccountId: null });
     }
 
     async getContactChats(contactId) {
@@ -625,54 +827,11 @@ class ExtensionApiClient {
 
     async searchCompanyByName(companyName) {
         try {
-
-            // First search in lead companies (most companies start as leads)
-            const leadQueryParams = new URLSearchParams({
-                'filters[companyName][$containsi]': companyName,
-                'pagination[pageSize]': '1',
-                'populate[contacts]': 'true',
-                'populate[assignedTo]': 'true',
-                'populate[convertedAccount]': 'true'
-            });
-
-            const leadResponse = await this.request(`/lead-companies?${leadQueryParams}`, {
-                method: 'GET'
-            });
-
-
-            if (leadResponse.data && leadResponse.data.length > 0) {
-                const company = leadResponse.data[0];
-                company._companyType = 'lead';
-
-                // Check if converted to client account
-                if (company.convertedAccount && company.convertedAccount.id) {
-                    return await this.getCompanyData(company.convertedAccount.id);
-                }
-
-                return company;
+            const existing = await this.findExistingCompanyForImport({ companyName });
+            if (existing?.record) {
+                return existing.record;
             }
-
-            // If not found in lead companies, search in client accounts
-            const clientQueryParams = new URLSearchParams({
-                'filters[companyName][$containsi]': companyName,
-                'pagination[pageSize]': '1',
-                'populate[contacts]': 'true',
-                'populate[accountManager]': 'true'
-            });
-
-            const clientResponse = await this.request(`/client-accounts?${clientQueryParams}`, {
-                method: 'GET'
-            });
-
-
-            if (clientResponse.data && clientResponse.data.length > 0) {
-                const company = clientResponse.data[0];
-                company._companyType = 'client';
-                return company;
-            }
-
             return null;
-
         } catch (error) {
             console.error('❌ Error searching company by name:', error);
             if (this.logger) {

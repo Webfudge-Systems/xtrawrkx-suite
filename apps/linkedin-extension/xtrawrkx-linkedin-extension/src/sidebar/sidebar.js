@@ -7,15 +7,30 @@ class SidebarController {
     constructor() {
         this.isAuthenticated = false;
         this.currentPageData = null;
-        /** Last CRM snapshot from a successful Analyze (linkedin + enrichment + insights). */
-        this.lastLinkedInSnapshot = null;
-        /** Last profile HTML capture payload (preview mode or for copy). */
-        this.lastCapturedHtmlPayload = null;
-        /** Structured profile fields from last capture (DOM parse). */
-        this.lastCapturedStructured = null;
+        this.profileExtractionPending = false;
         this.logger = typeof getLogger !== 'undefined' ? getLogger() : null;
         this.errorHandler = typeof getErrorHandler !== 'undefined' ? getErrorHandler() : null;
+        this.importBtnHtml = (label) =>
+            `<i class="fas fa-cloud-upload-alt"></i><span>${label}</span>`;
         this.init();
+    }
+
+    isSameLinkedInProfile(urlA, urlB) {
+        if (typeof LinkedInProfileUrl !== 'undefined') {
+            return LinkedInProfileUrl.isSameProfileUrl(urlA, urlB);
+        }
+        if (!urlA || !urlB) return false;
+        try {
+            const slug = (href) => {
+                const m = new URL(href).pathname.match(/^\/in\/([^/?#]+)/i);
+                return m ? m[1].toLowerCase() : null;
+            };
+            const a = slug(urlA);
+            const b = slug(urlB);
+            return a !== null && a === b;
+        } catch {
+            return false;
+        }
     }
 
     async init() {
@@ -48,19 +63,30 @@ class SidebarController {
                 const newUrl = message.url;
                 const oldUrl = this.lastKnownUrl || this.currentPageData?.url;
 
-                // URL changed — wipe all stale state immediately
+                // URL changed — wipe stale state only when switching profiles
                 if (oldUrl && newUrl && oldUrl !== newUrl) {
-                    this.currentExistingContact = null;
-                    this.currentPageData = null;
-                    this.lastLinkedInSnapshot = null;
-                    this.lastCapturedHtmlPayload = null;
-                    this.lastCapturedStructured = null;
-                    this.hideHtmlCapturePanel();
+                    if (!this.isSameLinkedInProfile(oldUrl, newUrl)) {
+                        this.currentExistingContact = null;
+                        this.currentPageData = null;
+                    }
                 }
 
                 this.lastKnownUrl = newUrl;
 
                 const payload = message.data;
+                const isProfile = payload?.type === 'profile';
+                const extractionComplete = payload?.data?.extractionComplete === true;
+
+                // Ignore stale partial profile payloads (experience still loading)
+                if (isProfile && !extractionComplete) {
+                    this.setExperienceLoading(true);
+                    sendResponse({ success: true });
+                    return true;
+                }
+
+                this.profileExtractionPending = false;
+                this.setExperienceLoading(false);
+
                 this.currentPageData = {
                     type: payload?.type,
                     url: payload?.url || newUrl,
@@ -122,11 +148,6 @@ class SidebarController {
 
         // Request current page data from content script
         this.requestPageData();
-
-        // Force data extraction from content script
-        setTimeout(() => {
-            this.forceDataExtraction();
-        }, 400);
 
         // Set up automatic data refresh
         this.setupAutoRefresh();
@@ -242,7 +263,7 @@ class SidebarController {
                         // Update loading message
                         const loadingText = loadingEl.querySelector('p');
                         if (loadingText) {
-                            loadingText.textContent = 'Refreshing data...';
+                            loadingText.textContent = 'Scrolling page to load experience and other sections…';
                         }
                     }
                     
@@ -320,7 +341,7 @@ class SidebarController {
                                 if (existingLeadEl) existingLeadEl.style.display = 'none';
                                 
                                 // FORCE show body element
-                                if (bodyEl) bodyEl.style.display = 'block';
+                                if (bodyEl) bodyEl.style.display = 'flex';
                                 
                                 // Hide login form
                                 if (loginForm) loginForm.style.display = 'none';
@@ -436,90 +457,13 @@ class SidebarController {
             });
         }
 
-        // Primary action: profile → analyze HTML capture; company/search → CRM import
+        // Primary action: import to CRM (profiles use DOM prep + structured parse)
         const importBtn = document.getElementById('xtrawrkx-import-btn');
         if (importBtn) {
             importBtn.addEventListener('click', () => {
-                const pageType = this.currentPageData?.type;
-                if (pageType === 'profile') {
-                    this.handleAnalyzeProfile();
-                } else {
-                    this.handleImport();
-                }
+                this.handleImport();
             });
         }
-
-        // Quick Add to CRM (profile only — basic import without full HTML capture)
-        const quickAddBtn = document.getElementById('xtrawrkx-quick-add-btn');
-        if (quickAddBtn) {
-            quickAddBtn.addEventListener('click', () => this.handleQuickAddToCrm());
-        }
-
-        const copyFullHtmlBtn = document.getElementById('xtrawrkx-copy-full-html');
-        if (copyFullHtmlBtn) {
-            copyFullHtmlBtn.addEventListener('click', () => {
-                const html = this.lastCapturedHtmlPayload?.html;
-                if (!html) {
-                    this.showNotification('No captured HTML yet', 'error');
-                    return;
-                }
-                navigator.clipboard.writeText(html).then(() => {
-                    this.showNotification('Full HTML copied to clipboard', 'success');
-                }).catch(() => {
-                    this.showNotification('Could not copy HTML', 'error');
-                });
-            });
-        }
-
-        const copyStructuredBtn = document.getElementById('xtrawrkx-copy-structured-json');
-        if (copyStructuredBtn) {
-            copyStructuredBtn.addEventListener('click', () => {
-                const structured = this.lastCapturedStructured;
-                if (!structured) {
-                    this.showNotification('No extracted JSON yet', 'error');
-                    return;
-                }
-                navigator.clipboard.writeText(JSON.stringify(structured, null, 2)).then(() => {
-                    this.showNotification('Extracted JSON copied to clipboard', 'success');
-                }).catch(() => {
-                    this.showNotification('Could not copy JSON', 'error');
-                });
-            });
-        }
-
-        const htmlCaptureCloseBtn = document.getElementById('xtrawrkx-html-capture-close');
-        if (htmlCaptureCloseBtn) {
-            htmlCaptureCloseBtn.addEventListener('click', () => this.hideHtmlCapturePanel());
-        }
-
-        document.querySelectorAll('.xtrawrkx-generate-pitch-trigger').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                this.handleGeneratePitch();
-            });
-        });
-
-        const outreachClose = document.getElementById('xtrawrkx-outreach-close');
-        const outreachModal = document.getElementById('xtrawrkx-outreach-modal');
-        if (outreachClose && outreachModal) {
-            outreachClose.addEventListener('click', () => this.hideOutreachModal());
-            outreachModal.querySelector('.xtrawrkx-outreach-backdrop')?.addEventListener('click', () => {
-                this.hideOutreachModal();
-            });
-        }
-
-        document.querySelectorAll('.xtrawrkx-copy-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const targetId = btn.getAttribute('data-copy-target');
-                if (!targetId) return;
-                const el = document.getElementById(targetId);
-                if (!el || !el.value) return;
-                navigator.clipboard.writeText(el.value).then(() => {
-                    this.showNotification('Copied to clipboard', 'success');
-                }).catch(() => {
-                    this.showNotification('Could not copy', 'error');
-                });
-            });
-        });
 
         // Share button
         const shareBtn = document.getElementById('xtrawrkx-share-btn');
@@ -585,9 +529,190 @@ class SidebarController {
         return this._crmCheckInFlight;
     }
 
-    showExistingLeadDetails(contact, profileData) {
-        this.hideHtmlCapturePanel();
+    resolveProfileAbout(contact, profileData) {
+        const fromProfile = (
+            profileData?.about ||
+            profileData?.description ||
+            profileData?.summary ||
+            ''
+        ).trim();
+        if (fromProfile) return fromProfile;
 
+        const fromContact = (contact?.description || '').trim();
+        if (fromContact) return fromContact;
+
+        return this.extractAboutFromNotes(contact?.notes || '');
+    }
+
+    extractAboutFromNotes(notes) {
+        if (!notes || typeof notes !== 'string') return '';
+
+        const match = notes.match(
+            /^About:\s*([\s\S]*?)(?=\n(?:Headline|Location|Current Role|LinkedIn Activity|Education|Imported from LinkedIn):|$)/i,
+        );
+        if (match?.[1]?.trim()) return match[1].trim();
+
+        return '';
+    }
+
+    formatUserDisplayName(user) {
+        if (!user) return '';
+        const fromNames = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+        if (fromNames) return fromNames;
+        if (user.username) return user.username;
+        if (user.email) return String(user.email).split('@')[0];
+        return '';
+    }
+
+    resolveContactOwner(contact) {
+        const direct = this.formatUserDisplayName(contact?.assignedTo);
+        if (direct) return direct;
+
+        const leadOwner = this.formatUserDisplayName(contact?.leadCompany?.assignedTo);
+        if (leadOwner) return leadOwner;
+
+        const clientOwner = this.formatUserDisplayName(contact?.clientAccount?.assignedTo);
+        if (clientOwner) return clientOwner;
+
+        return '';
+    }
+
+    renderInlineContactField(field, value, options = {}) {
+        const el = document.getElementById(`xtrawrkx-existing-${field === 'companyWebsite' ? 'website' : field}`);
+        if (!el) return;
+
+        const placeholderClass = options.placeholderClass || '';
+        const isEmpty = options.isPlaceholder ? options.isPlaceholder(value) : !value;
+
+        el.dataset.field = field;
+        el.dataset.value = isEmpty ? '' : String(value || '');
+        el.classList.remove('xtrawrkx-inline-editing', 'xtrawrkx-inline-saving');
+
+        if (isEmpty) {
+            el.textContent = options.placeholder || 'Add value';
+            el.classList.add(placeholderClass);
+        } else {
+            el.textContent = value;
+            el.classList.remove(placeholderClass);
+        }
+    }
+
+    setupInlineContactEditors() {
+        const fields = document.querySelectorAll('.xtrawrkx-inline-editable[data-field]');
+        fields.forEach((el) => {
+            if (el.dataset.inlineBound === 'true') return;
+            el.dataset.inlineBound = 'true';
+
+            el.addEventListener('click', () => this.beginInlineContactEdit(el));
+            el.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    this.beginInlineContactEdit(el);
+                }
+            });
+        });
+    }
+
+    beginInlineContactEdit(el) {
+        if (!this.currentExistingContact?.id || el.classList.contains('xtrawrkx-inline-editing')) {
+            return;
+        }
+
+        const field = el.dataset.field;
+        const currentValue = el.dataset.value || '';
+        const input = document.createElement('input');
+        input.type = field === 'email' ? 'email' : 'text';
+        input.className = 'xtrawrkx-inline-input';
+        input.value = currentValue;
+        input.placeholder = el.textContent.trim();
+
+        el.classList.add('xtrawrkx-inline-editing');
+        el.textContent = '';
+        el.appendChild(input);
+        input.focus();
+        input.select();
+
+        const finish = async (save) => {
+            if (!el.classList.contains('xtrawrkx-inline-editing')) return;
+
+            const nextValue = input.value.trim();
+            input.remove();
+
+            if (!save) {
+                this.renderInlineContactField(field, currentValue, this.inlineFieldOptions(field));
+                return;
+            }
+
+            if (nextValue === currentValue) {
+                this.renderInlineContactField(field, currentValue, this.inlineFieldOptions(field));
+                return;
+            }
+
+            el.classList.add('xtrawrkx-inline-saving');
+            el.textContent = 'Saving...';
+
+            try {
+                const response = await chrome.runtime.sendMessage({
+                    type: 'UPDATE_CONTACT',
+                    contactId: this.currentExistingContact.id,
+                    data: { [field]: nextValue || null },
+                });
+
+                if (!response?.success) {
+                    throw new Error(response?.error || 'Update failed');
+                }
+
+                const updated = response.data || {};
+                this.currentExistingContact = {
+                    ...this.currentExistingContact,
+                    ...updated,
+                };
+
+                const savedValue = updated[field] ?? nextValue;
+                this.renderInlineContactField(field, savedValue, this.inlineFieldOptions(field));
+            } catch (error) {
+                console.error('Failed to update contact field:', error);
+                this.renderInlineContactField(field, currentValue, this.inlineFieldOptions(field));
+                el.textContent = 'Save failed — click to retry';
+            }
+        };
+
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                finish(true);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                finish(false);
+            }
+        });
+
+        input.addEventListener('blur', () => finish(true));
+    }
+
+    inlineFieldOptions(field) {
+        if (field === 'email') {
+            return {
+                placeholder: 'Add Email',
+                placeholderClass: 'xtrawrkx-email-placeholder',
+                isPlaceholder: (value) => !value || value.includes('@xtrawrkx.placeholder'),
+            };
+        }
+        if (field === 'phone') {
+            return {
+                placeholder: 'Add Phone',
+                placeholderClass: 'xtrawrkx-phone-placeholder',
+                isPlaceholder: (value) => !value,
+            };
+        }
+        return {
+            placeholder: 'Add Website',
+            placeholderClass: 'xtrawrkx-website-placeholder',
+            isPlaceholder: (value) => !value,
+        };
+    }
+
+    showExistingLeadDetails(contact, profileData) {
         // Store the LinkedIn URL for this contact to detect changes
         const linkedInUrl = profileData?.linkedInUrl || profileData?.profileUrl || this.currentPageData?.data?.linkedInUrl || this.currentPageData?.data?.profileUrl;
         const currentTabUrl = this.currentPageData?.url;
@@ -601,12 +726,6 @@ class SidebarController {
 
         // Store current existing contact for CRM link
         this.currentExistingContact = contact;
-
-        const crmSnapshot =
-            contact?.linkedinProfileData ?? contact?.attributes?.linkedinProfileData;
-        if (crmSnapshot && typeof crmSnapshot === 'object' && Object.keys(crmSnapshot).length > 0) {
-            this.lastLinkedInSnapshot = crmSnapshot;
-        }
         
         // Set up a periodic check to detect URL changes even when showing existing contact
         // Clear any existing interval first
@@ -629,7 +748,6 @@ class SidebarController {
                         // Clear existing contact
                         this.currentExistingContact = null;
                         this.currentPageData = null;
-                        this.lastLinkedInSnapshot = null;
                         this.lastKnownUrl = currentUrl;
                         
                         // Request fresh data
@@ -650,13 +768,14 @@ class SidebarController {
         if (loginForm) loginForm.style.display = 'none';
         if (loadingEl) loadingEl.style.display = 'none';
         if (bodyEl) bodyEl.style.display = 'none';
-        if (existingLeadEl) existingLeadEl.style.display = 'block';
+        if (existingLeadEl) existingLeadEl.style.display = 'flex';
 
         // Setup tab functionality
         this.setupExistingLeadTabs();
 
         // Update existing lead details
         this.updateExistingLeadUI(contact, profileData);
+        this.setupInlineContactEditors();
     }
 
     updateExistingLeadUI(contact, profileData) {
@@ -675,7 +794,7 @@ class SidebarController {
 
         const existingTitle = document.getElementById('xtrawrkx-existing-title');
         if (existingTitle) {
-            const title = profileData.currentJobTitle || contact.title || profileData.headline || 'No title available';
+            const title = profileData.currentJobTitle || contact.jobTitle || contact.title || profileData.headline || 'No title available';
             existingTitle.textContent = title;
         }
 
@@ -689,8 +808,12 @@ class SidebarController {
         const existingCompany = document.getElementById('xtrawrkx-existing-company');
         if (existingCompany) {
             let companyName = '-';
-            if (contact.leadCompany && contact.leadCompany.companyName) {
+            if (contact.leadCompany?.companyName) {
                 companyName = contact.leadCompany.companyName;
+            } else if (contact.clientAccount?.companyName) {
+                companyName = contact.clientAccount.companyName;
+            } else if (contact.companyName) {
+                companyName = contact.companyName;
             } else if (profileData.currentCompany) {
                 companyName = profileData.currentCompany;
             }
@@ -700,7 +823,7 @@ class SidebarController {
         // Update job title in details
         const existingJobTitle = document.getElementById('xtrawrkx-existing-job-title');
         if (existingJobTitle) {
-            const jobTitle = profileData.currentJobTitle || contact.title || profileData.headline || '-';
+            const jobTitle = profileData.currentJobTitle || contact.jobTitle || contact.title || profileData.headline || '-';
             existingJobTitle.textContent = jobTitle;
         }
 
@@ -713,57 +836,35 @@ class SidebarController {
         // Update owner
         const existingOwner = document.getElementById('xtrawrkx-existing-owner');
         if (existingOwner) {
-            let ownerName = '-';
-            if (contact.assignedTo) {
-                ownerName = `${contact.assignedTo.firstName || ''} ${contact.assignedTo.lastName || ''}`.trim() || 'Assigned User';
-            }
-            existingOwner.textContent = ownerName;
+            const ownerName = this.resolveContactOwner(contact);
+            existingOwner.textContent = ownerName || '-';
         }
 
-        // Update email (placeholder for now)
-        const existingEmail = document.getElementById('xtrawrkx-existing-email');
-        if (existingEmail) {
-            if (contact.email && !contact.email.includes('@xtrawrkx.placeholder')) {
-                existingEmail.textContent = contact.email;
-                existingEmail.classList.remove('xtrawrkx-email-placeholder');
-            } else {
+        this.renderInlineContactField('email', contact.email, {
+            placeholder: 'Add Email',
+            placeholderClass: 'xtrawrkx-email-placeholder',
+            isPlaceholder: (value) => !value || value.includes('@xtrawrkx.placeholder'),
+        });
 
-                existingEmail.textContent = 'Add Email';
-                existingEmail.classList.add('xtrawrkx-email-placeholder');
-            }
-        }
+        this.renderInlineContactField('phone', contact.phone, {
+            placeholder: 'Add Phone',
+            placeholderClass: 'xtrawrkx-phone-placeholder',
+            isPlaceholder: (value) => !value,
+        });
 
-        // Update phone (placeholder for now)
-        const existingPhone = document.getElementById('xtrawrkx-existing-phone');
-        if (existingPhone) {
-            if (contact.phone) {
-                existingPhone.textContent = contact.phone;
-                existingPhone.classList.remove('xtrawrkx-phone-placeholder');
-            } else {
-                existingPhone.textContent = 'Add Phone';
-                existingPhone.classList.add('xtrawrkx-phone-placeholder');
-            }
-        }
-
-        // Update website (placeholder for now)
-        const existingWebsite = document.getElementById('xtrawrkx-existing-website');
-        if (existingWebsite) {
-            if (contact.website) {
-                existingWebsite.textContent = contact.website;
-                existingWebsite.classList.remove('xtrawrkx-website-placeholder');
-            } else {
-                existingWebsite.textContent = 'Add Website';
-                existingWebsite.classList.add('xtrawrkx-website-placeholder');
-            }
-        }
+        const website = contact.companyWebsite || contact.website || '';
+        this.renderInlineContactField('companyWebsite', website, {
+            placeholder: 'Add Website',
+            placeholderClass: 'xtrawrkx-website-placeholder',
+            isPlaceholder: (value) => !value,
+        });
 
         // Update description
         const existingDescription = document.getElementById('xtrawrkx-existing-description');
         if (existingDescription) {
-            // Prioritize contact description, then profile description/about
-            const description = contact.description || profileData.description || profileData.about || '';
-            if (description && description.trim()) {
-                existingDescription.textContent = description.trim();
+            const description = this.resolveProfileAbout(contact, profileData);
+            if (description) {
+                existingDescription.textContent = description;
                 existingDescription.classList.remove('xtrawrkx-description-empty');
             } else {
                 existingDescription.textContent = 'No description available';
@@ -876,31 +977,31 @@ class SidebarController {
     }
 
     setupRelatedSectionToggles() {
-        const relatedSections = document.querySelectorAll('.xtrawrkx-related-section');
+        const accordionCards = document.querySelectorAll('.xtrawrkx-accordion-card');
 
-        relatedSections.forEach(section => {
-            const header = section.querySelector('.xtrawrkx-related-header');
+        accordionCards.forEach((section) => {
+            const header = section.querySelector('.xtrawrkx-accordion-header');
             const content = section.querySelector('.xtrawrkx-related-content-area');
             const expandBtn = section.querySelector('.xtrawrkx-expand-btn');
 
-            if (header && content && expandBtn) {
-                header.addEventListener('click', (e) => {
-                    // Don't toggle if clicking on add button
-                    if (e.target.closest('.xtrawrkx-add-btn')) {
-                        return;
-                    }
+            if (!header || !content || !expandBtn) return;
 
-                    const isExpanded = content.classList.contains('expanded');
-
-                    if (isExpanded) {
-                        content.classList.remove('expanded');
-                        expandBtn.style.transform = 'rotate(0deg)';
-                    } else {
-                        content.classList.add('expanded');
-                        expandBtn.style.transform = 'rotate(180deg)';
-                    }
-                });
+            if (content.classList.contains('expanded')) {
+                expandBtn.style.transform = 'rotate(180deg)';
             }
+
+            header.addEventListener('click', (e) => {
+                if (e.target.closest('.xtrawrkx-add-btn')) return;
+
+                const isExpanded = content.classList.contains('expanded');
+                if (isExpanded) {
+                    content.classList.remove('expanded');
+                    expandBtn.style.transform = 'rotate(0deg)';
+                } else {
+                    content.classList.add('expanded');
+                    expandBtn.style.transform = 'rotate(180deg)';
+                }
+            });
         });
     }
 
@@ -918,7 +1019,8 @@ class SidebarController {
             // Fetch related data from CRM
             const response = await chrome.runtime.sendMessage({
                 type: 'GET_CONTACT_RELATED_DATA',
-                contactId: this.currentExistingContact.id
+                contactId: this.currentExistingContact.id,
+                contact: this.currentExistingContact,
             });
 
             if (response && response.success) {
@@ -937,7 +1039,7 @@ class SidebarController {
     }
 
     showRelatedDataLoading(isLoading) {
-        const sections = document.querySelectorAll('.xtrawrkx-related-content-area');
+        const sections = document.querySelectorAll('#xtrawrkx-related-content .xtrawrkx-related-content-area');
         sections.forEach(section => {
             if (isLoading) {
                 section.innerHTML = '<div class="xtrawrkx-loading-state">Loading...</div>';
@@ -946,7 +1048,7 @@ class SidebarController {
     }
 
     showRelatedDataError() {
-        const sections = document.querySelectorAll('.xtrawrkx-related-content-area');
+        const sections = document.querySelectorAll('#xtrawrkx-related-content .xtrawrkx-related-content-area');
         sections.forEach(section => {
             section.innerHTML = '<div class="xtrawrkx-error-state">Failed to load data</div>';
         });
@@ -982,12 +1084,10 @@ class SidebarController {
         let wonDeals = 0;
 
         deals.forEach(deal => {
-            // Check for various "won" status variations
-            const status = (deal.status || '').toUpperCase();
-            if (status === 'WON' || status === 'CLOSED_WON' || status === 'CLOSED-WON' || status === 'COMPLETED') {
-                // Use deal.value, deal.amount, or deal.dealValue
+            const stage = String(deal.stage || deal.status || '').toLowerCase();
+            if (stage === 'won') {
                 const dealValue = deal.value || deal.amount || deal.dealValue || 0;
-                totalWonAmount += dealValue;
+                totalWonAmount += Number(dealValue) || 0;
                 wonDeals++;
             }
         });
@@ -1012,18 +1112,22 @@ class SidebarController {
             return;
         }
 
-        const dealsHtml = deals.map(deal => `
+        const dealsHtml = deals.map(deal => {
+            const stage = deal.stage || deal.status || 'unknown';
+            const stageLabel = String(stage).replace(/_/g, ' ');
+            return `
             <div class="xtrawrkx-related-item">
                 <div class="xtrawrkx-item-header">
-                    <h4 class="xtrawrkx-item-title">${deal.name || 'Untitled Deal'}</h4>
-                    <span class="xtrawrkx-item-status xtrawrkx-status-${(deal.status || '').toLowerCase()}">${deal.status || 'Unknown'}</span>
+                    <h4 class="xtrawrkx-item-title">${this.escapeHtml(deal.name || 'Untitled Deal')}</h4>
+                    <span class="xtrawrkx-item-status xtrawrkx-status-${String(stage).toLowerCase()}">${this.escapeHtml(stageLabel)}</span>
                 </div>
                 <div class="xtrawrkx-item-details">
-                    <span class="xtrawrkx-item-value">₹${(deal.value || 0).toLocaleString()}</span>
-                    <span class="xtrawrkx-item-date">${this.formatDate(deal.closeDate || deal.createdAt)}</span>
+                    <span class="xtrawrkx-item-value">₹${Number(deal.value || 0).toLocaleString()}</span>
+                    <span class="xtrawrkx-item-date">${this.formatDate(deal.expectedCloseDate || deal.closeDate || deal.createdAt)}</span>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         pipelineContent.innerHTML = dealsHtml;
     }
@@ -1040,14 +1144,13 @@ class SidebarController {
         const tasksHtml = tasks.map(task => `
             <div class="xtrawrkx-related-item">
                 <div class="xtrawrkx-item-header">
-                    <h4 class="xtrawrkx-item-title">${task.title || 'Untitled Task'}</h4>
-                    <span class="xtrawrkx-item-status xtrawrkx-status-${(task.status || '').toLowerCase()}">${task.status || 'Unknown'}</span>
+                    <h4 class="xtrawrkx-item-title">${this.escapeHtml(task.name || task.title || 'Untitled Task')}</h4>
+                    <span class="xtrawrkx-item-status xtrawrkx-status-${String(task.status || '').toLowerCase()}">${this.escapeHtml(task.status || 'Unknown')}</span>
                 </div>
                 <div class="xtrawrkx-item-details">
-                    <span class="xtrawrkx-item-priority">Priority: ${task.priority || 'Medium'}</span>
-                    <span class="xtrawrkx-item-date">${this.formatDate(task.dueDate || task.createdAt)}</span>
+                    <span class="xtrawrkx-item-priority">Priority: ${this.escapeHtml(task.priority || 'Medium')}</span>
+                    <span class="xtrawrkx-item-date">${this.formatDate(task.scheduledDate || task.dueDate || task.createdAt)}</span>
                 </div>
-                ${task.progress ? `<div class="xtrawrkx-progress-bar"><div class="xtrawrkx-progress-fill" style="width: ${task.progress}%"></div></div>` : ''}
             </div>
         `).join('');
 
@@ -1063,18 +1166,24 @@ class SidebarController {
             return;
         }
 
-        const filesHtml = files.map(file => `
+        const filesHtml = files.map(file => {
+            const fileName = file.proposalFile?.name
+                || file.proposalFile?.url?.split('/').pop()
+                || file.title
+                || file.name
+                || 'Untitled File';
+            return `
             <div class="xtrawrkx-related-item">
                 <div class="xtrawrkx-item-header">
-                    <h4 class="xtrawrkx-item-title">${file.originalName || file.name || 'Untitled File'}</h4>
-                    <span class="xtrawrkx-item-size">${this.formatFileSize(file.size)}</span>
+                    <h4 class="xtrawrkx-item-title">${this.escapeHtml(fileName)}</h4>
+                    <span class="xtrawrkx-item-status">${this.escapeHtml(file.documentType || file.status || 'Document')}</span>
                 </div>
                 <div class="xtrawrkx-item-details">
-                    <span class="xtrawrkx-item-type">${file.mimeType || 'Unknown type'}</span>
-                    <span class="xtrawrkx-item-date">${this.formatDate(file.createdAt)}</span>
+                    <span class="xtrawrkx-item-date">${this.formatDate(file.date || file.createdAt)}</span>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         filesContent.innerHTML = filesHtml;
     }
@@ -1088,15 +1197,15 @@ class SidebarController {
             return;
         }
 
-        const activitiesHtml = activities.map(activity => `
+        const activitiesHtml = activities.map(meeting => `
             <div class="xtrawrkx-related-item">
                 <div class="xtrawrkx-item-header">
-                    <h4 class="xtrawrkx-item-title">${activity.title || 'Untitled Event'}</h4>
-                    <span class="xtrawrkx-item-type xtrawrkx-activity-${(activity.activityType || '').toLowerCase()}">${activity.activityType || 'Event'}</span>
+                    <h4 class="xtrawrkx-item-title">${this.escapeHtml(meeting.title || 'Untitled Event')}</h4>
+                    <span class="xtrawrkx-item-type">${this.escapeHtml(meeting.meetingType || 'Meeting')}</span>
                 </div>
                 <div class="xtrawrkx-item-details">
-                    <span class="xtrawrkx-item-status">${activity.status || 'Scheduled'}</span>
-                    <span class="xtrawrkx-item-date">${this.formatDate(activity.scheduledDate || activity.createdAt)}</span>
+                    <span class="xtrawrkx-item-status">${this.escapeHtml(meeting.status || 'Scheduled')}</span>
+                    <span class="xtrawrkx-item-date">${this.formatDate(meeting.startTime || meeting.scheduledDate || meeting.createdAt)}</span>
                 </div>
             </div>
         `).join('');
@@ -1129,14 +1238,14 @@ class SidebarController {
 
     updateRelatedSectionCounts(counts) {
         const sections = [
-            { selector: '.xtrawrkx-related-section:nth-child(2) .xtrawrkx-related-title', key: 'deals', label: 'Deals' },
-            { selector: '.xtrawrkx-related-section:nth-child(3) .xtrawrkx-related-title', key: 'tasks', label: 'Tasks' },
-            { selector: '.xtrawrkx-related-section:nth-child(4) .xtrawrkx-related-title', key: 'files', label: 'Files' },
-            { selector: '.xtrawrkx-related-section:nth-child(5) .xtrawrkx-related-title', key: 'calendarEvents', label: 'Calendar Events' }
+            { id: 'xtrawrkx-deals-title', key: 'deals', label: 'Deals' },
+            { id: 'xtrawrkx-tasks-title', key: 'tasks', label: 'Tasks' },
+            { id: 'xtrawrkx-files-title', key: 'files', label: 'Files' },
+            { id: 'xtrawrkx-calendar-title', key: 'calendarEvents', label: 'Calendar Events' },
         ];
 
-        sections.forEach(section => {
-            const element = document.querySelector(section.selector);
+        sections.forEach((section) => {
+            const element = document.getElementById(section.id);
             if (element) {
                 const count = counts[section.key] || 0;
                 element.textContent = `${section.label} (${count})`;
@@ -1378,7 +1487,7 @@ class SidebarController {
                     } else {
                         element.textContent = field.value;
                     }
-                    rowElement.style.display = 'block';
+                    rowElement.style.display = 'flex';
                 } else {
                     // Hide row if field doesn't exist in schema or has no value
                     rowElement.style.display = 'none';
@@ -1451,7 +1560,7 @@ class SidebarController {
                 
                 if (field.showIf && hasValue) {
                     element.textContent = field.value;
-                    rowElement.style.display = 'block';
+                    rowElement.style.display = 'flex';
                 } else {
                     // Hide row if field doesn't exist in schema or has no value
                     rowElement.style.display = 'none';
@@ -1500,7 +1609,7 @@ class SidebarController {
                 
                 if (field.showIf && hasValue) {
                     element.textContent = field.value;
-                    rowElement.style.display = 'block';
+                    rowElement.style.display = 'flex';
                 } else {
                     // Hide row if field doesn't exist in schema or has no value
                     rowElement.style.display = 'none';
@@ -1539,7 +1648,7 @@ class SidebarController {
         contactsContent.innerHTML = contactsHtml;
 
         // Update count
-        const titleElement = document.querySelector('.xtrawrkx-related-section:last-child .xtrawrkx-related-title');
+        const titleElement = document.getElementById('xtrawrkx-company-contacts-title');
         if (titleElement) {
             titleElement.textContent = `Other Contacts (${otherContacts.length})`;
         }
@@ -1606,7 +1715,8 @@ class SidebarController {
             // Fetch chat data from related data (already loaded)
             const response = await chrome.runtime.sendMessage({
                 type: 'GET_CONTACT_RELATED_DATA',
-                contactId: this.currentExistingContact.id
+                contactId: this.currentExistingContact.id,
+                contact: this.currentExistingContact,
             });
 
             if (response && response.success && response.data.chats) {
@@ -1687,17 +1797,16 @@ class SidebarController {
             const baseURL = 'https://xtrawrkxsuits-production.up.railway.app';
 
             if (this.logger) {
-                this.logger.log('Testing auth endpoint:', `${baseURL}/api/auth/internal/login`);
+                this.logger.log('Testing auth endpoint:', `${baseURL}/api/auth/login`);
             }
 
-            // Test with invalid credentials to see if endpoint exists
-            const response = await fetch(`${baseURL}/api/auth/internal/login`, {
+            const response = await fetch(`${baseURL}/api/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    email: 'test@test.com',
+                    identifier: 'test@test.com',
                     password: 'invalid'
                 })
             });
@@ -1854,7 +1963,7 @@ class SidebarController {
         if (loginForm) loginForm.style.display = 'none';
         if (loadingEl) loadingEl.style.display = 'none';
         if (existingLeadEl) existingLeadEl.style.display = 'none';
-        if (bodyEl) bodyEl.style.display = 'block';
+        if (bodyEl) bodyEl.style.display = 'flex';
     }
 
     async updateUI() {
@@ -1907,16 +2016,13 @@ class SidebarController {
         const data = this.currentPageData.data;
 
         const importBtn = document.getElementById('xtrawrkx-import-btn');
-        const pitchSidebarBtns = document.querySelectorAll('.xtrawrkx-generate-pitch-sidebar');
-        pitchSidebarBtns.forEach((b) => {
-            b.style.display = 'none';
-        });
-
-        const quickAddBtn = document.getElementById('xtrawrkx-quick-add-btn');
 
         if (this.currentPageData.type === 'profile') {
-            if (quickAddBtn) quickAddBtn.style.display = 'inline-flex';
-            const displayName = data.pageTitle || data.name || data.fullName || 'LinkedIn profile';
+            const displayName =
+                data.name ||
+                data.fullName ||
+                (data.pageTitle ? data.pageTitle.split(/\s*[|\-–]\s*/)[0].trim() : '') ||
+                'LinkedIn profile';
 
             // Update profile name (page title when DOM fields are not scraped)
             const profileName = document.getElementById('xtrawrkx-profile-name');
@@ -1924,19 +2030,35 @@ class SidebarController {
                 profileName.textContent = displayName;
             }
 
-            const compatibilityScoreEl = document.getElementById('xtrawrkx-compatibility-score');
-            if (compatibilityScoreEl) compatibilityScoreEl.style.display = 'none';
-
-            // Update profile image - use new profilePhoto field
+            // Update profile image
             const profileImage = document.getElementById('xtrawrkx-profile-image');
             if (profileImage) {
-                if (data.profilePhoto) {
-                    profileImage.innerHTML = `<img src="${this.escapeHtml(data.profilePhoto)}" alt="${this.escapeHtml(displayName)}" />`;
-                } else if (data.profileImage) {
-                    profileImage.innerHTML = `<img src="${this.escapeHtml(data.profileImage)}" alt="${this.escapeHtml(displayName)}" />`;
+                const photoUrl = data.profilePhoto || data.profileImage;
+                if (photoUrl) {
+                    profileImage.innerHTML = `<img src="${this.escapeHtml(photoUrl)}" alt="${this.escapeHtml(displayName)}" referrerpolicy="no-referrer" />`;
                 } else {
                     const nameForAvatar = displayName || 'U';
                     profileImage.innerHTML = `<div class="default-avatar">${nameForAvatar.charAt(0).toUpperCase()}</div>`;
+                }
+            }
+
+            const profileHeadline = document.getElementById('xtrawrkx-profile-headline');
+            if (profileHeadline) {
+                if (data.headline) {
+                    profileHeadline.textContent = this.escapeHtml(data.headline);
+                    profileHeadline.style.display = 'block';
+                } else {
+                    profileHeadline.style.display = 'none';
+                }
+            }
+
+            const profileLocation = document.getElementById('xtrawrkx-profile-location');
+            if (profileLocation) {
+                if (data.location) {
+                    profileLocation.textContent = this.escapeHtml(data.location);
+                    profileLocation.style.display = 'block';
+                } else {
+                    profileLocation.style.display = 'none';
                 }
             }
 
@@ -1961,7 +2083,7 @@ class SidebarController {
             }
 
             if (jobTitleDisplay) {
-                if (jobTitleItem) jobTitleItem.style.display = 'flex';
+                if (jobTitleItem) jobTitleItem.style.display = 'block';
                 if (jobTitleValue) jobTitleValue.textContent = this.escapeHtml(jobTitleDisplay);
                 // Show correct label
                 if (jobTitleLabel) {
@@ -1976,7 +2098,7 @@ class SidebarController {
             const linkedinUrl = document.getElementById('xtrawrkx-linkedin-url');
             if (data.linkedInUrl || data.profileUrl) {
                 const url = data.linkedInUrl || data.profileUrl;
-                if (linkedinItem) linkedinItem.style.display = 'flex';
+                if (linkedinItem) linkedinItem.style.display = 'block';
                 if (linkedinUrl) {
                     linkedinUrl.href = url;
                     linkedinUrl.textContent = url;
@@ -1985,12 +2107,14 @@ class SidebarController {
                 if (linkedinItem) linkedinItem.style.display = 'none';
             }
 
+            this.updateActivityScoreUI(data);
+
             // Update description - prioritize description field, then about
             const descriptionItem = document.getElementById('xtrawrkx-description-item');
             const descriptionValue = document.getElementById('xtrawrkx-description');
             const description = data.description || data.about || data.summary;
             if (description) {
-                if (descriptionItem) descriptionItem.style.display = 'flex';
+                if (descriptionItem) descriptionItem.style.display = 'block';
                 if (descriptionValue) {
                     // Truncate long descriptions
                     const truncatedDesc = description.length > 200 ?
@@ -2045,7 +2169,7 @@ class SidebarController {
 
             if (companyToDisplay && companyToDisplay.trim() && companyToDisplay.trim() !== '-') {
                 if (companySection) {
-                    companySection.style.display = 'block';
+                    companySection.style.display = 'flex';
                 }
                 if (companyName) {
                     companyName.textContent = this.escapeHtml(companyToDisplay.trim());
@@ -2057,16 +2181,12 @@ class SidebarController {
             }
 
             // Show experience selection if multiple experiences are available
-            this.updateExperienceSelection(data.allExperiences);
+            this.updateExperienceSelection(data.allExperiences || data.experience);
 
             if (importBtn) {
-                importBtn.innerHTML = '<span>Analyze Profile</span>';
+                importBtn.innerHTML = this.importBtnHtml('Import to CRM');
             }
-            pitchSidebarBtns.forEach((b) => {
-                b.style.display = 'flex';
-            });
         } else if (this.currentPageData.type === 'company') {
-            if (quickAddBtn) quickAddBtn.style.display = 'none';
             // For companies, show company name in profile
             const profileName = document.getElementById('xtrawrkx-profile-name');
             if (profileName) {
@@ -2083,16 +2203,86 @@ class SidebarController {
 
             // Show company section
             const companySection = document.getElementById('xtrawrkx-company-section');
-            const companyName = document.getElementById('xtrawrkx-company-name');
-            if (companySection) companySection.style.display = 'block';
+            const companyName = document.getElementById('xtrawrkx-profile-company-name');
+            if (companySection) companySection.style.display = 'flex';
             if (companyName) {
                 companyName.textContent = this.escapeHtml(data.name || data.companyName || 'N/A');
             }
 
             // Update import button
             if (importBtn) {
-                importBtn.innerHTML = '<span>Add to CRM</span>';
+                importBtn.innerHTML = this.importBtnHtml('Import to CRM');
             }
+        }
+    }
+
+    updateActivityScoreUI(data) {
+        const section = document.getElementById('xtrawrkx-activity-score-section');
+        const scoreValue = document.getElementById('xtrawrkx-activity-score-value');
+        const scoreFill = document.getElementById('xtrawrkx-activity-score-fill');
+        const scoreLabel = document.getElementById('xtrawrkx-activity-score-label');
+        const scoreSummary = document.getElementById('xtrawrkx-activity-score-summary');
+        const scoreBadge = document.getElementById('xtrawrkx-activity-score-badge');
+
+        const score = Number.isFinite(data?.activityScore) ? data.activityScore : 0;
+
+        if (!section || typeof data?.activityScore !== 'number') {
+            if (section) section.style.display = 'none';
+            return;
+        }
+
+        section.style.display = 'block';
+
+        const label = data.activityLabel || 'Unknown';
+        const summary = data.activitySummary || 'Based on recent LinkedIn posts';
+
+        if (scoreValue) scoreValue.textContent = String(score);
+        if (scoreFill) scoreFill.style.width = `${Math.max(0, Math.min(100, score))}%`;
+        if (scoreLabel) scoreLabel.textContent = label;
+        if (scoreSummary) scoreSummary.textContent = summary;
+
+        const tier =
+            score >= 80 ? 'very-active' :
+            score >= 60 ? 'active' :
+            score >= 40 ? 'moderate' :
+            score >= 20 ? 'low' : 'inactive';
+
+        if (scoreFill) {
+            scoreFill.className = `xtrawrkx-activity-score-fill xtrawrkx-activity-score-fill--${tier}`;
+        }
+        if (scoreBadge) {
+            scoreBadge.className = `xtrawrkx-activity-score-badge xtrawrkx-activity-score-badge--${tier}`;
+        }
+        if (scoreLabel) {
+            scoreLabel.className = `xtrawrkx-activity-score-label xtrawrkx-activity-score-label--${tier}`;
+        }
+    }
+
+    setExperienceLoading(isLoading) {
+        const experienceSection = document.getElementById('xtrawrkx-experience-section');
+        const experienceList = document.getElementById('xtrawrkx-experience-list');
+        const experienceDivider = document.getElementById('xtrawrkx-experience-divider');
+
+        if (!experienceSection || !experienceList) return;
+
+        if (isLoading) {
+            experienceSection.style.display = 'block';
+            if (experienceDivider) experienceDivider.style.display = 'none';
+            experienceList.innerHTML = `
+                <div class="xtrawrkx-experience-loading">
+                    <div class="xtrawrkx-experience-loading-spinner"></div>
+                    <p>Loading experience…</p>
+                </div>
+            `;
+            return;
+        }
+
+        const hasItems = this.currentPageData?.data?.allExperiences?.length > 0 ||
+            this.currentPageData?.data?.experience?.length > 0;
+        if (!hasItems) {
+            experienceSection.style.display = 'none';
+            if (experienceDivider) experienceDivider.style.display = 'none';
+            experienceList.innerHTML = '';
         }
     }
 
@@ -2103,8 +2293,12 @@ class SidebarController {
         const experienceDivider = document.getElementById('xtrawrkx-experience-divider');
 
         if (!allExperiences || allExperiences.length === 0) {
+            if (this.profileExtractionPending) {
+                this.setExperienceLoading(true);
+                return;
+            }
 
-            // Hide experience selection if no experiences or only one experience
+            // Hide experience selection if no experiences
             if (experienceSection) experienceSection.style.display = 'none';
             if (experienceDivider) experienceDivider.style.display = 'none';
             return;
@@ -2144,12 +2338,13 @@ class SidebarController {
                 }
                     <div class="xtrawrkx-experience-info">
                         <div class="xtrawrkx-experience-title">
-                            ${this.escapeHtml(experience.jobTitle || 'Job Title Not Available')}
+                            ${this.escapeHtml(experience.jobTitle || experience.title || 'Job Title Not Available')}
                             ${experience.isCurrent ? '<span class="xtrawrkx-experience-current">CURRENT</span>' : ''}
                         </div>
                         <div class="xtrawrkx-experience-company">
                             ${this.escapeHtml(experience.company || 'Company Not Available')}
                         </div>
+                        ${experience.duration ? `<div class="xtrawrkx-experience-duration">${this.escapeHtml(experience.duration)}</div>` : ''}
                     </div>
                 </div>
             `;
@@ -2189,19 +2384,20 @@ class SidebarController {
         // Update job title
         const jobTitleValue = document.getElementById('xtrawrkx-job-title');
         const jobTitleItem = document.getElementById('xtrawrkx-job-title-item');
-        if (experience.jobTitle) {
-            if (jobTitleValue) jobTitleValue.textContent = this.escapeHtml(experience.jobTitle);
-            if (jobTitleItem) jobTitleItem.style.display = 'flex';
+        if (experience.jobTitle || experience.title) {
+            const title = experience.jobTitle || experience.title;
+            if (jobTitleValue) jobTitleValue.textContent = this.escapeHtml(title);
+            if (jobTitleItem) jobTitleItem.style.display = 'block';
         } else {
             if (jobTitleItem) jobTitleItem.style.display = 'none';
         }
 
         // Update company
-        const companyName = document.getElementById('xtrawrkx-company-name');
+        const companyName = document.getElementById('xtrawrkx-profile-company-name');
         const companySection = document.getElementById('xtrawrkx-company-section');
         if (experience.company) {
             if (companyName) companyName.textContent = this.escapeHtml(experience.company);
-            if (companySection) companySection.style.display = 'block';
+            if (companySection) companySection.style.display = 'flex';
         } else {
             if (companySection) companySection.style.display = 'none';
         }
@@ -2227,342 +2423,114 @@ class SidebarController {
         });
     }
 
-    isProfileHtmlPreviewOnly() {
-        return typeof window !== 'undefined' && window.XTR_WRKX_PROFILE_HTML_PREVIEW_ONLY === true;
-    }
-
-    hideHtmlCapturePanel() {
-        const panel = document.getElementById('xtrawrkx-html-capture-panel');
-        const divider = document.getElementById('xtrawrkx-html-capture-divider');
-        if (panel) panel.style.display = 'none';
-        if (divider) divider.style.display = 'none';
-    }
-
-    /**
-     * Resolve structured profile JSON from capture payload (content script parse or sidebar fallback).
-     * @param {{ html?: string, title?: string, structured?: object }} payload
-     */
-    resolveStructuredProfile(payload) {
-        if (payload?.structured && typeof payload.structured === 'object') {
-            return payload.structured;
-        }
-        if (
-            typeof ProfileStructuredParser !== 'undefined' &&
-            typeof payload?.html === 'string'
-        ) {
-            return ProfileStructuredParser.parseFromHtml(payload.html, {
-                title: payload.title,
-            });
-        }
-        return null;
-    }
-
-    /**
-     * Show captured document HTML in the sidebar (Phase 1 — no Strapi/AI).
-     * @param {{ url: string, html: string, title?: string, capturedAt?: string, structured?: object }} payload
-     */
-    showHtmlCapturePanel(payload) {
-        const { url, html, title, capturedAt } = payload || {};
-        const structured = this.resolveStructuredProfile(payload);
-        this.lastCapturedStructured = structured;
-
-        const panel = document.getElementById('xtrawrkx-html-capture-panel');
-        const divider = document.getElementById('xtrawrkx-html-capture-divider');
-        const metaEl = document.getElementById('xtrawrkx-html-capture-meta');
-        const preEl = document.getElementById('xtrawrkx-html-capture-pre');
-        const jsonPreEl = document.getElementById('xtrawrkx-structured-json-pre');
-        if (!panel || !metaEl || !preEl || typeof html !== 'string') {
-            return;
-        }
-
-        const chars = html.length;
-        let utf8Bytes = chars;
-        try {
-            utf8Bytes = new TextEncoder().encode(html).length;
-        } catch {
-            /* ignore */
-        }
-
-        const maxChars =
-            typeof window !== 'undefined' && Number(window.XTR_WRKX_HTML_PREVIEW_MAX_CHARS) > 0
-                ? Number(window.XTR_WRKX_HTML_PREVIEW_MAX_CHARS)
-                : 15000;
-
-        const truncated = html.length > maxChars;
-        const slice = truncated ? html.slice(0, maxChars) : html;
-
-        const metaLines = [
-            `Title: ${title || '—'}`,
-            `URL: ${url || '—'}`,
-            `Captured (ISO): ${capturedAt || '—'}`,
-            `Length: ${chars.toLocaleString()} characters • ~${utf8Bytes.toLocaleString()} UTF-8 bytes`,
-        ];
-        if (truncated) {
-            metaLines.push(
-                `Preview: first ${maxChars.toLocaleString()} characters only (use Copy for full HTML).`,
-            );
-        }
-        if (structured) {
-            const filled = [
-                structured.name,
-                structured.headline,
-                structured.location,
-                structured.about,
-                structured.followers,
-                structured.connections,
-            ].filter(Boolean).length;
-            const lists =
-                (structured.experience?.length || 0) +
-                (structured.education?.length || 0) +
-                (structured.skills?.length || 0);
-            metaLines.push(
-                `DOM extract: ${filled}/6 scalar fields, ${lists} list items (experience + education + skills).`,
-            );
-        }
-        metaEl.innerHTML = this.escapeHtml(metaLines.join('\n')).replace(/\n/g, '<br>');
-
-        if (jsonPreEl) {
-            jsonPreEl.textContent = structured
-                ? JSON.stringify(structured, null, 2)
-                : 'Could not parse structured profile from captured HTML.';
-        }
-
-        preEl.textContent = slice + (truncated ? '\n\n… [truncated for display]' : '');
-
-        if (divider) divider.style.display = 'block';
-        panel.style.display = 'block';
-    }
-
-    async handleAnalyzeProfile() {
+    async handleImport() {
         if (!this.isAuthenticated) {
             this.showNotification('Please sign in first', 'error');
+            return;
+        }
+        if (!this.currentPageData) {
+            this.showNotification('No data available to import', 'error');
             return;
         }
 
         const importBtn = document.getElementById('xtrawrkx-import-btn');
         const loadingEl = document.getElementById('xtrawrkx-sidebar-loading');
         const bodyEl = document.getElementById('xtrawrkx-sidebar-body');
-        const previewOnly = this.isProfileHtmlPreviewOnly();
-
-        this.hideHtmlCapturePanel();
+        const originalBtnHtml = importBtn ? importBtn.innerHTML : '';
+        const needsReExtract =
+            this.currentPageData.type === 'profile' &&
+            this.currentPageData.data?.extractionComplete !== true;
 
         if (importBtn) {
             importBtn.disabled = true;
-            importBtn.innerHTML = '<span>Working…</span>';
+            importBtn.innerHTML = '<span>Importing…</span>';
         }
-        if (loadingEl) {
+        if (loadingEl && needsReExtract) {
             loadingEl.style.display = 'flex';
             const titleEl = loadingEl.querySelector('h3');
             const msgEl = loadingEl.querySelector('p');
-            if (titleEl) {
-                titleEl.textContent = previewOnly ? 'Capturing page' : 'Analyzing profile';
-            }
+            if (titleEl) titleEl.textContent = 'Extracting profile';
             if (msgEl) {
-                msgEl.textContent = previewOnly
-                    ? 'Scrolling to load lazy content, then reading full document HTML…'
-                    : 'Scrolling the page, capturing HTML, and sending to Xtrawrkx…';
+                msgEl.textContent = 'Loading experience from the page…';
             }
         }
-        if (bodyEl) bodyEl.style.display = 'none';
+        if (bodyEl && needsReExtract) {
+            bodyEl.style.display = 'none';
+        }
 
         try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab?.id || !tab.url?.includes('linkedin.com')) {
-                throw new Error('Open a LinkedIn profile tab first.');
-            }
+            let dataToImport = { ...this.currentPageData };
 
-            const captureResponse = await this.sendTabMessage(tab.id, { type: 'CAPTURE_PROFILE_HTML' });
-            if (!captureResponse?.success || !captureResponse.payload) {
-                throw new Error(captureResponse?.error || 'Could not capture page HTML');
-            }
+            if (this.currentPageData.type === 'profile' && needsReExtract) {
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (!tab?.id || !tab.url?.includes('linkedin.com')) {
+                    throw new Error('Open a LinkedIn profile tab first.');
+                }
 
-            const payload = captureResponse.payload;
-            this.lastCapturedHtmlPayload = payload;
-
-            if (previewOnly) {
-                this.showNotification(
-                    'HTML captured (preview). CRM / AI sync is off — see profileCaptureMode.js to enable.',
-                    'success',
-                );
-                this.showHtmlCapturePanel(payload);
-            } else {
-                const apiResponse = await chrome.runtime.sendMessage({
-                    type: 'SUBMIT_PROFILE_HTML_CAPTURE',
-                    payload,
+                const extractResponse = await this.sendTabMessage(tab.id, {
+                    type: 'EXTRACT_PROFILE_PREPARED',
                 });
-
-                if (!apiResponse?.success) {
-                    throw new Error(apiResponse?.error || 'Server rejected the capture');
+                if (!extractResponse?.success || !extractResponse.data) {
+                    throw new Error(extractResponse?.error || 'Could not extract profile from page');
                 }
 
-                const syncMeta = apiResponse.data?.meta;
-                const syncMsg =
-                    syncMeta?.created === false
-                        ? 'LinkedIn profile updated in CRM.'
-                        : 'LinkedIn profile saved to CRM.';
-                this.showNotification(syncMsg, 'success');
-
-                const wrapped = apiResponse.data;
-                const entity = wrapped?.data;
-                const snapshot =
-                    entity?.linkedinProfileData ?? entity?.attributes?.linkedinProfileData;
-                if (snapshot && typeof snapshot === 'object') {
-                    this.lastLinkedInSnapshot = snapshot;
-                }
-
-                if (entity?.id) {
-                    this.currentExistingContact = entity;
-                    setTimeout(() => {
-                        this.showExistingLeadDetails(entity, this.currentPageData?.data || {});
-                    }, 150);
-                }
+                dataToImport = extractResponse.data;
+                this.currentPageData = dataToImport;
+                this.updatePageDataUI();
             }
-        } catch (error) {
-            console.error('handleAnalyzeProfile:', error);
-            this.showNotification(error.message || 'Analysis failed', 'error');
-        } finally {
-            if (loadingEl) loadingEl.style.display = 'none';
-            if (bodyEl) bodyEl.style.display = 'block';
-            if (importBtn) {
-                importBtn.disabled = false;
-                importBtn.innerHTML = '<span>Analyze Profile</span>';
+
+            if (dataToImport.type === 'profile' && this.selectedExperience) {
+                const profileInner = { ...(dataToImport.data || {}) };
+                profileInner.currentCompany =
+                    this.selectedExperience.company || profileInner.currentCompany || '';
+                profileInner.currentJobTitle =
+                    this.selectedExperience.jobTitle ||
+                    this.selectedExperience.title ||
+                    profileInner.currentJobTitle ||
+                    '';
+                profileInner.jobTitle = profileInner.currentJobTitle;
+                dataToImport = { ...dataToImport, data: profileInner };
             }
-        }
-    }
 
-    buildMinimalOutreachPayload() {
-        const d = this.currentPageData?.data || {};
-        return {
-            linkedin: {
-                name: d.pageTitle || d.name || d.fullName || '',
-                headline: d.headline || d.currentJobTitle || d.jobTitle || '',
-                location: d.location || '',
-                about: d.description || d.about || d.summary || '',
-            },
-            insights: {
-                persona: d.persona || '',
-                industry: d.industry || '',
-                potential_needs: Array.isArray(d.potential_needs) ? d.potential_needs : [],
-            },
-            enrichment: {},
-        };
-    }
-
-    showOutreachModal(variants) {
-        const setTa = (id, text) => {
-            const el = document.getElementById(id);
-            if (el) el.value = text || '';
-        };
-        setTa('xtrawrkx-outreach-dm', variants.shortDm);
-        setTa('xtrawrkx-outreach-pitch', variants.personalizedPitch);
-        setTa('xtrawrkx-outreach-sales', variants.salesMessage);
-        const m = document.getElementById('xtrawrkx-outreach-modal');
-        if (m) {
-            m.style.display = 'flex';
-            m.setAttribute('aria-hidden', 'false');
-        }
-    }
-
-    hideOutreachModal() {
-        const m = document.getElementById('xtrawrkx-outreach-modal');
-        if (m) {
-            m.style.display = 'none';
-            m.setAttribute('aria-hidden', 'true');
-        }
-    }
-
-    async handleGeneratePitch() {
-        if (!this.isAuthenticated) {
-            this.showNotification('Please sign in first', 'error');
-            return;
-        }
-        if (this.currentPageData?.type !== 'profile') {
-            this.showNotification('Open a LinkedIn profile to generate pitches.', 'error');
-            return;
-        }
-
-        const payload = this.lastLinkedInSnapshot
-            ? { linkedinProfileData: this.lastLinkedInSnapshot }
-            : this.buildMinimalOutreachPayload();
-
-        const pitchBtns = document.querySelectorAll('.xtrawrkx-generate-pitch-trigger');
-        pitchBtns.forEach((pitchBtn) => {
-            pitchBtn.disabled = true;
-            const sp = pitchBtn.querySelector('span');
-            if (sp) sp.textContent = 'Generating…';
-        });
-
-        try {
-            const apiResponse = await chrome.runtime.sendMessage({
-                type: 'GENERATE_LINKEDIN_OUTREACH',
-                payload,
-            });
-            if (!apiResponse?.success) {
-                throw new Error(apiResponse?.error || 'Generation failed');
-            }
-            const variants = apiResponse.data;
-            if (!variants || (!variants.shortDm && !variants.personalizedPitch && !variants.salesMessage)) {
-                throw new Error('Empty response from server');
-            }
-            this.showOutreachModal(variants);
-        } catch (e) {
-            console.error('handleGeneratePitch:', e);
-            this.showNotification(e.message || 'Could not generate pitches', 'error');
-        } finally {
-            pitchBtns.forEach((pitchBtn) => {
-                pitchBtn.disabled = false;
-                const sp = pitchBtn.querySelector('span');
-                if (sp) sp.textContent = 'Generate Pitch';
-            });
-        }
-    }
-
-    async handleImport() {
-        if (!this.currentPageData) {
-            this.showNotification('No data available to import', 'error');
-            return;
-        }
-
-        if (this.currentPageData.type === 'profile') {
-            await this.handleAnalyzeProfile();
-            return;
-        }
-
-        const dataToImport = { ...this.currentPageData };
-
-        const importBtn = document.getElementById('xtrawrkx-import-btn');
-
-        if (importBtn) {
-            const originalText = importBtn.innerHTML;
-            importBtn.disabled = true;
-            importBtn.innerHTML = '<span>Adding...</span>';
-        }
-
-        try {
             const response = await chrome.runtime.sendMessage({
                 type: 'IMPORT_CURRENT_PAGE',
-                data: dataToImport
+                data: dataToImport,
             });
 
             if (response && response.success) {
-                // Show success message with details
                 let successMessage = 'Successfully imported to Xtrawrkx!';
-                if (response.data && response.data.leadCompany) {
-                    successMessage = `Contact and Company created successfully!`;
+                if (response.data?.company) {
+                    successMessage = response.data.company.reused
+                        ? 'Contact linked to existing company!'
+                        : 'Contact and company created successfully!';
                 } else if (response.data) {
                     successMessage = 'Contact created successfully!';
                 }
 
                 this.showNotification(successMessage, 'success');
 
-                if (importBtn) {
-                    importBtn.disabled = false;
-                    importBtn.innerHTML = '<span>Added to CRM</span>';
-                    importBtn.style.background = '#10b981';
+                const createdEntity = response.data?.data;
+                if (createdEntity?.id) {
+                    if (response.data?.company?.data) {
+                        if (response.data.company.kind === 'clientAccount') {
+                            createdEntity.clientAccount = response.data.company.data;
+                        } else {
+                            createdEntity.leadCompany = response.data.company.data;
+                        }
+                    } else if (response.data?.leadCompany) {
+                        createdEntity.leadCompany = response.data.leadCompany.data;
+                    }
 
+                    this.currentExistingContact = createdEntity;
                     setTimeout(() => {
-                        importBtn.innerHTML = '<span>Add to CRM</span>';
-                        importBtn.style.background = '#6366f1';
+                        this.showExistingLeadDetails(createdEntity, dataToImport.data || {});
+                    }, 150);
+                } else if (importBtn) {
+                    importBtn.innerHTML = '<i class="fas fa-check"></i><span>Added to CRM</span>';
+                    importBtn.style.background = '#10b981';
+                    setTimeout(() => {
+                        importBtn.innerHTML = this.importBtnHtml('Import to CRM');
+                        importBtn.style.background = '';
                     }, 3000);
                 }
             } else {
@@ -2571,73 +2539,13 @@ class SidebarController {
         } catch (error) {
             console.error('Import failed:', error);
             this.showNotification(`Import failed: ${error.message}`, 'error');
-
             if (importBtn) {
-                importBtn.disabled = false;
-                importBtn.innerHTML = '<span>Add to CRM</span>';
+                importBtn.innerHTML = originalBtnHtml || this.importBtnHtml('Import to CRM');
             }
-        }
-    }
-
-    async handleQuickAddToCrm() {
-        if (!this.isAuthenticated) {
-            this.showNotification('Please sign in first', 'error');
-            return;
-        }
-        if (!this.currentPageData) {
-            this.showNotification('No profile data available', 'error');
-            return;
-        }
-
-        const quickAddBtn = document.getElementById('xtrawrkx-quick-add-btn');
-        const originalHtml = quickAddBtn ? quickAddBtn.innerHTML : '';
-        if (quickAddBtn) {
-            quickAddBtn.disabled = true;
-            quickAddBtn.innerHTML = '<span>Adding…</span>';
-        }
-
-        try {
-            const response = await chrome.runtime.sendMessage({
-                type: 'IMPORT_CURRENT_PAGE',
-                data: this.currentPageData,
-            });
-
-            if (response && response.success) {
-                if (quickAddBtn) {
-                    quickAddBtn.innerHTML = '<span>Added ✓</span>';
-                    quickAddBtn.style.background = '#10b981';
-                    quickAddBtn.style.color = 'white';
-                    quickAddBtn.style.border = 'none';
-                    setTimeout(() => {
-                        quickAddBtn.innerHTML = originalHtml;
-                        quickAddBtn.style.background = '';
-                        quickAddBtn.style.color = '';
-                        quickAddBtn.style.border = '';
-                        quickAddBtn.disabled = false;
-                    }, 3000);
-                }
-
-                // Use the returned entity directly — no extra API round-trip needed
-                const createdEntity = response.data?.data;
-                if (createdEntity?.id) {
-                    this.currentExistingContact = createdEntity;
-                    // Switch to existing contact view (has "View in CRM" button with direct link)
-                    setTimeout(() => {
-                        this.showNotification('Lead added! Click "View in CRM" to open it.', 'success');
-                        this.showExistingLeadDetails(createdEntity, this.currentPageData?.data || {});
-                    }, 200);
-                } else {
-                    this.showNotification('Lead added to CRM! Check the "Active" tab in Contacts.', 'success');
-                }
-            } else {
-                throw new Error(response?.error || 'Import failed');
-            }
-        } catch (error) {
-            this.showNotification(`Failed to add: ${error.message}`, 'error');
-            if (quickAddBtn) {
-                quickAddBtn.disabled = false;
-                quickAddBtn.innerHTML = originalHtml;
-            }
+        } finally {
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (bodyEl) bodyEl.style.display = 'flex';
+            if (importBtn) importBtn.disabled = false;
         }
     }
 
@@ -2693,19 +2601,30 @@ class SidebarController {
             }
 
             const currentTabUrl = tab.url;
+            const isProfileTab =
+                currentTabUrl.includes('/in/') && !currentTabUrl.includes('/feed/');
             
-            // IMPORTANT: Check if URL has changed - if so, clear existing contact
-            if (this.lastKnownUrl && currentTabUrl !== this.lastKnownUrl) {
+            // IMPORTANT: Only reset state when navigating to a different profile
+            if (
+                this.lastKnownUrl &&
+                currentTabUrl !== this.lastKnownUrl &&
+                !this.isSameLinkedInProfile(this.lastKnownUrl, currentTabUrl)
+            ) {
                 this.currentExistingContact = null;
                 this.currentPageData = null;
+            } else if (
+                this.profileExtractionPending &&
+                this.isSameLinkedInProfile(this.lastKnownUrl, currentTabUrl)
+            ) {
+                return;
             }
             
             this.lastKnownUrl = currentTabUrl;
 
-            // Get page data from storage (set by background worker)
+            // Get page data from storage (skip cache for profiles — need scroll + full DOM parse)
             const storageResult = await chrome.storage.local.get(['lastPageData', 'lastPageUrl', 'pageDataTimestamp']);
 
-            if (storageResult.lastPageData) {
+            if (!isProfileTab && storageResult.lastPageData) {
                 const storedUrl = storageResult.lastPageData.url || storageResult.lastPageUrl;
                 
                 // Only use stored data if it matches current tab URL
@@ -2745,10 +2664,33 @@ class SidebarController {
             } else {
             }
 
-            // Request fresh data from content script
+            // Request fresh data from content script (profiles: scroll + expand + parse)
+            if (isProfileTab) {
+                this.profileExtractionPending = true;
+                this.setExperienceLoading(true);
+                const loadingEl = document.getElementById('xtrawrkx-sidebar-loading');
+                const bodyEl = document.getElementById('xtrawrkx-sidebar-body');
+                if (loadingEl) {
+                    loadingEl.style.display = 'flex';
+                    const titleEl = loadingEl.querySelector('h3');
+                    const msgEl = loadingEl.querySelector('p');
+                    if (titleEl) titleEl.textContent = 'Reading profile';
+                    if (msgEl) {
+                        msgEl.textContent = 'Scrolling to load experience…';
+                    }
+                }
+                if (bodyEl) bodyEl.style.display = 'none';
+            }
+
             chrome.tabs.sendMessage(tab.id, {
                 type: 'EXTRACT_CURRENT_PAGE'
             }, (response) => {
+                if (isProfileTab) {
+                    const loadingEl = document.getElementById('xtrawrkx-sidebar-loading');
+                    const bodyEl = document.getElementById('xtrawrkx-sidebar-body');
+                    if (loadingEl) loadingEl.style.display = 'none';
+                    if (bodyEl) bodyEl.style.display = 'flex';
+                }
                 if (chrome.runtime.lastError) {
                     console.error('❌ Error sending message to content script:', chrome.runtime.lastError);
                     return;
@@ -2756,6 +2698,8 @@ class SidebarController {
 
 
                 if (response && response.success && response.data) {
+                    this.profileExtractionPending = false;
+                    this.setExperienceLoading(false);
                     this.currentPageData = response.data;
                     
                     // Check for existing contact if authenticated
@@ -2832,11 +2776,26 @@ class SidebarController {
                         this.updateUI();
                     }
                 } else if (newData) {
-                    // Same URL but data might have been refreshed
+                    const isProfile = newData.type === 'profile';
+                    const extractionComplete = newData.data?.extractionComplete === true;
+                    const newExpCount = newData.data?.allExperiences?.length || 0;
+                    const oldExpCount = this.currentPageData?.data?.allExperiences?.length || 0;
+
+                    if (isProfile && !extractionComplete && newExpCount === 0) {
+                        return;
+                    }
+
+                    // Same URL refresh — prefer payloads that include experience
+                    if (isProfile && oldExpCount > 0 && newExpCount === 0 && extractionComplete) {
+                        return;
+                    }
+
                     this.currentPageData = newData;
                     if (newUrl) {
                         this.lastKnownUrl = newUrl;
                     }
+                    this.profileExtractionPending = false;
+                    this.setExperienceLoading(false);
                     this.updateUI();
                 }
             }
@@ -2850,7 +2809,12 @@ class SidebarController {
                 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                     if (tabs && tabs.length > 0 && tabs[0].id === tabId) {
                         const currentUrl = tab.url;
-                        if (currentUrl !== this.lastKnownUrl) {
+                        const urlChanged = currentUrl !== this.lastKnownUrl;
+                        const sameProfile =
+                            urlChanged &&
+                            this.isSameLinkedInProfile(this.lastKnownUrl, currentUrl);
+
+                        if (urlChanged && !sameProfile && !this.profileExtractionPending) {
                             this.lastKnownUrl = currentUrl;
                             
                             // Clear existing contact immediately
@@ -2861,6 +2825,8 @@ class SidebarController {
                             setTimeout(() => {
                                 this.requestPageData();
                             }, 800);
+                        } else if (urlChanged) {
+                            this.lastKnownUrl = currentUrl;
                         }
                     }
                 });
@@ -2883,9 +2849,17 @@ class SidebarController {
 
             const currentUrl = tab.url;
             
-            // Check if URL has changed
+            // Check if URL has changed to a different profile
             if (this.lastKnownUrl && currentUrl !== this.lastKnownUrl) {
-                
+                if (this.isSameLinkedInProfile(this.lastKnownUrl, currentUrl)) {
+                    this.lastKnownUrl = currentUrl;
+                    return;
+                }
+                if (this.profileExtractionPending) {
+                    this.lastKnownUrl = currentUrl;
+                    return;
+                }
+
                 // FORCE clear existing contact data - this is critical!
                 this.currentExistingContact = null;
                 this.currentPageData = null;
@@ -2910,6 +2884,16 @@ class SidebarController {
         }
 
         switch (message.type) {
+            case 'PROFILE_EXTRACTION_STATUS':
+                if (message.status === 'loading') {
+                    this.profileExtractionPending = true;
+                    this.setExperienceLoading(true);
+                } else if (message.status === 'complete') {
+                    this.profileExtractionPending = false;
+                }
+                sendResponse({ success: true });
+                break;
+
             case 'PAGE_DATA_UPDATED':
             case 'PAGE_DATA_FOR_SIDEBAR':
                 const newData = message.data || message;
@@ -2920,10 +2904,6 @@ class SidebarController {
                 if (oldUrl && newUrl && oldUrl !== newUrl) {
                     this.currentExistingContact = null;
                     this.currentPageData = null;
-                    this.lastLinkedInSnapshot = null;
-                    this.lastCapturedHtmlPayload = null;
-                    this.lastCapturedStructured = null;
-                    this.hideHtmlCapturePanel();
                 }
                 
                 // Update last known URL

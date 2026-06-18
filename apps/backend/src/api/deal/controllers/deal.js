@@ -54,6 +54,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
       if (extra.leadCompany) filters.leadCompany = extra.leadCompany;
       if (extra.clientAccount) filters.clientAccount = extra.clientAccount;
+      if (extra.contact) filters.contact = extra.contact;
       if (extra.stage) filters.stage = extra.stage;
     }
 

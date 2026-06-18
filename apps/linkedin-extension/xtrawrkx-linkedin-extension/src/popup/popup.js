@@ -136,7 +136,7 @@ class PopupController {
         const url = window.location.href;
         const pathname = window.location.pathname;
 
-        // Profile page — metadata only; full HTML capture runs from the sidebar
+        // Profile page — structured fields are parsed in the content script
         if (pathname.includes('/in/') && !pathname.includes('/feed/')) {
             return {
                 type: 'profile',

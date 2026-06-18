@@ -110,8 +110,6 @@ nodemon --watch src --exec "echo 'Files changed - reload extension manually'"
 
 ### Testing on LinkedIn
 
-**Profile HTML preview (Phase 1)** — In `src/sidebar/profileCaptureMode.js`, when `XTR_WRKX_PROFILE_HTML_PREVIEW_ONLY` is `true` (default), **Analyze Profile** only captures full-page HTML after scrolling and shows it in the sidebar (with **Copy full HTML**). No Strapi / extract API calls. Set it to `false` when you are ready for CRM sync + AI again.
-
 1. **Navigate to LinkedIn**
 
    - Go to `https://www.linkedin.com`

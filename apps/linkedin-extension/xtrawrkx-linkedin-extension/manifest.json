@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Xtrawrkx LinkedIn Extension",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Extract LinkedIn profile and company data for Xtrawrkx CRM",
   "icons": {
     "16": "icons/icon16.png",
@@ -16,6 +16,8 @@
   ],
   "host_permissions": [
     "https://www.linkedin.com/*",
+    "https://media.licdn.com/*",
+    "https://*.licdn.com/*",
     "https://xtrawrkxsuits-production.up.railway.app/*",
     "http://localhost:1337/*",
     "http://127.0.0.1:1337/*"
@@ -27,7 +29,8 @@
       ],
       "js": [
         "src/utils/logger.js",
-        "src/content/profile-page-capture.js",
+        "src/content/profile-url-utils.js",
+        "src/content/profile-dom-prep.js",
         "src/content/profile-structured-parser.js",
         "src/content/linkedin-extractor.js"
       ],
@@ -51,6 +54,7 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "src/shared/*",
         "src/sidebar/*",
         "src/options/*"
       ],

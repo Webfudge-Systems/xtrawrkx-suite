@@ -62,7 +62,7 @@ class DataMapper {
             email: email,
             phone: profileData.phone || '',
             // Prioritize currentJobTitle from selected experience, then headline, then jobTitle
-            title: profileData.currentJobTitle || profileData.jobTitle || profileData.headline || '',
+            jobTitle: profileData.currentJobTitle || profileData.jobTitle || profileData.headline || '',
             department: profileData.department || '',
             linkedIn: linkedInUrl || '',
             twitter: profileData.twitter || '',
@@ -72,11 +72,11 @@ class DataMapper {
             // TECHNICAL_CONTACT (schema default) for standalone individuals.
             // Do NOT use PRIMARY_CONTACT here — without a company the Strapi controller
             // would demote ALL primary contacts across the entire CRM.
-            role: 'TECHNICAL_CONTACT',
+            contactRole: 'TECHNICAL_CONTACT',
             assignedTo: userId || null,
             // Additional fields from LinkedIn
             address: profileData.location || '',
-            description: profileData.description || profileData.about || '',
+            notes: this.generateNotesFromProfile(profileData),
             // Note: leadCompany will be set by the import handler after company is created
         };
 
@@ -119,23 +119,16 @@ class DataMapper {
      */
     mapProfileCompanyToLeadCompany(profileData, userId) {
         // Extract company info from profile; fall back to experience[0].company
-        const companyName =
-            profileData.currentCompany ||
-            profileData.company ||
-            (Array.isArray(profileData.experience) && profileData.experience.length > 0
-                ? profileData.experience[0].company
-                : '') ||
-            '';
+        const companyName = this.resolveProfileCompanyName(profileData);
 
         if (!companyName) {
             return null;
         }
 
         return {
-            companyName: companyName,
+            companyName,
             industry: profileData.industry || 'Other', // Default industry if not available
-            // Don't use profile description as company description - description belongs to contact only
-            linkedIn: profileData.linkedInUrl || profileData.profileUrl || '',
+            linkedIn: this.extractCompanyLinkedInUrl(profileData) || '',
             source: 'SOCIAL_MEDIA',
             status: 'NEW',
             segment: 'WARM',
@@ -144,6 +137,95 @@ class DataMapper {
             healthScore: 50,
             dealValue: 0
         };
+    }
+
+    normalizeCompanyName(name) {
+        return String(name || '')
+            .replace(/\u00a0/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    cleanCompanyName(name) {
+        return String(name || '')
+            .replace(/\u00a0/g, ' ')
+            .replace(/\s+logo$/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    companyNameFromLinkedInUrl(href) {
+        if (!href || typeof href !== 'string') return '';
+
+        const match = href.match(/\/company\/([^/?#]+)/i);
+        if (!match?.[1]) return '';
+
+        const slug = decodeURIComponent(match[1]).replace(/-/g, ' ').trim();
+        if (!slug) return '';
+
+        return slug
+            .split(/\s+/)
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+    }
+
+    resolveProfileCompanyName(profileData) {
+        const raw =
+            profileData?.currentCompany ||
+            profileData?.company ||
+            profileData?.experience?.[0]?.company ||
+            profileData?.allExperiences?.[0]?.company ||
+            '';
+
+        const cleaned = this.cleanCompanyName(raw);
+        if (cleaned) return cleaned;
+
+        const fromUrl = this.companyNameFromLinkedInUrl(
+            this.extractCompanyLinkedInUrl(profileData),
+        );
+        return fromUrl || '';
+    }
+
+    normalizeCompanyLinkedInUrl(href) {
+        if (!href || typeof href !== 'string') return '';
+
+        const trimmed = href.trim();
+        if (!trimmed) return '';
+
+        if (/^https?:\/\//i.test(trimmed)) {
+            try {
+                const url = new URL(trimmed.split('?')[0]);
+                if (url.pathname.includes('/company/')) {
+                    return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
+                }
+            } catch {
+                return '';
+            }
+        }
+
+        const slugMatch = trimmed.match(/\/company\/([^/?#]+)/i);
+        if (slugMatch?.[1]) {
+            return `https://www.linkedin.com/company/${slugMatch[1]}`;
+        }
+
+        return '';
+    }
+
+    extractCompanyLinkedInUrl(profileData) {
+        const candidates = [
+            profileData?.companyLinkedInUrl,
+            profileData?.companyUrl,
+            profileData?.experience?.[0]?.companyUrl,
+            profileData?.allExperiences?.[0]?.companyUrl,
+        ];
+
+        for (const raw of candidates) {
+            const normalized = this.normalizeCompanyLinkedInUrl(raw);
+            if (normalized) return normalized;
+        }
+
+        return '';
     }
 
     /**
@@ -252,6 +334,11 @@ class DataMapper {
     generateNotesFromProfile(profileData) {
         const notes = [];
 
+        const about = (profileData.about || profileData.description || profileData.summary || '').trim();
+        if (about) {
+            notes.push(`About:\n${about}`);
+        }
+
         if (profileData.headline) {
             notes.push(`Headline: ${profileData.headline}`);
         }
@@ -262,6 +349,16 @@ class DataMapper {
 
         if (profileData.experience && profileData.experience.length > 0) {
             notes.push(`Current Role: ${profileData.experience[0].title} at ${profileData.experience[0].company}`);
+        }
+
+        if (profileData.activityScore != null && profileData.activityScore !== '') {
+            const activityLine = profileData.activityLabel
+                ? `LinkedIn Activity Score: ${profileData.activityScore}/100 (${profileData.activityLabel})`
+                : `LinkedIn Activity Score: ${profileData.activityScore}/100`;
+            notes.push(activityLine);
+            if (profileData.activitySummary) {
+                notes.push(`Activity: ${profileData.activitySummary}`);
+            }
         }
 
         if (profileData.education && profileData.education.length > 0) {
