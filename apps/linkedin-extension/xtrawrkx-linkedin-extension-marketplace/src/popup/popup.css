@@ -1,0 +1,538 @@
+/* XtraWrkx LinkedIn Extension Popup Styles */
+/* Matching CRM theme and design system */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Host Grotesk', system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background: linear-gradient(135deg, #fff9f0 0%, #fff4e6 100%);
+    color: #2d2d2d;
+    width: 380px;
+    min-height: 500px;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.popup-container {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    margin: 8px;
+    overflow: hidden;
+}
+
+/* Header */
+.header {
+    padding: 20px 24px 16px;
+    background: linear-gradient(135deg, rgba(255, 170, 68, 0.1) 0%, rgba(255, 204, 102, 0.05) 100%);
+    border-bottom: 1px solid rgba(255, 170, 68, 0.1);
+}
+
+.logo-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #ffaa44 0%, #ffcc66 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 170, 68, 0.3);
+}
+
+.logo-text h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #2d2d2d;
+    margin-bottom: 2px;
+}
+
+.logo-text p {
+    font-size: 12px;
+    color: #666666;
+    font-weight: 500;
+}
+
+/* Authentication Section */
+.auth-section {
+    padding: 20px 24px;
+}
+
+.auth-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #999999;
+    animation: pulse 2s infinite;
+}
+
+.indicator.connected {
+    background: #4ade80;
+}
+
+.indicator.error {
+    background: #ef4444;
+}
+
+.indicator.warning {
+    background: #fbbf24;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+#auth-message {
+    font-size: 14px;
+    color: #666666;
+    font-weight: 500;
+}
+
+/* Main Content */
+.main-content {
+    padding: 0 24px 20px;
+}
+
+/* Page Info */
+.page-info {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.page-type {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.page-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #ffaa44 0%, #ffcc66 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+}
+
+.page-details h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2d2d2d;
+    margin-bottom: 2px;
+}
+
+.page-details p {
+    font-size: 12px;
+    color: #666666;
+}
+
+/* Import Options */
+.import-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+/* Button Styles - Matching CRM */
+.btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    padding-right: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    background: linear-gradient(135deg, #ffaa44 0%, #ffcc66 100%);
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(255, 170, 68, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    gap: 8px;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #ff9933 0%, #ffbb55 100%);
+    box-shadow: 0 6px 16px rgba(255, 170, 68, 0.4);
+    transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-primary .btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    background: white;
+    border-radius: 8px;
+    color: #ffaa44;
+    transition: transform 0.2s ease;
+}
+
+.btn-primary:hover:not(:disabled) .btn-icon {
+    transform: translateX(2px);
+}
+
+.btn-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    padding-right: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #2d2d2d;
+    background: white;
+    border: 1px solid rgba(255, 170, 68, 0.2);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    gap: 8px;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    border-color: rgba(255, 170, 68, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+}
+
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-secondary .btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    background: #2d2d2d;
+    border-radius: 8px;
+    color: white;
+    transition: transform 0.2s ease;
+}
+
+.btn-secondary:hover:not(:disabled) .btn-icon {
+    transform: translateX(2px);
+}
+
+.btn-ghost {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #666666;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.btn-ghost:hover {
+    color: #2d2d2d;
+    background: rgba(255, 170, 68, 0.1);
+}
+
+.btn-link {
+    font-size: 12px;
+    color: #ffaa44;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.btn-link:hover {
+    color: #ff9933;
+}
+
+/* Import Status */
+.import-status {
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    margin-bottom: 20px;
+}
+
+.status-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.status-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.status-icon.loading {
+    background: linear-gradient(135deg, #ffaa44 0%, #ffcc66 100%);
+    color: white;
+    animation: spin 1s linear infinite;
+}
+
+.status-icon.success {
+    background: #4ade80;
+    color: white;
+}
+
+.status-icon.error {
+    background: #ef4444;
+    color: white;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.status-text h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2d2d2d;
+    margin-bottom: 2px;
+}
+
+.status-text p {
+    font-size: 12px;
+    color: #666666;
+}
+
+/* Progress Bar */
+.progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 170, 68, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #ffaa44 0%, #ffcc66 100%);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+/* Recent Imports */
+.recent-imports {
+    margin-bottom: 20px;
+}
+
+.recent-imports h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2d2d2d;
+    margin-bottom: 12px;
+}
+
+.recent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.recent-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.recent-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.recent-item-info h5 {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2d2d2d;
+}
+
+.recent-item-info p {
+    font-size: 11px;
+    color: #666666;
+}
+
+.recent-item-status {
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.recent-item-status.success {
+    background: rgba(74, 222, 128, 0.1);
+    color: #16a34a;
+}
+
+.recent-item-status.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+}
+
+/* Footer */
+.footer {
+    display: flex;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-top: 1px solid rgba(255, 170, 68, 0.1);
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 400px) {
+    body {
+        width: 320px;
+    }
+    
+    .popup-container {
+        margin: 4px;
+    }
+    
+    .header,
+    .main-content,
+    .footer {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}
+
+/* Loading states */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Notification styles */
+.notification {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+}
+
+.notification.success {
+    background: #4ade80;
+    color: white;
+}
+
+.notification.error {
+    background: #ef4444;
+    color: white;
+}
+
+.notification.warning {
+    background: #fbbf24;
+    color: white;
+}
+
+.notification.info {
+    background: #3b82f6;
+    color: white;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+
+
+
+

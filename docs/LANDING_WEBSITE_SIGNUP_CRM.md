@@ -41,6 +41,10 @@ STRAPI_API_URL=http://localhost:1337/api
 
 In local development, if `LANDING_SIGNUP_SECRET` is unset, the backend allows signup requests (production requires the secret).
 
+## Onboarding email
+
+After a **new** client account is created (`201`), the landing app sends an onboarding confirmation to the user's **personal signup email** with a Client Portal link and next steps. See [LANDING_SIGNUP_ONBOARDING_EMAIL.md](./LANDING_SIGNUP_ONBOARDING_EMAIL.md).
+
 ## API
 
 `POST /api/client-accounts/website-signup`

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { CMS_CONFIG } from "@/src/config/cms";
+import { sendAccountOnboardingEmail } from "@/src/lib/onboardingEmail";
 
 const STRAPI_API_URL =
   process.env.NEXT_PUBLIC_STRAPI_API_URL ||
@@ -199,6 +200,7 @@ const ensureClientAccount = async (body) => {
     ok: true,
     status: lastStatus,
     error: null,
+    isNewAccount: lastStatus === 201,
     primaryContactSync: data?.primaryContactSync || null,
     defaultProjectSync: data?.defaultProjectSync || null,
     clientPasswordSync: data?.clientPasswordSync || null,
@@ -265,9 +267,28 @@ export async function POST(request) {
 
     const shouldEnsureClientAccount = body?.ensureClientAccount !== false;
     let clientAccountResult = null;
+    let onboardingEmailSync = null;
 
     if (shouldEnsureClientAccount) {
       clientAccountResult = await ensureClientAccount(body);
+
+      if (clientAccountResult?.ok && clientAccountResult?.isNewAccount) {
+        try {
+          onboardingEmailSync = await sendAccountOnboardingEmail({
+            email: body.email,
+            firstName: body.firstName,
+            lastName: body.lastName,
+            displayName: body.displayName,
+            companyName: body.companyName || body.company,
+          });
+        } catch (emailError) {
+          onboardingEmailSync = {
+            ok: false,
+            skipped: false,
+            error: emailError?.message || "Failed to send onboarding email.",
+          };
+        }
+      }
     }
 
     const clientAccountFailed =
@@ -308,6 +329,7 @@ export async function POST(request) {
         primaryContactSync: clientAccountResult?.primaryContactSync || null,
         defaultProjectSync: clientAccountResult?.defaultProjectSync || null,
         clientPasswordSync: clientAccountResult?.clientPasswordSync || null,
+        onboardingEmailSync,
       },
       { status: responseStatus }
     );

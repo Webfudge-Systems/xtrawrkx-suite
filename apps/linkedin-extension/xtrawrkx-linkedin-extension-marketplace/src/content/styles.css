@@ -1,0 +1,464 @@
+/* XtraWrkx LinkedIn Extension Content Styles */
+/* Styles for toggle button injected into LinkedIn pages */
+
+/* Toggle Button - Fixed on right side */
+.xtrawrkx-toggle-btn {
+    position: fixed;
+    top: 25%;
+    right: 0;
+    transform: translateY(-50%);
+    z-index: 999998;
+    
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px 12px 12px;
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #F5630F 0%, #fb923c 100%);
+    border: none;
+    border-radius: 12px 0 0 12px;
+    box-shadow: var(--brand-shadow-sm, 0 2px 8px 0 rgba(245, 99, 15, 0.15));
+    cursor: pointer;
+    transition: all 0.3s ease;
+    
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.xtrawrkx-toggle-btn:hover {
+    background: linear-gradient(135deg, #ea580c 0%, #F5630F 100%);
+    box-shadow: var(--brand-shadow, 0 4px 14px 0 rgba(245, 99, 15, 0.25));
+    transform: translateY(-50%) translateX(-4px);
+}
+
+.xtrawrkx-toggle-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+    flex-shrink: 0;
+}
+
+.xtrawrkx-toggle-text {
+    white-space: nowrap;
+}
+
+/* Sidebar Container */
+.xtrawrkx-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: 999999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.xtrawrkx-sidebar.open {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Sidebar Overlay */
+.xtrawrkx-sidebar-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+/* Sidebar Panel */
+.xtrawrkx-sidebar-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 420px;
+    max-width: 90vw;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.xtrawrkx-sidebar.open .xtrawrkx-sidebar-panel {
+    transform: translateX(0);
+    margin-right: 0;
+}
+
+/* Sidebar Header */
+.xtrawrkx-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.xtrawrkx-sidebar-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.xtrawrkx-sidebar-title svg {
+    width: 24px;
+    height: 24px;
+    stroke: #ffaa44;
+    stroke-width: 2;
+}
+
+.xtrawrkx-sidebar-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.xtrawrkx-sidebar-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.xtrawrkx-sidebar-close svg {
+    width: 20px;
+    height: 20px;
+    stroke: #666;
+    stroke-width: 2;
+}
+
+/* Sidebar Content */
+.xtrawrkx-sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.xtrawrkx-sidebar-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 40px 20px;
+    color: #666;
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+}
+
+.xtrawrkx-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255, 170, 68, 0.2);
+    border-top-color: #ffaa44;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.xtrawrkx-sidebar-body {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Info Items */
+.xtrawrkx-sidebar-info {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.xtrawrkx-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.xtrawrkx-info-label {
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.xtrawrkx-info-value {
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: #1a1a1a;
+    line-height: 1.5;
+}
+
+/* Action Buttons */
+.xtrawrkx-sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 24px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.xtrawrkx-btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 20px;
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #ffaa44 0%, #ffcc66 100%);
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(255, 170, 68, 0.3);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.xtrawrkx-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #ff9933 0%, #ffbb55 100%);
+    box-shadow: 0 6px 16px rgba(255, 170, 68, 0.4);
+    transform: translateY(-1px);
+}
+
+.xtrawrkx-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.xtrawrkx-btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.xtrawrkx-btn-primary svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+    flex-shrink: 0;
+}
+
+/* Login Form Styles */
+.xtrawrkx-login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.xtrawrkx-login-header h2 {
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0 0 8px 0;
+}
+
+.xtrawrkx-login-header p {
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    color: #666;
+    margin: 0;
+}
+
+.xtrawrkx-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.xtrawrkx-form-group label {
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.xtrawrkx-form-group input {
+    padding: 12px 16px;
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: all 0.2s ease;
+}
+
+.xtrawrkx-form-group input:focus {
+    outline: none;
+    border-color: #ffaa44;
+    box-shadow: 0 0 0 3px rgba(255, 170, 68, 0.1);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.xtrawrkx-form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.xtrawrkx-btn-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 20px;
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: #666;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.xtrawrkx-btn-link:hover {
+    color: #ffaa44;
+}
+
+.xtrawrkx-login-error {
+    padding: 12px 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    color: #dc2626;
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    margin-top: 12px;
+}
+
+/* Animation for spinning loader */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Notification styles */
+.xtrawrkx-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000000;
+    
+    padding: 12px 20px;
+    font-family: 'Host Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    
+    animation: slideInNotification 0.3s ease-out;
+    max-width: 300px;
+    word-wrap: break-word;
+}
+
+.xtrawrkx-notification.success {
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+}
+
+.xtrawrkx-notification.error {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.xtrawrkx-notification.warning {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.xtrawrkx-notification.info {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+@keyframes slideInNotification {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .xtrawrkx-toggle-btn {
+        padding: 10px 12px 10px 8px;
+        font-size: 13px;
+    }
+    
+    .xtrawrkx-toggle-text {
+        display: none;
+    }
+    
+    .xtrawrkx-notification {
+        top: 16px;
+        right: 16px;
+        left: 16px;
+        max-width: none;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .xtrawrkx-toggle-btn {
+        border: 2px solid #000;
+    }
+    
+    .xtrawrkx-notification {
+        border: 1px solid #000;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .xtrawrkx-toggle-btn,
+    .xtrawrkx-notification {
+        transition: none;
+        animation: none;
+    }
+}
+
+/* Dark mode support (if LinkedIn implements it) */
+@media (prefers-color-scheme: dark) {
+    .xtrawrkx-toggle-btn {
+        box-shadow: -4px 0 16px rgba(255, 170, 68, 0.6);
+    }
+    
+    .xtrawrkx-notification {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+}

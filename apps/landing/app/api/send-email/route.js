@@ -1,24 +1,8 @@
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { createEmailTransporter } from "@/src/lib/emailTransporter";
+import { getAccountOnboardingEmailTemplate } from "@/src/lib/onboardingEmail";
 
-// Email configuration - uses environment variables for security
-const createTransporter = () => {
-  // Check if environment variables are set
-  // if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-  //   throw new Error('Email configuration missing. Please set EMAIL_USER and EMAIL_PASS in .env.local');
-  // }
-
-  // For Google Workspace email (xsos@xtrawrkx.com)
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // true for 465, false for other ports
-    auth: {
-      user: "hiten@xtrawrkx.com",
-      pass: "yhws dmzi qtcc icgr",
-    },
-  });
-};
+const createTransporter = () => createEmailTransporter();
 
 // Email templates
 const getContactInquiryEmailTemplate = (data) => {
@@ -977,6 +961,15 @@ export async function POST(request) {
       case 'consultation_booking':
         emailTemplate = getConsultationBookingEmailTemplate(data);
         break;
+      case 'account_onboarding':
+        emailTemplate = getAccountOnboardingEmailTemplate({
+          primaryContactName: data.primaryContactName,
+          companyName: data.companyName,
+          primaryContactEmail: data.primaryContactEmail,
+          portalUrl: data.portalUrl,
+          dashboardUrl: data.dashboardUrl,
+        });
+        break;
       default:
         return NextResponse.json(
           { error: "Invalid email type" },
@@ -986,20 +979,29 @@ export async function POST(request) {
 
     // Check if we should send user confirmation email
     const shouldSendToUser = data.sendToUser !== false; // Default to true unless explicitly false
+    const shouldNotifyAdmin = data.notifyAdmin !== false && type !== 'account_onboarding';
+    let recipients = [];
 
     if (shouldSendToUser) {
       // Prepare recipient list
-      const recipients = [data.primaryContactEmail];
+      recipients = [data.primaryContactEmail];
 
-      // Add company email if different from primary contact
-      if (data.companyEmail && data.companyEmail !== data.primaryContactEmail) {
+      // Add company email if different from primary contact (not for personal onboarding mail)
+      if (
+        type !== 'account_onboarding' &&
+        data.companyEmail &&
+        data.companyEmail !== data.primaryContactEmail
+      ) {
         recipients.push(data.companyEmail);
       }
 
       // Email configuration for user/company
       const mailOptions = {
-        from: `"xtrawrkx Events" <${process.env.EMAIL_USER || 'hiten@xtrawrkx.com'}>`,
-        replyTo: 'xsos@xtrawrkx.com', // Replies go to the group email
+        from:
+          type === 'account_onboarding'
+            ? `"xtrawrkx" <${process.env.EMAIL_USER || 'hiten@xtrawrkx.com'}>`
+            : `"xtrawrkx Events" <${process.env.EMAIL_USER || 'hiten@xtrawrkx.com'}>`,
+        replyTo: type === 'account_onboarding' ? 'info@xtrawrkx.com' : 'xsos@xtrawrkx.com',
         to: recipients.join(', '),
         subject: emailTemplate.subject,
         html: emailTemplate.html,
@@ -1010,24 +1012,24 @@ export async function POST(request) {
     } else {
     }
 
-    // Send notification to xtrawrkx admin
-    const adminEmails = "info@xtrawrkx.com";
-    const adminEmailTemplate = getAdminNotificationTemplate(data, type);
+    if (shouldNotifyAdmin) {
+      // Send notification to xtrawrkx admin
+      const adminEmails = "info@xtrawrkx.com";
+      const adminEmailTemplate = getAdminNotificationTemplate(data, type);
 
-    const adminMailOptions = {
-      from: `"xtrawrkx Events" <hiten@xtrawrkx.com>`,
-      replyTo: 'xsos@xtrawrkx.com', // Replies go to the group email
-      to: adminEmails,
-      subject: adminEmailTemplate.subject,
-      html: adminEmailTemplate.html,
-    };
+      const adminMailOptions = {
+        from: `"xtrawrkx Events" <hiten@xtrawrkx.com>`,
+        replyTo: 'xsos@xtrawrkx.com', // Replies go to the group email
+        to: adminEmails,
+        subject: adminEmailTemplate.subject,
+        html: adminEmailTemplate.html,
+      };
 
-    // Send admin notification
-
-    try {
-      await transporter.sendMail(adminMailOptions);
-    } catch (adminEmailError) {
-      // Don't fail the whole process if admin email fails
+      try {
+        await transporter.sendMail(adminMailOptions);
+      } catch (adminEmailError) {
+        // Don't fail the whole process if admin email fails
+      }
     }
 
     return NextResponse.json({

@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Xtrawrkx CRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Host+Grotesk:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link rel="stylesheet" href="../shared/brand-tokens.css" />
+    <link rel="stylesheet" href="sidebar.css" />
+  </head>
+  <body>
+    <div class="xtrawrkx-sidebar-container">
+      <!-- Header -->
+      <div class="xtrawrkx-sidebar-header">
+        <div class="xtrawrkx-sidebar-title">
+          <div
+            class="xtrawrkx-logo"
+            id="xtrawrkx-logo-btn"
+            style="cursor: pointer"
+          >
+            <!-- <svg
+              class="xtrawrkx-logo-icon"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 2L2 7L12 12L22 7L12 2Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M2 17L12 22L22 17"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M2 12L12 17L22 12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg> -->
+            <span class="xtrawrkx-logo-text">Xtrawrkx</span>
+          </div>
+        </div>
+        <div class="xtrawrkx-header-actions">
+          <button
+            class="xtrawrkx-header-icon-btn"
+            id="xtrawrkx-refresh-btn"
+            aria-label="Refresh data"
+            title="Refresh data"
+          >
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <button
+            class="xtrawrkx-header-btn-cta"
+            id="xtrawrkx-crm-btn"
+            aria-label="Open CRM in new tab"
+            title="Open CRM in new tab"
+          >
+            <i class="fas fa-external-link-alt"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="xtrawrkx-sidebar-content">
+        <!-- Login Form (shown when not authenticated) -->
+        <div class="xtrawrkx-login-form" id="xtrawrkx-login-form">
+          <div class="xtrawrkx-login-card">
+            <div class="xtrawrkx-login-header">
+              <h2>Welcome Back</h2>
+              <p>Sign in to import LinkedIn data to your CRM</p>
+            </div>
+            <form id="xtrawrkx-auth-form" class="xtrawrkx-form">
+              <div class="xtrawrkx-form-group">
+                <label for="xtrawrkx-login-email">Email Address</label>
+                <input
+                  type="email"
+                  id="xtrawrkx-login-email"
+                  placeholder="Enter your email"
+                  required
+                  autocomplete="email"
+                />
+              </div>
+              <div class="xtrawrkx-form-group">
+                <label for="xtrawrkx-login-password">Password</label>
+                <input
+                  type="password"
+                  id="xtrawrkx-login-password"
+                  placeholder="Enter your password"
+                  required
+                  autocomplete="current-password"
+                />
+              </div>
+              <div class="xtrawrkx-form-actions">
+                <button
+                  type="submit"
+                  class="btn-primary"
+                  id="xtrawrkx-login-submit"
+                >
+                  <span>Sign In</span>
+                  <div class="btn-icon">
+                    <i class="fas fa-sign-in-alt"></i>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  id="xtrawrkx-open-crm"
+                >
+                  <span>Open CRM Settings</span>
+                  <div class="btn-icon">
+                    <i class="fas fa-external-link-alt"></i>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  id="xtrawrkx-test-connection"
+                  style="margin-top: 8px; font-size: 12px"
+                >
+                  <span>Test Connection</span>
+                </button>
+              </div>
+              <div
+                class="xtrawrkx-login-error"
+                id="xtrawrkx-login-error"
+                style="display: none"
+              ></div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Data Import UI (shown when authenticated) -->
+        <div
+          class="xtrawrkx-sidebar-loading"
+          id="xtrawrkx-sidebar-loading"
+          style="display: none"
+        >
+          <div class="xtrawrkx-loading-card">
+            <div class="xtrawrkx-spinner"></div>
+            <h3>Please wait</h3>
+            <p>Loading…</p>
+          </div>
+        </div>
+
+        <!-- Existing Lead Details UI (shown when contact already exists) -->
+        <div
+          class="xtrawrkx-existing-lead"
+          id="xtrawrkx-existing-lead"
+          style="display: none"
+        >
+          <div class="xtrawrkx-existing-top">
+            <div class="xtrawrkx-card xtrawrkx-existing-profile-card">
+              <div class="xtrawrkx-existing-profile">
+                <div class="xtrawrkx-existing-image xtrawrkx-avatar" id="xtrawrkx-existing-image">
+                  <i class="fas fa-user default-avatar"></i>
+                </div>
+                <div class="xtrawrkx-existing-info">
+                  <h2 class="xtrawrkx-existing-name" id="xtrawrkx-existing-name">Name</h2>
+                  <p class="xtrawrkx-existing-subtitle" id="xtrawrkx-existing-title">Title</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="xtrawrkx-tab-navigation">
+              <button class="xtrawrkx-tab-btn active" data-tab="details" id="xtrawrkx-details-tab">
+                <i class="fas fa-id-card"></i><span>Details</span>
+              </button>
+              <button class="xtrawrkx-tab-btn" data-tab="related" id="xtrawrkx-related-tab">
+                <i class="fas fa-link"></i><span>Related</span>
+              </button>
+              <button class="xtrawrkx-tab-btn" data-tab="company" id="xtrawrkx-company-tab">
+                <i class="fas fa-building"></i><span>Company</span>
+              </button>
+              <button class="xtrawrkx-tab-btn" data-tab="chats" id="xtrawrkx-chats-tab">
+                <i class="fas fa-comments"></i><span>Chats</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="xtrawrkx-existing-content">
+            <div class="xtrawrkx-tab-content active" id="xtrawrkx-details-content">
+              <div class="xtrawrkx-card">
+                <div class="xtrawrkx-card-title-row">
+                  <span class="xtrawrkx-card-title-icon"><i class="fas fa-user"></i></span>
+                  <h3 class="xtrawrkx-card-title">Contact Overview</h3>
+                </div>
+                <div class="xtrawrkx-info-rows">
+                  <div class="xtrawrkx-info-row">
+                    <div class="xtrawrkx-info-row-header">
+                      <span class="xtrawrkx-info-row-icon"><i class="fas fa-user"></i></span>
+                      <span class="xtrawrkx-info-label">Name</span>
+                    </div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-existing-full-name">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row">
+                    <div class="xtrawrkx-info-row-header">
+                      <span class="xtrawrkx-info-row-icon"><i class="fas fa-building"></i></span>
+                      <span class="xtrawrkx-info-label">Company</span>
+                    </div>
+                    <div class="xtrawrkx-info-value xtrawrkx-info-value--emphasize" id="xtrawrkx-existing-company">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row">
+                    <div class="xtrawrkx-info-row-header">
+                      <span class="xtrawrkx-info-row-icon"><i class="fas fa-briefcase"></i></span>
+                      <span class="xtrawrkx-info-label">Title</span>
+                    </div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-existing-job-title">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row">
+                    <div class="xtrawrkx-info-row-header">
+                      <span class="xtrawrkx-info-row-icon"><i class="fas fa-tag"></i></span>
+                      <span class="xtrawrkx-info-label">Contact Type</span>
+                    </div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-existing-contact-type">Potential Customer</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-info-row--last">
+                    <div class="xtrawrkx-info-row-header">
+                      <span class="xtrawrkx-info-row-icon"><i class="fas fa-user-tie"></i></span>
+                      <span class="xtrawrkx-info-label">Owner</span>
+                    </div>
+                    <div class="xtrawrkx-info-value">
+                      <span class="xtrawrkx-emphasis-pill" id="xtrawrkx-existing-owner">-</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xtrawrkx-card">
+                <div class="xtrawrkx-card-title-row">
+                  <span class="xtrawrkx-card-title-icon"><i class="fas fa-address-book"></i></span>
+                  <h3 class="xtrawrkx-card-title">Contact Details</h3>
+                </div>
+                <div class="xtrawrkx-info-rows">
+                  <div class="xtrawrkx-info-row">
+                    <div class="xtrawrkx-info-row-header">
+                      <span class="xtrawrkx-info-row-icon"><i class="fas fa-envelope"></i></span>
+                      <span class="xtrawrkx-info-label">Work Email</span>
+                    </div>
+                    <div class="xtrawrkx-info-value xtrawrkx-inline-editable xtrawrkx-email-placeholder" id="xtrawrkx-existing-email" data-field="email" title="Click to edit">Add Email</div>
+                  </div>
+                  <div class="xtrawrkx-info-row">
+                    <div class="xtrawrkx-info-row-header">
+                      <span class="xtrawrkx-info-row-icon"><i class="fas fa-phone"></i></span>
+                      <span class="xtrawrkx-info-label">Work Phone</span>
+                    </div>
+                    <div class="xtrawrkx-info-value xtrawrkx-inline-editable xtrawrkx-phone-placeholder" id="xtrawrkx-existing-phone" data-field="phone" title="Click to edit">Add Phone</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-info-row--last">
+                    <div class="xtrawrkx-info-row-header">
+                      <span class="xtrawrkx-info-row-icon"><i class="fas fa-globe"></i></span>
+                      <span class="xtrawrkx-info-label">Website</span>
+                    </div>
+                    <div class="xtrawrkx-info-value xtrawrkx-inline-editable xtrawrkx-website-placeholder" id="xtrawrkx-existing-website" data-field="companyWebsite" title="Click to edit">Add Website</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xtrawrkx-card">
+                <div class="xtrawrkx-card-title-row">
+                  <span class="xtrawrkx-card-title-icon"><i class="fas fa-align-left"></i></span>
+                  <h3 class="xtrawrkx-card-title">About</h3>
+                </div>
+                <div class="xtrawrkx-info-value xtrawrkx-description-text xtrawrkx-description-empty" id="xtrawrkx-existing-description">
+                  No description available
+                </div>
+              </div>
+            </div>
+
+            <div class="xtrawrkx-tab-content" id="xtrawrkx-related-content">
+              <div class="xtrawrkx-metrics-grid">
+                <div class="xtrawrkx-metric-card">
+                  <span class="xtrawrkx-metric-icon"><i class="fas fa-trophy"></i></span>
+                  <span class="xtrawrkx-info-label">Total Won</span>
+                  <div class="xtrawrkx-metric-value" id="xtrawrkx-total-won">₹0</div>
+                </div>
+                <div class="xtrawrkx-metric-card">
+                  <span class="xtrawrkx-metric-icon"><i class="fas fa-chart-pie"></i></span>
+                  <span class="xtrawrkx-info-label">Win Rate</span>
+                  <div class="xtrawrkx-metric-value" id="xtrawrkx-win-rate">0%</div>
+                </div>
+              </div>
+
+              <div class="xtrawrkx-card xtrawrkx-accordion-card xtrawrkx-related-section">
+                <div class="xtrawrkx-accordion-header xtrawrkx-related-header">
+                  <div class="xtrawrkx-accordion-title">
+                    <span class="xtrawrkx-card-title-icon"><i class="fas fa-handshake"></i></span>
+                    <h3 class="xtrawrkx-accordion-label" id="xtrawrkx-deals-title">Deals (0)</h3>
+                  </div>
+                  <button type="button" class="xtrawrkx-expand-btn" aria-label="Toggle deals"><i class="fas fa-chevron-down"></i></button>
+                </div>
+                <div class="xtrawrkx-related-content-area expanded" id="xtrawrkx-pipeline-content">
+                  <div class="xtrawrkx-empty-state">No pipeline records found</div>
+                </div>
+              </div>
+
+              <div class="xtrawrkx-card xtrawrkx-accordion-card xtrawrkx-related-section">
+                <div class="xtrawrkx-accordion-header xtrawrkx-related-header">
+                  <div class="xtrawrkx-accordion-title">
+                    <span class="xtrawrkx-card-title-icon"><i class="fas fa-tasks"></i></span>
+                    <h3 class="xtrawrkx-accordion-label" id="xtrawrkx-tasks-title">Tasks (0)</h3>
+                  </div>
+                  <div class="xtrawrkx-accordion-actions">
+                    <button type="button" class="xtrawrkx-expand-btn" aria-label="Toggle tasks"><i class="fas fa-chevron-down"></i></button>
+                    <button type="button" class="xtrawrkx-add-btn" title="Add task"><i class="fas fa-plus"></i></button>
+                  </div>
+                </div>
+                <div class="xtrawrkx-related-content-area" id="xtrawrkx-tasks-content">
+                  <div class="xtrawrkx-empty-state">No tasks found</div>
+                </div>
+              </div>
+
+              <div class="xtrawrkx-card xtrawrkx-accordion-card xtrawrkx-related-section">
+                <div class="xtrawrkx-accordion-header xtrawrkx-related-header">
+                  <div class="xtrawrkx-accordion-title">
+                    <span class="xtrawrkx-card-title-icon"><i class="fas fa-file-alt"></i></span>
+                    <h3 class="xtrawrkx-accordion-label" id="xtrawrkx-files-title">Files (0)</h3>
+                  </div>
+                  <div class="xtrawrkx-accordion-actions">
+                    <button type="button" class="xtrawrkx-expand-btn" aria-label="Toggle files"><i class="fas fa-chevron-down"></i></button>
+                    <button type="button" class="xtrawrkx-add-btn" title="Add file"><i class="fas fa-plus"></i></button>
+                  </div>
+                </div>
+                <div class="xtrawrkx-related-content-area" id="xtrawrkx-files-content">
+                  <div class="xtrawrkx-empty-state">No files found</div>
+                </div>
+              </div>
+
+              <div class="xtrawrkx-card xtrawrkx-accordion-card xtrawrkx-related-section">
+                <div class="xtrawrkx-accordion-header xtrawrkx-related-header">
+                  <div class="xtrawrkx-accordion-title">
+                    <span class="xtrawrkx-card-title-icon"><i class="fas fa-calendar-alt"></i></span>
+                    <h3 class="xtrawrkx-accordion-label" id="xtrawrkx-calendar-title">Calendar Events (0)</h3>
+                  </div>
+                  <div class="xtrawrkx-accordion-actions">
+                    <button type="button" class="xtrawrkx-expand-btn" aria-label="Toggle calendar"><i class="fas fa-chevron-down"></i></button>
+                    <button type="button" class="xtrawrkx-add-btn" title="Add event"><i class="fas fa-plus"></i></button>
+                  </div>
+                </div>
+                <div class="xtrawrkx-related-content-area" id="xtrawrkx-calendar-content">
+                  <div class="xtrawrkx-empty-state">No calendar events found</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="xtrawrkx-tab-content" id="xtrawrkx-company-content">
+              <div class="xtrawrkx-card xtrawrkx-company-hero">
+                <div class="xtrawrkx-company-hero-inner">
+                  <div class="xtrawrkx-company-hero-icon"><i class="fas fa-building"></i></div>
+                  <div class="xtrawrkx-company-hero-body">
+                    <h3 class="xtrawrkx-company-hero-name" id="xtrawrkx-company-name">Company Name</h3>
+                    <span class="xtrawrkx-company-status-badge lead" id="xtrawrkx-company-status">Lead</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xtrawrkx-card">
+                <div class="xtrawrkx-card-title-row">
+                  <span class="xtrawrkx-card-title-icon"><i class="fas fa-info-circle"></i></span>
+                  <h3 class="xtrawrkx-card-title">Company Information</h3>
+                </div>
+                <div class="xtrawrkx-info-rows xtrawrkx-company-details">
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-industry"></i></span><span class="xtrawrkx-info-label">Industry</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-industry">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-globe"></i></span><span class="xtrawrkx-info-label">Website</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-website">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-users"></i></span><span class="xtrawrkx-info-label">Employees</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-employees">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-calendar"></i></span><span class="xtrawrkx-info-label">Founded</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-founded">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-map-marker-alt"></i></span><span class="xtrawrkx-info-label">Location</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-location">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-heartbeat"></i></span><span class="xtrawrkx-info-label">Health Score</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-health-score">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row xtrawrkx-lead-only" id="xtrawrkx-lead-segment-row" style="display: none">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-layer-group"></i></span><span class="xtrawrkx-info-label">Segment</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-segment">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row xtrawrkx-lead-only" id="xtrawrkx-lead-status-row" style="display: none">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-flag"></i></span><span class="xtrawrkx-info-label">Lead Status</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-lead-status">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row xtrawrkx-lead-only" id="xtrawrkx-deal-value-row" style="display: none">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-rupee-sign"></i></span><span class="xtrawrkx-info-label">Deal Value</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-deal-value">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row xtrawrkx-client-only" id="xtrawrkx-client-type-row" style="display: none">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-id-badge"></i></span><span class="xtrawrkx-info-label">Client Type</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-client-type">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row xtrawrkx-client-only" id="xtrawrkx-revenue-row" style="display: none">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-chart-line"></i></span><span class="xtrawrkx-info-label">Revenue</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-revenue">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row xtrawrkx-client-only" id="xtrawrkx-conversion-date-row" style="display: none">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-exchange-alt"></i></span><span class="xtrawrkx-info-label">Conversion Date</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-conversion-date">-</div>
+                  </div>
+                  <div class="xtrawrkx-info-row xtrawrkx-company-row xtrawrkx-info-row--last">
+                    <div class="xtrawrkx-info-row-header"><span class="xtrawrkx-info-row-icon"><i class="fas fa-clock"></i></span><span class="xtrawrkx-info-label">Last Contact</span></div>
+                    <div class="xtrawrkx-info-value" id="xtrawrkx-company-last-contact">-</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xtrawrkx-card xtrawrkx-accordion-card xtrawrkx-related-section">
+                <div class="xtrawrkx-accordion-header xtrawrkx-related-header">
+                  <div class="xtrawrkx-accordion-title">
+                    <span class="xtrawrkx-card-title-icon"><i class="fas fa-address-book"></i></span>
+                    <h3 class="xtrawrkx-accordion-label" id="xtrawrkx-company-contacts-title">Other Contacts (0)</h3>
+                  </div>
+                  <button type="button" class="xtrawrkx-expand-btn" aria-label="Toggle contacts"><i class="fas fa-chevron-down"></i></button>
+                </div>
+                <div class="xtrawrkx-related-content-area expanded" id="xtrawrkx-company-contacts-content">
+                  <div class="xtrawrkx-empty-state">No other contacts found</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="xtrawrkx-tab-content" id="xtrawrkx-chats-content">
+              <div class="xtrawrkx-card">
+                <div class="xtrawrkx-card-title-row xtrawrkx-chats-header">
+                  <div class="xtrawrkx-accordion-title">
+                    <span class="xtrawrkx-card-title-icon"><i class="fas fa-comments"></i></span>
+                    <h3 class="xtrawrkx-card-title">Recent Messages</h3>
+                  </div>
+                  <button type="button" class="xtrawrkx-add-btn" title="Start New Chat"><i class="fas fa-plus"></i></button>
+                </div>
+                <div class="xtrawrkx-chats-list" id="xtrawrkx-chats-list">
+                  <div class="xtrawrkx-empty-state">No chat messages found</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Action Button -->
+          <div class="xtrawrkx-existing-actions">
+            <button class="btn-view-crm" id="xtrawrkx-view-crm-btn">
+              <span>View in CRM</span>
+              <div class="btn-icon">
+                <i class="fas fa-arrow-up-right"></i>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="xtrawrkx-sidebar-body"
+          id="xtrawrkx-sidebar-body"
+          style="display: none"
+        >
+          <!-- Profile + Activity group -->
+          <div class="xtrawrkx-profile-stack">
+          <div class="xtrawrkx-card xtrawrkx-profile-card">
+            <div class="xtrawrkx-profile-header">
+              <div class="xtrawrkx-profile-left">
+                <div class="xtrawrkx-profile-image xtrawrkx-avatar" id="xtrawrkx-profile-image">
+                  <i class="fas fa-user default-avatar"></i>
+                </div>
+                <div class="xtrawrkx-profile-info">
+                  <h2 class="xtrawrkx-profile-name" id="xtrawrkx-profile-name">
+                    Name
+                  </h2>
+                  <p
+                    class="xtrawrkx-profile-headline"
+                    id="xtrawrkx-profile-headline"
+                    style="display: none"
+                  ></p>
+                  <p
+                    class="xtrawrkx-profile-location"
+                    id="xtrawrkx-profile-location"
+                    style="display: none"
+                  ></p>
+                </div>
+              </div>
+            </div>
+            <button class="btn-add-xtrawrkx xtrawrkx-profile-import-btn" id="xtrawrkx-import-btn">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <span>Import to CRM</span>
+            </button>
+          </div>
+
+          <!-- Activity Score -->
+          <div
+            class="xtrawrkx-card xtrawrkx-activity-score-section"
+            id="xtrawrkx-activity-score-section"
+            style="display: none"
+          >
+            <div class="xtrawrkx-card-title-row">
+              <span class="xtrawrkx-card-title-icon"><i class="fas fa-chart-line"></i></span>
+              <h3 class="xtrawrkx-card-title">Activity Score</h3>
+            </div>
+            <div class="xtrawrkx-activity-score-top">
+              <p class="xtrawrkx-activity-score-summary" id="xtrawrkx-activity-score-summary">
+                Based on recent LinkedIn posts
+              </p>
+              <div class="xtrawrkx-activity-score-badge" id="xtrawrkx-activity-score-badge">
+                <span class="xtrawrkx-activity-score-value" id="xtrawrkx-activity-score-value">0</span>
+                <span class="xtrawrkx-activity-score-max">/100</span>
+              </div>
+            </div>
+            <div class="xtrawrkx-activity-score-bar">
+              <div
+                class="xtrawrkx-activity-score-fill"
+                id="xtrawrkx-activity-score-fill"
+                style="width: 0%"
+              ></div>
+            </div>
+            <div class="xtrawrkx-activity-score-label" id="xtrawrkx-activity-score-label">
+              Inactive
+            </div>
+          </div>
+          </div>
+
+          <!-- Experience Selection Section -->
+          <div
+            class="xtrawrkx-card xtrawrkx-experience-section"
+            id="xtrawrkx-experience-section"
+            style="display: none"
+          >
+            <div class="xtrawrkx-card-title-row">
+              <span class="xtrawrkx-card-title-icon"><i class="fas fa-briefcase"></i></span>
+              <h3 class="xtrawrkx-card-title">Select Experience to Add</h3>
+            </div>
+            <div class="xtrawrkx-experience-list" id="xtrawrkx-experience-list">
+              <!-- Experience items will be populated by JavaScript -->
+            </div>
+          </div>
+
+          <div
+            class="xtrawrkx-divider"
+            id="xtrawrkx-experience-divider"
+            style="display: none"
+          ></div>
+
+          <!-- Details Section -->
+          <div class="xtrawrkx-card xtrawrkx-details-section">
+            <div class="xtrawrkx-card-title-row">
+              <span class="xtrawrkx-card-title-icon"><i class="fas fa-id-card"></i></span>
+              <h3 class="xtrawrkx-card-title">Profile Details</h3>
+            </div>
+
+            <div class="xtrawrkx-info-rows">
+              <div
+                class="xtrawrkx-info-row"
+                id="xtrawrkx-job-title-item"
+                style="display: none"
+              >
+                <div class="xtrawrkx-info-row-header">
+                  <span class="xtrawrkx-info-row-icon"><i class="fas fa-briefcase"></i></span>
+                  <span class="xtrawrkx-info-label" id="xtrawrkx-job-title-label">Job Title</span>
+                </div>
+                <div class="xtrawrkx-info-value" id="xtrawrkx-job-title">-</div>
+              </div>
+
+              <div
+                class="xtrawrkx-info-row"
+                id="xtrawrkx-linkedin-item"
+                style="display: none"
+              >
+                <div class="xtrawrkx-info-row-header">
+                  <span class="xtrawrkx-info-row-icon"><i class="fab fa-linkedin-in"></i></span>
+                  <span class="xtrawrkx-info-label">LinkedIn</span>
+                </div>
+                <div class="xtrawrkx-info-value">
+                  <a
+                    href="#"
+                    id="xtrawrkx-linkedin-url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="xtrawrkx-linkedin-link"
+                    >-</a
+                  >
+                </div>
+              </div>
+
+              <div
+                class="xtrawrkx-info-row"
+                id="xtrawrkx-description-item"
+                style="display: none"
+              >
+                <div class="xtrawrkx-info-row-header">
+                  <span class="xtrawrkx-info-row-icon"><i class="fas fa-align-left"></i></span>
+                  <span class="xtrawrkx-info-label">About</span>
+                </div>
+                <div
+                  class="xtrawrkx-info-value xtrawrkx-description-text"
+                  id="xtrawrkx-description"
+                >
+                  -
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="xtrawrkx-company-highlight"
+              id="xtrawrkx-company-section"
+              style="display: none"
+            >
+              <div class="xtrawrkx-company-highlight-icon">
+                <i class="fas fa-building"></i>
+              </div>
+              <div class="xtrawrkx-company-highlight-body">
+                <span class="xtrawrkx-info-label">Company</span>
+                <div
+                  class="xtrawrkx-company-highlight-name"
+                  id="xtrawrkx-profile-company-name"
+                >
+                  -
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="../utils/logger.js"></script>
+    <script src="../utils/config.js"></script>
+    <script src="../utils/error-handler.js"></script>
+    <script src="../content/profile-url-utils.js"></script>
+    <script src="../content/profile-structured-parser.js"></script>
+    <script src="sidebar.js"></script>
+  </body>
+</html>

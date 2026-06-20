@@ -1,152 +1,168 @@
-# Xtrawrkx LinkedIn Extension - Installation Guide
+# Xtrawrkx LinkedIn Extension Setup Guide
 
-## 🚀 Quick Installation (5 minutes)
+This guide explains how to install and use the Xtrawrkx LinkedIn Extension.
 
-### Step 1: Extract the Files
+The extension helps you import visible LinkedIn profile and company details into the Xtrawrkx CRM.
 
-1. Extract the `dist` folder you received to any location on your computer
-2. Remember this location (you'll need it in Step 2)
+## Before You Start
 
-### Step 2: Load Extension in Chrome/Edge
+You need:
 
-1. **Open Chrome** (or Edge) browser
+- Google Chrome installed
+- Access to LinkedIn
+- Your Xtrawrkx CRM login details
+- The extension ZIP file or Chrome Web Store link shared by the Xtrawrkx team
 
-2. **Go to Extensions Page:**
+## Option 1: Install From Chrome Web Store
 
-   - Type in address bar: `chrome://extensions/`
-   - Or click the puzzle icon (⋮) → More tools → Extensions
+Use this option if the Xtrawrkx team shared a Chrome Web Store link.
 
-3. **Enable Developer Mode:**
+1. Open the Chrome Web Store link.
+2. Click **Add to Chrome**.
+3. Click **Add extension** when Chrome asks for confirmation.
+4. Wait for the extension to install.
+5. Click the puzzle icon in the Chrome toolbar.
+6. Find **Xtrawrkx LinkedIn Extension**.
+7. Click the pin icon so the extension stays visible.
 
-   - Toggle "Developer mode" switch in the **top-right corner**
+Chrome will update the extension automatically when a new version is published.
 
-4. **Load the Extension:**
+## Option 2: Install Manually For Testing
 
-   - Click **"Load unpacked"** button (top-left)
-   - Navigate to and select the **`dist`** folder you extracted
-   - Click "Select Folder"
+Use this option only if the Xtrawrkx team shared a ZIP file for testing.
 
-5. **Pin the Extension:**
-   - Click the puzzle icon in Chrome toolbar
-   - Find "Xtrawrkx LinkedIn Extension"
-   - Click the pin icon to keep it visible
+### Extract The ZIP
 
-✅ **Extension is now installed!**
+1. Download the ZIP file.
+2. Right-click the ZIP file and select **Extract All**.
+3. Choose a safe location on your computer.
+4. Open the extracted folder and confirm it contains `manifest.json`.
 
----
+Important: Chrome must load the folder that directly contains `manifest.json`.
 
-## ⚙️ Configuration
+### Load The Extension
 
-### Step 3: Sign In
+1. Open Chrome.
+2. Go to `chrome://extensions`.
+3. Turn on **Developer mode** in the top-right corner.
+4. Click **Load unpacked**.
+5. Select the extracted extension folder.
+6. Click **Select Folder**.
 
-1. **Click the extension icon** in your toolbar
+The extension should now appear in Chrome.
 
-2. **The sidebar will open** - Click **"Sign In"**
+## Pin The Extension
 
-3. **Enter your credentials:**
+1. Click the puzzle icon in the Chrome toolbar.
+2. Find **Xtrawrkx LinkedIn Extension**.
+3. Click the pin icon.
 
-   - **Email:** Your Xtrawrkx account email
-   - **Password:** Your Xtrawrkx password
+This keeps the extension visible while you work on LinkedIn.
 
-4. **Click "Sign In"**
+## Sign In
 
-✅ **You're all set!**
+1. Click the Xtrawrkx extension icon.
+2. The sidebar will open.
+3. Click **Sign In**.
+4. Enter your Xtrawrkx CRM email and password.
+5. Click **Sign In**.
 
----
+After signing in, the extension is ready to use.
 
-## 📝 How to Use
+## Import A LinkedIn Profile
 
-### Import LinkedIn Profile
+1. Open LinkedIn.
+2. Visit a LinkedIn profile page.
+3. Click the Xtrawrkx extension icon.
+4. Review the detected profile details.
+5. If the person has multiple roles, select the correct experience.
+6. Click **Import to CRM**.
 
-1. **Visit any LinkedIn profile** (e.g., linkedin.com/in/john-doe)
+The contact will be added to the Xtrawrkx CRM.
 
-2. **Click the extension icon** in your toolbar
+## Import A LinkedIn Company
 
-3. **Sidebar will open** with the profile data
+1. Open a LinkedIn company page.
+2. Click the Xtrawrkx extension icon.
+3. Review the detected company details.
+4. Click **Import to CRM** or **Import Company**.
 
-4. **Review the information** and click **"Import Contact"**
+The company will be added to the Xtrawrkx CRM.
 
-5. **Success!** Contact is now in your Xtrawrkx CRM
+## Updating The Extension
 
-### Import LinkedIn Company
+### Chrome Web Store Install
 
-1. **Visit any LinkedIn company page** (e.g., linkedin.com/company/example)
+No manual action is usually required. Chrome updates the extension automatically.
 
-2. **Click the extension icon**
+### Manual Testing Install
 
-3. **Review company data** and click **"Import Company"**
+If the Xtrawrkx team sends a new ZIP:
 
-4. **Done!** Company is added to your CRM
+1. Extract the new ZIP.
+2. Go to `chrome://extensions`.
+3. Find **Xtrawrkx LinkedIn Extension**.
+4. Click **Remove** on the old version.
+5. Click **Load unpacked**.
+6. Select the new extracted folder.
 
----
+## Troubleshooting
 
-## 🔧 Troubleshooting
+### Extension Is Not Visible
 
-### Extension Not Loading?
+- Click the puzzle icon in Chrome.
+- Pin **Xtrawrkx LinkedIn Extension**.
+- Refresh the LinkedIn page.
 
-- Make sure you selected the **`dist`** folder (not the parent folder)
-- Check that "Developer mode" is enabled
-- Try restarting Chrome
+### Extension Does Not Load
 
-### Not Signed In?
+- Make sure **Developer mode** is enabled.
+- Make sure you selected the folder that directly contains `manifest.json`.
+- Try removing the extension and loading it again.
+- Restart Chrome if needed.
 
-- Click the extension icon
-- Click "Sign In" button
-- Enter your Xtrawrkx credentials
+### Sign In Fails
 
-### Import Not Working?
+- Confirm your email and password.
+- Confirm you have access to the Xtrawrkx CRM.
+- Check your internet connection.
+- Contact the Xtrawrkx team if your account is not active.
 
-- Make sure you're signed in
-- Check your internet connection
-- Make sure you're on a LinkedIn profile or company page
-- Try refreshing the LinkedIn page
+### Profile Details Are Missing Or Wrong
 
-### Profile Data Not Showing?
+- Wait a few seconds for LinkedIn to finish loading.
+- Scroll through the profile once so LinkedIn loads all sections.
+- Refresh the LinkedIn page.
+- Open the extension again.
+- Select the correct experience before importing.
 
-- Make sure you're on `linkedin.com/in/*` (for profiles)
-- Or `linkedin.com/company/*` (for companies)
-- Wait a moment for the page to fully load
-- Click the extension icon to open the sidebar
+### Import Does Not Work
 
----
+- Make sure you are signed in.
+- Make sure you are on a LinkedIn profile or company page.
+- Refresh LinkedIn and try again.
+- If the issue continues, share the LinkedIn URL and a screenshot with the Xtrawrkx team.
 
-## 🌐 Connection Information
+## Data And Security
 
-This extension connects to:
+The extension connects to:
 
-- **Production API:** `https://xtrawrkxsuits-production.up.railway.app`
-- **LinkedIn:** To extract profile and company data
+- LinkedIn pages you open in Chrome
+- Xtrawrkx CRM API: `https://xtrawrkxsuits-production.up.railway.app`
 
-All data is securely transmitted to your Xtrawrkx CRM system.
+The extension is used to send selected LinkedIn profile/company details to the Xtrawrkx CRM. It does not run bulk imports automatically.
 
----
+## Support
 
-## 📞 Support
+If you face an issue, please share:
 
-If you encounter any issues:
+- Your Chrome version
+- A screenshot of the issue
+- The LinkedIn profile or company URL
+- Whether you installed from Chrome Web Store or manually
 
-1. Check this guide's troubleshooting section
-2. Contact your Xtrawrkx administrator
-3. Email support: support@xtrawrkx.com
+## Version
 
----
+Extension version: `1.2.0`
 
-## 🔒 Privacy & Security
-
-- ✅ Your credentials are stored securely in Chrome
-- ✅ Extension only works on LinkedIn.com
-- ✅ No data is collected or shared with third parties
-- ✅ All communication uses HTTPS encryption
-
----
-
-## 📌 Important Notes
-
-- This is a **development installation** - the extension won't auto-update
-- When you receive updates, you'll need to replace the `dist` folder and reload
-- Keep the `dist` folder in a safe location (don't delete it!)
-
----
-
-**Version:** 1.0.0
-**Last Updated:** January 2026
+Last updated: June 2026

@@ -1,5 +1,57 @@
 // Email utility functions for event registration
 
+import {
+    buildClientPortalAuthUrl,
+    buildClientPortalDashboardUrl,
+} from "@/src/lib/onboardingEmail";
+
+/**
+ * Send account onboarding confirmation email (personal email only).
+ * Typically triggered server-side after new website signup; exposed for manual retries.
+ *
+ * @param {Object} signupData
+ * @returns {Promise<boolean>}
+ */
+export const sendAccountOnboardingEmail = async (signupData) => {
+    try {
+        const email = String(signupData?.email || "").trim().toLowerCase();
+        if (!email) return false;
+
+        const firstName = String(signupData?.firstName || "").trim();
+        const lastName = String(signupData?.lastName || "").trim();
+        const displayName = String(signupData?.displayName || "").trim();
+        const primaryContactName =
+            displayName || [firstName, lastName].filter(Boolean).join(" ") || email.split("@")[0];
+
+        const emailData = {
+            primaryContactName,
+            primaryContactEmail: email,
+            companyName: signupData?.companyName || signupData?.company || "",
+            portalUrl: buildClientPortalAuthUrl(email),
+            dashboardUrl: buildClientPortalDashboardUrl(email),
+            notifyAdmin: false,
+        };
+
+        const response = await fetch("/api/send-email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                type: "account_onboarding",
+                data: emailData,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.details || errorData.error || "Failed to send email");
+        }
+
+        return true;
+    } catch {
+        return false;
+    }
+};
+
 /**
  * Send registration confirmation email
  * @param {Object} registrationData - Registration data from the form
