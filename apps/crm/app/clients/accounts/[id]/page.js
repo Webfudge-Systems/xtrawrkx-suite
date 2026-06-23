@@ -35,6 +35,7 @@ import {
   Receipt,
   FolderKanban,
   CheckSquare,
+  KeyRound,
 } from 'lucide-react';
 import {
   Button,
@@ -354,6 +355,11 @@ export default function ClientAccountDetailPage() {
   const [crmTimelineLoading, setCrmTimelineLoading] = useState(false);
   const [crmTimelineError, setCrmTimelineError] = useState(null);
   const [contactActionMenu, setContactActionMenu] = useState(null);
+  const [passwordModalContact, setPasswordModalContact] = useState(null);
+  const [portalPasswordDraft, setPortalPasswordDraft] = useState('');
+  const [portalPasswordConfirm, setPortalPasswordConfirm] = useState('');
+  const [portalPasswordSaving, setPortalPasswordSaving] = useState(false);
+  const [portalPasswordError, setPortalPasswordError] = useState('');
   const canEditClientAccount = canWriteCRM('client_accounts');
   const canEditTasks = canWriteCRM('tasks');
   const canCreateDeals = canWriteCRM('deals');
@@ -1039,6 +1045,52 @@ export default function ClientAccountDetailPage() {
     a.download = `client-account-${account.id || id}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+  };
+
+  const openPasswordModal = (contact) => {
+    setPasswordModalContact(contact);
+    setPortalPasswordDraft('');
+    setPortalPasswordConfirm('');
+    setPortalPasswordError('');
+  };
+
+  const closePasswordModal = () => {
+    if (portalPasswordSaving) return;
+    setPasswordModalContact(null);
+    setPortalPasswordDraft('');
+    setPortalPasswordConfirm('');
+    setPortalPasswordError('');
+  };
+
+  const handlePortalPasswordSubmit = async (event) => {
+    event.preventDefault();
+    if (!passwordModalContact?.id) return;
+
+    const password = portalPasswordDraft.trim();
+    if (password.length < 6) {
+      setPortalPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== portalPasswordConfirm.trim()) {
+      setPortalPasswordError('Passwords do not match.');
+      return;
+    }
+
+    setPortalPasswordSaving(true);
+    setPortalPasswordError('');
+    try {
+      await clientAccountService.changeContactPortalPassword(id, passwordModalContact.id, password);
+      setPasswordModalContact(null);
+      setPortalPasswordDraft('');
+      setPortalPasswordConfirm('');
+      alert('Client portal password updated.');
+      reloadCrmTimeline({ silent: true }).catch(() => null);
+    } catch (error) {
+      console.error(error);
+      setPortalPasswordError(error?.message || 'Failed to update client portal password.');
+    } finally {
+      setPortalPasswordSaving(false);
+    }
   };
 
   const linkedinHref = useMemo(
@@ -2739,6 +2791,19 @@ export default function ClientAccountDetailPage() {
                     <ClipboardList className="h-4 w-4 shrink-0 text-teal-600" />
                     Create Task
                   </button>
+                  {canEditClientAccount ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-teal-50 hover:text-teal-700"
+                      onClick={() => {
+                        setContactActionMenu(null);
+                        openPasswordModal(row);
+                      }}
+                    >
+                      <KeyRound className="h-4 w-4 shrink-0 text-teal-600" />
+                      Change Portal Password
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-teal-50 hover:text-teal-700"
@@ -2753,6 +2818,74 @@ export default function ClientAccountDetailPage() {
                 </TableRowActionMenuPortal>
               );
             })()}
+
+          <Modal
+            isOpen={Boolean(passwordModalContact)}
+            onClose={closePasswordModal}
+            title="Change portal password"
+            size="md"
+            closeOnBackdrop={!portalPasswordSaving}
+          >
+            <form className="space-y-5" onSubmit={handlePortalPasswordSubmit}>
+              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+                Update the client portal password for{' '}
+                <span className="font-semibold">{contactDisplayName(passwordModalContact)}</span>
+                {passwordModalContact?.email ? (
+                  <span className="text-orange-800"> ({passwordModalContact.email})</span>
+                ) : null}
+                .
+              </div>
+              <div className="space-y-4">
+                <Input
+                  label="New password"
+                  type="password"
+                  value={portalPasswordDraft}
+                  onChange={(e) => {
+                    setPortalPasswordDraft(e.target.value);
+                    setPortalPasswordError('');
+                  }}
+                  placeholder="Enter new client portal password"
+                  autoComplete="new-password"
+                  disabled={portalPasswordSaving}
+                />
+                <Input
+                  label="Confirm password"
+                  type="password"
+                  value={portalPasswordConfirm}
+                  onChange={(e) => {
+                    setPortalPasswordConfirm(e.target.value);
+                    setPortalPasswordError('');
+                  }}
+                  placeholder="Re-enter password"
+                  autoComplete="new-password"
+                  disabled={portalPasswordSaving}
+                />
+              </div>
+              {portalPasswordError ? (
+                <p className="text-sm text-red-600" role="alert">
+                  {portalPasswordError}
+                </p>
+              ) : null}
+              <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="button"
+                  variant="muted"
+                  disabled={portalPasswordSaving}
+                  onClick={closePasswordModal}
+                  className="w-full rounded-xl border-[1.5px] border-gray-400 bg-gray-300 px-5 py-2.5 sm:w-auto"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={portalPasswordSaving}
+                  className="w-full border-0 bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md hover:opacity-95 sm:w-auto"
+                >
+                  {portalPasswordSaving ? 'Updating...' : 'Update password'}
+                </Button>
+              </div>
+            </form>
+          </Modal>
 
           <Modal
             isOpen={assigneeModalOpen}

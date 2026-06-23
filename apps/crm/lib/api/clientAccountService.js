@@ -57,4 +57,13 @@ export default {
     await strapiClient.delete(`${ENDPOINT}/${id}`);
     return {};
   },
+
+  async changeContactPortalPassword(id, contactId, password) {
+    return strapiClient.post(
+      `${ENDPOINT}/${encodeURIComponent(String(id))}/contacts/${encodeURIComponent(
+        String(contactId)
+      )}/portal-password`,
+      { password }
+    );
+  },
 };

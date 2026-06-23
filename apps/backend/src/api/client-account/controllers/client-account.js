@@ -21,6 +21,7 @@ const {
   ensureWebsiteClientAccount,
   getPublicCommunityStatusByEmail,
 } = require('../../../utils/website-signup');
+const { updateCompanyMember } = require('../../../utils/company-members');
 
 const UID = 'api::client-account.client-account';
 
@@ -239,6 +240,57 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
 
     await strapi.entityService.delete(UID, id);
     return { data: { id } };
+  },
+
+  async changeContactPortalPassword(ctx) {
+    if (!ctx.state.user) return ctx.unauthorized('Missing or invalid credentials');
+    if (!ctx.state.orgId) return ctx.forbidden('No active organization');
+    const denied = requireModuleAccess(ctx, 'crm', 'client_accounts', 'write');
+    if (denied) return denied;
+
+    const { id, contactId } = ctx.params;
+    const password = String(ctx.request?.body?.password || '').trim();
+    if (password.length < 6) {
+      return ctx.badRequest('Password must be at least 6 characters');
+    }
+
+    const existing = await strapi.entityService.findOne(UID, id, {
+      populate: ['organization'],
+    });
+    if (!existing) return ctx.notFound('Client account not found');
+    if (orgIdFromRelation(existing.organization) !== ctx.state.orgId) {
+      return ctx.forbidden('Access denied');
+    }
+
+    const result = await updateCompanyMember(strapi, id, contactId, { password });
+    if (!result.ok) {
+      return ctx.send({ error: { message: result.message } }, result.status || 400);
+    }
+
+    try {
+      await logCrmActivity(strapi, {
+        organizationId: ctx.state.orgId,
+        actorUserId: ctx.state.user?.id,
+        action: 'update',
+        subjectType: 'contact',
+        subjectId: Number(contactId),
+        entity: {
+          id: Number(contactId),
+          name: result.member?.name || result.member?.email || `Contact ${contactId}`,
+        },
+        changedKeys: ['portalPassword'],
+      });
+    } catch (_) {
+      /* best-effort */
+    }
+
+    return ctx.send({
+      data: {
+        contactId: Number(contactId),
+        clientAccountId: Number(id),
+        member: result.member,
+      },
+    });
   },
 
   async websiteSignup(ctx) {

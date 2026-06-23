@@ -26,5 +26,15 @@ module.exports = {
         middlewares: [],
       },
     },
+    {
+      method: 'POST',
+      path: '/client-accounts/:id/contacts/:contactId/portal-password',
+      handler: 'client-account.changeContactPortalPassword',
+      config: {
+        auth: false,
+        policies: [],
+        middlewares: [],
+      },
+    },
   ],
 };
