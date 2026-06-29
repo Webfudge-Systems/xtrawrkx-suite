@@ -7,6 +7,7 @@ const {
   ORG_MEMBERSHIP_UID,
 } = require('./utils/organization-role');
 const redis = require('./utils/redis');
+const { ensureClientAccountOnboardingDataColumn } = require('./utils/ensure-client-account-schema');
 
 module.exports = {
   /**
@@ -26,6 +27,18 @@ module.exports = {
    */
   async bootstrap({ strapi }) {
     console.log('🚀 Strapi is bootstrapping...');
+
+    try {
+      const schemaResult = await ensureClientAccountOnboardingDataColumn(strapi);
+      if (schemaResult.added) {
+        console.log(`✅ Added client_accounts.onboarding_data (${schemaResult.column})`);
+      }
+    } catch (e) {
+      console.warn(
+        '⚠️ Could not ensure client_accounts.onboarding_data column:',
+        e?.message || e
+      );
+    }
 
     if (redis.isRedisConfigured()) {
       const hostHint = (redis.resolveRedisUrl() || '').replace(/:[^:@]+@/, ':****@');

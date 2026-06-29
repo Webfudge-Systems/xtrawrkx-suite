@@ -73,6 +73,16 @@ If signup fails on `www.xtrawrkx.com` with **403** or **Client account setup fai
 
 **422**: company name missing on profile sync, or CRM returned success without a client account payload — complete company step on signup or use **Retry Setup** on profile.
 
+**`column "onboarding_data" of relation "client_accounts" does not exist`**: production Postgres is missing the `onboardingData` schema column. Fix:
+
+1. **Redeploy Strapi** — bootstrap auto-adds `onboarding_data` on startup (`ensure-client-account-schema.js`).
+2. **Or run manually** (Railway Postgres):
+   ```bash
+   cd apps/backend
+   DATABASE_URL="postgresql://..." npm run migrate:client-accounts-onboarding-data
+   ```
+   See [LANDING_SIGNUP_ONBOARDING_DATA_COLUMN_FIX.md](./LANDING_SIGNUP_ONBOARDING_DATA_COLUMN_FIX.md).
+
 Existing website users can use **Retry Setup** on their profile (re-triggers profile sync + client account provisioning).
 
 ## Landing login vs CRM client account

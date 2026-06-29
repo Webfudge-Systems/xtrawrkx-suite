@@ -16,6 +16,7 @@
     "test:redis": "node scripts/test-redis.js",
     "reset:db": "node scripts/reset-local-db.js",
     "migrate:legacy-users": "node scripts/migrate-xtrawrkx-users-to-up-users.js",
+    "migrate:client-accounts-onboarding-data": "node scripts/migrate-client-accounts-onboarding-data.js",
     "backfill:task-assigners": "node scripts/backfill-task-assigners.js",
     "backfill:task-assigners:dry-run": "node scripts/backfill-task-assigners.js --dry-run",
     "flush:api-cache": "node scripts/flush-api-cache.js",
