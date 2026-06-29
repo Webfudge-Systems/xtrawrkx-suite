@@ -73,6 +73,7 @@ async function listActiveMemberships(userId, withModules = false) {
     populate: {
       role: true,
       organization: {
+        fields: ['id', 'systemRolePermissions'],
         populate: {
           subscriptions: {
             populate: withModules ? { app: true, selectedModules: true } : { app: true },

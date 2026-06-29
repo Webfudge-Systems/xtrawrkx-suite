@@ -112,6 +112,10 @@
                 "allowedEmailDomains": []
             }
         },
+        "systemRolePermissions": {
+            "type": "json",
+            "default": {}
+        },
         "fiscalYearStart": {
             "type": "integer",
             "default": 4,

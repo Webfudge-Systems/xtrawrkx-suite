@@ -16,6 +16,7 @@ import {
 import AccountsPageHeader from '../../components/AccountsPageHeader'
 import RoleTableCell from '../../components/RoleTableCell'
 import { rolesService } from '../../lib/api'
+import { isOrganizationAdmin } from '../../lib/accountsAccess'
 import { ACCESS_OPTIONS, CRM_MODULES, PM_MODULES, emptyPermissionsDraft } from '../../lib/constants/rbacMatrix'
 
 const ACCESS_RANK = { none: 0, read: 1, write: 2, manage: 3 }
@@ -156,6 +157,8 @@ export default function RolesPage() {
   const [deleteRole, setDeleteRole] = useState(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
+  const canManageRoles = useMemo(() => isOrganizationAdmin(), [])
+
   const {
     columnVisibility,
     columnOrder,
@@ -263,6 +266,14 @@ export default function RolesPage() {
     setFormError('')
   }
 
+  const openEditSystem = (role) => {
+    setDetailModal({ mode: 'edit-system', role })
+    setFormName(role.name || '')
+    setFormDescription(role.description || '')
+    setFormMatrix(clonePermissions(role.permissions))
+    setFormError('')
+  }
+
   const openCreate = () => {
     setDetailModal({ mode: 'create' })
     setFormName('')
@@ -292,7 +303,7 @@ export default function RolesPage() {
   const submitForm = async () => {
     if (!detailModal) return
     const name = formName.trim()
-    if (!name) {
+    if (!name && detailModal.mode !== 'edit-system') {
       setFormError('Role name is required.')
       return
     }
@@ -309,6 +320,11 @@ export default function RolesPage() {
       } else if (detailModal.mode === 'edit' && detailModal.role?.id) {
         await rolesService.update(detailModal.role.id, {
           name,
+          description: formDescription.trim(),
+          permissions: formMatrix,
+        })
+      } else if (detailModal.mode === 'edit-system' && detailModal.role?.id) {
+        await rolesService.update(detailModal.role.id, {
           description: formDescription.trim(),
           permissions: formMatrix,
         })
@@ -388,19 +404,34 @@ export default function RolesPage() {
         render: (_, role) => (
           <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
             {role.isSystem ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                title="View permissions"
-                className="p-2 text-teal-600 hover:bg-teal-50"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  openViewSystem(role)
-                }}
-              >
-                <Eye className="w-4 h-4" />
-              </Button>
-            ) : (
+              canManageRoles ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Edit system role permissions"
+                  className="p-2 text-emerald-600 hover:bg-emerald-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openEditSystem(role)
+                  }}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="View permissions"
+                  className="p-2 text-teal-600 hover:bg-teal-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openViewSystem(role)
+                  }}
+                >
+                  <Eye className="w-4 h-4" />
+                </Button>
+              )
+            ) : canManageRoles ? (
               <>
                 <Button
                   variant="ghost"
@@ -427,12 +458,12 @@ export default function RolesPage() {
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </>
-            )}
+            ) : null}
           </div>
         ),
       },
     ],
-    []
+    [canManageRoles]
   )
 
   const visibleColumns = useMemo(() => {
@@ -447,6 +478,9 @@ export default function RolesPage() {
   }, [columns, columnVisibility, columnOrder])
 
   const readOnlyModal = Boolean(detailModal?.mode === 'view-system')
+  const systemRoleNameLocked = Boolean(
+    detailModal?.mode === 'view-system' || detailModal?.mode === 'edit-system'
+  )
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-white min-h-full">
@@ -468,7 +502,7 @@ export default function RolesPage() {
         <KPICard
           title="System Templates"
           value={stats.systemCount}
-          subtitle="Immutable Admin / Manager / Member"
+          subtitle="Admin, Manager, Member — editable by org admins"
           icon={Shield}
           colorScheme="orange"
         />
@@ -494,7 +528,7 @@ export default function RolesPage() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="Search roles..."
-          showAdd
+          showAdd={canManageRoles}
           onAddClick={openCreate}
           addTitle="Add Custom Role"
           showColumnVisibility
@@ -519,8 +553,8 @@ export default function RolesPage() {
       </div>
 
       <p className="text-xs text-gray-500">
-        System roles ship with recommended CRM and PM access. Custom roles are stored only for the active organization
-        and can be assigned when inviting or editing users (admins only for create / edit / delete).
+        System roles (Admin, Manager, Member) define CRM and PM access for this organization. Organization admins can
+        edit their permissions and descriptions; custom roles can be created for additional permission mixes.
       </p>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -554,7 +588,9 @@ export default function RolesPage() {
             ? 'Add Custom Role'
             : detailModal?.mode === 'edit'
               ? 'Edit Custom Role'
-              : 'System role — permissions'
+              : detailModal?.mode === 'edit-system'
+                ? 'Edit system role — permissions'
+                : 'System role — permissions'
         }
         size="lg"
         closeOnBackdrop={!formSaving}
@@ -563,7 +599,7 @@ export default function RolesPage() {
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Role name</label>
             <Input
-              disabled={readOnlyModal}
+              disabled={systemRoleNameLocked}
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
               placeholder="e.g. Revenue Operations"
@@ -600,7 +636,7 @@ export default function RolesPage() {
             />
           </div>
 
-          {!readOnlyModal ? (
+            {!readOnlyModal ? (
             <div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 mb-2">Quick presets</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -619,7 +655,8 @@ export default function RolesPage() {
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-              System templates are immutable. Create a custom role when you need a different CRM or PM permission mix.
+              You can view this system template. Organization admins can edit CRM and PM permissions for this
+              organization.
             </div>
           )}
 
@@ -631,7 +668,11 @@ export default function RolesPage() {
             </Button>
             {!readOnlyModal ? (
               <Button variant="primary" onClick={submitForm} disabled={formSaving}>
-                {formSaving ? 'Saving...' : detailModal?.mode === 'edit' ? 'Save role' : 'Create role'}
+                {formSaving
+                  ? 'Saving...'
+                  : detailModal?.mode === 'edit' || detailModal?.mode === 'edit-system'
+                    ? 'Save role'
+                    : 'Create role'}
               </Button>
             ) : null}
           </div>

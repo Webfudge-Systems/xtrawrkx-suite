@@ -126,8 +126,11 @@ function userCanViewProjectRow(ctx, project, userId) {
   return false;
 }
 
-function roleBasePermissions(role) {
-  if (role?.isSystem) return defaultPermissionsForSystemCode(role?.code || role?.name || 'member');
+function roleBasePermissions(role, orgSystemRoleOverrides) {
+  if (role?.isSystem) {
+    const { resolveSystemRolePermissions } = require('./org-system-role-overrides');
+    return resolveSystemRolePermissions(role, orgSystemRoleOverrides);
+  }
   const raw = role?.permissions;
   const hasStored = isObject(raw) && Object.keys(raw).length > 0;
   if (hasStored) return normalizePermissions(raw);
@@ -156,7 +159,12 @@ function applyPermissionOverrides(base, overrides) {
 
 function resolveEffectivePermissions(membership) {
   const role = membership?.role || {};
-  const base = roleBasePermissions(role);
+  const org = membership?.organization;
+  const orgOverrides =
+    org && typeof org === 'object' && org.systemRolePermissions && typeof org.systemRolePermissions === 'object'
+      ? org.systemRolePermissions
+      : null;
+  const base = roleBasePermissions(role, orgOverrides);
   return applyPermissionOverrides(base, membership?.customPermissions);
 }
 
@@ -262,6 +270,7 @@ module.exports = {
   isPmOrgManagerRole,
   isPmOrgMemberRole,
   membershipSummary,
+  orgRoleFromCtx,
   projectIsPrivate,
   relationId,
   requireAppSettingsManage,

@@ -6,6 +6,7 @@ import AdminLayout from "@/src/components/admin/AdminLayout";
 import ProtectedRoute from "@/src/components/admin/ProtectedRoute";
 import { eventService } from "@/src/services/databaseService";
 import { uploadImage } from "@/src/services/cloudinaryService";
+import { parseRegistrationDeadlineInput } from "@/src/utils/eventRegistration";
 import Button from "@/src/components/common/Button";
 
 export default function NewEvent() {
@@ -234,9 +235,9 @@ export default function NewEvent() {
       const eventData = {
         ...formData,
         date: formData.date ? new Date(formData.date) : new Date(),
-        registrationDeadline: formData.registrationDeadline
-          ? new Date(formData.registrationDeadline)
-          : null,
+        registrationDeadline: parseRegistrationDeadlineInput(
+          formData.registrationDeadline
+        ),
       };
 
       await eventService.createEvent(eventData);
@@ -740,6 +741,10 @@ export default function NewEvent() {
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Registrations close automatically at the end of this date. Leave
+                    empty for no deadline.
+                  </p>
                 </div>
               </div>
             </div>

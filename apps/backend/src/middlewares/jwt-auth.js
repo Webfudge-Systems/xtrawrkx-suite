@@ -48,7 +48,10 @@ module.exports = (config, { strapi }) => {
               {
                 filters: { user: user.id, organization: orgId, isActive: true },
                 limit: 1,
-                populate: { role: true },
+                populate: {
+                  role: true,
+                  organization: { fields: ['id', 'systemRolePermissions'] },
+                },
               }
             );
             if (membership.length > 0) {
@@ -72,7 +75,10 @@ module.exports = (config, { strapi }) => {
               filters: { user: user.id, isActive: true },
               sort: { joinedAt: 'ASC' },
               limit: 1,
-              populate: { organization: true, role: true },
+              populate: {
+                organization: { fields: ['id', 'systemRolePermissions'] },
+                role: true,
+              },
             }
           );
           if (firstMembership.length > 0 && firstMembership[0].organization) {

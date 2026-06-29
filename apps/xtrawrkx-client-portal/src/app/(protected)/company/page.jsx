@@ -8,7 +8,7 @@ import {
   Users,
   UserCheck,
   Shield,
-  CircleCheck,
+  CheckCircle2,
   Plus,
   Pencil,
   Trash2,
@@ -636,7 +636,7 @@ export default function CompanyMembersPage() {
             {
               label: "Pending Invites",
               count: kpis.invited,
-              icon: CircleCheck,
+              icon: CheckCircle2,
             },
           ].map((item) => (
             <KPICard
