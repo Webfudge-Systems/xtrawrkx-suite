@@ -3,7 +3,7 @@
 import {
     buildClientPortalAuthUrl,
     buildClientPortalDashboardUrl,
-} from "@/src/lib/onboardingEmail";
+} from "@/src/lib/clientPortalUrls";
 
 /**
  * Send account onboarding confirmation email (personal email only).
