@@ -13,6 +13,11 @@ import {
 } from "@/src/services/databaseService";
 import { CloudinaryService } from "@/src/services/cloudinaryService";
 import { formatEventDate } from "@/src/utils/dateUtils";
+import {
+  formatRegistrationDeadline,
+  getRegistrationClosedReason,
+  isRegistrationOpen,
+} from "@/src/utils/eventRegistration";
 import RegistrationSuccess from "@/src/components/common/RegistrationSuccess";
 import { commonToasts, toastUtils } from "@/src/utils/toast";
 import {
@@ -324,6 +329,9 @@ export default function SeasonRegistration({ params }) {
   };
 
   const handleEventSelection = (eventId) => {
+    const target = seasonEvents.find((ev) => ev.id === eventId);
+    if (target && !isRegistrationOpen(target)) return;
+
     setFormData((prev) => ({
       ...prev,
       selectedEvents: prev.selectedEvents.includes(eventId)
@@ -989,6 +997,17 @@ export default function SeasonRegistration({ params }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const blockedEvent = seasonEvents.find(
+      (ev) =>
+        formData.selectedEvents.includes(ev.id) && !isRegistrationOpen(ev)
+    );
+    if (blockedEvent) {
+      toastUtils.error(
+        `${blockedEvent.title}: ${getRegistrationClosedReason(blockedEvent)}`
+      );
+      return;
+    }
+
     if (!validateForm()) {
       toastUtils.validationError(
         "Please correct the errors in the form before submitting."
@@ -1255,6 +1274,40 @@ export default function SeasonRegistration({ params }) {
   const fromEventData = fromEvent
     ? seasonEvents.find((e) => e.slug === fromEvent)
     : null;
+
+  if (fromEventData && !isRegistrationOpen(fromEventData)) {
+    const deadlineLabel = formatRegistrationDeadline(
+      fromEventData.registrationDeadline
+    );
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full rounded-2xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+          <Icon
+            icon="mdi:calendar-remove"
+            className="text-amber-500 mx-auto mb-4"
+            width={56}
+          />
+          <h1 className="text-xl font-bold text-gray-900 mb-2">
+            Registration closed
+          </h1>
+          <p className="text-sm text-gray-600 mb-6">
+            {getRegistrationClosedReason(fromEventData)}
+          </p>
+          {deadlineLabel && (
+            <p className="text-xs text-gray-500 mb-6">
+              Registration deadline: {deadlineLabel}
+            </p>
+          )}
+          <Button
+            text={`Back to ${fromEventData.title}`}
+            type="primary"
+            link={`/events/${fromEvent}`}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const registrationLabel =
     fromEventData?.title || `Season ${season} registration`;
   const registerRedirect = fromEvent
@@ -1427,30 +1480,45 @@ export default function SeasonRegistration({ params }) {
                 )}
 
                 <div className="space-y-4">
-                  {seasonEvents.map((event) => (
+                  {seasonEvents.map((event) => {
+                    const open = isRegistrationOpen(event);
+                    const deadlineLabel = formatRegistrationDeadline(
+                      event.registrationDeadline
+                    );
+                    return (
                     <div
                       key={event.id}
-                      className={`border rounded-xl p-4 cursor-pointer transition-all ${
-                        formData.selectedEvents.includes(event.id)
-                          ? "border-brand-primary bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300"
+                      className={`border rounded-xl p-4 transition-all ${
+                        !open
+                          ? "border-gray-200 bg-gray-50 opacity-70 cursor-not-allowed"
+                          : formData.selectedEvents.includes(event.id)
+                            ? "border-brand-primary bg-blue-50 cursor-pointer"
+                            : "border-gray-200 hover:border-gray-300 cursor-pointer"
                       }`}
-                      onClick={() => handleEventSelection(event.id)}
+                      onClick={() => open && handleEventSelection(event.id)}
                     >
                       <div className="flex items-start space-x-4">
                         <div className="flex-shrink-0 mt-1">
                           <input
                             type="checkbox"
+                            disabled={!open}
                             checked={formData.selectedEvents.includes(event.id)}
                             onChange={() => handleEventSelection(event.id)}
-                            onClick={() => handleEventSelection(event.id)}
-                            className="w-5 h-5 text-brand-primary border-gray-300 rounded focus:ring-brand-primary cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-5 h-5 text-brand-primary border-gray-300 rounded focus:ring-brand-primary cursor-pointer disabled:cursor-not-allowed"
                           />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 mb-2">
-                            {event.title}
-                          </h3>
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900">
+                              {event.title}
+                            </h3>
+                            {!open && (
+                              <span className="text-xs font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                                Registration closed
+                              </span>
+                            )}
+                          </div>
                           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                             <div className="flex items-center gap-1">
                               <Icon icon="mdi:calendar" width={16} />
@@ -1472,10 +1540,16 @@ export default function SeasonRegistration({ params }) {
                               {event.description}
                             </p>
                           )}
+                          {open && deadlineLabel && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              Register by {deadlineLabel}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
 

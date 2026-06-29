@@ -11,6 +11,8 @@ const {
   canManageAppSettings,
   canManageOrganizationProfile,
   canManageOrganizationSecurity,
+  isAdminRole,
+  orgRoleFromCtx,
   relationId,
 } = require('../../../utils/rbac');
 const {
@@ -23,6 +25,12 @@ const {
   ORG_ROLE_UID,
 } = require('../../../utils/organization-role');
 const { logAccountsActivity, actorDisplayName } = require('../../../utils/crm-activity-log');
+const {
+  readOverrides,
+  resolveSystemRolePermissions,
+  resolveSystemRoleDescription,
+  buildSystemRoleOverrideEntry,
+} = require('../../../utils/org-system-role-overrides');
 const { usernameExists } = require('../../../utils/user-username');
 const {
   applyMembershipDepartments,
@@ -38,10 +46,10 @@ function getRolesAdminError(ctx, orgIdFromParams) {
   if (!ctx.state.effectivePermissions && !ctx.state.orgPermissions) {
     return 'Permissions are not available for this organization';
   }
-  if (canManageAppSettings(ctx)) {
+  if (canManageAppSettings(ctx) || isAdminRole(orgRoleFromCtx(ctx))) {
     return null;
   }
-  return 'Only users with manage access to CRM or PM settings can manage roles';
+  return 'Only organization admins or users with CRM/PM settings manage access can manage roles';
 }
 
 function buildRoleCode(name, organizationId) {
@@ -265,6 +273,8 @@ module.exports = createCoreController('api::organization.organization', ({ strap
       });
       if (!organization) return ctx.notFound('Organization not found');
 
+      const orgOverrides = readOverrides(organization);
+
       const roles = await strapi.entityService.findMany(ORG_ROLE_UID, {
         filters: {
           $or: [{ organization: id }, { organization: { $null: true } }],
@@ -276,18 +286,17 @@ module.exports = createCoreController('api::organization.organization', ({ strap
 
       const roleAccess = roles.map((role) => {
         const isSystem = Boolean(role.isSystem);
-        const permissions =
-          isSystem
-            ? rbac.defaultPermissionsForSystemCode(role.code)
-            : role.permissions && typeof role.permissions === 'object' && Object.keys(role.permissions).length > 0
-              ? rbac.normalizePermissions(role.permissions)
-              : rbac.normalizePermissions({});
+        const permissions = isSystem
+          ? resolveSystemRolePermissions(role, orgOverrides)
+          : role.permissions && typeof role.permissions === 'object' && Object.keys(role.permissions).length > 0
+            ? rbac.normalizePermissions(role.permissions)
+            : rbac.normalizePermissions({});
         return {
           id: role.id,
           name: role.name,
           code: role.code,
           isSystem,
-          accessLevel: role.accessLevel,
+          accessLevel: isSystem ? rbac.deriveAccessLevel(permissions) : role.accessLevel,
           permissions,
         };
       });
@@ -883,6 +892,15 @@ module.exports = createCoreController('api::organization.organization', ({ strap
         return ctx.forbidden('You do not have access to this organization');
       }
 
+      const organization = await strapi.entityService.findOne('api::organization.organization', id, {
+        fields: ['id', 'systemRolePermissions'],
+      });
+      if (!organization) {
+        return ctx.notFound('Organization not found');
+      }
+
+      const orgOverrides = readOverrides(organization);
+
       const systemRoles = await strapi.entityService.findMany(ORG_ROLE_UID, {
         // Strapi filtering by null relation; TS types omit $null shorthand.
         /** @type {any} */
@@ -900,20 +918,18 @@ module.exports = createCoreController('api::organization.organization', ({ strap
       });
 
       const mapRow = (row, isSystem) => {
-        const rawPerms = row.permissions;
-        const hasStored = rawPerms && typeof rawPerms === 'object' && Object.keys(rawPerms).length > 0;
         const permissions = isSystem
-          ? rbac.defaultPermissionsForSystemCode(row.code)
-          : hasStored
-            ? rbac.normalizePermissions(rawPerms)
+          ? resolveSystemRolePermissions(row, orgOverrides)
+          : row.permissions && typeof row.permissions === 'object' && Object.keys(row.permissions).length > 0
+            ? rbac.normalizePermissions(row.permissions)
             : rbac.normalizePermissions({});
 
         return {
           id: row.id,
           name: row.name,
           code: row.code,
-          accessLevel: row.accessLevel,
-          description: row.description,
+          accessLevel: isSystem ? rbac.deriveAccessLevel(permissions) : row.accessLevel,
+          description: isSystem ? resolveSystemRoleDescription(row, orgOverrides) : row.description,
           isSystem,
           organizationId: isSystem ? null : parseInt(String(id), 10),
           permissions,
@@ -1006,7 +1022,59 @@ module.exports = createCoreController('api::organization.organization', ({ strap
       /** @type {any} */
       const row = existing;
       if (row.isSystem) {
-        return ctx.badRequest('System roles cannot be modified');
+        const org = await strapi.entityService.findOne('api::organization.organization', id, {
+          fields: ['id', 'systemRolePermissions'],
+        });
+        if (!org) {
+          return ctx.notFound('Organization not found');
+        }
+
+        const { name, permissions, description } = ctx.request.body || {};
+        if (typeof name === 'string' && name.trim() && name.trim() !== row.name) {
+          return ctx.badRequest('System role names cannot be changed');
+        }
+
+        const code = String(row.code || '').toLowerCase();
+        const currentOverrides = readOverrides(org);
+        const entry = buildSystemRoleOverrideEntry(currentOverrides[code], {
+          permissions: permissions && typeof permissions === 'object' ? permissions : undefined,
+          description: typeof description === 'string' ? description : undefined,
+        });
+
+        if (!entry.permissions && typeof entry.description !== 'string') {
+          return ctx.send({
+            success: true,
+            data: {
+              ...row,
+              description: resolveSystemRoleDescription(row, currentOverrides),
+              permissions: resolveSystemRolePermissions(row, currentOverrides),
+            },
+          });
+        }
+
+        const nextOverrides = {
+          ...currentOverrides,
+          [code]: entry,
+        };
+
+        await strapi.entityService.update('api::organization.organization', id, {
+          data: { systemRolePermissions: nextOverrides },
+        });
+
+        const mergedPermissions = resolveSystemRolePermissions(row, nextOverrides);
+        return ctx.send({
+          success: true,
+          data: {
+            id: row.id,
+            name: row.name,
+            code: row.code,
+            isSystem: true,
+            organizationId: null,
+            accessLevel: rbac.deriveAccessLevel(mergedPermissions),
+            description: resolveSystemRoleDescription(row, nextOverrides),
+            permissions: mergedPermissions,
+          },
+        });
       }
 
       const orgPk = typeof row.organization === 'object' ? row.organization?.id : row.organization;

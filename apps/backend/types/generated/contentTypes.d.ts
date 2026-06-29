@@ -2089,6 +2089,7 @@ export interface ApiOrganizationOrganization extends Struct.CollectionTypeSchema
     status: Schema.Attribute.Enumeration<['trial', 'active', 'suspended', 'cancelled']> &
       Schema.Attribute.DefaultTo<'trial'>
     subscriptions: Schema.Attribute.Relation<'oneToMany', 'api::subscription.subscription'>
+    systemRolePermissions: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<{}>
     taxName: Schema.Attribute.String & Schema.Attribute.DefaultTo<'GST'>
     trialEndsAt: Schema.Attribute.DateTime
     updatedAt: Schema.Attribute.DateTime

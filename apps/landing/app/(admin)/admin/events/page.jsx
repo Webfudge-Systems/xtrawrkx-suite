@@ -11,6 +11,10 @@ import {
 import { getPDFViewingUrl } from "@/src/services/cloudinaryService";
 import { uploadImage } from "@/src/services/cloudinaryService";
 import { formatDate } from "@/src/utils/dateUtils";
+import {
+  parseRegistrationDeadlineInput,
+  toDateInputValue,
+} from "@/src/utils/eventRegistration";
 import Button from "@/src/components/common/Button";
 import { commonToasts, toastUtils } from "@/src/utils/toast";
 
@@ -3057,6 +3061,8 @@ function EventModal({ isOpen, onClose, event, onSave }) {
     status: "upcoming",
     agenda: [],
     speakers: [],
+    registrationEnabled: true,
+    registrationDeadline: "",
   });
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -3094,6 +3100,8 @@ function EventModal({ isOpen, onClose, event, onSave }) {
         status: eventStatus,
         agenda: event.agenda || [],
         speakers: event.speakers || [],
+        registrationEnabled: event.registrationEnabled !== false,
+        registrationDeadline: toDateInputValue(event.registrationDeadline),
       });
     } else {
       setOriginalStatus("");
@@ -3115,6 +3123,8 @@ function EventModal({ isOpen, onClose, event, onSave }) {
         status: "upcoming",
         agenda: [],
         speakers: [],
+        registrationEnabled: true,
+        registrationDeadline: "",
       });
     }
     setErrors({});
@@ -3143,10 +3153,10 @@ function EventModal({ isOpen, onClose, event, onSave }) {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
 
     // Clear error when user starts typing
@@ -3367,11 +3377,17 @@ function EventModal({ isOpen, onClose, event, onSave }) {
 
     try {
       setSaving(true);
+      const payload = {
+        ...formData,
+        registrationDeadline: parseRegistrationDeadlineInput(
+          formData.registrationDeadline
+        ),
+      };
       if (event) {
-        await eventService.update(event.id, formData);
+        await eventService.update(event.id, payload);
         toastUtils.success("Event updated successfully!");
       } else {
-        await eventService.createEvent(formData);
+        await eventService.createEvent(payload);
         toastUtils.success("Event created successfully!");
       }
       onSave();
@@ -3701,6 +3717,45 @@ function EventModal({ isOpen, onClose, event, onSave }) {
                         {errors.capacity}
                       </p>
                     )}
+                  </div>
+
+                  <div className="md:col-span-2 rounded-xl border border-gray-200 bg-gray-50/80 p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Icon icon="mdi:account-clock-outline" width={18} />
+                      Registration settings
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex items-center">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="registrationEnabled"
+                            checked={formData.registrationEnabled}
+                            onChange={handleInputChange}
+                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                          />
+                          <span className="text-sm font-medium text-gray-700">
+                            Enable registration
+                          </span>
+                        </label>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Registration deadline
+                        </label>
+                        <input
+                          type="date"
+                          name="registrationDeadline"
+                          value={formData.registrationDeadline}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Registrations close automatically at the end of this date.
+                          Leave empty for no deadline.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

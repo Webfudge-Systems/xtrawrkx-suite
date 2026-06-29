@@ -8,6 +8,10 @@ import Button from "@/src/components/common/Button";
 import { Icon } from "@iconify/react";
 import { EventService, galleryService } from "@/src/services/databaseService";
 import { formatEventDate } from "@/src/utils/dateUtils";
+import {
+  formatRegistrationDeadline,
+  isRegistrationOpen,
+} from "@/src/utils/eventRegistration";
 
 export default function EventPage({ params }) {
   const { slug } = use(params);
@@ -235,6 +239,11 @@ export default function EventPage({ params }) {
   }
 
   const eventCompleted = isEventCompleted(event.date);
+  const registrationOpen = isRegistrationOpen(event);
+  const showRegisterCta = !eventCompleted && registrationOpen;
+  const registrationDeadlineLabel = formatRegistrationDeadline(
+    event.registrationDeadline
+  );
 
   const registerLink =
     event.season === "individual"
@@ -259,7 +268,7 @@ export default function EventPage({ params }) {
       `}</style>
 
       {/* Sticky mobile Register CTA */}
-      {!eventCompleted && (
+      {showRegisterCta && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] backdrop-blur-md lg:hidden">
           <a
             href={registerLink}
@@ -271,7 +280,7 @@ export default function EventPage({ params }) {
         </div>
       )}
 
-      <div className={`min-h-screen bg-white${!eventCompleted ? " pb-20 lg:pb-0" : ""}`}>
+      <div className={`min-h-screen bg-white${showRegisterCta ? " pb-20 lg:pb-0" : ""}`}>
         {/* Hero Section */}
         <Section className="relative w-full h-[90vh] min-h-[600px] md:h-[70vh] md:min-h-[500px] flex items-center justify-center overflow-hidden p-0">
           {/* Background image */}
@@ -324,8 +333,24 @@ export default function EventPage({ params }) {
               </div>
             </div>
 
-            {/* Action buttons - conditional based on event status */}
-            {!eventCompleted && (
+            {!showRegisterCta && !eventCompleted && (
+              <div className="mx-auto max-w-lg rounded-2xl border border-amber-200/80 bg-amber-50/90 px-5 py-4 text-center text-amber-900">
+                <p className="text-sm font-semibold">Registration closed</p>
+                <p className="mt-1 text-sm text-amber-800/90">
+                  {registrationDeadlineLabel
+                    ? `The deadline was ${registrationDeadlineLabel}.`
+                    : "Registration is no longer available for this event."}
+                </p>
+              </div>
+            )}
+
+            {showRegisterCta && registrationDeadlineLabel && (
+              <p className="mt-4 text-center text-sm text-white/85">
+                Register by {registrationDeadlineLabel}
+              </p>
+            )}
+
+            {showRegisterCta && (
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button
                   text="Event Registration"
@@ -1105,7 +1130,7 @@ export default function EventPage({ params }) {
 
                   {/* Action buttons - conditional based on event status */}
                   <div className="mt-4 md:mt-6 pt-4 md:pt-6 border-t border-gray-200">
-                    {!eventCompleted ? (
+                    {showRegisterCta ? (
                       <>
                         <Button
                           text="Event Registration"
@@ -1235,14 +1260,16 @@ export default function EventPage({ params }) {
                   </div>
                 ))}
               </div>
-              <div className="mt-4 md:mt-6">
-                <Button
-                  text={`Register for Season ${event.season}`}
-                  type="primary"
-                  link={`/events/season/${event.season}/register?from=${slug}`}
-                  className="bg-gradient-to-r from-brand-primary to-brand-secondary w-full md:w-[30%] mx-auto text-sm md:text-base"
-                />
-              </div>
+              {showRegisterCta && (
+                <div className="mt-4 md:mt-6">
+                  <Button
+                    text={`Register for Season ${event.season}`}
+                    type="primary"
+                    link={`/events/season/${event.season}/register?from=${slug}`}
+                    className="bg-gradient-to-r from-brand-primary to-brand-secondary w-full md:w-[30%] mx-auto text-sm md:text-base"
+                  />
+                </div>
+              )}
             </Container>
           </Section>
         )}

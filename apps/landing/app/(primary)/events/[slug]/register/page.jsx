@@ -12,6 +12,11 @@ import {
   EventService,
 } from "@/src/services/databaseService";
 import { formatEventDate } from "@/src/utils/dateUtils";
+import {
+  formatRegistrationDeadline,
+  getRegistrationClosedReason,
+  isRegistrationOpen,
+} from "@/src/utils/eventRegistration";
 import Script from "next/script";
 import Image from "next/image";
 import { commonToasts, toastUtils } from "@/src/utils/toast";
@@ -421,6 +426,11 @@ export default function CompanyEventRegistration({ params }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!isRegistrationOpen(event)) {
+      toastUtils.error(getRegistrationClosedReason(event));
+      return;
+    }
+
     if (!validateForm()) {
       toastUtils.validationError(
         "Please correct the errors in the form before submitting."
@@ -624,6 +634,37 @@ export default function CompanyEventRegistration({ params }) {
         registrationData={successData}
         onRedirect={() => (window.location.href = "/events")}
       />
+    );
+  }
+
+  if (event && !isRegistrationOpen(event)) {
+    const deadlineLabel = formatRegistrationDeadline(event.registrationDeadline);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full rounded-2xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+          <Icon
+            icon="mdi:calendar-remove"
+            className="text-amber-500 mx-auto mb-4"
+            width={56}
+          />
+          <h1 className="text-xl font-bold text-gray-900 mb-2">
+            Registration closed
+          </h1>
+          <p className="text-sm text-gray-600 mb-6">
+            {getRegistrationClosedReason(event)}
+          </p>
+          {deadlineLabel && (
+            <p className="text-xs text-gray-500 mb-6">
+              Registration deadline: {deadlineLabel}
+            </p>
+          )}
+          <Button
+            text={`Back to ${event.title}`}
+            type="primary"
+            link={`/events/${slug}`}
+          />
+        </div>
+      </div>
     );
   }
 
