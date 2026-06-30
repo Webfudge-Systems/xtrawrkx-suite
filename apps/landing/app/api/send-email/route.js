@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { createEmailTransporter } from "@/src/lib/emailTransporter";
 import { getAccountOnboardingEmailTemplate } from "@/src/lib/onboardingEmail";
-
-const createTransporter = () => createEmailTransporter();
+import {
+  getAccountTransactionalMailOptions,
+  getEventsTransactionalMailOptions,
+} from "@/src/lib/transactionalEmail";
 
 // Email templates
 const getContactInquiryEmailTemplate = (data) => {
@@ -943,7 +945,7 @@ export async function POST(request) {
     }
 
     // Create email transporter
-    const transporter = createTransporter();
+    const transporter = createEmailTransporter();
 
     let emailTemplate;
 
@@ -996,13 +998,12 @@ export async function POST(request) {
       }
 
       // Email configuration for user/company
+      const eventsMail = getEventsTransactionalMailOptions();
+      const accountMail = getAccountTransactionalMailOptions();
       const mailOptions = {
-        from:
-          type === 'account_onboarding'
-            ? `"xtrawrkx" <${process.env.EMAIL_USER || 'hiten@xtrawrkx.com'}>`
-            : `"xtrawrkx Events" <${process.env.EMAIL_USER || 'hiten@xtrawrkx.com'}>`,
-        replyTo: type === 'account_onboarding' ? 'info@xtrawrkx.com' : 'xsos@xtrawrkx.com',
-        to: recipients.join(', '),
+        from: type === "account_onboarding" ? accountMail.from : eventsMail.from,
+        replyTo: type === "account_onboarding" ? accountMail.replyTo : eventsMail.replyTo,
+        to: recipients.join(", "),
         subject: emailTemplate.subject,
         html: emailTemplate.html,
       };
@@ -1018,8 +1019,8 @@ export async function POST(request) {
       const adminEmailTemplate = getAdminNotificationTemplate(data, type);
 
       const adminMailOptions = {
-        from: `"xtrawrkx Events" <hiten@xtrawrkx.com>`,
-        replyTo: 'xsos@xtrawrkx.com', // Replies go to the group email
+        from: getEventsTransactionalMailOptions().from,
+        replyTo: getEventsTransactionalMailOptions().replyTo,
         to: adminEmails,
         subject: adminEmailTemplate.subject,
         html: adminEmailTemplate.html,

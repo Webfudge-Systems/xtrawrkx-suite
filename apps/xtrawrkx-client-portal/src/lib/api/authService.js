@@ -403,6 +403,84 @@ export async function fetchDedicatedPoc() {
 }
 
 /**
+ * Request a password reset email (proxied to marketing site Firebase flow).
+ * @param {string} email
+ * @returns {Promise<{ ok: boolean, message?: string }>}
+ */
+export async function requestPasswordReset(email) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail) {
+        throw new Error('Email is required.');
+    }
+
+    const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.error || 'Unable to send password reset email.');
+    }
+
+    return data;
+}
+
+/**
+ * Verify a Firebase password-reset code from the email link.
+ * @param {string} oobCode
+ * @returns {Promise<string>} verified email
+ */
+export async function verifyPasswordResetCode(oobCode) {
+    const code = String(oobCode || '').trim();
+    if (!code) {
+        throw new Error('Reset link is invalid or incomplete.');
+    }
+
+    const response = await fetch('/api/auth/verify-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oobCode: code }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.error || 'This reset link is invalid or has expired.');
+    }
+
+    return data.email;
+}
+
+/**
+ * Complete password reset (Firebase + Strapi portal credentials).
+ * @param {string} oobCode
+ * @param {string} password
+ */
+export async function completePasswordReset(oobCode, password) {
+    const code = String(oobCode || '').trim();
+    if (!code) {
+        throw new Error('Reset link is invalid or incomplete.');
+    }
+    if (!password || String(password).length < 6) {
+        throw new Error('Password must be at least 6 characters long.');
+    }
+
+    const response = await fetch('/api/auth/complete-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oobCode: code, password }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.error || 'Unable to reset your password.');
+    }
+
+    return data;
+}
+
+/**
  * Logout user
  * @returns {Promise<void>}
  */

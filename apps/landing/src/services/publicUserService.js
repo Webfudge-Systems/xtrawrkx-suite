@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  confirmPasswordReset,
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
@@ -363,19 +362,26 @@ export const publicUserService = {
   },
 
   async completePasswordReset(oobCode, password) {
-    if (!isFirebaseAvailable()) {
-      throw new Error("Firebase is not available. Please check the app configuration.");
+    if (!oobCode) {
+      throw new Error("Reset link is invalid or incomplete.");
     }
 
     if (!password || String(password).length < 6) {
       throw new Error("Password must be at least 6 characters long.");
     }
 
-    try {
-      await confirmPasswordReset(auth, oobCode, password);
-    } catch (error) {
-      throw new Error(toErrorMessage(error, "Unable to reset your password."));
+    const response = await fetch("/api/auth/complete-password-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oobCode, password }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to reset your password.");
     }
+
+    return data;
   },
 
   async getProfile(user) {
