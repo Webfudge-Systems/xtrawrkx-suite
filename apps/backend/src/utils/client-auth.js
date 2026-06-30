@@ -148,6 +148,15 @@ async function findPortalAccessForContact(strapi, contactId) {
   });
 }
 
+async function findAnyPortalAccessForContact(strapi, contactId) {
+  return strapi.db.query(PORTAL_ACCESS_UID).findMany({
+    where: { contact: contactId },
+    populate: ['clientAccount'],
+    limit: 5,
+    orderBy: { updatedAt: 'desc' },
+  });
+}
+
 async function resolveClientAccountId(strapi, access, contact) {
   let id =
     access?.clientAccount?.id ??
@@ -262,17 +271,7 @@ function verifyClientToken(token) {
   return decoded;
 }
 
-async function authenticateClientCredentials(strapi, email, password) {
-  const match = await findPortalAccessByEmail(strapi, email);
-  if (!match) {
-    return { ok: false, status: 401, message: 'Invalid email or password' };
-  }
-
-  const valid = await validatePortalPassword(strapi, password, match.access.password);
-  if (!valid) {
-    return { ok: false, status: 401, message: 'Invalid email or password' };
-  }
-
+async function completeClientLogin(strapi, match, password) {
   let contact = await strapi.entityService.findOne(CONTACT_UID, match.contact.id, {
     populate: ['clientAccount'],
   });
@@ -281,7 +280,6 @@ async function authenticateClientCredentials(strapi, email, password) {
   }
 
   const clientAccountId = await resolveClientAccountId(strapi, match.access, contact);
-
   const account = await loadClientAccount(strapi, clientAccountId);
   if (!account) {
     return { ok: false, status: 403, message: 'Client account not found' };
@@ -313,6 +311,144 @@ async function authenticateClientCredentials(strapi, email, password) {
     contacts,
     contact: serializeContact(contact, match.access),
   };
+}
+
+async function autoProvisionPortalFromFirebase(strapi, email, password) {
+  try {
+    const { resolveWebsiteSignupOrgId } = require('./website-signup');
+    const orgId = await resolveWebsiteSignupOrgId(strapi);
+    if (!orgId) {
+      console.error('autoProvision: no xtrawrkx org found');
+      return { ok: false, reason: 'no_org' };
+    }
+
+    const emailPrefix = email.split('@')[0];
+    const nameParts = emailPrefix
+      .replace(/[._\-+]/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+      .split(' ')
+      .filter(Boolean);
+    const firstName = nameParts[0] || emailPrefix;
+    const lastName = nameParts.slice(1).join(' ') || '-';
+
+    const existingContacts = await findContactsByEmail(strapi, email);
+    let contact = existingContacts[0] || null;
+    let clientAccountId = null;
+
+    if (contact) {
+      clientAccountId = await resolveClientAccountId(strapi, null, contact);
+    }
+
+    if (!contact) {
+      const companyName = `${[firstName, lastName].filter((p) => p && p !== '-').join(' ')} (Website)`;
+      try {
+        const account = await strapi.entityService.create(CLIENT_ACCOUNT_UID, {
+          data: {
+            email,
+            companyName,
+            type: 'CUSTOMER',
+            status: 'ACTIVE',
+            accountType: 'STANDARD',
+            organization: orgId,
+          },
+        });
+        clientAccountId = account.id;
+
+        contact = await strapi.entityService.create(CONTACT_UID, {
+          data: {
+            firstName,
+            lastName,
+            email,
+            contactRole: 'PRIMARY_CONTACT',
+            isPrimaryContact: true,
+            source: 'WEBSITE',
+            isCustomer: true,
+            status: 'ACTIVE',
+            clientAccount: clientAccountId,
+            organization: orgId,
+            portalAccess: true,
+          },
+        });
+      } catch (createErr) {
+        console.error('autoProvision: contact/account create failed:', createErr.message);
+        return { ok: false, reason: 'create_failed', error: createErr.message };
+      }
+    }
+
+    if (!clientAccountId) {
+      return { ok: false, reason: 'no_client_account' };
+    }
+
+    const existingAccess = await findAnyPortalAccessForContact(strapi, contact.id);
+    if (existingAccess.length > 0) {
+      await strapi.entityService.update(PORTAL_ACCESS_UID, existingAccess[0].id, {
+        data: { password, isActive: true },
+      });
+      return { ok: true, contact, accessId: existingAccess[0].id };
+    }
+
+    const access = await strapi.entityService.create(PORTAL_ACCESS_UID, {
+      data: {
+        contact: contact.id,
+        clientAccount: clientAccountId,
+        password,
+        isActive: true,
+        accessLevel: 'view',
+        roleName: 'DEVELOPER',
+        loginId: null,
+      },
+    });
+    return { ok: true, contact, accessId: access.id };
+  } catch (err) {
+    console.error('autoProvision: unexpected error:', err.message);
+    return { ok: false, reason: 'unexpected', error: err.message };
+  }
+}
+
+async function authenticateClientCredentials(strapi, email, password) {
+  const { verifyFirebasePassword } = require('./firebase-auth-bridge');
+  const normalized = normalizeEmail(email);
+
+  const tryStrapiLogin = async () => {
+    const match = await findPortalAccessByEmail(strapi, normalized);
+    if (!match) return null;
+    const valid = await validatePortalPassword(strapi, password, match.access.password);
+    if (!valid) return null;
+    return completeClientLogin(strapi, match, password);
+  };
+
+  // 1. Try Strapi login directly (password already synced)
+  const direct = await tryStrapiLogin();
+  if (direct?.ok) return direct;
+
+  // 2. Verify against Firebase (same credentials as landing site)
+  const firebaseValid = await verifyFirebasePassword(normalized, password);
+  if (firebaseValid) {
+    // 2a. Sync password to existing Strapi portal access
+    const sync = await syncPortalPasswordByEmail(strapi, normalized, password);
+    if (sync.ok && !sync.skipped) {
+      const afterSync = await tryStrapiLogin();
+      if (afterSync?.ok) return afterSync;
+    }
+
+    // 2b. No contact/portal row at all — auto-provision from Firebase identity
+    const provision = await autoProvisionPortalFromFirebase(strapi, normalized, password);
+    if (provision.ok) {
+      const afterProvision = await tryStrapiLogin();
+      if (afterProvision?.ok) return afterProvision;
+    } else {
+      console.error('autoProvision failed:', provision.reason, provision.error || '');
+    }
+
+    // Firebase verified but portal setup failed — return a clear error
+    return {
+      ok: false,
+      status: 500,
+      message: 'Firebase login verified but client portal setup failed. Please try again.',
+    };
+  }
+
+  return { ok: false, status: 401, message: 'Invalid email or password' };
 }
 
 function buildSettingsProfile(contact, access, account) {
@@ -383,6 +519,63 @@ function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+async function syncPortalPasswordByEmail(strapi, email, password) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) {
+    return { ok: false, status: 400, error: 'Email is required.' };
+  }
+  if (!password || String(password).length < 6) {
+    return { ok: false, status: 400, error: 'Password must be at least 6 characters.' };
+  }
+
+  const match = await findPortalAccessByEmail(strapi, normalized);
+  if (match?.access?.id) {
+    await strapi.entityService.update(PORTAL_ACCESS_UID, match.access.id, {
+      data: { password, isActive: true },
+    });
+    return {
+      ok: true,
+      updated: true,
+      contactId: match.contact?.id ?? null,
+      clientAccountId: await resolveClientAccountId(strapi, match.access, match.contact),
+    };
+  }
+
+  const contacts = await findContactsByEmail(strapi, normalized);
+  for (const contact of contacts) {
+    const clientAccountId = await resolveClientAccountId(strapi, null, contact);
+    if (!clientAccountId) continue;
+
+    const existingAccess = await findAnyPortalAccessForContact(strapi, contact.id);
+    if (existingAccess.length > 0) {
+      await strapi.entityService.update(PORTAL_ACCESS_UID, existingAccess[0].id, {
+        data: { password, isActive: true },
+      });
+      return {
+        ok: true,
+        updated: true,
+        contactId: contact.id,
+        clientAccountId,
+      };
+    }
+
+    await strapi.entityService.create(PORTAL_ACCESS_UID, {
+      data: {
+        contact: contact.id,
+        clientAccount: clientAccountId,
+        password,
+        isActive: true,
+        accessLevel: 'view',
+        roleName: 'DEVELOPER',
+        loginId: null,
+      },
+    });
+    return { ok: true, created: true, contactId: contact.id, clientAccountId };
+  }
+
+  return { ok: true, skipped: true, reason: 'no_portal_account' };
+}
+
 function mapPortalSignupBody(body) {
   const name = normalizeString(body?.name);
   const parts = name.split(/\s+/).filter(Boolean);
@@ -429,6 +622,7 @@ module.exports = {
   mapPortalSignupBody,
   findPortalAccessByEmail,
   resolveClientAccountId,
+  syncPortalPasswordByEmail,
   validatePortalPassword,
   JWT_SECRET,
   CLIENT_ACCOUNT_UID,

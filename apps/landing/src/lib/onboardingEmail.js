@@ -1,4 +1,5 @@
 import { createEmailTransporter } from "./emailTransporter";
+import { getAccountTransactionalMailOptions } from "./transactionalEmail";
 import {
   buildClientPortalAuthUrl,
   buildClientPortalDashboardUrl,
@@ -145,12 +146,12 @@ export async function sendAccountOnboardingEmail(params) {
     dashboardUrl,
   });
 
-  const fromAddress = process.env.EMAIL_USER || "hiten@xtrawrkx.com";
+  const { from, replyTo } = getAccountTransactionalMailOptions();
   const transporter = createEmailTransporter();
 
   await transporter.sendMail({
-    from: `"xtrawrkx" <${fromAddress}>`,
-    replyTo: "info@xtrawrkx.com",
+    from,
+    replyTo,
     to: email,
     subject: emailTemplate.subject,
     html: emailTemplate.html,

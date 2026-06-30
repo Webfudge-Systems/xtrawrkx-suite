@@ -52,6 +52,12 @@ module.exports = {
       config: authFalse,
     },
     {
+      method: 'POST',
+      path: '/auth/client/sync-password',
+      handler: 'auth.clientSyncPassword',
+      config: authFalse,
+    },
+    {
       method: 'GET',
       path: '/auth/client/dedicated-poc',
       handler: 'auth.clientDedicatedPoc',

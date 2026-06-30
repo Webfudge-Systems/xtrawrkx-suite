@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { isSmtpConfigured } from "@webfudge/utils/email";
-import { getFirebaseAdminAuth, sendFirebasePasswordResetOobCode } from "@/src/lib/firebaseAdmin";
+import { getFirebaseAdminAuth, sendFirebasePasswordResetOobCode } from "@/lib/firebaseAdmin";
 import {
   getPasswordResetContinueUrl,
-  sendPasswordResetEmail,
-} from "@/src/lib/passwordResetEmail";
+  sendPortalPasswordResetEmail,
+} from "@/lib/passwordResetEmail";
 
 const GENERIC_SUCCESS = {
   ok: true,
@@ -14,10 +13,6 @@ const GENERIC_SUCCESS = {
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
-}
-
-async function sendFirebaseResetEmail(email) {
-  await sendFirebasePasswordResetOobCode(email);
 }
 
 export async function POST(request) {
@@ -34,18 +29,16 @@ export async function POST(request) {
       return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
     }
 
-    const continueUrl = getPasswordResetContinueUrl(body.continueUrl);
     const adminAuth = getFirebaseAdminAuth();
-    const smtpReady = await isSmtpConfigured();
+    const continueUrl = getPasswordResetContinueUrl(body.continueUrl);
 
-    // Branded email only when SMTP is verified — avoids generatePasswordResetLink blocking Firebase delivery.
-    if (adminAuth && smtpReady) {
+    if (adminAuth) {
       try {
         const resetLink = await adminAuth.generatePasswordResetLink(email, {
           url: continueUrl,
           handleCodeInApp: true,
         });
-        await sendPasswordResetEmail({ email, resetLink });
+        await sendPortalPasswordResetEmail({ email, resetLink });
         return NextResponse.json(GENERIC_SUCCESS);
       } catch (error) {
         const code = error?.code || error?.errorInfo?.code || "";
@@ -54,27 +47,19 @@ export async function POST(request) {
         }
         console.error("Branded password reset email failed:", error);
       }
-    } else if (adminAuth && !smtpReady) {
-      console.warn(
-        "SMTP not configured or credentials rejected — using Firebase password reset email for",
-        email
-      );
     }
 
     try {
-      await sendFirebaseResetEmail(email);
-      return NextResponse.json(GENERIC_SUCCESS);
+      await sendFirebasePasswordResetOobCode(email);
     } catch (error) {
       const message = String(error?.message || "");
       if (message.includes("EMAIL_NOT_FOUND")) {
         return NextResponse.json(GENERIC_SUCCESS);
       }
-      console.error("Firebase password reset email failed:", error);
-      return NextResponse.json(
-        { error: "Unable to send password reset email right now. Please try again later." },
-        { status: 500 }
-      );
+      console.error("Firebase password reset fallback failed:", error);
     }
+
+    return NextResponse.json(GENERIC_SUCCESS);
   } catch (error) {
     console.error("Forgot password API error:", error);
     return NextResponse.json(

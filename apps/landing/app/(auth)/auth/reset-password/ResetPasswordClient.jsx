@@ -85,7 +85,8 @@ export default function ResetPasswordClient() {
           <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-8">
             <h1 className="text-3xl font-semibold text-slate-900">Password updated</h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              Your password has been reset. You can now sign in with your new password.
+              Your password has been reset. You can sign in on the marketing site or Client Portal
+              with your new password.
             </p>
             <Link href="/auth?mode=login" className="mt-8 inline-block">
               <Button text="Back to sign in" type="primary" className="justify-center" />

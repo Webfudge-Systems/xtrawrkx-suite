@@ -13,6 +13,7 @@ const {
   serializeDedicatedPocUser,
   mapPortalSignupBody,
   buildSettingsProfile,
+  syncPortalPasswordByEmail,
   validatePortalPassword,
   JWT_SECRET,
   CLIENT_ACCOUNT_UID,
@@ -375,6 +376,38 @@ module.exports = {
     } catch (error) {
       console.error('Client check-email error:', error);
       ctx.send({ exists: false });
+    }
+  },
+
+  async clientSyncPassword(ctx) {
+    if (!verifyLandingSignupSecret(ctx)) {
+      return ctx.forbidden('Invalid or missing website signup secret.');
+    }
+
+    const email = normalizeString(ctx.request.body?.email);
+    const password = normalizeString(ctx.request.body?.password);
+
+    if (!email || !password) {
+      return ctx.badRequest('Email and password are required');
+    }
+    if (password.length < 6) {
+      return ctx.badRequest('Password must be at least 6 characters');
+    }
+
+    try {
+      const result = await syncPortalPasswordByEmail(strapi, email, password);
+      if (!result.ok) {
+        return ctx.send({ error: { message: result.error } }, result.status || 400);
+      }
+      ctx.send({
+        ok: true,
+        updated: result.updated === true,
+        created: result.created === true,
+        skipped: result.skipped === true,
+      });
+    } catch (error) {
+      console.error('Client sync-password error:', error);
+      ctx.badRequest(error.message);
     }
   },
 

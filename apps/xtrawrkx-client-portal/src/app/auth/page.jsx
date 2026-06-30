@@ -13,6 +13,7 @@ import {
   LoginMobileBrandHeader,
 } from "@webfudge/ui";
 import { useAuth, useSession } from "@/lib/auth";
+import { requestPasswordReset } from "@/lib/api/authService";
 import { PORTAL_SITE } from "@/lib/site";
 
 function readWebsiteHandoff() {
@@ -226,9 +227,18 @@ function SignInPanel({
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-brand-dark mb-1.5">
-            Password
-          </label>
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            <label htmlFor="password" className="block text-sm font-medium text-brand-dark">
+              Password
+            </label>
+            <button
+              type="button"
+              onClick={onForgotPassword}
+              className="text-sm font-medium text-brand-primary hover:text-orange-600 transition-colors"
+            >
+              Forgot password?
+            </button>
+          </div>
           <div className="relative">
             <Input
               id="password"
@@ -252,16 +262,6 @@ function SignInPanel({
           {errors.password && (
             <p className="mt-1 text-sm text-red-600">{errors.password}</p>
           )}
-        </div>
-
-        <div className="flex items-center justify-end">
-          <button
-            type="button"
-            onClick={onForgotPassword}
-            className="text-sm text-brand-primary hover:text-orange-600 font-medium transition-colors"
-          >
-            Forgot password?
-          </button>
         </div>
 
         <Button type="submit" disabled={isSubmitting} className="w-full" variant="primary">
@@ -304,7 +304,7 @@ function ForgotPasswordPanel({ onBackToSignIn }) {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await requestPasswordReset(email);
       setSuccess(true);
     } catch (error) {
       setSubmitError(error.message || "Failed to send reset link. Please try again.");
@@ -342,7 +342,7 @@ function ForgotPasswordPanel({ onBackToSignIn }) {
       />
       <h2 className="text-3xl font-semibold text-brand-dark mb-2">Reset your password</h2>
       <p className="text-gray-600 mb-8">
-        Enter your email and we&apos;ll send reset instructions.
+        Enter your email and we&apos;ll send you a secure link to choose a new password.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -422,6 +422,11 @@ export default function AuthPage() {
       if (from === "xtrawrkx-website" || from === "invite") {
         setActiveForm("signin");
       }
+    }
+
+    const mode = (params.get("mode") || "").trim().toLowerCase();
+    if (mode === "forgot") {
+      setActiveForm("forgot-password");
     }
 
     const markCommunitiesLanding =
