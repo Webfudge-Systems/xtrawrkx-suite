@@ -11,6 +11,10 @@ const {
   canManageAppSettings,
   canManageOrganizationProfile,
   canManageOrganizationSecurity,
+  canManageRolePermissions,
+  canEditTargetRolePermissions,
+  buildRoleManagementMeta,
+  sanitizeRolePermissionsForEditor,
   isAdminRole,
   orgRoleFromCtx,
   relationId,
@@ -46,10 +50,10 @@ function getRolesAdminError(ctx, orgIdFromParams) {
   if (!ctx.state.effectivePermissions && !ctx.state.orgPermissions) {
     return 'Permissions are not available for this organization';
   }
-  if (canManageAppSettings(ctx) || isAdminRole(orgRoleFromCtx(ctx))) {
+  if (canManageRolePermissions(ctx)) {
     return null;
   }
-  return 'Only organization admins or users with CRM/PM settings manage access can manage roles';
+  return 'You do not have permission to manage roles for this organization';
 }
 
 function buildRoleCode(name, organizationId) {
@@ -941,7 +945,13 @@ module.exports = createCoreController('api::organization.organization', ({ strap
         ...customRoles.map((r) => mapRow(r, false)),
       ];
 
-      return ctx.send({ success: true, data });
+      const roleManagement = buildRoleManagementMeta(ctx);
+      const dataWithEditFlags = data.map((role) => ({
+        ...role,
+        canEdit: canEditTargetRolePermissions(ctx, role),
+      }));
+
+      return ctx.send({ success: true, data: dataWithEditFlags, meta: { roleManagement } });
     } catch (error) {
       console.error('Error fetching organization roles:', error);
       return ctx.badRequest(error.message || 'Failed to load roles');
@@ -954,6 +964,9 @@ module.exports = createCoreController('api::organization.organization', ({ strap
     const err = getRolesAdminError(ctx, id);
     if (err) {
       return ctx.forbidden(err);
+    }
+    if (!buildRoleManagementMeta(ctx).canCreateCustomRoles) {
+      return ctx.forbidden('Only organization admins can create custom roles');
     }
 
     const { name, description, permissions } = ctx.request.body || {};
@@ -1021,6 +1034,10 @@ module.exports = createCoreController('api::organization.organization', ({ strap
 
       /** @type {any} */
       const row = existing;
+      if (!canEditTargetRolePermissions(ctx, row)) {
+        return ctx.forbidden('You cannot edit permissions for this role');
+      }
+
       if (row.isSystem) {
         const org = await strapi.entityService.findOne('api::organization.organization', id, {
           fields: ['id', 'systemRolePermissions'],
@@ -1036,9 +1053,16 @@ module.exports = createCoreController('api::organization.organization', ({ strap
 
         const code = String(row.code || '').toLowerCase();
         const currentOverrides = readOverrides(org);
+        const existingMerged = resolveSystemRolePermissions(row, currentOverrides);
+        const sanitizedPermissions =
+          permissions && typeof permissions === 'object'
+            ? sanitizeRolePermissionsForEditor(ctx, permissions, existingMerged)
+            : undefined;
+        const descriptionUpdate =
+          isAdminRole(orgRoleFromCtx(ctx)) && typeof description === 'string' ? description : undefined;
         const entry = buildSystemRoleOverrideEntry(currentOverrides[code], {
-          permissions: permissions && typeof permissions === 'object' ? permissions : undefined,
-          description: typeof description === 'string' ? description : undefined,
+          permissions: sanitizedPermissions,
+          description: descriptionUpdate,
         });
 
         if (!entry.permissions && typeof entry.description !== 'string') {
@@ -1104,7 +1128,11 @@ module.exports = createCoreController('api::organization.organization', ({ strap
       }
 
       if (permissions && typeof permissions === 'object') {
-        const perms = rbac.normalizePermissions(permissions);
+        const existingPerms =
+          row.permissions && typeof row.permissions === 'object' && Object.keys(row.permissions).length > 0
+            ? rbac.normalizePermissions(row.permissions)
+            : rbac.normalizePermissions({});
+        const perms = sanitizeRolePermissionsForEditor(ctx, permissions, existingPerms);
         data.permissions = perms;
         data.accessLevel = rbac.deriveAccessLevel(perms);
       }
@@ -1146,6 +1174,9 @@ module.exports = createCoreController('api::organization.organization', ({ strap
       const row = existing;
       if (row.isSystem) {
         return ctx.badRequest('System roles cannot be deleted');
+      }
+      if (!buildRoleManagementMeta(ctx).canCreateCustomRoles) {
+        return ctx.forbidden('Only organization admins can delete custom roles');
       }
 
       const orgPk = typeof row.organization === 'object' ? row.organization?.id : row.organization;

@@ -6,6 +6,7 @@ const {
   PM_MODULES,
   defaultPermissionsForSystemCode,
   normalizePermissions,
+  normalizeDelegation,
 } = require('../constants/rbac-app-matrix');
 
 const ACCESS_RANK = {
@@ -224,6 +225,96 @@ function canManageAppSettings(ctx) {
   );
 }
 
+function getDelegationAccess(permissions, appKey, moduleKey) {
+  const app = String(appKey || '').toLowerCase();
+  const mod = String(moduleKey || '').trim();
+  const access = permissions?.delegation?.[app]?.modules?.[mod]?.access || ACCESS.NONE;
+  return Object.prototype.hasOwnProperty.call(ACCESS_RANK, access) ? access : ACCESS.NONE;
+}
+
+function hasAnyDelegationManage(permissions) {
+  for (const appKey of Object.keys(APP_MODULES)) {
+    for (const moduleKey of Object.keys(APP_MODULES[appKey])) {
+      if (getDelegationAccess(permissions, appKey, moduleKey) === ACCESS.MANAGE) return true;
+    }
+  }
+  return false;
+}
+
+/** May open Roles & Permissions and change at least one module row for subordinate roles. */
+function canManageRolePermissions(ctx) {
+  if (isAdminRole(orgRoleFromCtx(ctx))) return true;
+  if (canManageAppSettings(ctx)) return true;
+  return hasAnyDelegationManage(ctx?.state?.effectivePermissions || ctx?.state?.orgPermissions || {});
+}
+
+/** May edit delegation grants on a role (org Admin only). */
+function canEditRoleDelegation(ctx) {
+  return isAdminRole(orgRoleFromCtx(ctx));
+}
+
+/** Which system/custom roles the current user may edit permission matrices for. */
+function canEditTargetRolePermissions(ctx, targetRole) {
+  if (!canManageRolePermissions(ctx)) return false;
+  if (isAdminRole(orgRoleFromCtx(ctx))) return true;
+  const code = normalizeRoleCode(targetRole);
+  if (code === 'admin' || code === 'manager') return false;
+  return code === 'member' || !targetRole?.isSystem;
+}
+
+/** May change a CRM/PM module row when editing another role's matrix. */
+function canEditModuleInRoleMatrix(ctx, appKey, moduleKey) {
+  if (isAdminRole(orgRoleFromCtx(ctx))) return true;
+  if (canManageAppSettings(ctx)) {
+    const app = String(appKey || '').toLowerCase();
+    if (app === 'crm' && canAccess(ctx, 'crm', 'settings', ACCESS.MANAGE)) return true;
+    if (app === 'pm' && canAccess(ctx, 'pm', 'settings', ACCESS.MANAGE)) return true;
+  }
+  const perms = ctx?.state?.effectivePermissions || ctx?.state?.orgPermissions || {};
+  return getDelegationAccess(perms, appKey, moduleKey) === ACCESS.MANAGE;
+}
+
+function sanitizeRolePermissionsForEditor(ctx, incoming, existing) {
+  const current = normalizePermissions(existing || {});
+  const next = normalizePermissions(incoming || {});
+  const out = clone(current);
+
+  for (const appKey of Object.keys(APP_MODULES)) {
+    for (const moduleKey of Object.keys(APP_MODULES[appKey])) {
+      if (canEditModuleInRoleMatrix(ctx, appKey, moduleKey)) {
+        out[appKey].modules[moduleKey] = { access: getAccess(next, appKey, moduleKey) };
+      }
+    }
+  }
+
+  if (canEditRoleDelegation(ctx)) {
+    out.delegation = normalizeDelegation(next.delegation);
+  }
+
+  return out;
+}
+
+function buildRoleManagementMeta(ctx) {
+  const isOrgAdmin = isAdminRole(orgRoleFromCtx(ctx));
+  const canManage = canManageRolePermissions(ctx);
+  const editableModules = { crm: [], pm: [] };
+  if (canManage) {
+    for (const appKey of Object.keys(APP_MODULES)) {
+      editableModules[appKey] = Object.keys(APP_MODULES[appKey]).filter((moduleKey) =>
+        canEditModuleInRoleMatrix(ctx, appKey, moduleKey)
+      );
+    }
+  }
+  return {
+    canManageRoles: canManage,
+    canCreateCustomRoles: isOrgAdmin || canManageAppSettings(ctx),
+    canEditDelegation: canEditRoleDelegation(ctx),
+    isOrgAdmin,
+    editableModules,
+    editableTargetRoleCodes: isOrgAdmin ? ['admin', 'manager', 'member'] : ['member'],
+  };
+}
+
 /** Org Admin role or CRM/PM settings manage — used for Accounts organization profile (sync checks only). */
 function canManageOrganizationProfile(ctx) {
   return canManageAppSettings(ctx) || isAdminRole(orgRoleFromCtx(ctx));
@@ -258,12 +349,19 @@ module.exports = {
   ACCESS_RANK,
   APP_MODULES,
   applyPermissionOverrides,
+  buildRoleManagementMeta,
   canAccess,
   canAccessPermissions,
+  canEditModuleInRoleMatrix,
+  canEditRoleDelegation,
+  canEditTargetRolePermissions,
   canManageAppSettings,
   canManageOrganizationProfile,
   canManageOrganizationSecurity,
+  canManageRolePermissions,
   getAccess,
+  getDelegationAccess,
+  hasAnyDelegationManage,
   isAdminRole,
   isAssignedToCurrentUser,
   isPmOrgAdminRole,
@@ -277,6 +375,7 @@ module.exports = {
   requireModuleAccess,
   requireOwnerOrModuleManage,
   resolveEffectivePermissions,
+  sanitizeRolePermissionsForEditor,
   buildProjectListFiltersForUser,
   userCanAccessProjectRow,
   userCanViewProjectRow,

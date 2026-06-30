@@ -149,7 +149,7 @@ export default function AccountsHome() {
       setLoading(true)
       setActivityFetchFailed(false)
 
-      const [usersRes, rolesList, deptRes, teamsRes, orgRes] = await Promise.all([
+      const [usersRes, rolesPayload, deptRes, teamsRes, orgRes] = await Promise.all([
         usersService.list({ sort: 'updatedAt:desc' }),
         rolesService.listForOrg(),
         departmentsService.list().catch(() => null),
@@ -169,9 +169,10 @@ export default function AccountsHome() {
       const departments = normalizeStrapiList(deptRes)
       const teams = normalizeStrapiList(teamsRes)
 
+      const rolesList = Array.isArray(rolesPayload) ? rolesPayload : rolesPayload?.roles || []
       setStats({
         activeUsers: active,
-        rolesCount: Array.isArray(rolesList) ? rolesList.length : 0,
+        rolesCount: rolesList.length,
         departmentsCount: departments.length,
         teamsCount: teams.length,
         pendingInvites: invited,

@@ -59,10 +59,12 @@ export default function AuthForm({
   isPage = false,
   redirectTo = "/profile",
 }) {
-  const { signIn, signUp, authBusy, error, clearError } = usePublicAuth();
+  const { signIn, signUp, requestPasswordReset, authBusy, error, clearError } = usePublicAuth();
   const [mode, setMode] = useState(initialMode);
   const [loginData, setLoginData] = useState(loginInitialState);
   const [signupData, setSignupData] = useState(signupInitialState);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState(false);
   const [signupStep, setSignupStep] = useState(0);
   const [skippedSteps, setSkippedSteps] = useState({ address: false, social: false });
   const [localError, setLocalError] = useState("");
@@ -83,19 +85,21 @@ export default function AuthForm({
   ];
 
   const isSignup = mode === "signup";
+  const isForgot = mode === "forgot";
 
-  const activeTitle = useMemo(
-    () =>
-      isSignup
-        ? "Create your xtrawrkx account"
-        : "Sign in to your xtrawrkx account",
-    [isSignup]
-  );
+  const activeTitle = useMemo(() => {
+    if (isForgot) return "Reset your password";
+    return isSignup
+      ? "Create your xtrawrkx account"
+      : "Sign in to your xtrawrkx account";
+  }, [isSignup, isForgot]);
 
   const handleModeChange = (nextMode) => {
     clearError();
     setLocalError("");
     setShowPassword(false);
+    setForgotSuccess(false);
+    setForgotEmail("");
     setCompanyCheck({
       checking: false,
       matches: [],
@@ -210,6 +214,29 @@ export default function AuthForm({
       onClose?.();
     } catch (submitError) {
       setLocalError(submitError.message || "Unable to continue right now.");
+    }
+  };
+
+  const handleForgotSubmit = async (event) => {
+    event.preventDefault();
+    clearError();
+    setLocalError("");
+
+    const email = forgotEmail.trim();
+    if (!email) {
+      setLocalError("Please enter your email address.");
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setLocalError("Enter a valid email address.");
+      return;
+    }
+
+    try {
+      await requestPasswordReset(email);
+      setForgotSuccess(true);
+    } catch (submitError) {
+      setLocalError(submitError.message || "Unable to send reset link right now.");
     }
   };
 
@@ -392,7 +419,9 @@ export default function AuthForm({
                 {activeTitle}
               </h3>
               <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500 sm:text-base">
-                {isSignup
+                {isForgot
+                  ? "Enter your email and we'll send you a link to reset your password."
+                  : isSignup
                   ? "Set up your account to unlock your profile page and community routing."
                   : "Use your email and password to continue to your profile and community access."}
               </p>
@@ -418,31 +447,90 @@ export default function AuthForm({
             ) : null}
           </div>
 
-          <div className={`mt-8 grid grid-cols-2 p-1 ${isPage ? "rounded-2xl border border-slate-200 bg-slate-100/80" : "rounded-[1.15rem] border border-slate-200 bg-slate-50"}`}>
-            <button
-              type="button"
-              className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
-                !isSignup
-                  ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-              onClick={() => handleModeChange("login")}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
-                isSignup
-                  ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-              onClick={() => handleModeChange("signup")}
-            >
-              Register
-            </button>
-          </div>
+          {!isForgot ? (
+            <div className={`mt-8 grid grid-cols-2 p-1 ${isPage ? "rounded-2xl border border-slate-200 bg-slate-100/80" : "rounded-[1.15rem] border border-slate-200 bg-slate-50"}`}>
+              <button
+                type="button"
+                className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
+                  !isSignup
+                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+                onClick={() => handleModeChange("login")}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
+                  isSignup
+                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+                onClick={() => handleModeChange("signup")}
+              >
+                Register
+              </button>
+            </div>
+          ) : null}
 
+          {isForgot ? (
+            forgotSuccess ? (
+              <div className={`mt-8 rounded-3xl p-5 ${isPage ? "border border-slate-200/80 bg-slate-50/50" : "border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]"}`}>
+                <h4 className="text-lg font-semibold text-slate-900">Check your email</h4>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  If an account with <strong>{forgotEmail}</strong> exists, you will receive
+                  password reset instructions shortly.
+                </p>
+                <button
+                  type="button"
+                  className="mt-6 text-sm font-medium text-brand-primary transition hover:text-brand-secondary"
+                  onClick={() => handleModeChange("login")}
+                >
+                  Back to sign in
+                </button>
+              </div>
+            ) : (
+              <form className="mt-8 space-y-6" onSubmit={handleForgotSubmit}>
+                <div className={`rounded-3xl p-5 ${isPage ? "border border-slate-200/80 bg-slate-50/50" : "border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]"}`}>
+                  <div className="mb-4">
+                    <p className="text-sm font-semibold text-slate-900">Forgot password</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      We&apos;ll email you a secure link to choose a new password.
+                    </p>
+                  </div>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
+                    <input
+                      name="forgotEmail"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(event) => setForgotEmail(event.target.value)}
+                      className="input"
+                      placeholder="alex@company.com"
+                      autoComplete="email"
+                    />
+                  </label>
+                </div>
+
+                {localError || error ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {localError || error}
+                  </div>
+                ) : null}
+
+                <Button
+                  text="Send reset link"
+                  type="primary"
+                  className="w-full justify-center"
+                  hideArrow={authBusy}
+                  disabled={authBusy}
+                  htmlType="submit"
+                  icon={authBusy ? "solar:loading-bold" : undefined}
+                />
+              </form>
+            )
+          ) : (
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             {isSignup ? (
               <div className={`rounded-3xl p-5 ${isPage ? "border border-slate-200/80 bg-slate-50/50" : "border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]"}`}>
@@ -576,9 +664,16 @@ export default function AuthForm({
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">
-                      Password
-                    </span>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-slate-700">Password</span>
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-brand-primary transition hover:text-brand-secondary"
+                        onClick={() => handleModeChange("forgot")}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <input
                         name="password"
@@ -633,7 +728,10 @@ export default function AuthForm({
               />
             )}
           </form>
+          )}
 
+          {!isForgot ? (
+          <>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm text-slate-500">
             <p>
               {isSignup ? "Already have an account?" : "Need an account?"}{" "}
@@ -666,6 +764,19 @@ export default function AuthForm({
               .
             </p>
           ) : null}
+          </>
+          ) : (
+            <p className="mt-6 text-center text-sm text-slate-500">
+              Remembered your password?{" "}
+              <button
+                type="button"
+                className="font-medium text-brand-primary transition hover:text-brand-secondary"
+                onClick={() => handleModeChange("login")}
+              >
+                Back to sign in
+              </button>
+            </p>
+          )}
     </>
   );
 

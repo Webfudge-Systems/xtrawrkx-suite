@@ -9,9 +9,12 @@ class RolesService {
 
     const response = await strapiClient.get(`/organizations/${orgId}/roles`)
     if (Array.isArray(response?.data)) {
-      return response.data
+      return {
+        roles: response.data,
+        meta: response.meta || {},
+      }
     }
-    return []
+    return { roles: [], meta: {} }
   }
 
   /** @deprecated Prefer listForOrg — core /organization-roles is not organization-scoped. */

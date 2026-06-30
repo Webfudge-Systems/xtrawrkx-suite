@@ -49,7 +49,7 @@ Editing Admin / Manager / Member in Accounts does **not** change global template
 }
 ```
 
-Only **organization admins** (or users with CRM/PM settings manage access) may create or edit roles via the API.
+Only **organization admins** (or users with CRM/PM settings manage access) may create or delete custom roles. **Managers** with delegated module rights may edit **Member** (and custom) permission rows only for modules an admin has delegated. See **[ACCOUNTS_ROLE_PERMISSION_DELEGATION.md](./ACCOUNTS_ROLE_PERMISSION_DELEGATION.md)**.
 
 ## Migration
 

@@ -3186,6 +3186,7 @@ export interface PluginUsersPermissionsUser extends Struct.CollectionTypeSchema 
       Schema.Attribute.SetMinMaxLength<{
         maxLength: 80
       }>
+    isPlatformAdmin: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>
     lastName: Schema.Attribute.String &
       Schema.Attribute.SetMinMaxLength<{
         maxLength: 80
