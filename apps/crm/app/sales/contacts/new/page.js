@@ -163,12 +163,12 @@ export default function NewContactPage() {
       setLoadingRefs(true);
       try {
         const [lcRes, caRes] = await Promise.allSettled([
-          leadCompanyService.getAll({ sort: 'companyName:asc', 'pagination[pageSize]': 200 }),
-          clientAccountService.getAll({ sort: 'companyName:asc', 'pagination[pageSize]': 200 }),
+          leadCompanyService.fetchAll({ sort: 'companyName:asc' }),
+          clientAccountService.fetchAll({ sort: 'companyName:asc' }),
         ]);
         if (cancelled) return;
-        setLeadCompanies(lcRes.status === 'fulfilled' ? (lcRes.value.data || []) : []);
-        setClientAccounts(caRes.status === 'fulfilled' ? (caRes.value.data || []) : []);
+        setLeadCompanies(lcRes.status === 'fulfilled' ? (lcRes.value || []) : []);
+        setClientAccounts(caRes.status === 'fulfilled' ? (caRes.value || []) : []);
       } catch (err) {
         console.error('Error loading company references:', err);
         if (!cancelled) {
