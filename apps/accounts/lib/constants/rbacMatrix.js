@@ -43,5 +43,17 @@ export function emptyPermissionsDraft() {
   Object.keys(PM_MODULES).forEach((k) => {
     pm.modules[k] = { access: 'read' }
   })
-  return { crm, pm }
+  const delegation = { crm: { modules: {} }, pm: { modules: {} } }
+  Object.keys(CRM_MODULES).forEach((k) => {
+    delegation.crm.modules[k] = { access: 'none' }
+  })
+  Object.keys(PM_MODULES).forEach((k) => {
+    delegation.pm.modules[k] = { access: 'none' }
+  })
+  return { crm, pm, delegation }
 }
+
+export const DELEGATION_ACCESS_OPTIONS = [
+  { value: 'none', label: 'Cannot assign' },
+  { value: 'manage', label: 'Can assign permissions' },
+]

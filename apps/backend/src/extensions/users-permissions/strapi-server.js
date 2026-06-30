@@ -12,6 +12,7 @@ module.exports = (plugin) => {
   Object.assign(user.schema.attributes, {
     firstName: { type: 'string', maxLength: 80 },
     lastName: { type: 'string', maxLength: 80 },
+    isPlatformAdmin: { type: 'boolean', default: false },
   });
 
   return plugin;

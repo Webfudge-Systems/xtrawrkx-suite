@@ -8,6 +8,7 @@ const {
 } = require('./utils/organization-role');
 const redis = require('./utils/redis');
 const { ensureClientAccountOnboardingDataColumn } = require('./utils/ensure-client-account-schema');
+const { ensureUpUserPlatformAdminColumn } = require('./utils/ensure-up-user-platform-admin');
 
 module.exports = {
   /**
@@ -36,6 +37,18 @@ module.exports = {
     } catch (e) {
       console.warn(
         '⚠️ Could not ensure client_accounts.onboarding_data column:',
+        e?.message || e
+      );
+    }
+
+    try {
+      const platformAdminCol = await ensureUpUserPlatformAdminColumn(strapi);
+      if (platformAdminCol.added) {
+        console.log(`✅ Added up_users.is_platform_admin (${platformAdminCol.column})`);
+      }
+    } catch (e) {
+      console.warn(
+        '⚠️ Could not ensure up_users.is_platform_admin column:',
         e?.message || e
       );
     }

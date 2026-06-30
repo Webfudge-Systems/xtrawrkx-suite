@@ -101,6 +101,18 @@ const MEMBER_PM = {
 }
 const MEMBER = matrixFromCrmPm(MEMBER_CRM, MEMBER_PM)
 
+function emptyDelegationMatrix() {
+  const crm = { modules: {} }
+  Object.keys(CRM_MODULES).forEach((k) => {
+    crm.modules[k] = moduleEntry(ACCESS.NONE)
+  })
+  const pm = { modules: {} }
+  Object.keys(PM_MODULES).forEach((k) => {
+    pm.modules[k] = moduleEntry(ACCESS.NONE)
+  })
+  return { crm, pm }
+}
+
 function emptyMatrix() {
   const crm = { modules: {} }
   Object.keys(CRM_MODULES).forEach((k) => {
@@ -109,6 +121,32 @@ function emptyMatrix() {
   const pm = { modules: {} }
   Object.keys(PM_MODULES).forEach((k) => {
     pm.modules[k] = moduleEntry(ACCESS.READ)
+  })
+  return { crm, pm, delegation: emptyDelegationMatrix() }
+}
+
+function normalizeDelegation(raw) {
+  const base = emptyDelegationMatrix()
+  if (!raw || typeof raw !== 'object') return base
+  Object.keys(CRM_MODULES).forEach((k) => {
+    const mod = raw.crm?.modules?.[k]
+    base.crm.modules[k] = moduleEntry(coerceAccess(mod?.access ?? mod?.level))
+  })
+  Object.keys(PM_MODULES).forEach((k) => {
+    const mod = raw.pm?.modules?.[k]
+    base.pm.modules[k] = moduleEntry(coerceAccess(mod?.access ?? mod?.level))
+  })
+  return base
+}
+
+function fullDelegationMatrix() {
+  const crm = { modules: {} }
+  Object.keys(CRM_MODULES).forEach((k) => {
+    crm.modules[k] = moduleEntry(ACCESS.MANAGE)
+  })
+  const pm = { modules: {} }
+  Object.keys(PM_MODULES).forEach((k) => {
+    pm.modules[k] = moduleEntry(ACCESS.MANAGE)
   })
   return { crm, pm }
 }
@@ -133,14 +171,21 @@ function normalizePermissions(raw) {
     const mod = raw.pm?.modules?.[k]
     base.pm.modules[k] = moduleEntry(coerceAccess(mod?.access ?? mod?.level))
   })
+  base.delegation = normalizeDelegation(raw.delegation)
   return base
+}
+
+function withDelegation(permissions, delegation) {
+  const next = JSON.parse(JSON.stringify(permissions))
+  next.delegation = normalizeDelegation(delegation)
+  return next
 }
 
 function defaultPermissionsForSystemCode(code) {
   const c = String(code || '').toLowerCase()
-  if (c === 'admin') return JSON.parse(JSON.stringify(ADMIN))
-  if (c === 'manager') return JSON.parse(JSON.stringify(MANAGER))
-  return JSON.parse(JSON.stringify(MEMBER))
+  if (c === 'admin') return withDelegation(ADMIN, fullDelegationMatrix())
+  if (c === 'manager') return withDelegation(MANAGER, emptyDelegationMatrix())
+  return withDelegation(MEMBER, emptyDelegationMatrix())
 }
 
 /**
@@ -179,6 +224,9 @@ module.exports = {
   CRM_MODULES,
   PM_MODULES,
   emptyMatrix,
+  emptyDelegationMatrix,
+  fullDelegationMatrix,
+  normalizeDelegation,
   normalizePermissions,
   defaultPermissionsForSystemCode,
   deriveAccessLevel,

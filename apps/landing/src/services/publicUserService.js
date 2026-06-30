@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  confirmPasswordReset,
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  verifyPasswordResetCode,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db, isFirebaseAvailable } from "../config/firebase";
@@ -325,6 +327,54 @@ export const publicUserService = {
       await signOut(auth);
     } catch (error) {
       throw new Error("Unable to sign out right now.");
+    }
+  },
+
+  async requestPasswordReset(email) {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new Error("Email is required.");
+    }
+
+    const response = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: normalizedEmail }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to send password reset email.");
+    }
+
+    return data;
+  },
+
+  async verifyPasswordResetCode(oobCode) {
+    if (!isFirebaseAvailable()) {
+      throw new Error("Firebase is not available. Please check the app configuration.");
+    }
+
+    try {
+      return await verifyPasswordResetCode(auth, oobCode);
+    } catch (error) {
+      throw new Error(toErrorMessage(error, "This reset link is invalid or has expired."));
+    }
+  },
+
+  async completePasswordReset(oobCode, password) {
+    if (!isFirebaseAvailable()) {
+      throw new Error("Firebase is not available. Please check the app configuration.");
+    }
+
+    if (!password || String(password).length < 6) {
+      throw new Error("Password must be at least 6 characters long.");
+    }
+
+    try {
+      await confirmPasswordReset(auth, oobCode, password);
+    } catch (error) {
+      throw new Error(toErrorMessage(error, "Unable to reset your password."));
     }
   },
 

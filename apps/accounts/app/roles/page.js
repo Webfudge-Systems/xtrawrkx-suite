@@ -16,8 +16,21 @@ import {
 import AccountsPageHeader from '../../components/AccountsPageHeader'
 import RoleTableCell from '../../components/RoleTableCell'
 import { rolesService } from '../../lib/api'
-import { isOrganizationAdmin } from '../../lib/accountsAccess'
-import { ACCESS_OPTIONS, CRM_MODULES, PM_MODULES, emptyPermissionsDraft } from '../../lib/constants/rbacMatrix'
+import {
+  canManageRolePermissions,
+  canCreateCustomRoles,
+  canEditTargetRole,
+  canEditModuleInRoleMatrix,
+  canEditRoleDelegation,
+  isOrganizationAdmin,
+} from '../../lib/accountsAccess'
+import {
+  ACCESS_OPTIONS,
+  CRM_MODULES,
+  PM_MODULES,
+  DELEGATION_ACCESS_OPTIONS,
+  emptyPermissionsDraft,
+} from '../../lib/constants/rbacMatrix'
 
 const ACCESS_RANK = { none: 0, read: 1, write: 2, manage: 3 }
 
@@ -109,25 +122,35 @@ const PERMISSION_PRESETS = [
   },
 ]
 
-function ModuleMatrix({ draft, label, appKey, modules, onChange, readOnly }) {
+function ModuleMatrix({
+  draft,
+  label,
+  appKey,
+  modules,
+  onChange,
+  readOnly,
+  canEditModule = () => true,
+  accessOptions = ACCESS_OPTIONS,
+}) {
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
       <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
         {Object.entries(modules).map(([key, title]) => {
           const current = draft?.modules?.[key]?.access || 'read'
+          const rowEditable = !readOnly && canEditModule(appKey, key)
           return (
             <div key={key} className="flex items-center gap-3 px-3 py-2 bg-white">
               <span className="flex-1 text-sm text-gray-800 truncate" title={title}>
                 {title}
               </span>
               <select
-                disabled={readOnly}
+                disabled={!rowEditable}
                 value={current}
                 onChange={(e) => onChange(key, appKey, e.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs shrink-0 focus:border-orange-500 focus:outline-none disabled:bg-gray-100"
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs shrink-0 focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
               >
-                {ACCESS_OPTIONS.map((o) => (
+                {accessOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -143,6 +166,7 @@ function ModuleMatrix({ draft, label, appKey, modules, onChange, readOnly }) {
 
 export default function RolesPage() {
   const [roles, setRoles] = useState([])
+  const [roleManagementMeta, setRoleManagementMeta] = useState(null)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('all')
@@ -157,7 +181,24 @@ export default function RolesPage() {
   const [deleteRole, setDeleteRole] = useState(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
-  const canManageRoles = useMemo(() => isOrganizationAdmin(), [])
+  const canManageRoles = useMemo(
+    () => canManageRolePermissions(roleManagementMeta),
+    [roleManagementMeta]
+  )
+  const canCreateRoles = useMemo(
+    () => canCreateCustomRoles(roleManagementMeta),
+    [roleManagementMeta]
+  )
+
+  const canEditModule = useCallback(
+    (appKey, moduleKey) => canEditModuleInRoleMatrix(appKey, moduleKey, roleManagementMeta),
+    [roleManagementMeta]
+  )
+
+  const canEditRole = useCallback(
+    (role) => canEditTargetRole(role, roleManagementMeta),
+    [roleManagementMeta]
+  )
 
   const {
     columnVisibility,
@@ -198,8 +239,9 @@ export default function RolesPage() {
   const fetchRoles = useCallback(async () => {
     try {
       setLoading(true)
-      const list = await rolesService.listForOrg()
+      const { roles: list, meta } = await rolesService.listForOrg()
       setRoles(Array.isArray(list) ? list : [])
+      setRoleManagementMeta(meta?.roleManagement || null)
     } catch (error) {
       if (isUnauthorizedError(error) && typeof window !== 'undefined') {
         localStorage.removeItem('auth-token')
@@ -266,6 +308,14 @@ export default function RolesPage() {
     setFormError('')
   }
 
+  const openViewCustom = (role) => {
+    setDetailModal({ mode: 'view-custom', role })
+    setFormName(role.name || '')
+    setFormDescription(role.description || '')
+    setFormMatrix(clonePermissions(role.permissions))
+    setFormError('')
+  }
+
   const openEditSystem = (role) => {
     setDetailModal({ mode: 'edit-system', role })
     setFormName(role.name || '')
@@ -296,6 +346,17 @@ export default function RolesPage() {
       if (!next[appKey]) next[appKey] = { modules: {} }
       if (!next[appKey].modules) next[appKey].modules = {}
       next[appKey].modules[moduleKey] = { access: value }
+      return next
+    })
+  }
+
+  const handleDelegationChange = (moduleKey, appKey, value) => {
+    setFormMatrix((prev) => {
+      const next = clonePermissions(prev)
+      if (!next.delegation) next.delegation = emptyPermissionsDraft().delegation
+      if (!next.delegation[appKey]) next.delegation[appKey] = { modules: {} }
+      if (!next.delegation[appKey].modules) next.delegation[appKey].modules = {}
+      next.delegation[appKey].modules[moduleKey] = { access: value }
       return next
     })
   }
@@ -404,7 +465,7 @@ export default function RolesPage() {
         render: (_, role) => (
           <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
             {role.isSystem ? (
-              canManageRoles ? (
+              canEditRole(role) ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -417,7 +478,7 @@ export default function RolesPage() {
                 >
                   <Pencil className="w-4 h-4" />
                 </Button>
-              ) : (
+              ) : canManageRoles ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -430,8 +491,8 @@ export default function RolesPage() {
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
-              )
-            ) : canManageRoles ? (
+              ) : null
+            ) : canEditRole(role) ? (
               <>
                 <Button
                   variant="ghost"
@@ -450,6 +511,7 @@ export default function RolesPage() {
                   size="sm"
                   title="Delete role"
                   className="p-2 text-red-600 hover:bg-red-50"
+                  disabled={!canCreateRoles}
                   onClick={(e) => {
                     e.stopPropagation()
                     setDeleteRole(role)
@@ -458,12 +520,25 @@ export default function RolesPage() {
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </>
+            ) : canManageRoles ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                title="View permissions"
+                className="p-2 text-teal-600 hover:bg-teal-50"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openViewCustom(role)
+                }}
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
             ) : null}
           </div>
         ),
       },
     ],
-    [canManageRoles]
+    [canManageRoles, canEditRole, canCreateRoles]
   )
 
   const visibleColumns = useMemo(() => {
@@ -477,9 +552,23 @@ export default function RolesPage() {
     return out
   }, [columns, columnVisibility, columnOrder])
 
-  const readOnlyModal = Boolean(detailModal?.mode === 'view-system')
+  const readOnlyModal = Boolean(
+    detailModal?.mode === 'view-system' || detailModal?.mode === 'view-custom'
+  )
   const systemRoleNameLocked = Boolean(
-    detailModal?.mode === 'view-system' || detailModal?.mode === 'edit-system'
+    detailModal?.mode === 'view-system' ||
+      detailModal?.mode === 'edit-system' ||
+      detailModal?.mode === 'view-custom'
+  )
+  const showDelegationSection = Boolean(
+    !readOnlyModal &&
+      canEditRoleDelegation(roleManagementMeta) &&
+      detailModal?.role &&
+      String(detailModal.role.code || '').toLowerCase() !== 'admin'
+  )
+  const descriptionLocked = Boolean(
+    readOnlyModal ||
+      (detailModal?.mode === 'edit-system' && !isOrganizationAdmin())
   )
 
   return (
@@ -528,7 +617,7 @@ export default function RolesPage() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="Search roles..."
-          showAdd={canManageRoles}
+          showAdd={canCreateRoles}
           onAddClick={openCreate}
           addTitle="Add Custom Role"
           showColumnVisibility
@@ -553,8 +642,9 @@ export default function RolesPage() {
       </div>
 
       <p className="text-xs text-gray-500">
-        System roles (Admin, Manager, Member) define CRM and PM access for this organization. Organization admins can
-        edit their permissions and descriptions; custom roles can be created for additional permission mixes.
+        Organization admins can edit Admin, Manager, and Member permissions. Managers may edit Member (and custom role)
+        permissions only for modules an admin has delegated — for example, set &quot;Projects — can assign permissions&quot;
+        on the Manager role so they can change the Projects access level for members.
       </p>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -608,7 +698,7 @@ export default function RolesPage() {
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Description</label>
             <textarea
-              disabled={readOnlyModal}
+              disabled={descriptionLocked}
               value={formDescription}
               onChange={(e) => setFormDescription(e.target.value)}
               rows={3}
@@ -620,23 +710,59 @@ export default function RolesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ModuleMatrix
               draft={formMatrix.crm}
-              label="CRM"
+              label="CRM access"
               appKey="crm"
               modules={CRM_MODULES}
               onChange={handleMatrixChange}
               readOnly={readOnlyModal}
+              canEditModule={canEditModule}
             />
             <ModuleMatrix
               draft={formMatrix.pm}
-              label="Project management"
+              label="Project management access"
               appKey="pm"
               modules={PM_MODULES}
               onChange={handleMatrixChange}
               readOnly={readOnlyModal}
+              canEditModule={canEditModule}
             />
           </div>
 
-            {!readOnlyModal ? (
+          {showDelegationSection ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Permission delegation</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Choose which modules this role may assign to others (e.g. Manager → Member). Members never receive
+                  delegation rights.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ModuleMatrix
+                  draft={formMatrix.delegation?.crm || { modules: {} }}
+                  label="CRM — can assign"
+                  appKey="crm"
+                  modules={CRM_MODULES}
+                  onChange={handleDelegationChange}
+                  readOnly={false}
+                  canEditModule={() => true}
+                  accessOptions={DELEGATION_ACCESS_OPTIONS}
+                />
+                <ModuleMatrix
+                  draft={formMatrix.delegation?.pm || { modules: {} }}
+                  label="PM — can assign"
+                  appKey="pm"
+                  modules={PM_MODULES}
+                  onChange={handleDelegationChange}
+                  readOnly={false}
+                  canEditModule={() => true}
+                  accessOptions={DELEGATION_ACCESS_OPTIONS}
+                />
+              </div>
+            </div>
+          ) : null}
+
+            {!readOnlyModal && isOrganizationAdmin() ? (
             <div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 mb-2">Quick presets</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -655,8 +781,9 @@ export default function RolesPage() {
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-              You can view this system template. Organization admins can edit CRM and PM permissions for this
-              organization.
+              {canEditRole(detailModal?.role)
+                ? 'Some modules may be read-only if you only have delegated access to specific areas.'
+                : 'You can view this role. Only organization admins can edit Admin and Manager templates.'}
             </div>
           )}
 

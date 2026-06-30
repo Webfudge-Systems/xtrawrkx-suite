@@ -7,7 +7,9 @@ export const metadata = {
 
 export default async function AuthPage({ searchParams }) {
   const resolvedParams = await searchParams;
-  const mode = resolvedParams?.mode === "login" ? "login" : "signup";
+  const modeParam = resolvedParams?.mode;
+  const mode =
+    modeParam === "login" ? "login" : modeParam === "forgot" ? "forgot" : "signup";
   const redirectTo = "/profile";
 
   return (

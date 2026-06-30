@@ -306,7 +306,7 @@ export default function UsersPage() {
     let cancelled = false
       ; (async () => {
         try {
-          const list = await rolesService.listForOrg()
+          const { roles: list } = await rolesService.listForOrg()
           if (!cancelled) {
             const finalRoles = list.length
               ? list
