@@ -70,13 +70,13 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-primary to-orange-600 relative flex-col justify-center px-16 py-20">
+      <div className="hidden lg:flex lg:w-1/2 bg-brand-primary relative flex-col justify-center px-16 py-20">
         <LoginBrandCorner
           brandIconPath={CRM_SITE.brandIconPath}
           brandName={CRM_SITE.brandName}
         />
         <div className="max-w-lg">
-          <LoginProductCredit productName={CRM_SITE.name} creatorLine={CRM_SITE.brandName} />
+          <LoginProductCredit productName={CRM_SITE.brandName} />
           <h1 className="text-5xl font-bold text-white mb-6">Welcome back</h1>
           <p className="text-xl text-white/90 mb-4">{CRM_SITE.loginTagline}</p>
           <p className="text-white/80 leading-relaxed">{CRM_SITE.loginDetail}</p>
@@ -95,8 +95,8 @@ export default function LoginPage() {
         <div className="w-full max-w-md mx-auto">
           <LoginMobileBrandHeader
             logoPath={CRM_SITE.logoPath}
-            productName={CRM_SITE.name}
-            creatorLine={CRM_SITE.brandName}
+            brandIconPath={CRM_SITE.brandIconPath}
+            productName={CRM_SITE.brandName}
           />
           <h2 className="text-3xl font-semibold text-brand-dark mb-2">Sign in</h2>
           <p className="text-gray-600 mb-8">Enter your credentials to access the CRM.</p>

@@ -53,6 +53,53 @@ function mapUsersById(users) {
   return mapById(users);
 }
 
+/** True when user object has enough fields to show a name (not a bare id stub). */
+function isHydratedUser(user) {
+  if (!user || typeof user !== 'object') return false;
+  return Boolean(
+    user.firstName ||
+      user.firstname ||
+      user.lastName ||
+      user.lastname ||
+      user.username ||
+      user.email
+  );
+}
+
+/** Extract numeric user id from a relation value (object, number, or string). */
+function relationUserId(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' || typeof value === 'string') {
+    const n = parseInt(value, 10);
+    return Number.isNaN(n) ? null : n;
+  }
+  if (typeof value === 'object') {
+    const raw = value.id ?? value.documentId;
+    if (raw == null || raw === '') return null;
+    const n = parseInt(raw, 10);
+    return Number.isNaN(n) ? null : n;
+  }
+  return null;
+}
+
+/**
+ * Prefer a fully hydrated user; otherwise resolve via userById map.
+ * Skips bare ids / empty stubs so lead/client inheritance can kick in.
+ */
+function resolveOwnerUser(userById, ...candidates) {
+  for (const c of candidates) {
+    if (isHydratedUser(c)) return c;
+  }
+  for (const c of candidates) {
+    const id = relationUserId(c);
+    if (id != null && userById.has(id)) {
+      const u = userById.get(id);
+      if (isHydratedUser(u)) return u;
+    }
+  }
+  return null;
+}
+
 function normalizeFilterScalar(value) {
   if (value == null) return null;
   if (Array.isArray(value)) return value.length ? normalizeFilterScalar(value[0]) : null;
@@ -207,6 +254,7 @@ async function attachRelationsToContacts(strapi, orgId, contacts) {
       ...assignLinks.map((l) => l.user_id),
       ...leadAssignLinks.map((l) => l.user_id),
       ...clientAssignLinks.map((l) => l.user_id),
+      ...contacts.map((c) => relationUserId(c.assignedTo)),
     ].filter(Boolean);
 
     const [leads, clients, users] = await Promise.all([
@@ -239,10 +287,25 @@ async function attachRelationsToContacts(strapi, orgId, contacts) {
     return contacts.map((row) => {
       const lead = leadByContact.get(row.id) ?? row.leadCompany ?? null;
       const client = clientByContact.get(row.id) ?? row.clientAccount ?? null;
-      const leadOwner = lead?.id != null ? leadAssignByLead.get(lead.id) ?? null : null;
-      const clientOwner = client?.id != null ? clientAssignByClient.get(client.id) ?? null : null;
-      const directOwner = userByContact.get(row.id) ?? row.assignedTo ?? null;
-      const assignedTo = directOwner || leadOwner || clientOwner || null;
+      const leadOwner = resolveOwnerUser(
+        userById,
+        lead?.id != null ? leadAssignByLead.get(lead.id) : null,
+        lead?.assignedTo
+      );
+      const clientOwner = resolveOwnerUser(
+        userById,
+        client?.id != null ? clientAssignByClient.get(client.id) : null,
+        client?.assignedTo
+      );
+      // Never treat bare ids / empty stubs as owners — they blocked lead/client inheritance
+      // and caused the contacts table to flash "Unassigned".
+      const assignedTo = resolveOwnerUser(
+        userById,
+        userByContact.get(row.id),
+        row.assignedTo,
+        leadOwner,
+        clientOwner
+      );
 
       const leadCompany =
         lead != null ? { ...lead, assignedTo: leadOwner ?? lead.assignedTo ?? null } : null;

@@ -83,6 +83,8 @@ export function LoginMobileBrandHeader({
   creatorLine = 'Xtrawrkx',
 }) {
   const iconSrc = brandIconPath || brandLogoPath || logoPath
+  const companyLine =
+    creatorLine && creatorLine !== productName ? creatorLine : undefined
 
   return (
     <div className="mb-8 lg:hidden">
@@ -96,7 +98,13 @@ export function LoginMobileBrandHeader({
             className="h-8 w-8 shrink-0 rounded-lg object-contain"
             priority
           />
-          <SidebarProductBranding productName={productName} companyName={creatorLine} />
+          {companyLine ? (
+            <SidebarProductBranding productName={productName} companyName={companyLine} />
+          ) : (
+            <span className="block font-bold text-xl tracking-tight leading-tight text-brand-dark">
+              {productName}
+            </span>
+          )}
         </div>
       ) : null}
     </div>

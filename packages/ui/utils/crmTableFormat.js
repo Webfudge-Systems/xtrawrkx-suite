@@ -101,12 +101,18 @@ export function formatRelativeTime(dateString, options = {}) {
 }
 
 /**
- * @param {object | null | undefined} user - Strapi user / assignedTo
+ * @param {object | null | undefined | number | string} user - Strapi user / assignedTo
  * @returns {{ label: string, avatarFallback: string }}
  */
 export function ownerDisplayFromUser(user) {
-  if (!user || typeof user !== 'object') {
+  if (user == null || user === '') {
     return { label: 'Unassigned', avatarFallback: '?' };
+  }
+  // Bare relation id (Strapi sometimes returns assignedTo as a number/string)
+  if (typeof user !== 'object') {
+    const idLabel = String(user).trim();
+    if (!idLabel) return { label: 'Unassigned', avatarFallback: '?' };
+    return { label: 'Team member', avatarFallback: '?' };
   }
   const fn = user.firstName || user.firstname;
   const ln = user.lastName || user.lastname;
@@ -127,7 +133,11 @@ export function ownerDisplayFromUser(user) {
     const e = String(user.email);
     return { label: e, avatarFallback: e[0].toUpperCase() };
   }
-  return { label: 'Unknown', avatarFallback: '?' };
+  // Object stub with only id — not a true unassigned row
+  if (user.id != null || user.documentId != null) {
+    return { label: 'Team member', avatarFallback: '?' };
+  }
+  return { label: 'Unassigned', avatarFallback: '?' };
 }
 
 export {

@@ -40,6 +40,34 @@ import contactService from '../../../lib/api/contactService';
 import strapiClient from '../../../lib/strapiClient';
 import { canEditCRMRecord, canManageCRM } from '../../../lib/rbac';
 
+function isDisplayableOwner(user) {
+  if (!user || typeof user !== 'object') return false;
+  return Boolean(
+    user.firstName ||
+      user.firstname ||
+      user.lastName ||
+      user.lastname ||
+      user.username ||
+      user.email
+  );
+}
+
+/** Prefer a named owner; fall back through contact → lead → client assignee. */
+function resolveContactOwner(contact) {
+  const candidates = [
+    contact?.assignedTo,
+    contact?.leadCompany?.assignedTo,
+    contact?.clientAccount?.assignedTo,
+  ];
+  for (const c of candidates) {
+    if (isDisplayableOwner(c)) return c;
+  }
+  for (const c of candidates) {
+    if (c && typeof c === 'object' && (c.id != null || c.documentId != null)) return c;
+  }
+  return null;
+}
+
 function contactDisplayName(contact) {
   if (!contact) return 'Unnamed';
   if (contact.firstName && contact.lastName) return `${contact.firstName} ${contact.lastName}`;
@@ -461,7 +489,7 @@ export default function ContactsPage() {
         key: 'owner',
         visibilityKey: 'owner',
         label: 'OWNER',
-        render: (_, contact) => <TableCellOwner user={contact.assignedTo} />,
+        render: (_, contact) => <TableCellOwner user={resolveContactOwner(contact)} />,
       },
       {
         key: 'createdAt',

@@ -55,10 +55,18 @@ import WonDealProjectModal from '../../../components/WonDealProjectModal';
 import dealService from '../../../lib/api/dealService';
 import { shouldPromptDeliveryProjectOnWon } from '../../../lib/wonDealProjectPrompt';
 import crmActivityService from '../../../lib/api/crmActivityService';
-import { contactDisplayName } from '../../../lib/dealFormOptions';
+import {
+  contactDisplayName,
+  DEAL_STAGE_OPTIONS,
+  PRIORITY_OPTIONS,
+  SOURCE_OPTIONS,
+  VISIBILITY_OPTIONS,
+  relationEntityId,
+} from '../../../lib/dealFormOptions';
 import { canEditCRMRecord, canManageCRM, canWriteCRM } from '../../../lib/rbac';
 import { TableSortDropdown as CrmTableSortDropdown } from '@webfudge/ui';
 import { useCrmTableSort } from '../../../hooks/useCrmTableSort';
+import strapiClient from '../../../lib/strapiClient';
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'crm.deals.tableColumnVisibility';
 const COLUMN_ORDER_STORAGE_KEY = 'crm.deals.tableColumnOrder';
@@ -182,6 +190,54 @@ function companyLine(deal) {
   );
 }
 
+const EMPTY_DEAL_FILTERS = {
+  stage: '',
+  priority: '',
+  source: '',
+  visibility: '',
+  assignedToId: '',
+  companyQuery: '',
+  valueRange: '',
+  dateRange: '',
+};
+
+function dealMatchesDateRange(deal, range) {
+  if (!range) return true;
+  const created = deal?.createdAt ? new Date(deal.createdAt) : null;
+  if (!created || Number.isNaN(created.getTime())) return false;
+  const now = new Date();
+  if (range === 'last7') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 7);
+    return created >= d;
+  }
+  if (range === 'last30') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 30);
+    return created >= d;
+  }
+  if (range === 'last90') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 90);
+    return created >= d;
+  }
+  if (range === 'thisYear') {
+    return created >= new Date(now.getFullYear(), 0, 1);
+  }
+  return true;
+}
+
+function dealMatchesValueRange(deal, range) {
+  if (!range) return true;
+  const n = Number(deal?.value);
+  if (Number.isNaN(n)) return false;
+  if (range === 'lt100k') return n < 100000;
+  if (range === '100k_1m') return n >= 100000 && n <= 1000000;
+  if (range === '1m_5m') return n > 1000000 && n <= 5000000;
+  if (range === 'gt5m') return n > 5000000;
+  return true;
+}
+
 export default function DealsPage() {
   const router = useRouter();
   const [deals, setDeals] = useState([]);
@@ -192,6 +248,10 @@ export default function DealsPage() {
   const itemsPerPage = 15;
 
   const [sortOpen, setSortOpen] = useState(false);
+  const [orgUsers, setOrgUsers] = useState([]);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_DEAL_FILTERS);
+  const [draftFilters, setDraftFilters] = useState(EMPTY_DEAL_FILTERS);
 
   const {
     columnVisibility,
@@ -283,6 +343,21 @@ export default function DealsPage() {
     fetchDeals();
   }, [fetchDeals]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await strapiClient.getXtrawrkxUsers();
+        if (!cancelled) setOrgUsers(Array.isArray(res?.data) ? res.data : []);
+      } catch {
+        if (!cancelled) setOrgUsers([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const dealStats = {
     all: deals.length,
     prospect: deals.filter((d) => d.stage?.toLowerCase() === 'prospect').length,
@@ -291,6 +366,30 @@ export default function DealsPage() {
     won: deals.filter((d) => d.stage?.toLowerCase() === 'won').length,
     lost: deals.filter((d) => d.stage?.toLowerCase() === 'lost').length,
   };
+
+  const hasActiveFilters = useMemo(
+    () =>
+      Object.values(appliedFilters).some((value) =>
+        typeof value === 'string' ? value.trim() !== '' : Boolean(value)
+      ),
+    [appliedFilters]
+  );
+
+  const assigneeFilterOptions = useMemo(() => {
+    return orgUsers
+      .map((user) => {
+        const id = user.id ?? user.documentId;
+        if (id == null) return null;
+        const name =
+          user.username ||
+          [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+          user.email ||
+          `User ${id}`;
+        return { value: String(id), label: name };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [orgUsers]);
 
   const filteredDeals = deals.filter((deal) => {
     if (!deal) return false;
@@ -306,8 +405,43 @@ export default function DealsPage() {
       deal.contact?.email?.toLowerCase().includes(q) ||
       contactDisplayName(deal.contact).toLowerCase().includes(q);
     const matchesTab = activeTab === 'all' || deal.stage?.toLowerCase() === activeTab.toLowerCase();
+
+    const f = appliedFilters;
+    if (f.stage && String(deal.stage || '').toLowerCase() !== f.stage.toLowerCase()) return false;
+    if (f.priority && String(deal.priority || '').toLowerCase() !== f.priority.toLowerCase()) return false;
+    if (f.source && String(deal.source || '').toUpperCase() !== f.source.toUpperCase()) return false;
+    if (f.visibility && String(deal.visibility || '').toLowerCase() !== f.visibility.toLowerCase()) {
+      return false;
+    }
+    if (f.assignedToId) {
+      const assignedId = relationEntityId(deal.assignedTo);
+      if (assignedId !== String(f.assignedToId)) return false;
+    }
+    if (f.companyQuery?.trim()) {
+      const cq = f.companyQuery.trim().toLowerCase();
+      if (!companyLine(deal).toLowerCase().includes(cq)) return false;
+    }
+    if (!dealMatchesValueRange(deal, f.valueRange)) return false;
+    if (!dealMatchesDateRange(deal, f.dateRange)) return false;
+
     return matchesSearch && matchesTab;
   });
+
+  const openFilterModal = useCallback(() => {
+    setDraftFilters(appliedFilters);
+    setShowFilterModal(true);
+  }, [appliedFilters]);
+
+  const applyFilters = useCallback(() => {
+    setAppliedFilters(draftFilters);
+    setShowFilterModal(false);
+  }, [draftFilters]);
+
+  const clearAllFilters = useCallback(() => {
+    setDraftFilters(EMPTY_DEAL_FILTERS);
+    setAppliedFilters(EMPTY_DEAL_FILTERS);
+    setShowFilterModal(false);
+  }, []);
 
   // Multi-column sort (only applied in table view)
   const {
@@ -328,7 +462,7 @@ export default function DealsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, appliedFilters]);
 
   useEffect(() => {
     if (!paginatedDeals?.length) return;
@@ -819,7 +953,7 @@ export default function DealsPage() {
         ]}
         showActions
         onAddClick={canCreateDeals ? () => router.push('/sales/deals/new') : undefined}
-        onFilterClick={() => {}}
+        onFilterClick={openFilterModal}
         onImportClick={() => {}}
         onExportClick={() => {}}
       />
@@ -875,7 +1009,8 @@ export default function DealsPage() {
           onAddClick={canCreateDeals ? () => router.push('/sales/deals/new') : undefined}
           addTitle="Add Deal"
           showFilter
-          onFilterClick={() => {}}
+          onFilterClick={openFilterModal}
+          filterTitle={hasActiveFilters ? 'Filters active — click to edit' : 'Filter deals'}
           showColumnVisibility={dealViewMode === 'table'}
           onColumnVisibilityClick={() => { setColumnPickerOpen((o) => !o); setSortOpen(false); }}
           columnVisibilityTitle="Show or hide columns"
@@ -940,13 +1075,13 @@ export default function DealsPage() {
                 <Briefcase className="mx-auto mb-3 h-12 w-12 text-gray-400 opacity-50" />
                 <h3 className="mb-2 text-lg font-semibold text-gray-700">No deals found</h3>
                 <p className="mb-4 text-sm text-gray-500">
-                  {searchQuery || activeTab !== 'all'
+                  {searchQuery || activeTab !== 'all' || hasActiveFilters
                     ? 'Try adjusting your filters'
                     : canCreateDeals
                       ? 'Create your first deal to get started'
                       : 'No deals are available yet.'}
                 </p>
-                {!searchQuery && activeTab === 'all' && (
+                {!searchQuery && activeTab === 'all' && !hasActiveFilters && (
                   <div className="flex flex-wrap justify-center gap-3">
                     {canCreateDeals ? (
                       <Button variant="primary" onClick={() => router.push('/sales/deals/new')}>
@@ -981,13 +1116,13 @@ export default function DealsPage() {
             <Briefcase className="mx-auto mb-3 h-12 w-12 text-gray-400 opacity-50" />
             <h3 className="mb-2 text-lg font-semibold text-gray-700">No deals found</h3>
             <p className="mb-4 text-sm text-gray-500">
-              {searchQuery || activeTab !== 'all'
+              {searchQuery || activeTab !== 'all' || hasActiveFilters
                 ? 'Try adjusting your filters'
                 : canCreateDeals
                   ? 'Create your first deal to get started'
                   : 'No deals are available yet.'}
             </p>
-            {!searchQuery && activeTab === 'all' && (
+            {!searchQuery && activeTab === 'all' && !hasActiveFilters && (
               <div className="flex flex-wrap justify-center gap-3">
                 {canCreateDeals ? (
                   <Button variant="primary" onClick={() => router.push('/sales/deals/new')}>
@@ -1057,6 +1192,151 @@ export default function DealsPage() {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        title="Filter Deals"
+        size="xl"
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-gray-600">Refine your deal search</p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">Stage</span>
+              <select
+                value={draftFilters.stage}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, stage: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              >
+                <option value="">Select stage</option>
+                {DEAL_STAGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">Priority</span>
+              <select
+                value={draftFilters.priority}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, priority: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              >
+                <option value="">Select priority</option>
+                {PRIORITY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">Source</span>
+              <select
+                value={draftFilters.source}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, source: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              >
+                <option value="">Select source</option>
+                {SOURCE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">Visibility</span>
+              <select
+                value={draftFilters.visibility}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, visibility: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              >
+                <option value="">Select visibility</option>
+                {VISIBILITY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">Assigned To</span>
+              <select
+                value={draftFilters.assignedToId}
+                onChange={(e) =>
+                  setDraftFilters((prev) => ({ ...prev, assignedToId: e.target.value }))
+                }
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              >
+                <option value="">Select assignee</option>
+                {assigneeFilterOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">Company</span>
+              <input
+                value={draftFilters.companyQuery}
+                onChange={(e) =>
+                  setDraftFilters((prev) => ({ ...prev, companyQuery: e.target.value }))
+                }
+                placeholder="Filter by company..."
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">Date Range</span>
+              <select
+                value={draftFilters.dateRange}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, dateRange: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              >
+                <option value="">Select date range</option>
+                <option value="last7">Last 7 days</option>
+                <option value="last30">Last 30 days</option>
+                <option value="last90">Last 90 days</option>
+                <option value="thisYear">This year</option>
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-gray-700">Value Range</span>
+              <select
+                value={draftFilters.valueRange}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, valueRange: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              >
+                <option value="">Select value range</option>
+                <option value="lt100k">Below 1 lakh</option>
+                <option value="100k_1m">1 lakh to 10 lakh</option>
+                <option value="1m_5m">10 lakh to 50 lakh</option>
+                <option value="gt5m">Above 50 lakh</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+            <Button type="button" variant="outline" onClick={clearAllFilters}>
+              Clear All
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="muted" onClick={() => setShowFilterModal(false)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="primary" onClick={applyFilters}>
+                Apply Filters
+              </Button>
+            </div>
+          </div>
+          {hasActiveFilters ? (
+            <p className="text-xs text-orange-700">Active filters are applied to results.</p>
+          ) : null}
+        </div>
       </Modal>
 
       {moreActionMenu &&
