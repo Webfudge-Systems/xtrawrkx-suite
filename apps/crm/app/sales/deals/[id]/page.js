@@ -505,7 +505,7 @@ export default function DealDetailPage() {
       return;
     }
     setDealContactsLoading(true);
-    const populate = ['assignedTo', 'leadCompany', 'clientAccount'];
+    const populate = ['assignedTo', 'collaborators', 'leadCompany', 'clientAccount'];
     const mergedById = new Map();
 
     const fetchByLead = async (lcid) => {
@@ -1713,6 +1713,58 @@ export default function DealDetailPage() {
                       </Button>
                     ) : null}
                   </div>
+                </Card>
+
+                <Card variant="elevated" className="rounded-xl">
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                    <h2 className="text-xl font-semibold text-gray-900">Collaborators</h2>
+                    {canEditDeal ? (
+                      <Button
+                        as={Link}
+                        href={id ? `/sales/deals/${id}/edit` : '#'}
+                        variant="outline"
+                        size="sm"
+                        className="w-full shrink-0 gap-2 !border-gray-300 bg-white !text-gray-700 shadow-sm hover:bg-gray-50 hover:!text-gray-900 sm:w-auto"
+                      >
+                        <Users className="h-4 w-4 shrink-0 text-gray-600" strokeWidth={1.75} aria-hidden />
+                        Manage
+                      </Button>
+                    ) : null}
+                  </div>
+                  {(() => {
+                    const collabs = Array.isArray(deal?.collaborators?.data)
+                      ? deal.collaborators.data
+                      : Array.isArray(deal?.collaborators)
+                        ? deal.collaborators
+                        : [];
+                    if (!collabs.length) {
+                      return (
+                        <p className="text-sm text-gray-500">No collaborators on this deal yet.</p>
+                      );
+                    }
+                    return (
+                      <ul className="space-y-3">
+                        {collabs.map((u) => (
+                          <li key={u.id ?? u.documentId} className="flex min-w-0 items-center gap-3">
+                            <Avatar
+                              fallback={assigneeInitials(u)}
+                              alt={assigneeName(u)}
+                              size="md"
+                              className="!bg-gray-600 font-semibold text-white"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-gray-900">
+                                {assigneeName(u)}
+                              </p>
+                              {assigneeEmailLine(u) ? (
+                                <p className="truncate text-xs text-gray-500">{assigneeEmailLine(u)}</p>
+                              ) : null}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
                 </Card>
 
                 <Card variant="elevated" className="rounded-xl">

@@ -136,6 +136,14 @@ async function transferUserAssignments(strapi, { organizationId, fromUserId, toU
     fromId,
     toId
   );
+  counts.dealCollaborators = await transferManyToManyUserField(
+    strapi,
+    'api::deal.deal',
+    organizationId,
+    'collaborators',
+    fromId,
+    toId
+  );
 
   const taskFields = [
     ['assignee', 'tasksAsAssignee'],

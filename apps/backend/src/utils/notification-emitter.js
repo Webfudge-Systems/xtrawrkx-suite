@@ -95,7 +95,10 @@ function projectStakeholderIds(project) {
 }
 
 function assignedStakeholderIds(entity) {
-  return uniquePositiveIds([relationUserId(entity?.assignedTo)]);
+  return uniquePositiveIds([
+    relationUserId(entity?.assignedTo),
+    ...relationUserIds(entity?.collaborators),
+  ]);
 }
 
 async function notifyUsers(strapi, { userIds, organizationId, type, title, message, data = {} }) {

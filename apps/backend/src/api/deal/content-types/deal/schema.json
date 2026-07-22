@@ -62,6 +62,11 @@
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user"
     },
+    "collaborators": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user"
+    },
     "organization": {
       "type": "relation",
       "relation": "manyToOne",

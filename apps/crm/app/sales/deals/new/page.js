@@ -13,10 +13,12 @@ import {
   Modal,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
+import TaskAssigneesPicker from '../../../../components/TaskAssigneesPicker';
 import dealService from '../../../../lib/api/dealService';
 import leadCompanyService from '../../../../lib/api/leadCompanyService';
 import clientAccountService from '../../../../lib/api/clientAccountService';
 import contactService from '../../../../lib/api/contactService';
+import strapiClient from '../../../../lib/strapiClient';
 import { canWriteCRM } from '../../../../lib/rbac';
 import {
   DEAL_STAGE_OPTIONS,
@@ -66,7 +68,23 @@ const initialForm = {
   clientAccount: '',
   contact: '',
   notes: '',
+  collaboratorIds: [],
 };
+
+function directoryUserLabel(u) {
+  const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+  return name || u.username || u.email || `User #${u.id}`;
+}
+
+function toDirectoryUser(u) {
+  const row = u?.attributes ? { id: u.id, documentId: u.id, ...u.attributes } : u;
+  if (!row?.id) return null;
+  return {
+    ...row,
+    name: directoryUserLabel(row),
+    avatar: row.avatar || row.profilePicture || null,
+  };
+}
 
 export default function NewDealPage() {
   const router = useRouter();
@@ -88,6 +106,7 @@ export default function NewDealPage() {
   const [leadCompanies, setLeadCompanies] = useState([]);
   const [clientAccounts, setClientAccounts] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [directoryUsers, setDirectoryUsers] = useState([]);
   const [loadingRefs, setLoadingRefs] = useState(true);
   const canCreateDeals = canWriteCRM('deals');
 
@@ -131,12 +150,36 @@ export default function NewDealPage() {
           console.error('Contacts failed to load', cRes.reason);
           setContacts([]);
         }
+
+        try {
+          let allUsers = [];
+          let page = 1;
+          let hasMore = true;
+          while (hasMore && !cancelled) {
+            const response = await strapiClient.getXtrawrkxUsers({
+              'pagination[page]': page,
+              'pagination[pageSize]': 100,
+              populate: 'primaryRole,userRoles',
+            });
+            const usersData = response?.data ?? response ?? [];
+            const arr = Array.isArray(usersData) ? usersData : [];
+            allUsers = [...allUsers, ...arr.map(toDirectoryUser).filter(Boolean)];
+            const pageCount = response?.meta?.pagination?.pageCount ?? 1;
+            hasMore = page < pageCount && arr.length === 100;
+            page += 1;
+          }
+          if (!cancelled) setDirectoryUsers(allUsers);
+        } catch (e) {
+          console.error('Org users failed to load (collaboration picker unavailable)', e);
+          if (!cancelled) setDirectoryUsers([]);
+        }
       } catch (e) {
         console.error(e);
         if (!cancelled) {
           setLeadCompanies([]);
           setClientAccounts([]);
           setContacts([]);
+          setDirectoryUsers([]);
         }
       } finally {
         if (!cancelled) setLoadingRefs(false);
@@ -227,6 +270,14 @@ export default function NewDealPage() {
     []
   );
 
+  const collaboratorUserIds = useMemo(
+    () =>
+      (form.collaboratorIds || [])
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n) && n > 0),
+    [form.collaboratorIds]
+  );
+
   const setField = (field, value) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
@@ -291,6 +342,7 @@ export default function NewDealPage() {
         leadCompany: form.leadCompany || null,
         clientAccount: form.clientAccount || null,
         contact: form.contact || null,
+        collaborators: form.collaboratorIds || [],
       };
       const res = await dealService.create(payload);
       const newId = res?.data?.id ?? res?.id;
@@ -498,6 +550,41 @@ export default function NewDealPage() {
                     rows={4}
                   />
                 </div>
+              </div>
+            </FormSectionCard>
+
+            <FormSectionCard
+              icon={Users}
+              title="Collaboration"
+              description="Invite teammates who will work on this deal (same multi-select as PM projects)."
+              cardClassName={SECTION_CARD_CLASS}
+            >
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-800">Deal collaborators</p>
+                <p className="mb-2 text-xs text-gray-500">
+                  Select everyone collaborating on this deal (multiple). Deal owner is set to you on create.
+                </p>
+                {directoryUsers.length > 0 ? (
+                  <TaskAssigneesPicker
+                    userIds={collaboratorUserIds}
+                    users={directoryUsers}
+                    assignees={[]}
+                    onChange={(next) =>
+                      setForm((p) => ({
+                        ...p,
+                        collaboratorIds: next.map(String),
+                      }))
+                    }
+                    compact={false}
+                    pickerMode="modal"
+                    searchable
+                    popoverTitle="Deal collaborators"
+                  />
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    {loadingRefs ? 'Loading organization members…' : 'No organization members available.'}
+                  </p>
+                )}
               </div>
             </FormSectionCard>
 

@@ -442,7 +442,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       if (Number.isNaN(dealId)) return ctx.badRequest('Invalid dealId');
 
       const deal = await strapi.entityService.findOne(DEAL_UID, dealId, {
-        populate: ['organization', 'leadCompany', 'assignedTo'],
+        populate: ['organization', 'leadCompany', 'assignedTo', 'collaborators'],
       });
       if (!deal) return ctx.notFound('Deal not found');
       if (orgIdFromRelation(deal.organization) !== ctx.state.orgId) {

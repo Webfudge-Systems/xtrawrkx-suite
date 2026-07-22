@@ -68,6 +68,28 @@ function toStrapiData(payload) {
     if (!Number.isNaN(n)) data[key] = n;
   }
 
+  if (Object.prototype.hasOwnProperty.call(payload, 'collaborators')) {
+    const raw = payload.collaborators;
+    let ids = [];
+    if (Array.isArray(raw)) {
+      ids = raw;
+    } else if (raw && typeof raw === 'object' && Array.isArray(raw.set)) {
+      ids = raw.set;
+    }
+    data.collaborators = {
+      set: [
+        ...new Set(
+          ids
+            .map((x) => {
+              if (x != null && typeof x === 'object') return parseInt(String(x.id ?? x.documentId), 10);
+              return parseInt(String(x), 10);
+            })
+            .filter((n) => Number.isFinite(n) && n > 0)
+        ),
+      ],
+    };
+  }
+
   return data;
 }
 
@@ -93,6 +115,7 @@ export default {
     const populate =
       options.populate ?? [
         'assignedTo',
+        'collaborators',
         'organization',
         'leadCompany',
         'clientAccount',

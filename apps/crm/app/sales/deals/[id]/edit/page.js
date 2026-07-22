@@ -14,6 +14,7 @@ import {
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../../components/CRMPageHeader';
 import WonDealProjectModal from '../../../../../components/WonDealProjectModal';
+import TaskAssigneesPicker from '../../../../../components/TaskAssigneesPicker';
 import dealService from '../../../../../lib/api/dealService';
 import { shouldPromptDeliveryProjectOnWon } from '../../../../../lib/wonDealProjectPrompt';
 import leadCompanyService from '../../../../../lib/api/leadCompanyService';
@@ -40,12 +41,36 @@ import {
   CheckCircle2,
   Save,
   Target,
+  Users,
 } from 'lucide-react';
 
 function relId(rel) {
   if (rel == null) return '';
   if (typeof rel === 'object') return String(rel.id ?? rel.documentId ?? '');
   return String(rel);
+}
+
+function directoryUserLabel(u) {
+  const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+  return name || u.username || u.email || `User #${u.id}`;
+}
+
+function toDirectoryUser(u) {
+  const row = u?.attributes ? { id: u.id, documentId: u.id, ...u.attributes } : u;
+  if (!row?.id) return null;
+  return {
+    ...row,
+    name: directoryUserLabel(row),
+    avatar: row.avatar || row.profilePicture || null,
+  };
+}
+
+function collaboratorIdsFromDeal(deal) {
+  const raw = deal?.collaborators?.data ?? deal?.collaborators;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((u) => relId(u))
+    .filter(Boolean);
 }
 
 export default function EditDealPage() {
@@ -77,6 +102,7 @@ export default function EditDealPage() {
     clientAccount: '',
     contact: '',
     assignedTo: '',
+    collaboratorIds: [],
     notes: '',
   });
   const [errors, setErrors] = useState({});
@@ -154,9 +180,7 @@ export default function EditDealPage() {
           });
           const usersData = response?.data ?? response ?? [];
           const arr = Array.isArray(usersData) ? usersData : [];
-          const extracted = arr.map((u) =>
-            u.attributes ? { id: u.id, documentId: u.id, ...u.attributes } : u
-          );
+          const extracted = arr.map(toDirectoryUser).filter(Boolean);
           allUsers = [...allUsers, ...extracted];
           const pageCount = response?.meta?.pagination?.pageCount ?? 1;
           hasMore = page < pageCount && arr.length === 100;
@@ -208,6 +232,7 @@ export default function EditDealPage() {
           clientAccount: relId(d.clientAccount),
           contact: relId(d.contact),
           assignedTo: relId(d.assignedTo),
+          collaboratorIds: collaboratorIdsFromDeal(d),
           notes: d.notes ?? '',
         });
         const st = String(d.stage ?? 'discovery').toLowerCase();
@@ -354,14 +379,19 @@ export default function EditDealPage() {
 
   const userOptions = useMemo(
     () =>
-      users.map((u) => {
-        const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
-        return {
-          value: String(u.id),
-          label: name || u.username || u.email || `User #${u.id}`,
-        };
-      }),
+      users.map((u) => ({
+        value: String(u.id),
+        label: directoryUserLabel(u),
+      })),
     [users]
+  );
+
+  const collaboratorUserIds = useMemo(
+    () =>
+      (form.collaboratorIds || [])
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n) && n > 0),
+    [form.collaboratorIds]
   );
 
   const setField = (field, value) => {
@@ -411,6 +441,7 @@ export default function EditDealPage() {
     leadCompany: form.leadCompany ? form.leadCompany : null,
     clientAccount: form.clientAccount ? form.clientAccount : null,
     contact: form.contact ? form.contact : null,
+    collaborators: form.collaboratorIds || [],
     ...(canManageDeals ? { assignedTo: form.assignedTo ? form.assignedTo : null } : {}),
   });
 
@@ -656,15 +687,6 @@ export default function EditDealPage() {
                   options={SOURCE_OPTIONS}
                   placeholder="Source"
                 />
-                {canManageDeals ? (
-                  <Select
-                    label="Assigned to"
-                    value={form.assignedTo}
-                    onChange={(v) => setField('assignedTo', v)}
-                    options={userOptions}
-                    placeholder="Unassigned"
-                  />
-                ) : null}
               </div>
               <div className="mt-6">
                 <Textarea
@@ -674,6 +696,53 @@ export default function EditDealPage() {
                   rows={5}
                   placeholder="Describe this deal…"
                 />
+              </div>
+            </FormSectionCard>
+
+            <FormSectionCard
+              icon={Users}
+              title="Collaboration"
+              description="Deal owner and teammates collaborating on this opportunity."
+              cardClassName="rounded-xl p-6"
+              iconContainerClassName="bg-brand-primary shadow-sm"
+            >
+              <div className="space-y-6">
+                {canManageDeals ? (
+                  <Select
+                    label="Assigned to"
+                    value={form.assignedTo}
+                    onChange={(v) => setField('assignedTo', v)}
+                    options={userOptions}
+                    placeholder="Unassigned"
+                  />
+                ) : null}
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-800">Deal collaborators</p>
+                  <p className="mb-2 text-xs text-gray-500">
+                    Multiple people from your organization (optional). Same picker as PM projects.
+                  </p>
+                  {users.length > 0 ? (
+                    <TaskAssigneesPicker
+                      userIds={collaboratorUserIds}
+                      users={users}
+                      assignees={[]}
+                      onChange={(next) =>
+                        setForm((p) => ({
+                          ...p,
+                          collaboratorIds: next.map(String),
+                        }))
+                      }
+                      compact={false}
+                      pickerMode="modal"
+                      searchable
+                      popoverTitle="Deal collaborators"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      {loadingRefs ? 'Loading organization members…' : 'No organization members available.'}
+                    </p>
+                  )}
+                </div>
               </div>
             </FormSectionCard>
 

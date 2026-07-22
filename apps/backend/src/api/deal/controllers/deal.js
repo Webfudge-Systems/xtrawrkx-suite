@@ -22,6 +22,7 @@ const PROJECT_UID = 'api::project.project';
 
 const DEAL_POPULATE_FALLBACK = [
   'assignedTo',
+  'collaborators',
   'organization',
   'leadCompany',
   'clientAccount',
@@ -31,6 +32,7 @@ const DEAL_POPULATE_FALLBACK = [
 const sanitizePopulate = createPopulateSanitizer(
   new Set([
     'assignedTo',
+    'collaborators',
     'organization',
     'leadCompany',
     'clientAccount',
@@ -39,6 +41,50 @@ const sanitizePopulate = createPopulateSanitizer(
   ]),
   DEAL_POPULATE_FALLBACK
 );
+
+/** Strapi 5 many-to-many: normalize to `{ set: [pk, …] }`. */
+function normalizeCollaboratorsInput(raw) {
+  if (raw == null) return undefined;
+  let list = [];
+  if (Array.isArray(raw)) {
+    list = raw;
+  } else if (typeof raw === 'object') {
+    if (Array.isArray(raw.set)) list = raw.set;
+    else if (Array.isArray(raw.connect)) list = raw.connect;
+    else if (Array.isArray(raw.data)) list = raw.data;
+  }
+  const ids = [
+    ...new Set(
+      list
+        .map((item) => {
+          if (item == null) return null;
+          if (typeof item === 'object') return item.id ?? item.documentId ?? null;
+          const n = parseInt(String(item), 10);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })
+        .filter((id) => id != null)
+        .map((id) => {
+          const n = parseInt(String(id), 10);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })
+        .filter(Boolean)
+    ),
+  ];
+  return { set: ids };
+}
+
+function collaboratorIdsFromEntity(entity) {
+  const raw =
+    entity?.collaborators?.data !== undefined ? entity.collaborators.data : entity?.collaborators;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((u) => (typeof u === 'object' && u != null ? u.id ?? null : u))
+    .map((id) => {
+      const n = parseInt(String(id), 10);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })
+    .filter(Boolean);
+}
 
 module.exports = createCoreController(UID, ({ strapi }) => ({
   async find(ctx) {
@@ -104,6 +150,9 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     } else if (data.assignedTo == null && ctx.state.user?.id) {
       data.assignedTo = ctx.state.user.id;
     }
+    if (Object.prototype.hasOwnProperty.call(data, 'collaborators')) {
+      data.collaborators = normalizeCollaboratorsInput(data.collaborators) ?? { set: [] };
+    }
 
     delete data.id;
     delete data.documentId;
@@ -113,7 +162,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     try {
       if (forLog?.id != null) {
         forLog = await strapi.entityService.findOne(UID, forLog.id, {
-          populate: ['leadCompany', 'clientAccount', 'contact', 'assignedTo'],
+          populate: ['leadCompany', 'clientAccount', 'contact', 'assignedTo', 'collaborators'],
         });
       }
       try {
@@ -144,7 +193,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     const { id } = ctx.params;
 
     const existing = await strapi.entityService.findOne(UID, id, {
-      populate: ['organization', 'leadCompany', 'contact', 'assignedTo'],
+      populate: ['organization', 'leadCompany', 'contact', 'assignedTo', 'collaborators'],
     });
     if (!existing) return ctx.notFound();
     if (orgIdFromRelation(existing.organization) !== ctx.state.orgId) {
@@ -165,6 +214,9 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     delete data.organization;
     if (!canAccess(ctx, 'crm', 'deals', 'manage')) {
       delete data.assignedTo;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'collaborators')) {
+      data.collaborators = normalizeCollaboratorsInput(data.collaborators) ?? { set: [] };
     }
 
     let entry = await strapi.entityService.update(UID, id, { data });
@@ -199,7 +251,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
       const forLog =
         entry?.id != null
           ? await strapi.entityService.findOne(UID, entry.id, {
-              populate: ['leadCompany', 'contact', 'assignedTo'],
+              populate: ['leadCompany', 'contact', 'assignedTo', 'collaborators'],
             })
           : entry;
       const actorName = await actorDisplayName(strapi, ctx.state.user?.id);
@@ -274,7 +326,7 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (Number.isNaN(dealId)) return ctx.badRequest('Invalid deal id');
 
     const deal = await strapi.entityService.findOne(UID, dealId, {
-      populate: ['organization', 'deliveryProject', 'leadCompany', 'assignedTo'],
+      populate: ['organization', 'deliveryProject', 'leadCompany', 'assignedTo', 'collaborators'],
     });
     if (!deal) return ctx.notFound();
     if (orgIdFromRelation(deal.organization) !== ctx.state.orgId) {
@@ -313,6 +365,8 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     if (pmId) data.projectManager = pmId;
     const leadId = orgIdFromRelation(deal.leadCompany);
     if (leadId) data.clientAccount = leadId;
+    const collabIds = collaboratorIdsFromEntity(deal);
+    if (collabIds.length) data.teamMembers = { set: collabIds };
 
     const project = await strapi.entityService.create(PROJECT_UID, { data });
     return { data: project };

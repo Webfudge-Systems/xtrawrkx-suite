@@ -1069,6 +1069,7 @@ export interface ApiDealDeal extends Struct.CollectionTypeSchema {
   attributes: {
     assignedTo: Schema.Attribute.Relation<'manyToOne', 'plugin::users-permissions.user'>
     clientAccount: Schema.Attribute.Relation<'manyToOne', 'api::client-account.client-account'>
+    collaborators: Schema.Attribute.Relation<'manyToMany', 'plugin::users-permissions.user'>
     contact: Schema.Attribute.Relation<'manyToOne', 'api::contact.contact'>
     createdAt: Schema.Attribute.DateTime
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private

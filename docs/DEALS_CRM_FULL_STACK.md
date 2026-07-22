@@ -13,7 +13,7 @@ Deals are now backed by a real Strapi `deal` collection type with org-scoped RES
 ## Deal schema (high level)
 
 - Core: `name`, `value`, `stage` (discovery → lost), `priority`, `probability`, `visibility`, `dealGroup`, `expectedCloseDate`, `source`, `description`, `notes`
-- Relations: `organization`, `assignedTo`, `leadCompany`, `clientAccount`, `contact`
+- Relations: `organization`, `assignedTo`, `collaborators`, `leadCompany`, `clientAccount`, `contact`
 
 ## API
 
