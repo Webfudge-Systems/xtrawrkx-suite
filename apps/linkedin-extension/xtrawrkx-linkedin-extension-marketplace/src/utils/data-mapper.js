@@ -9,8 +9,9 @@ class DataMapper {
     mapProfileToContact(profileData, userId) {
         const names = this.parseFullName(profileData.fullName || profileData.name || '');
 
-        // Get LinkedIn URL for placeholder email generation
-        const linkedInUrl = profileData.linkedInUrl || profileData.profileUrl || profileData.linkedIn || '';
+        // Get LinkedIn URL for placeholder email generation (canonicalize for CRM match)
+        const rawLinkedInUrl = profileData.linkedInUrl || profileData.profileUrl || profileData.linkedIn || '';
+        const linkedInUrl = this.normalizeContactLinkedInUrl(rawLinkedInUrl) || rawLinkedInUrl;
 
         // Derive currentCompany and currentJobTitle from experience array when not top-level fields
         if (!profileData.currentCompany && Array.isArray(profileData.experience) && profileData.experience.length > 0) {
@@ -145,6 +146,43 @@ class DataMapper {
             .replace(/\s+/g, ' ')
             .trim()
             .toLowerCase();
+    }
+
+    /**
+     * Canonical person profile URL for CRM storage / matching.
+     * https://www.linkedin.com/in/{slug} — strips query, trailing slash, www variance.
+     */
+    normalizeContactLinkedInUrl(href) {
+        if (!href || typeof href !== 'string') return '';
+        const trimmed = href.trim();
+        if (!trimmed) return '';
+
+        const match = trimmed.match(/(?:linkedin\.com\/)?(?:in|pub)\/([^\/?#]+)/i);
+        if (match?.[1]) {
+            try {
+                const slug = decodeURIComponent(match[1]).replace(/\/$/, '').toLowerCase();
+                return slug ? `https://www.linkedin.com/in/${slug}` : '';
+            } catch {
+                const slug = match[1].replace(/\/$/, '').toLowerCase();
+                return slug ? `https://www.linkedin.com/in/${slug}` : '';
+            }
+        }
+
+        try {
+            const withProtocol = /^https?:\/\//i.test(trimmed)
+                ? trimmed
+                : `https://${trimmed.replace(/^\/\//, '')}`;
+            const url = new URL(withProtocol);
+            const pathMatch = url.pathname.match(/^\/(?:in|pub)\/([^\/?#]+)/i);
+            if (pathMatch?.[1]) {
+                const slug = decodeURIComponent(pathMatch[1]).replace(/\/$/, '').toLowerCase();
+                return slug ? `https://www.linkedin.com/in/${slug}` : '';
+            }
+        } catch {
+            // ignore
+        }
+
+        return '';
     }
 
     cleanCompanyName(name) {

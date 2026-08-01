@@ -12,7 +12,9 @@
             const url = new URL(href, 'https://www.linkedin.com');
             const mainPath = getMainProfilePathname(url.pathname);
             if (!mainPath) return url.href.split('?')[0];
-            return `${url.origin}${mainPath.replace(/\/$/, '')}`;
+            const slug = mainPath.replace(/^\/in\//i, '').replace(/\/$/, '').toLowerCase();
+            // Always www + lowercase slug so CRM lookups match across old/new imports
+            return `https://www.linkedin.com/in/${slug}`;
         } catch {
             return href;
         }

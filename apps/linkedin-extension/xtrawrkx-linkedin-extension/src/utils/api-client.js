@@ -338,6 +338,61 @@ class ExtensionApiClient {
         return '';
     }
 
+    /**
+     * Canonical person profile URL: https://www.linkedin.com/in/{slug}
+     * Strips query params, trailing slash, www variance, and /details subpaths.
+     */
+    normalizeContactLinkedInUrl(href) {
+        if (!href || typeof href !== 'string') return '';
+
+        const trimmed = href.trim();
+        if (!trimmed) return '';
+
+        const slug = this.getContactLinkedInSlug(trimmed);
+        if (slug) {
+            return `https://www.linkedin.com/in/${slug}`;
+        }
+
+        return '';
+    }
+
+    getContactLinkedInSlug(href) {
+        if (!href || typeof href !== 'string') return '';
+
+        const trimmed = href.trim();
+        if (!trimmed) return '';
+
+        const direct = trimmed.match(/(?:linkedin\.com\/)?(?:in|pub)\/([^\/?#]+)/i);
+        if (direct?.[1]) {
+            try {
+                return decodeURIComponent(direct[1]).replace(/\/$/, '').toLowerCase();
+            } catch {
+                return direct[1].replace(/\/$/, '').toLowerCase();
+            }
+        }
+
+        try {
+            const withProtocol = /^https?:\/\//i.test(trimmed)
+                ? trimmed
+                : `https://${trimmed.replace(/^\/\//, '')}`;
+            const url = new URL(withProtocol);
+            const pathMatch = url.pathname.match(/^\/(?:in|pub)\/([^\/?#]+)/i);
+            if (pathMatch?.[1]) {
+                return decodeURIComponent(pathMatch[1]).replace(/\/$/, '').toLowerCase();
+            }
+        } catch {
+            // ignore
+        }
+
+        return '';
+    }
+
+    contactLinkedInUrlsMatch(a, b) {
+        const slugA = this.getContactLinkedInSlug(a);
+        const slugB = this.getContactLinkedInSlug(b);
+        return Boolean(slugA && slugB && slugA === slugB);
+    }
+
     normalizeCompanyName(name) {
         return String(name || '')
             .replace(/\u00a0/g, ' ')
@@ -464,18 +519,25 @@ class ExtensionApiClient {
 
     async checkDuplicateContact(email, linkedInUrl) {
         try {
-            const filters = [];
-            if (email) filters.push(`filters[$or][0][email][$eq]=${encodeURIComponent(email)}`);
-            if (linkedInUrl) filters.push(`filters[$or][1][linkedIn][$eq]=${encodeURIComponent(linkedInUrl)}`);
+            if (email) {
+                const emailParams = new URLSearchParams({
+                    'filters[email][$eq]': email,
+                    'pagination[pageSize]': '1',
+                });
+                const emailResponse = await this.request(`/contacts?${emailParams}`, {
+                    method: 'GET',
+                });
+                if (emailResponse.data && emailResponse.data.length > 0) {
+                    return true;
+                }
+            }
 
-            if (filters.length === 0) return false;
+            if (linkedInUrl) {
+                const existing = await this.findExistingContact(linkedInUrl);
+                if (existing) return true;
+            }
 
-            const queryParams = filters.join('&') + '&pagination[pageSize]=1';
-            const response = await this.request(`/contacts?${queryParams}`, {
-                method: 'GET'
-            });
-
-            return response.data && response.data.length > 0;
+            return false;
         } catch (error) {
             if (this.logger) {
                 this.logger.error('Error checking duplicate contact:', error);
@@ -488,29 +550,77 @@ class ExtensionApiClient {
         try {
             if (!linkedInUrl) return null;
 
+            const normalized = this.normalizeContactLinkedInUrl(linkedInUrl);
+            const slug = this.getContactLinkedInSlug(linkedInUrl);
+
             if (this.logger) {
-                this.logger.log('Finding existing contact for LinkedIn URL:', linkedInUrl);
+                this.logger.log('Finding existing contact for LinkedIn URL:', linkedInUrl, '→', normalized || slug);
             }
 
-            const queryParams = new URLSearchParams({
-                'filters[linkedIn][$eq]': linkedInUrl,
-                'pagination[pageSize]': '1',
+            const populateFields = {
                 'populate[leadCompany]': 'true',
                 'populate[clientAccount]': 'true',
                 'populate[account]': 'true',
-                'populate[assignedTo]': 'true'
-            });
+                'populate[assignedTo]': 'true',
+            };
 
-            const response = await this.request(`/contacts?${queryParams}`, {
-                method: 'GET'
-            });
-
-            if (response.data && response.data.length > 0) {
-                const contact = response.data[0];
-                if (this.logger) {
-                    this.logger.log('Found existing contact');
+            // 1) Exact match on canonical URL (works for recent imports)
+            if (normalized) {
+                const exactParams = new URLSearchParams({
+                    'filters[linkedIn][$eq]': normalized,
+                    'pagination[pageSize]': '1',
+                    ...populateFields,
+                });
+                const exactResponse = await this.request(`/contacts?${exactParams}`, {
+                    method: 'GET',
+                });
+                if (exactResponse.data && exactResponse.data.length > 0) {
+                    if (this.logger) {
+                        this.logger.log('Found existing contact (exact URL)');
+                    }
+                    return exactResponse.data[0];
                 }
-                return contact;
+            }
+
+            // 2) Slug fallback for older rows (trailing slash, query params, www variance, etc.)
+            if (!slug) return null;
+
+            const fallbackParams = new URLSearchParams({
+                'filters[linkedIn][$containsi]': `/in/${slug}`,
+                'pagination[pageSize]': '25',
+                ...populateFields,
+            });
+            const fallbackResponse = await this.request(`/contacts?${fallbackParams}`, {
+                method: 'GET',
+            });
+            const rows = fallbackResponse.data || [];
+            const match = rows.find((row) => this.contactLinkedInUrlsMatch(row.linkedIn, linkedInUrl));
+
+            if (match) {
+                if (this.logger) {
+                    this.logger.log('Found existing contact (slug match)');
+                }
+                return match;
+            }
+
+            // Also try /pub/{slug} for very old LinkedIn URL formats stored in CRM
+            const pubParams = new URLSearchParams({
+                'filters[linkedIn][$containsi]': `/pub/${slug}`,
+                'pagination[pageSize]': '25',
+                ...populateFields,
+            });
+            const pubResponse = await this.request(`/contacts?${pubParams}`, {
+                method: 'GET',
+            });
+            const pubMatch = (pubResponse.data || []).find((row) =>
+                this.contactLinkedInUrlsMatch(row.linkedIn, linkedInUrl),
+            );
+
+            if (pubMatch) {
+                if (this.logger) {
+                    this.logger.log('Found existing contact (pub slug match)');
+                }
+                return pubMatch;
             }
 
             return null;
