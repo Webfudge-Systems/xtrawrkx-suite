@@ -275,6 +275,33 @@ export default {
     }
   },
 
+  /**
+   * One page of lead companies for typeahead pickers.
+   * Search is server-side (`companyName $containsi`); converted leads can be excluded.
+   */
+  async searchForPicker({
+    search = '',
+    page = 1,
+    pageSize = 40,
+    excludeConverted = true,
+  } = {}) {
+    const params = {
+      sort: 'companyName:asc',
+      'pagination[page]': page,
+      'pagination[pageSize]': pageSize,
+      populate: ['convertedAccount'],
+    };
+    const q = String(search || '').trim();
+    if (q) {
+      params['filters[companyName][$containsi]'] = q;
+    }
+    if (excludeConverted) {
+      params['filters[status][$notIn][0]'] = 'CONVERTED';
+      params['filters[status][$notIn][1]'] = 'CLIENT';
+    }
+    return this.getAll(params);
+  },
+
   /** Paginate through all lead companies (dashboard widgets, exports). Avoid mergeContacts on every page. */
   async fetchAll(params = {}) {
     const { mergeContactsFromContactsApi, ...rest } = params;

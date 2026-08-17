@@ -13,12 +13,12 @@ import {
   LoadingSpinner,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../../components/CompanyPicker';
 import WonDealProjectModal from '../../../../../components/WonDealProjectModal';
 import TaskAssigneesPicker from '../../../../../components/TaskAssigneesPicker';
 import dealService from '../../../../../lib/api/dealService';
 import { shouldPromptDeliveryProjectOnWon } from '../../../../../lib/wonDealProjectPrompt';
 import leadCompanyService from '../../../../../lib/api/leadCompanyService';
-import clientAccountService from '../../../../../lib/api/clientAccountService';
 import contactService from '../../../../../lib/api/contactService';
 import strapiClient from '../../../../../lib/strapiClient';
 import {
@@ -107,8 +107,6 @@ export default function EditDealPage() {
   });
   const [errors, setErrors] = useState({});
 
-  const [leadCompanies, setLeadCompanies] = useState([]);
-  const [clientAccounts, setClientAccounts] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [users, setUsers] = useState([]);
   const [loadingRefs, setLoadingRefs] = useState(true);
@@ -126,48 +124,6 @@ export default function EditDealPage() {
     let cancelled = false;
     (async () => {
       setLoadingRefs(true);
-      const [lcRes, caRes, cRes] = await Promise.allSettled([
-        leadCompanyService.getAll({
-          sort: 'companyName:asc',
-          'pagination[pageSize]': 500,
-          populate: ['convertedAccount'],
-        }),
-        clientAccountService.getAll({
-          sort: 'companyName:asc',
-          'pagination[pageSize]': 500,
-        }),
-        contactService.getAll({
-          sort: 'createdAt:desc',
-          'pagination[pageSize]': 500,
-          populate: ['leadCompany', 'clientAccount'],
-        }),
-      ]);
-
-      if (cancelled) {
-        setLoadingRefs(false);
-        return;
-      }
-
-      if (lcRes.status === 'fulfilled') {
-        setLeadCompanies(lcRes.value.data || []);
-      } else {
-        console.error('Lead companies failed to load', lcRes.reason);
-        setLeadCompanies([]);
-      }
-      if (caRes.status === 'fulfilled') {
-        setClientAccounts(caRes.value.data || []);
-      } else {
-        console.error('Client accounts failed to load', caRes.reason);
-        setClientAccounts([]);
-      }
-      if (cRes.status === 'fulfilled') {
-        setContacts(cRes.value.data || []);
-      } else {
-        console.error('Contacts failed to load', cRes.reason);
-        setContacts([]);
-      }
-
-      // Assignee users: isolate failures — a throw here used to clear lead/accounts/contacts and empty every dropdown.
       try {
         let allUsers = [];
         let page = 1;
@@ -253,50 +209,75 @@ export default function EditDealPage() {
 
   /** If the deal still points at a lead that was converted, move association to the client account. */
   useEffect(() => {
-    if (loading || loadingRefs) return;
+    if (loading) return;
     if (normalizedConvertedLeadRef.current) return;
     const lcId = form.leadCompany?.trim();
     if (!lcId) {
       normalizedConvertedLeadRef.current = true;
-      return;
+      return undefined;
     }
-    const company = leadCompanies.find(
-      (c) => String(c.id ?? c.documentId ?? '') === String(lcId)
-    );
-    if (!company) {
-      if (leadCompanies.length > 0) normalizedConvertedLeadRef.current = true;
-      return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await leadCompanyService.getOne(lcId, { populate: ['convertedAccount'] });
+        if (cancelled) return;
+        const company = res?.data;
+        if (!company || !isConvertedLeadCompany(company)) {
+          normalizedConvertedLeadRef.current = true;
+          return;
+        }
+        const ca = company.convertedAccount;
+        let caId = '';
+        if (ca && typeof ca === 'object') {
+          caId = String(ca.id ?? ca.documentId ?? '');
+        } else if (ca != null && ca !== false) {
+          caId = String(ca);
+        }
+        normalizedConvertedLeadRef.current = true;
+        setForm((prev) => ({
+          ...prev,
+          leadCompany: '',
+          clientAccount: caId || prev.clientAccount,
+          contact: '',
+        }));
+      } catch (err) {
+        console.error('Failed to normalize converted lead on deal', err);
+        if (!cancelled) normalizedConvertedLeadRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, form.leadCompany]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const lead = form.leadCompany;
+    const account = form.clientAccount;
+    if (!lead && !account) {
+      setContacts([]);
+      return undefined;
     }
-    if (!isConvertedLeadCompany(company)) {
-      normalizedConvertedLeadRef.current = true;
-      return;
-    }
-    const ca = company.convertedAccount;
-    let caId = '';
-    if (ca && typeof ca === 'object') {
-      caId = String(ca.id ?? ca.documentId ?? '');
-    } else if (ca != null && ca !== false) {
-      caId = String(ca);
-    }
-    normalizedConvertedLeadRef.current = true;
-    setForm((prev) => {
-      const next = {
-        ...prev,
-        leadCompany: '',
-        clientAccount: caId || prev.clientAccount,
-      };
-      const filtered = filterContactsForCompany(contacts, next.leadCompany, next.clientAccount);
-      const prevC = prev.contact ? String(prev.contact) : '';
-      const stillValid =
-        prevC && filtered.some((c) => contactRowMatchesId(c, prevC));
-      next.contact = stillValid ? prev.contact : defaultPrimaryContactId(filtered);
-      return next;
-    });
-  }, [loading, loadingRefs, form.leadCompany, leadCompanies, contacts]);
+    (async () => {
+      try {
+        const list = await contactService.listForCompany({
+          leadCompanyId: lead,
+          clientAccountId: account,
+        });
+        if (!cancelled) setContacts(list);
+      } catch (e) {
+        console.error('Contacts failed to load', e);
+        if (!cancelled) setContacts([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.leadCompany, form.clientAccount]);
 
   /** Keep contact in sync with loaded rows (same idea as new deal + validate API id vs option values). */
   useEffect(() => {
-    if (loading || loadingRefs) return;
+    if (loading) return;
     setForm((prev) => {
       if (!prev.leadCompany && !prev.clientAccount) {
         if (!prev.contact) return prev;
@@ -322,36 +303,7 @@ export default function EditDealPage() {
       if (!pid && !prevC) return prev;
       return { ...prev, contact: pid };
     });
-  }, [loading, loadingRefs, contacts, form.leadCompany, form.clientAccount]);
-
-  const leadCompanyOptions = useMemo(() => {
-    const eligible = leadCompanies.filter((c) => !isConvertedLeadCompany(c));
-    return eligible
-      .map((c) => {
-        const value = String(c.id ?? c.documentId ?? '');
-        if (!value) return null;
-        return {
-          value,
-          label: c.companyName || c.name || `Company #${value}`,
-        };
-      })
-      .filter(Boolean);
-  }, [leadCompanies]);
-
-  const clientAccountOptions = useMemo(
-    () =>
-      clientAccounts
-        .map((a) => {
-          const value = String(a.id ?? a.documentId ?? '');
-          if (!value) return null;
-          return {
-            value,
-            label: a.companyName || a.name || `Account #${value}`,
-          };
-        })
-        .filter(Boolean),
-    [clientAccounts]
-  );
+  }, [loading, contacts, form.leadCompany, form.clientAccount]);
 
   const filteredContacts = useMemo(
     () => filterContactsForCompany(contacts, form.leadCompany, form.clientAccount),
@@ -400,15 +352,13 @@ export default function EditDealPage() {
       if (field === 'leadCompany') {
         if (value) next.clientAccount = '';
         next.leadCompany = value;
-        const list = filterContactsForCompany(contacts, next.leadCompany, next.clientAccount);
-        next.contact = defaultPrimaryContactId(list);
+        next.contact = '';
         return next;
       }
       if (field === 'clientAccount') {
         if (value) next.leadCompany = '';
         next.clientAccount = value;
-        const list = filterContactsForCompany(contacts, next.leadCompany, next.clientAccount);
-        next.contact = defaultPrimaryContactId(list);
+        next.contact = '';
         return next;
       }
       return next;
@@ -501,7 +451,7 @@ export default function EditDealPage() {
     await commitDealUpdate(false);
   };
 
-  const busy = loading || loadingRefs;
+  const busy = loading;
 
   const submitButtonClassName =
     'min-w-[180px] rounded-xl border-0 bg-gradient-to-r from-orange-500 to-pink-500 py-2.5 font-semibold text-white shadow-md hover:opacity-95 disabled:opacity-60';
@@ -754,22 +704,24 @@ export default function EditDealPage() {
               iconContainerClassName="bg-brand-primary shadow-sm"
             >
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <Select
+                <CompanyPicker
+                  type="leadCompany"
                   label="Lead company"
                   value={form.leadCompany}
                   onChange={(v) => setField('leadCompany', v)}
-                  options={leadCompanyOptions}
                   placeholder="Select lead company"
                   disabled={Boolean(form.clientAccount)}
+                  searchPlaceholder="Search lead companies…"
                 />
                 <div>
-                  <Select
+                  <CompanyPicker
+                    type="clientAccount"
                     label="Client account"
                     value={form.clientAccount}
                     onChange={(v) => setField('clientAccount', v)}
-                    options={clientAccountOptions}
                     placeholder="Select client account"
                     disabled={Boolean(form.leadCompany)}
+                    searchPlaceholder="Search client accounts…"
                   />
                   <p className="mt-1 text-xs text-gray-500">Clear lead company to select client account.</p>
                 </div>

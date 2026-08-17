@@ -4,15 +4,16 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { Check, ChevronDown, Plus, Search, X } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Plus, Search, X } from 'lucide-react'
 
 const SEARCHABLE_OPTION_THRESHOLD = 8
-const DEFAULT_LIST_MAX_HEIGHT = 'max-h-52'
+const DEFAULT_LIST_MAX_HEIGHT = 'max-h-72'
 const MENU_GAP_PX = 4
 const VIEWPORT_PADDING_PX = 8
-const SEARCH_HEADER_HEIGHT_PX = 56
-const MIN_LIST_HEIGHT_PX = 96
-const PREFERRED_LIST_MAX_PX = 208 // matches max-h-52
+const SEARCH_HEADER_HEIGHT_PX = 64
+const MIN_LIST_HEIGHT_PX = 108
+const PREFERRED_LIST_MAX_PX = 288 // matches max-h-72
+const OPTION_ROW_PX = 36
 
 /** Visible scrollbar for searchable dropdown lists (Windows overlay scrollbars, portaled menus). */
 const SCROLLABLE_OPTIONS_LIST_CLASS =
@@ -45,6 +46,14 @@ function SearchableSelect({
   allowCustom = false,
   /** Called when the user adds a new custom option (plus button or "Add …" row). */
   onCustomAdd,
+  /** Server-backed search: skip local filtering and call `onSearch`. */
+  asyncSearch = false,
+  onSearch,
+  loading = false,
+  hasMore = false,
+  onLoadMore,
+  /** Label to show when `value` is set but not in the current `options` page. */
+  selectedLabel = '',
   id: idProp,
   ...props
 }) {
@@ -67,7 +76,6 @@ function SearchableSelect({
     width: 0,
     placement: 'below',
     maxHeight: undefined,
-    listMaxHeight: undefined,
   })
 
   const normalizedValue = normalizeValue(value)
@@ -85,10 +93,11 @@ function SearchableSelect({
   }, [allowEmpty, options, placeholder])
 
   const filteredOptions = useMemo(() => {
+    if (asyncSearch) return allOptions
     const q = query.trim().toLowerCase()
     if (!q) return allOptions
     return allOptions.filter((row) => row.label.toLowerCase().includes(q))
-  }, [allOptions, query])
+  }, [allOptions, query, asyncSearch])
 
   const customAddLabel = useMemo(() => {
     const q = query.trim()
@@ -107,7 +116,10 @@ function SearchableSelect({
     [allOptions, normalizedValue]
   )
 
-  const displayLabel = selectedOption?.label || placeholder
+  const displayLabel =
+    selectedOption?.label ||
+    (normalizedValue && selectedLabel ? selectedLabel : '') ||
+    placeholder
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return undefined
@@ -119,24 +131,18 @@ function SearchableSelect({
       const rect = trigger.getBoundingClientRect()
       const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PADDING_PX
       const spaceAbove = rect.top - VIEWPORT_PADDING_PX
-      const menuHeight = menuRef.current?.offsetHeight ?? 0
-      const preferredHeight = Math.min(
-        PREFERRED_LIST_MAX_PX + SEARCH_HEADER_HEIGHT_PX,
-        menuHeight || PREFERRED_LIST_MAX_PX + SEARCH_HEADER_HEIGHT_PX
-      )
+      const preferredPanel = SEARCH_HEADER_HEIGHT_PX + PREFERRED_LIST_MAX_PX
 
       const openAbove =
-        spaceBelow < preferredHeight + MENU_GAP_PX && spaceAbove > spaceBelow
+        spaceBelow < preferredPanel + MENU_GAP_PX && spaceAbove > spaceBelow
 
       const availableSpace = (openAbove ? spaceAbove : spaceBelow) - MENU_GAP_PX
-      const panelMaxHeight = Math.max(
-        SEARCH_HEADER_HEIGHT_PX + MIN_LIST_HEIGHT_PX,
-        availableSpace
-      )
-      const listMaxHeight = Math.max(
-        MIN_LIST_HEIGHT_PX,
-        Math.min(PREFERRED_LIST_MAX_PX, panelMaxHeight - SEARCH_HEADER_HEIGHT_PX)
-      )
+      const minPanel = SEARCH_HEADER_HEIGHT_PX + MIN_LIST_HEIGHT_PX
+      const rawPanel = Math.min(preferredPanel, Math.max(minPanel, availableSpace))
+      const listBudget = Math.max(MIN_LIST_HEIGHT_PX, rawPanel - SEARCH_HEADER_HEIGHT_PX)
+      const snappedList =
+        Math.max(1, Math.floor(listBudget / OPTION_ROW_PX)) * OPTION_ROW_PX
+      const panelMaxHeight = SEARCH_HEADER_HEIGHT_PX + snappedList
 
       setMenuCoords({
         placement: openAbove ? 'above' : 'below',
@@ -145,24 +151,11 @@ function SearchableSelect({
         left: rect.left,
         width: rect.width,
         maxHeight: panelMaxHeight,
-        listMaxHeight,
       })
     }
 
-    let resizeObserver
-
-    const connectObserver = () => {
-      const menuEl = menuRef.current
-      if (!menuEl || typeof ResizeObserver === 'undefined') return
-      resizeObserver = new ResizeObserver(updatePosition)
-      resizeObserver.observe(menuEl)
-    }
-
     updatePosition()
-    const raf = requestAnimationFrame(() => {
-      updatePosition()
-      connectObserver()
-    })
+    const raf = requestAnimationFrame(updatePosition)
 
     window.addEventListener('resize', updatePosition)
     window.addEventListener('scroll', updatePosition, true)
@@ -171,9 +164,8 @@ function SearchableSelect({
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
-      resizeObserver?.disconnect()
     }
-  }, [open, menuPortal, filteredOptions.length, query])
+  }, [open, menuPortal, filteredOptions.length, query, loading])
 
   useEffect(() => {
     if (!open) return undefined
@@ -207,6 +199,15 @@ function SearchableSelect({
     return () => window.clearTimeout(t)
   }, [open, addMode])
 
+  const onSearchRef = useRef(onSearch)
+  onSearchRef.current = onSearch
+
+  useEffect(() => {
+    if (!asyncSearch || !open || typeof onSearchRef.current !== 'function') return undefined
+    onSearchRef.current(query)
+    return undefined
+  }, [asyncSearch, open, query])
+
   const resetMenuState = () => {
     setQuery('')
     setAddMode(false)
@@ -236,6 +237,14 @@ function SearchableSelect({
     pick(v, { isCustom: true })
   }
 
+  const handleListScroll = (event) => {
+    if (!hasMore || typeof onLoadMore !== 'function' || loading) return
+    const el = event.currentTarget
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 32) {
+      onLoadMore()
+    }
+  }
+
   const triggerClasses = twMerge(
     'flex w-full items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white text-left text-gray-900 shadow-sm',
     'py-2.5 pr-10',
@@ -245,9 +254,12 @@ function SearchableSelect({
     'disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
     error && 'border-red-300',
     open && !className && 'border-orange-500 ring-2 ring-orange-500 ring-offset-0',
-    !selectedOption && allowEmpty && 'text-gray-500',
+    !selectedOption && !selectedLabel && allowEmpty && 'text-gray-500',
     className
   )
+
+  const showEmpty =
+    filteredOptions.length === 0 && !customAddLabel && !(asyncSearch && loading)
 
   const menuPanel = (
     <div
@@ -330,9 +342,12 @@ function SearchableSelect({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full rounded-md border border-gray-200 py-2 pl-8 pr-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded-md border border-gray-200 py-2 pl-8 pr-8 text-sm text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-orange-500"
                 onKeyDown={(event) => event.stopPropagation()}
               />
+              {asyncSearch && loading ? (
+                <Loader2 className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-orange-500" />
+              ) : null}
             </div>
             {allowCustom ? (
               <button
@@ -355,15 +370,13 @@ function SearchableSelect({
         id={listboxId}
         role="listbox"
         aria-label={label || 'Options'}
-        className={clsx('flex-1 py-1', SCROLLABLE_OPTIONS_LIST_CLASS, listMaxHeight)}
-        style={
-          menuCoords.listMaxHeight != null
-            ? { maxHeight: menuCoords.listMaxHeight }
-            : undefined
-        }
+        className={clsx('flex-1 py-1', SCROLLABLE_OPTIONS_LIST_CLASS, !asyncSearch && listMaxHeight)}
+        onScroll={handleListScroll}
       >
-        {filteredOptions.length === 0 && !customAddLabel ? (
+        {showEmpty ? (
           <li className="px-3 py-2 text-sm text-gray-500">No matches</li>
+        ) : asyncSearch && loading && filteredOptions.length === 0 ? (
+          <li className="px-3 py-2 text-sm text-gray-500">Loading…</li>
         ) : (
           filteredOptions.map((row) => {
             const selected = row.value === normalizedValue
@@ -375,7 +388,7 @@ function SearchableSelect({
                   aria-selected={selected}
                   disabled={row.disabled}
                   className={clsx(
-                    'flex w-full px-3 py-2 text-left text-sm',
+                    'flex h-9 w-full items-center px-3 text-left text-sm',
                     selected
                       ? 'bg-orange-50 font-medium text-orange-900'
                       : 'text-gray-800 hover:bg-gray-50',
@@ -398,10 +411,21 @@ function SearchableSelect({
               type="button"
               role="option"
               aria-selected={normalizedValue === customAddLabel}
-              className="flex w-full px-3 py-2 text-left text-sm font-medium text-orange-700 hover:bg-orange-50"
+              className="flex h-9 w-full items-center px-3 text-left text-sm font-medium text-orange-700 hover:bg-orange-50"
               onClick={() => pick(customAddLabel, { isCustom: true })}
             >
               <span className="min-w-0 truncate">Add &ldquo;{customAddLabel}&rdquo;</span>
+            </button>
+          </li>
+        ) : null}
+        {asyncSearch && hasMore && !loading ? (
+          <li role="presentation">
+            <button
+              type="button"
+              className="flex h-9 w-full items-center px-3 text-left text-sm font-medium text-orange-700 hover:bg-orange-50"
+              onClick={() => onLoadMore?.()}
+            >
+              Load more
             </button>
           </li>
         ) : null}
@@ -480,12 +504,18 @@ export function Select({
   chevronClassName,
   allowCustom = false,
   onCustomAdd,
+  asyncSearch = false,
+  onSearch,
+  loading = false,
+  hasMore = false,
+  onLoadMore,
+  selectedLabel = '',
   value,
   disabled,
   ...props
 }) {
   const useSearchable =
-    searchable ?? options.length >= SEARCHABLE_OPTION_THRESHOLD
+    searchable ?? (asyncSearch || options.length >= SEARCHABLE_OPTION_THRESHOLD)
 
   if (useSearchable) {
     return (
@@ -509,6 +539,12 @@ export function Select({
         chevronClassName={chevronClassName}
         allowCustom={allowCustom}
         onCustomAdd={onCustomAdd}
+        asyncSearch={asyncSearch}
+        onSearch={onSearch}
+        loading={loading}
+        hasMore={hasMore}
+        onLoadMore={onLoadMore}
+        selectedLabel={selectedLabel}
         {...props}
       />
     )

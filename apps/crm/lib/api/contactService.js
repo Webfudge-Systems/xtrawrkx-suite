@@ -248,6 +248,22 @@ export default {
     return {};
   },
 
+  /** Contacts linked to one lead company or client account (deal/invoice pickers). */
+  async listForCompany({ leadCompanyId = '', clientAccountId = '', pageSize = 100 } = {}) {
+    const lead = String(leadCompanyId || '').trim();
+    const account = String(clientAccountId || '').trim();
+    if (!lead && !account) return [];
+    const params = {
+      sort: 'createdAt:desc',
+      'pagination[pageSize]': pageSize,
+      populate: ['leadCompany', 'clientAccount'],
+    };
+    if (lead) params['filters[leadCompany][id][$eq]'] = lead;
+    else params['filters[clientAccount][id][$eq]'] = account;
+    const res = await this.getAll(params);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
   /** Paginate through every contact page (dashboard widgets, exports). */
   async fetchAll(params = {}) {
     const pageSize = 100;

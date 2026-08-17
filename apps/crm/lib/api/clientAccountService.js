@@ -67,6 +67,20 @@ export default {
     );
   },
 
+  /** One page of client accounts for typeahead pickers (`companyName $containsi`). */
+  async searchForPicker({ search = '', page = 1, pageSize = 40 } = {}) {
+    const params = {
+      sort: 'companyName:asc',
+      'pagination[page]': page,
+      'pagination[pageSize]': pageSize,
+    };
+    const q = String(search || '').trim();
+    if (q) {
+      params['filters[companyName][$containsi]'] = q;
+    }
+    return this.getAll(params);
+  },
+
   /** Paginate through all client accounts (dropdowns, exports). */
   async fetchAll(params = {}) {
     const pageSize = 100;

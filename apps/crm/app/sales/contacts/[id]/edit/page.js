@@ -12,10 +12,8 @@ import {
   Textarea,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../../components/CompanyPicker';
 import contactService from '../../../../../lib/api/contactService';
-import leadCompanyService from '../../../../../lib/api/leadCompanyService';
-import clientAccountService from '../../../../../lib/api/clientAccountService';
-import { isLeadCompanyConverted } from '../../../../../lib/meetingCrmLink';
 import {
   contactFieldsFromClientAccount,
   contactFieldsFromLeadCompany,
@@ -47,10 +45,6 @@ export default function EditContactPage() {
 
   const [contact, setContact] = useState(null);
   const canEditContact = contact ? canEditCRMRecord('contacts', contact) : false;
-
-  const [refsLoading, setRefsLoading] = useState(false);
-  const [leadCompanies, setLeadCompanies] = useState([]);
-  const [clientAccounts, setClientAccounts] = useState([]);
 
   const statusOptions = useMemo(
     () => [
@@ -149,96 +143,34 @@ export default function EditContactPage() {
     return () => { cancelled = true; };
   }, [id]);
 
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    (async () => {
-      setRefsLoading(true);
-      try {
-        const [lcRes, caRes] = await Promise.allSettled([
-          leadCompanyService.fetchAll({ sort: 'companyName:asc' }),
-          clientAccountService.fetchAll({ sort: 'companyName:asc' }),
-        ]);
-        if (cancelled) return;
-        setLeadCompanies(lcRes.status === 'fulfilled' ? (lcRes.value || []) : []);
-        setClientAccounts(caRes.status === 'fulfilled' ? (caRes.value || []) : []);
-      } catch {
-        if (cancelled) return;
-        setLeadCompanies([]);
-        setClientAccounts([]);
-      } finally {
-        if (!cancelled) setRefsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  const leadCompanyOptions = useMemo(() => {
-    const open = (leadCompanies || []).filter((c) => !isLeadCompanyConverted(c));
-    const base = [
-      { value: '', label: 'No lead company' },
-      ...open.map((lc) => ({
-        value: String(lc.id ?? lc.documentId),
-        label: lc.companyName || lc.name || `Lead company ${lc.id ?? ''}`.trim(),
-      })),
-    ];
-    const sel = String(form.leadCompany || '').trim();
-    if (sel && !base.some((o) => o.value === sel)) {
-      const row = leadCompanies.find((c) => String(c.id ?? c.documentId) === sel);
-      if (row) {
-        return [
-          { value: sel, label: `${row.companyName || row.name || 'Lead'} (converted)` },
-          ...base.filter((o) => o.value !== sel),
-        ];
-      }
-    }
-    return base.filter((o) => o.value !== 'undefined');
-  }, [leadCompanies, form.leadCompany]);
-
-  const clientAccountOptions = useMemo(
-    () => [
-      { value: '', label: 'No client account' },
-      ...(clientAccounts || []).map((a) => ({
-        value: String(a.id ?? a.documentId),
-        label: a.companyName || a.name || `Account #${a.id ?? ''}`,
-      })),
-    ].filter((o) => o.value !== 'undefined'),
-    [clientAccounts]
-  );
-
-  const onClientAccountChange = (v) => {
-    const id = v ? String(v) : '';
-    if (!id) {
+  const onClientAccountChange = (v, item) => {
+    const idVal = v ? String(v) : '';
+    if (!idVal) {
       setForm((prev) => ({ ...prev, clientAccount: '' }));
       setSubmitError('');
       return;
     }
-    const acc =
-      clientAccounts.find((a) => String(a.id ?? a.documentId) === id) || null;
     setForm((prev) => ({
       ...prev,
-      clientAccount: id,
+      clientAccount: idVal,
       leadCompany: '',
-      ...(acc ? contactFieldsFromClientAccount(acc) : {}),
+      ...(item ? contactFieldsFromClientAccount(item) : {}),
     }));
     setSubmitError('');
   };
 
-  const onLeadCompanyChange = (v) => {
-    const id = v ? String(v) : '';
-    if (!id) {
+  const onLeadCompanyChange = (v, item) => {
+    const idVal = v ? String(v) : '';
+    if (!idVal) {
       setForm((prev) => ({ ...prev, leadCompany: '' }));
       setSubmitError('');
       return;
     }
-    const lc = leadCompanies.find((c) => String(c.id ?? c.documentId) === id) || null;
     setForm((prev) => ({
       ...prev,
-      leadCompany: id,
+      leadCompany: idVal,
       clientAccount: '',
-      ...(lc ? contactFieldsFromLeadCompany(lc) : {}),
+      ...(item ? contactFieldsFromLeadCompany(item) : {}),
     }));
     setSubmitError('');
   };
@@ -512,21 +444,25 @@ export default function EditContactPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <Select
+                <CompanyPicker
+                  type="leadCompany"
                   label="Lead Company"
                   value={form.leadCompany}
                   onChange={onLeadCompanyChange}
-                  options={leadCompanyOptions}
                   placeholder="Select lead company"
-                  disabled={refsLoading || Boolean(form.clientAccount)}
+                  disabled={Boolean(form.clientAccount)}
+                  hydrateOnSelect
+                  searchPlaceholder="Search lead companies…"
                 />
-                <Select
+                <CompanyPicker
+                  type="clientAccount"
                   label="Client Account"
                   value={form.clientAccount}
                   onChange={onClientAccountChange}
-                  options={clientAccountOptions}
                   placeholder="Select client account"
-                  disabled={refsLoading || Boolean(form.leadCompany)}
+                  disabled={Boolean(form.leadCompany)}
+                  hydrateOnSelect
+                  searchPlaceholder="Search client accounts…"
                 />
               </div>
               <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">

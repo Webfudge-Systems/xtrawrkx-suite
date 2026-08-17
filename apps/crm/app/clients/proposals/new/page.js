@@ -14,12 +14,10 @@ import {
   FormSectionCard,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../components/CompanyPicker';
 import proposalService from '../../../../lib/api/proposalService';
 import uploadService from '../../../../lib/api/uploadService';
 import leadCompanyService from '../../../../lib/api/leadCompanyService';
-import clientAccountService from '../../../../lib/api/clientAccountService';
-import contactService from '../../../../lib/api/contactService';
-import { isConvertedLeadCompany } from '../../../../lib/dealFormOptions';
 import { mapEntityToProposalClientFields } from '../../../../lib/proposalClientAutofill';
 import {
   FileText,
@@ -522,10 +520,6 @@ export default function NewProposalPage() {
 
   const [leadCompanyId, setLeadCompanyId] = useState('');
   const [clientAccountId, setClientAccountId] = useState('');
-  const [leadCompanies, setLeadCompanies] = useState([]);
-  const [clientAccounts, setClientAccounts] = useState([]);
-  const [contacts, setContacts] = useState([]);
-  const [loadingRefs, setLoadingRefs] = useState(true);
 
   // ── Proposal header ──────────────────────────────────────────────────────────
   const [proposalData, setProposalData] = useState({
@@ -576,80 +570,6 @@ export default function NewProposalPage() {
     }
   }, [currentOrg, user]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoadingRefs(true);
-      try {
-        const [lcRes, caRes, cRes] = await Promise.allSettled([
-          leadCompanyService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 500,
-            populate: ['convertedAccount'],
-          }),
-          clientAccountService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 500,
-          }),
-          contactService.getAll({
-            sort: 'createdAt:desc',
-            'pagination[pageSize]': 500,
-            populate: ['leadCompany', 'clientAccount'],
-          }),
-        ]);
-        if (cancelled) return;
-        if (lcRes.status === 'fulfilled') setLeadCompanies(lcRes.value.data || []);
-        else setLeadCompanies([]);
-        if (caRes.status === 'fulfilled') setClientAccounts(caRes.value.data || []);
-        else setClientAccounts([]);
-        if (cRes.status === 'fulfilled') setContacts(cRes.value.data || []);
-        else setContacts([]);
-      } catch {
-        if (!cancelled) {
-          setLeadCompanies([]);
-          setClientAccounts([]);
-          setContacts([]);
-        }
-      } finally {
-        if (!cancelled) setLoadingRefs(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const leadCompanyOptions = useMemo(
-    () =>
-      leadCompanies
-        .filter((c) => !isConvertedLeadCompany(c))
-        .map((c) => {
-          const value = String(c.id ?? c.documentId ?? '');
-          if (!value) return null;
-          return {
-            value,
-            label: c.companyName || c.name || `Lead #${value}`,
-          };
-        })
-        .filter(Boolean),
-    [leadCompanies]
-  );
-
-  const clientAccountOptions = useMemo(
-    () =>
-      clientAccounts
-        .map((a) => {
-          const value = String(a.id ?? a.documentId ?? '');
-          if (!value) return null;
-          return {
-            value,
-            label: a.companyName || a.name || `Account #${value}`,
-          };
-        })
-        .filter(Boolean),
-    [clientAccounts]
-  );
-
   const clearClientDetailFields = () =>
     setProposalData((prev) => ({
       ...prev,
@@ -660,7 +580,7 @@ export default function NewProposalPage() {
       clientAddress: '',
     }));
 
-  const handleLeadCompanySelect = (value) => {
+  const handleLeadCompanySelect = (value, item) => {
     const v = value ? String(value) : '';
     setLeadCompanyId(v);
     setClientAccountId('');
@@ -669,20 +589,30 @@ export default function NewProposalPage() {
       clearClientDetailFields();
       return;
     }
-    const lead = leadCompanies.find((c) => String(c.id ?? c.documentId) === v);
-    const fields = mapEntityToProposalClientFields('lead', lead || null, contacts);
+    const fields = mapEntityToProposalClientFields('lead', item || null, item?.contacts || []);
     setProposalData((prev) => ({ ...prev, ...fields }));
   };
 
   useEffect(() => {
-    if (loadingRefs || leadCompanyFromUrlApplied.current) return;
+    if (leadCompanyFromUrlApplied.current) return;
     const raw = searchParams.get('leadCompany')?.trim();
     if (!raw) return;
     leadCompanyFromUrlApplied.current = true;
-    handleLeadCompanySelect(raw);
-  }, [loadingRefs, searchParams]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await leadCompanyService.getOne(raw);
+        if (!cancelled) handleLeadCompanySelect(raw, res?.data);
+      } catch (err) {
+        console.error('Failed to prefill proposal lead company', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
-  const handleClientAccountSelect = (value) => {
+  const handleClientAccountSelect = (value, item) => {
     const v = value ? String(value) : '';
     setClientAccountId(v);
     setLeadCompanyId('');
@@ -691,8 +621,7 @@ export default function NewProposalPage() {
       clearClientDetailFields();
       return;
     }
-    const acc = clientAccounts.find((a) => String(a.id ?? a.documentId) === v);
-    const fields = mapEntityToProposalClientFields('client', acc || null, contacts);
+    const fields = mapEntityToProposalClientFields('client', item || null, item?.contacts || []);
     setProposalData((prev) => ({ ...prev, ...fields }));
   };
 
@@ -1157,28 +1086,30 @@ export default function NewProposalPage() {
           >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div>
-                <Select
+                <CompanyPicker
+                  type="leadCompany"
                   label="Lead Company"
                   value={leadCompanyId}
                   onChange={handleLeadCompanySelect}
-                  options={leadCompanyOptions}
                   placeholder="— Select lead company —"
-                  icon={Building2}
-                  disabled={loadingRefs || Boolean(clientAccountId)}
+                  disabled={Boolean(clientAccountId)}
+                  hydrateOnSelect
+                  searchPlaceholder="Search lead companies…"
                 />
                 <p className="mt-1.5 text-xs text-gray-500">
                   Converted leads are hidden — use Client Account for existing clients.
                 </p>
               </div>
               <div>
-                <Select
+                <CompanyPicker
+                  type="clientAccount"
                   label="Client Account"
                   value={clientAccountId}
                   onChange={handleClientAccountSelect}
-                  options={clientAccountOptions}
                   placeholder="— Select client account —"
-                  icon={Building2}
-                  disabled={loadingRefs || Boolean(leadCompanyId)}
+                  disabled={Boolean(leadCompanyId)}
+                  hydrateOnSelect
+                  searchPlaceholder="Search client accounts…"
                 />
               </div>
               <div className="md:col-span-2 lg:col-span-1">

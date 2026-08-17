@@ -13,6 +13,7 @@ import {
   FormSectionCard,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../components/CompanyPicker';
 import invoiceService from '../../../../lib/api/invoiceService';
 import clientAccountService from '../../../../lib/api/clientAccountService';
 import contactService from '../../../../lib/api/contactService';
@@ -298,8 +299,6 @@ export default function NewInvoicePage() {
   const [errors, setErrors] = useState({});
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const [clientAccounts, setClientAccounts] = useState([]);
-  const [clientsLoading, setClientsLoading] = useState(true);
   const [allContacts, setAllContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [selectedClientAccountId, setSelectedClientAccountId] = useState('');
@@ -338,33 +337,23 @@ export default function NewInvoicePage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setClientsLoading(true);
       setContactsLoading(true);
       try {
-        const [caRes, ctRes] = await Promise.all([
-          clientAccountService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 200,
-          }),
-          contactService.getAll({
-            sort: 'createdAt:desc',
-            'pagination[pageSize]': 500,
-            populate: ['leadCompany', 'clientAccount'],
-          }),
-        ]);
+        const ctRes = await contactService.getAll({
+          sort: 'createdAt:desc',
+          'pagination[pageSize]': 500,
+          populate: ['leadCompany', 'clientAccount'],
+        });
         if (!cancelled) {
-          setClientAccounts(Array.isArray(caRes.data) ? caRes.data : []);
           setAllContacts(Array.isArray(ctRes.data) ? ctRes.data : []);
         }
       } catch (e) {
         console.error(e);
         if (!cancelled) {
-          setClientAccounts([]);
           setAllContacts([]);
         }
       } finally {
         if (!cancelled) {
-          setClientsLoading(false);
           setContactsLoading(false);
         }
       }
@@ -374,7 +363,7 @@ export default function NewInvoicePage() {
     };
   }, []);
 
-  const refsLoading = clientsLoading || contactsLoading;
+  const refsLoading = contactsLoading;
 
   const filteredBillContacts = useMemo(
     () => filterContactsForCompany(allContacts, '', selectedClientAccountId),
@@ -497,11 +486,9 @@ export default function NewInvoicePage() {
     }
     setSelectedClientAccountId(idStr);
 
-    const fromList = clientAccounts.find((c) => clientAccountApiId(c) === idStr);
-
     try {
       const caRes = await clientAccountService.getOne(idStr, { populate: ['contacts'] });
-      const acc = caRes?.data ?? fromList;
+      const acc = caRes?.data;
       if (!acc) return;
       setClientAccountSnapshot(acc);
 
@@ -513,17 +500,6 @@ export default function NewInvoicePage() {
       setInvoiceData((prev) => ({ ...prev, ...bill }));
     } catch (err) {
       console.error(err);
-      if (fromList) {
-        setClientAccountSnapshot(fromList);
-        const list = filterContactsForCompany(allContacts, '', idStr);
-        const pid = defaultPrimaryContactId(list) || '';
-        setSelectedBillContactId(pid);
-        const contactRow = pid ? list.find((c) => contactOptionValue(c) === pid) : null;
-        setInvoiceData((prev) => ({
-          ...prev,
-          ...mergeBillToFromAccountAndContact(fromList, contactRow),
-        }));
-      }
     }
   };
 
@@ -914,28 +890,17 @@ export default function NewInvoicePage() {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-3">
-                <Select
+                <CompanyPicker
+                  type="clientAccount"
                   label="Client account"
                   placeholder="Select a client to autofill (optional)"
                   value={selectedClientAccountId}
                   onChange={handleClientAccountSelect}
-                  options={clientAccounts
-                    .map((ca) => {
-                      const vid = clientAccountApiId(ca);
-                      if (!vid) return null;
-                      return {
-                        value: vid,
-                        label: ca.companyName
-                          ? `${ca.companyName}${ca.email ? ` · ${ca.email}` : ''}`
-                          : `Account #${vid}`,
-                      };
-                    })
-                    .filter(Boolean)}
-                  icon={Building2}
-                  disabled={clientsLoading}
+                  hydrateOnSelect
+                  searchPlaceholder="Search client accounts…"
                 />
-                {clientsLoading || contactsLoading ? (
-                  <p className="mt-1 text-xs text-gray-500">Loading client accounts and contacts…</p>
+                {contactsLoading ? (
+                  <p className="mt-1 text-xs text-gray-500">Loading contacts…</p>
                 ) : null}
               </div>
               <div className="lg:col-span-3">

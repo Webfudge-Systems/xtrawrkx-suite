@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, Input, Select, Textarea, Modal, FormSectionCard } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../components/CompanyPicker';
 import contactService from '../../../../lib/api/contactService';
 import leadCompanyService from '../../../../lib/api/leadCompanyService';
 import clientAccountService from '../../../../lib/api/clientAccountService';
 import strapiClient from '../../../../lib/strapiClient';
-import { isLeadCompanyConverted } from '../../../../lib/meetingCrmLink';
 import {
   contactFieldsFromClientAccount,
   contactFieldsFromLeadCompany,
@@ -100,9 +100,6 @@ export default function NewContactPage() {
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [loadingRefs, setLoadingRefs] = useState(true);
-  const [leadCompanies, setLeadCompanies] = useState([]);
-  const [clientAccounts, setClientAccounts] = useState([]);
   const prefilledEntityApplied = useRef(false);
 
   useEffect(() => {
@@ -158,33 +155,6 @@ export default function NewContactPage() {
   }, [user?.email]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoadingRefs(true);
-      try {
-        const [lcRes, caRes] = await Promise.allSettled([
-          leadCompanyService.fetchAll({ sort: 'companyName:asc' }),
-          clientAccountService.fetchAll({ sort: 'companyName:asc' }),
-        ]);
-        if (cancelled) return;
-        setLeadCompanies(lcRes.status === 'fulfilled' ? (lcRes.value || []) : []);
-        setClientAccounts(caRes.status === 'fulfilled' ? (caRes.value || []) : []);
-      } catch (err) {
-        console.error('Error loading company references:', err);
-        if (!cancelled) {
-          setLeadCompanies([]);
-          setClientAccounts([]);
-        }
-      } finally {
-        if (!cancelled) setLoadingRefs(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     if (prefilledEntityApplied.current) return;
     const caId = String(prefilledClientAccount || '').trim();
     const lcId = String(prefilledLeadCompany || '').trim();
@@ -229,69 +199,33 @@ export default function NewContactPage() {
     };
   }, [prefilledClientAccount, prefilledLeadCompany]);
 
-  const leadCompanyOptions = useMemo(() => {
-    const open = (leadCompanies || []).filter((c) => !isLeadCompanyConverted(c));
-    const base = [
-      { value: '', label: 'No lead company' },
-      ...open.map((lc) => ({
-        value: String(lc.id ?? lc.documentId),
-        label: lc.companyName || lc.name || `Lead company ${lc.id ?? ''}`.trim(),
-      })),
-    ];
-    const sel = String(form.leadCompany || '').trim();
-    if (sel && !base.some((o) => o.value === sel)) {
-      const row = leadCompanies.find((c) => String(c.id ?? c.documentId) === sel);
-      if (row) {
-        return [
-          { value: sel, label: `${row.companyName || row.name || 'Lead'} (converted)` },
-          ...base.filter((o) => o.value !== sel),
-        ];
-      }
-    }
-    return base.filter((o) => o.value !== 'undefined');
-  }, [leadCompanies, form.leadCompany]);
-
-  const clientAccountOptions = useMemo(
-    () => [
-      { value: '', label: 'No client account' },
-      ...(clientAccounts || []).map((a) => ({
-        value: String(a.id ?? a.documentId),
-        label: a.companyName || a.name || `Account #${a.id ?? ''}`,
-      })),
-    ].filter((o) => o.value !== 'undefined'),
-    [clientAccounts]
-  );
-
-  const onClientAccountChange = (v) => {
+  const onClientAccountChange = (v, item) => {
     const id = v ? String(v) : '';
     if (!id) {
       setForm((prev) => ({ ...prev, clientAccount: '' }));
       return;
     }
-    const acc =
-      clientAccounts.find((a) => String(a.id ?? a.documentId) === id) || null;
     setForm((prev) => ({
       ...prev,
       clientAccount: id,
       leadCompany: '',
       source: 'CLIENT_ACCOUNT',
-      ...(acc ? contactFieldsFromClientAccount(acc) : {}),
+      ...(item ? contactFieldsFromClientAccount(item) : {}),
     }));
   };
 
-  const onLeadCompanyChange = (v) => {
+  const onLeadCompanyChange = (v, item) => {
     const id = v ? String(v) : '';
     if (!id) {
       setForm((prev) => ({ ...prev, leadCompany: '' }));
       return;
     }
-    const lc = leadCompanies.find((c) => String(c.id ?? c.documentId) === id) || null;
     setForm((prev) => ({
       ...prev,
       leadCompany: id,
       clientAccount: '',
       source: 'LEAD_COMPANY',
-      ...(lc ? contactFieldsFromLeadCompany(lc) : {}),
+      ...(item ? contactFieldsFromLeadCompany(item) : {}),
     }));
   };
 
@@ -568,21 +502,25 @@ export default function NewContactPage() {
             cardClassName="rounded-2xl border border-white/30 bg-gradient-to-br from-white/70 to-white/40 p-6 shadow-xl backdrop-blur-xl"
           >
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <Select
+              <CompanyPicker
+                type="leadCompany"
                 label="Lead company"
                 value={form.leadCompany}
                 onChange={onLeadCompanyChange}
-                options={leadCompanyOptions}
                 placeholder="Select lead company"
-                disabled={loadingRefs || Boolean(form.clientAccount)}
+                disabled={Boolean(form.clientAccount)}
+                hydrateOnSelect
+                searchPlaceholder="Search lead companies…"
               />
-              <Select
+              <CompanyPicker
+                type="clientAccount"
                 label="Client account"
                 value={form.clientAccount}
                 onChange={onClientAccountChange}
-                options={clientAccountOptions}
                 placeholder="Select client account"
-                disabled={loadingRefs || Boolean(form.leadCompany)}
+                disabled={Boolean(form.leadCompany)}
+                hydrateOnSelect
+                searchPlaceholder="Search client accounts…"
               />
             </div>
             <p className="mt-3 text-xs text-gray-500">

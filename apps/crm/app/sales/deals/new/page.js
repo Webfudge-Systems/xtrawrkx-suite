@@ -9,14 +9,12 @@ import {
   Select,
   Textarea,
   FormSectionCard,
-  LoadingSpinner,
   Modal,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../components/CompanyPicker';
 import TaskAssigneesPicker from '../../../../components/TaskAssigneesPicker';
 import dealService from '../../../../lib/api/dealService';
-import leadCompanyService from '../../../../lib/api/leadCompanyService';
-import clientAccountService from '../../../../lib/api/clientAccountService';
 import contactService from '../../../../lib/api/contactService';
 import strapiClient from '../../../../lib/strapiClient';
 import { canWriteCRM } from '../../../../lib/rbac';
@@ -25,7 +23,6 @@ import {
   PRIORITY_OPTIONS,
   VISIBILITY_OPTIONS,
   DEAL_GROUP_OPTIONS,
-  isConvertedLeadCompany,
   contactDisplayName,
   filterContactsForCompany,
   defaultPrimaryContactId,
@@ -103,8 +100,6 @@ export default function NewDealPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
 
-  const [leadCompanies, setLeadCompanies] = useState([]);
-  const [clientAccounts, setClientAccounts] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [directoryUsers, setDirectoryUsers] = useState([]);
   const [loadingRefs, setLoadingRefs] = useState(true);
@@ -115,72 +110,26 @@ export default function NewDealPage() {
     (async () => {
       setLoadingRefs(true);
       try {
-        const [lcRes, caRes, cRes] = await Promise.allSettled([
-          leadCompanyService.getAll({
-            sort: 'companyName:asc',
+        let allUsers = [];
+        let page = 1;
+        let hasMore = true;
+        while (hasMore && !cancelled) {
+          const response = await strapiClient.getXtrawrkxUsers({
+            'pagination[page]': page,
             'pagination[pageSize]': 100,
-            populate: ['convertedAccount'],
-          }),
-          clientAccountService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 100,
-          }),
-          contactService.getAll({
-            sort: 'createdAt:desc',
-            'pagination[pageSize]': 500,
-            populate: ['leadCompany', 'clientAccount'],
-          }),
-        ]);
-        if (cancelled) return;
-        if (lcRes.status === 'fulfilled') {
-          setLeadCompanies(lcRes.value.data || []);
-        } else {
-          console.error('Lead companies failed to load', lcRes.reason);
-          setLeadCompanies([]);
+            populate: 'primaryRole,userRoles',
+          });
+          const usersData = response?.data ?? response ?? [];
+          const arr = Array.isArray(usersData) ? usersData : [];
+          allUsers = [...allUsers, ...arr.map(toDirectoryUser).filter(Boolean)];
+          const pageCount = response?.meta?.pagination?.pageCount ?? 1;
+          hasMore = page < pageCount && arr.length === 100;
+          page += 1;
         }
-        if (caRes.status === 'fulfilled') {
-          setClientAccounts(caRes.value.data || []);
-        } else {
-          console.error('Client accounts failed to load', caRes.reason);
-          setClientAccounts([]);
-        }
-        if (cRes.status === 'fulfilled') {
-          setContacts(cRes.value.data || []);
-        } else {
-          console.error('Contacts failed to load', cRes.reason);
-          setContacts([]);
-        }
-
-        try {
-          let allUsers = [];
-          let page = 1;
-          let hasMore = true;
-          while (hasMore && !cancelled) {
-            const response = await strapiClient.getXtrawrkxUsers({
-              'pagination[page]': page,
-              'pagination[pageSize]': 100,
-              populate: 'primaryRole,userRoles',
-            });
-            const usersData = response?.data ?? response ?? [];
-            const arr = Array.isArray(usersData) ? usersData : [];
-            allUsers = [...allUsers, ...arr.map(toDirectoryUser).filter(Boolean)];
-            const pageCount = response?.meta?.pagination?.pageCount ?? 1;
-            hasMore = page < pageCount && arr.length === 100;
-            page += 1;
-          }
-          if (!cancelled) setDirectoryUsers(allUsers);
-        } catch (e) {
-          console.error('Org users failed to load (collaboration picker unavailable)', e);
-          if (!cancelled) setDirectoryUsers([]);
-        }
+        if (!cancelled) setDirectoryUsers(allUsers);
       } catch (e) {
-        console.error(e);
-        if (!cancelled) {
-          setLeadCompanies([]);
-          setClientAccounts([]);
-          setContacts([]);
-          setDirectoryUsers([]);
-        }
+        console.error('Org users failed to load (collaboration picker unavailable)', e);
+        if (!cancelled) setDirectoryUsers([]);
       } finally {
         if (!cancelled) setLoadingRefs(false);
       }
@@ -190,9 +139,33 @@ export default function NewDealPage() {
     };
   }, []);
 
-  /** Mirror edit-deal: default/fill contact when company changes and contacts finish loading. */
   useEffect(() => {
-    if (loadingRefs) return;
+    let cancelled = false;
+    const lead = form.leadCompany;
+    const account = form.clientAccount;
+    if (!lead && !account) {
+      setContacts([]);
+      return undefined;
+    }
+    (async () => {
+      try {
+        const list = await contactService.listForCompany({
+          leadCompanyId: lead,
+          clientAccountId: account,
+        });
+        if (!cancelled) setContacts(list);
+      } catch (e) {
+        console.error('Contacts failed to load', e);
+        if (!cancelled) setContacts([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.leadCompany, form.clientAccount]);
+
+  /** Default/fill contact when company changes and contacts finish loading. */
+  useEffect(() => {
     setForm((prev) => {
       if (!prev.leadCompany && !prev.clientAccount) {
         if (!prev.contact) return prev;
@@ -218,38 +191,7 @@ export default function NewDealPage() {
       if (!pid && !prevC) return prev;
       return { ...prev, contact: pid };
     });
-  }, [loadingRefs, contacts, form.leadCompany, form.clientAccount]);
-
-  const leadCompanyOptions = useMemo(
-    () =>
-      leadCompanies
-        .filter((c) => !isConvertedLeadCompany(c))
-        .map((c) => {
-          const value = String(c.id ?? c.documentId ?? '');
-          if (!value) return null;
-          return {
-            value,
-            label: c.companyName || c.name || `Company #${value}`,
-          };
-        })
-        .filter(Boolean),
-    [leadCompanies]
-  );
-
-  const clientAccountOptions = useMemo(
-    () =>
-      clientAccounts
-        .map((a) => {
-          const value = String(a.id ?? a.documentId ?? '');
-          if (!value) return null;
-          return {
-            value,
-            label: a.companyName || a.name || `Account #${value}`,
-          };
-        })
-        .filter(Boolean),
-    [clientAccounts]
-  );
+  }, [contacts, form.leadCompany, form.clientAccount]);
 
   const filteredContacts = useMemo(
     () => filterContactsForCompany(contacts, form.leadCompany, form.clientAccount),
@@ -284,15 +226,13 @@ export default function NewDealPage() {
       if (field === 'leadCompany') {
         if (value) next.clientAccount = '';
         next.leadCompany = value;
-        const list = filterContactsForCompany(contacts, next.leadCompany, next.clientAccount);
-        next.contact = defaultPrimaryContactId(list);
+        next.contact = '';
         return next;
       }
       if (field === 'clientAccount') {
         if (value) next.leadCompany = '';
         next.clientAccount = value;
-        const list = filterContactsForCompany(contacts, next.leadCompany, next.clientAccount);
-        next.contact = defaultPrimaryContactId(list);
+        next.contact = '';
         return next;
       }
       return next;
@@ -452,12 +392,7 @@ export default function NewDealPage() {
           showActions={false}
         />
 
-        {loadingRefs ? (
-          <div className="flex min-h-[40vh] items-center justify-center">
-            <LoadingSpinner size="lg" message="Loading form…" />
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
             {Object.keys(errors).length > 0 && !errors.submit && (
               <div className="rounded-xl border-2 border-red-300 bg-red-50 p-5 shadow-lg">
                 <div className="flex items-start gap-3">
@@ -647,23 +582,23 @@ export default function NewDealPage() {
               cardClassName={SECTION_CARD_CLASS}
             >
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <Select
+                <CompanyPicker
+                  type="leadCompany"
                   label="Lead company"
                   value={form.leadCompany}
                   onChange={(v) => setField('leadCompany', v)}
-                  options={leadCompanyOptions}
                   placeholder="Select lead company"
                   disabled={Boolean(form.clientAccount)}
-                  icon={Building2}
+                  searchPlaceholder="Search lead companies…"
                 />
-                <Select
+                <CompanyPicker
+                  type="clientAccount"
                   label="Client account"
                   value={form.clientAccount}
                   onChange={(v) => setField('clientAccount', v)}
-                  options={clientAccountOptions}
                   placeholder="Select client account"
                   disabled={Boolean(form.leadCompany)}
-                  icon={Building2}
+                  searchPlaceholder="Search client accounts…"
                 />
               </div>
               <p className="mt-3 text-sm text-gray-500">Clear one side to select the other.</p>
@@ -738,7 +673,6 @@ export default function NewDealPage() {
               </Button>
             </div>
           </form>
-        )}
       </div>
     </div>
   );

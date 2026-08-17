@@ -13,13 +13,11 @@ import {
   Modal,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../components/CompanyPicker';
 import meetingService from '../../../../lib/api/meetingService';
-import leadCompanyService from '../../../../lib/api/leadCompanyService';
-import clientAccountService from '../../../../lib/api/clientAccountService';
 import contactService from '../../../../lib/api/contactService';
 import dealService from '../../../../lib/api/dealService';
 import {
-  isLeadCompanyConverted,
   relationId,
   filterDealsForAnchor,
 } from '../../../../lib/meetingCrmLink';
@@ -162,8 +160,6 @@ export default function EditMeetingPage() {
 
   // Reference data
   const [deals, setDeals] = useState([]);
-  const [leadCompanies, setLeadCompanies] = useState([]);
-  const [clientAccounts, setClientAccounts] = useState([]);
   const [contacts, setContacts] = useState([]);
 
   // Attendee management
@@ -238,20 +234,16 @@ export default function EditMeetingPage() {
     (async () => {
       setLoadingRefs(true);
       try {
-        const [dealsRes, lcRes, caRes, cRes] = await Promise.allSettled([
+        const [dealsRes, cRes] = await Promise.allSettled([
           dealService.getAll({
             sort: 'name:asc',
             'pagination[pageSize]': 100,
             populate: ['leadCompany', 'clientAccount'],
           }),
-          leadCompanyService.getAll({ sort: 'companyName:asc', 'pagination[pageSize]': 100 }),
-          clientAccountService.getAll({ sort: 'companyName:asc', 'pagination[pageSize]': 100 }),
           contactService.getAll({ sort: 'createdAt:desc', 'pagination[pageSize]': 500 }),
         ]);
         if (cancelled) return;
         setDeals(dealsRes.status === 'fulfilled' ? (dealsRes.value.data || []) : []);
-        setLeadCompanies(lcRes.status === 'fulfilled' ? (lcRes.value.data || []) : []);
-        setClientAccounts(caRes.status === 'fulfilled' ? (caRes.value.data || []) : []);
         setContacts(cRes.status === 'fulfilled' ? (cRes.value.data || []) : []);
       } catch (e) {
         console.error(e);
@@ -263,28 +255,6 @@ export default function EditMeetingPage() {
   }, []);
 
   // ── Select options ────────────────────────────────────────────────────────
-
-  const leadCompanyOptions = useMemo(() => {
-    const open = leadCompanies.filter((c) => !isLeadCompanyConverted(c));
-    const base = open.map((c) => ({
-      value: String(c.id),
-      label: c.companyName || c.name || `Lead #${c.id}`,
-    }));
-    const sel = String(form.leadCompany || '').trim();
-    if (sel && !base.some((o) => o.value === sel)) {
-      const row = leadCompanies.find((c) => String(c.id) === sel);
-      if (row) {
-        return [
-          {
-            value: sel,
-            label: `${row.companyName || row.name || 'Lead'} (converted)`,
-          },
-          ...base,
-        ];
-      }
-    }
-    return base;
-  }, [leadCompanies, form.leadCompany]);
 
   const filteredDealOptions = useMemo(
     () =>
@@ -328,11 +298,6 @@ export default function EditMeetingPage() {
       return next;
     });
   }, [loadingMeeting, loadingRefs, deals, form.clientAccount, form.leadCompany]);
-
-  const clientAccountOptions = useMemo(() =>
-    clientAccounts.map((a) => ({ value: String(a.id), label: a.companyName || a.name || `Account #${a.id}` })),
-    [clientAccounts]
-  );
 
   const contactOptions = useMemo(() =>
     contacts.map((c) => ({ value: String(c.id), label: contactDisplayName(c) })),
@@ -853,22 +818,22 @@ export default function EditMeetingPage() {
               cardClassName={SECTION_CARD_CLASS}
             >
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Select
+                <CompanyPicker
+                  type="clientAccount"
                   label="Client account"
                   placeholder="Select client account"
                   value={form.clientAccount}
                   onChange={onClientAccountChange}
-                  options={clientAccountOptions}
-                  icon={Building2}
                   error={errors.crmLink}
+                  searchPlaceholder="Search client accounts…"
                 />
-                <Select
+                <CompanyPicker
+                  type="leadCompany"
                   label="Lead company"
                   placeholder="Select lead company"
                   value={form.leadCompany}
                   onChange={onLeadCompanyChange}
-                  options={leadCompanyOptions}
-                  icon={Building2}
+                  searchPlaceholder="Search lead companies…"
                 />
                 <Select
                   label="Deal"

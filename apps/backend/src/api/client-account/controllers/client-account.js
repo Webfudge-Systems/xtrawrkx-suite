@@ -11,6 +11,7 @@ const { logCrmActivity, collectChangedKeys, actorDisplayName } = require('../../
 const { emitUpdateNotifications, assignedStakeholderIds } = require('../../../utils/notification-emitter');
 const {
   orgIdFromRelation,
+  extractQueryFilters,
   readListQuery,
   createPopulateSanitizer,
   safeCount,
@@ -26,6 +27,24 @@ const { updateCompanyMember } = require('../../../utils/company-members');
 const UID = 'api::client-account.client-account';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Merge client filters while always enforcing tenant org scope. */
+function buildClientAccountListFilters(orgId, extra) {
+  const orgFilter = { organization: orgId };
+  if (!extra || typeof extra !== 'object' || Array.isArray(extra)) return orgFilter;
+
+  const merged = { ...extra };
+  delete merged.organization;
+
+  const keys = Object.keys(merged).filter((k) => merged[k] != null && merged[k] !== '');
+  if (!keys.length) return orgFilter;
+
+  if (!merged.$or && !merged.$and && keys.length <= 6) {
+    return { ...orgFilter, ...merged };
+  }
+
+  return { $and: [orgFilter, merged] };
+}
 
 const CLIENT_ACCOUNT_POPULATE_FALLBACK = [
   'assignedTo',
@@ -52,9 +71,15 @@ module.exports = createCoreController(UID, ({ strapi }) => ({
     const denied = requireModuleAccess(ctx, 'crm', 'client_accounts', 'read');
     if (denied) return denied;
 
-    const { query, page, pageSize, sort } = readListQuery(ctx);
+    const { query, page, pageSize, sort } = readListQuery(ctx, {
+      maxPageSize: 100,
+      defaultPageSize: 25,
+    });
 
-    const filters = { organization: ctx.state.orgId };
+    const filters = buildClientAccountListFilters(
+      ctx.state.orgId,
+      extractQueryFilters(query)
+    );
 
     const results = await strapi.entityService.findMany(UID, {
       filters,

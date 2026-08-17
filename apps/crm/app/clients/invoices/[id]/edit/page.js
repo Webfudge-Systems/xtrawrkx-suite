@@ -6,6 +6,7 @@ import {
   Button, Input, Select, Textarea, FormSectionCard, LoadingSpinner,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../../components/CompanyPicker';
 import invoiceService from '../../../../../lib/api/invoiceService';
 import clientAccountService from '../../../../../lib/api/clientAccountService';
 import contactService from '../../../../../lib/api/contactService';
@@ -91,32 +92,13 @@ export default function EditInvoicePage() {
   });
   const [lineItems, setLineItems] = useState([defaultItem()]);
 
-  const [clientAccounts, setClientAccounts] = useState([]);
-  const [clientsLoading, setClientsLoading] = useState(true);
   const [allContacts, setAllContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [selectedClientAccountId, setSelectedClientAccountId] = useState('');
   const [selectedBillContactId, setSelectedBillContactId] = useState('');
   const [clientAccountSnapshot, setClientAccountSnapshot] = useState(null);
-  /** Ensures linked client appears in the dropdown if not returned in the list fetch. */
-  const [invoiceLinkedClient, setInvoiceLinkedClient] = useState(null);
   const contactInitForIdRef = useRef(null);
   const savedBillForMatchRef = useRef({ name: '', email: '' });
-
-  const clientAccountSelectOptions = useMemo(() => {
-    const map = new Map();
-    for (const c of clientAccounts) {
-      const k = clientAccountApiId(c);
-      if (k) map.set(k, c);
-    }
-    const lk = invoiceLinkedClient ? clientAccountApiId(invoiceLinkedClient) : '';
-    if (lk && !map.has(lk)) {
-      map.set(lk, invoiceLinkedClient);
-    }
-    return Array.from(map.values()).sort((a, b) =>
-      (a.companyName || '').localeCompare(b.companyName || '', undefined, { sensitivity: 'base' })
-    );
-  }, [clientAccounts, invoiceLinkedClient]);
 
   // Calcs
   const subtotal = lineItems.reduce((s, i) => s + (parseFloat(i.qty)||0)*(parseFloat(i.rate)||0), 0);
@@ -144,33 +126,23 @@ export default function EditInvoicePage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setClientsLoading(true);
       setContactsLoading(true);
       try {
-        const [caRes, ctRes] = await Promise.all([
-          clientAccountService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 200,
-          }),
-          contactService.getAll({
-            sort: 'createdAt:desc',
-            'pagination[pageSize]': 500,
-            populate: ['leadCompany', 'clientAccount'],
-          }),
-        ]);
+        const ctRes = await contactService.getAll({
+          sort: 'createdAt:desc',
+          'pagination[pageSize]': 500,
+          populate: ['leadCompany', 'clientAccount'],
+        });
         if (!cancelled) {
-          setClientAccounts(Array.isArray(caRes.data) ? caRes.data : []);
           setAllContacts(Array.isArray(ctRes.data) ? ctRes.data : []);
         }
       } catch (e) {
         console.error(e);
         if (!cancelled) {
-          setClientAccounts([]);
           setAllContacts([]);
         }
       } finally {
         if (!cancelled) {
-          setClientsLoading(false);
           setContactsLoading(false);
         }
       }
@@ -180,7 +152,7 @@ export default function EditInvoicePage() {
     };
   }, []);
 
-  const refsLoading = clientsLoading || contactsLoading;
+  const refsLoading = contactsLoading;
 
   const filteredBillContacts = useMemo(
     () => filterContactsForCompany(allContacts, '', selectedClientAccountId),
@@ -307,15 +279,9 @@ export default function EditInvoicePage() {
         if (ca && typeof ca === 'object') {
           setSelectedClientAccountId(clientAccountApiId(ca));
           setClientAccountSnapshot(ca);
-          setInvoiceLinkedClient({
-            ...ca,
-            companyName: ca.companyName || ca.name || '',
-            email: ca.email || '',
-          });
         } else if (ca != null && (typeof ca === 'number' || typeof ca === 'string')) {
           const caId = String(ca).trim();
           setSelectedClientAccountId(caId);
-          setInvoiceLinkedClient(null);
           setClientAccountSnapshot(null);
           try {
             const caRes = await clientAccountService.getOne(caId, { populate: ['contacts'] });
@@ -325,7 +291,6 @@ export default function EditInvoicePage() {
           }
         } else {
           setSelectedClientAccountId('');
-          setInvoiceLinkedClient(null);
           setClientAccountSnapshot(null);
         }
       } catch (err) {
@@ -350,11 +315,9 @@ export default function EditInvoicePage() {
     }
     setSelectedClientAccountId(idStr);
 
-    const fromList = clientAccountSelectOptions.find((c) => clientAccountApiId(c) === idStr);
-
     try {
       const caRes = await clientAccountService.getOne(idStr, { populate: ['contacts'] });
-      const acc = caRes?.data ?? fromList;
+      const acc = caRes?.data;
       if (!acc) return;
       setClientAccountSnapshot(acc);
 
@@ -366,17 +329,6 @@ export default function EditInvoicePage() {
       setInvoiceData((prev) => ({ ...prev, ...bill }));
     } catch (err) {
       console.error(err);
-      if (fromList) {
-        setClientAccountSnapshot(fromList);
-        const list = filterContactsForCompany(allContacts, '', idStr);
-        const pid = defaultPrimaryContactId(list) || '';
-        setSelectedBillContactId(pid);
-        const contactRow = pid ? list.find((c) => contactOptionValue(c) === pid) : null;
-        setInvoiceData((prev) => ({
-          ...prev,
-          ...mergeBillToFromAccountAndContact(fromList, contactRow),
-        }));
-      }
     }
   };
 
@@ -508,28 +460,17 @@ export default function EditInvoicePage() {
           {errors.billTo && <p className="text-red-600 text-sm mb-3">{errors.billTo}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="md:col-span-2">
-              <Select
+              <CompanyPicker
+                type="clientAccount"
                 label="Client account"
                 placeholder="Select a client to autofill (optional)"
                 value={selectedClientAccountId}
                 onChange={handleClientAccountSelect}
-                options={clientAccountSelectOptions
-                  .map((ca) => {
-                    const vid = clientAccountApiId(ca);
-                    if (!vid) return null;
-                    return {
-                      value: vid,
-                      label: ca.companyName
-                        ? `${ca.companyName}${ca.email ? ` · ${ca.email}` : ''}`
-                        : `Account #${vid}`,
-                    };
-                  })
-                  .filter(Boolean)}
-                icon={Building2}
-                disabled={clientsLoading}
+                hydrateOnSelect
+                searchPlaceholder="Search client accounts…"
               />
-              {clientsLoading || contactsLoading ? (
-                <p className="mt-1 text-xs text-gray-500">Loading client accounts and contacts…</p>
+              {contactsLoading ? (
+                <p className="mt-1 text-xs text-gray-500">Loading contacts…</p>
               ) : null}
             </div>
             <div className="md:col-span-2">

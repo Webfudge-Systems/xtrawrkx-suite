@@ -38,10 +38,9 @@ import {
   TableColumnPicker,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../components/CRMPageHeader';
+import CompanyPicker from '../../../components/CompanyPicker';
 import taskService from '../../../lib/api/taskService';
 import strapiClient from '../../../lib/strapiClient';
-import leadCompanyService from '../../../lib/api/leadCompanyService';
-import clientAccountService from '../../../lib/api/clientAccountService';
 import dealService from '../../../lib/api/dealService';
 import { getClientWorkflowStageLabel } from '@webfudge/utils';
 
@@ -180,8 +179,6 @@ export default function ClientsTasksPage() {
   const [createScheduled, setCreateScheduled] = useState('');
   const [createSaving, setCreateSaving] = useState(false);
   const [assigneeOptionsUsers, setAssigneeOptionsUsers] = useState([]);
-  const [leadCompanyOptions, setLeadCompanyOptions] = useState([]);
-  const [clientAccountOptions, setClientAccountOptions] = useState([]);
   const [createLeadCompanyId, setCreateLeadCompanyId] = useState('');
   const [createClientAccountId, setCreateClientAccountId] = useState('');
   const [createDealId, setCreateDealId] = useState('');
@@ -280,37 +277,6 @@ export default function ClientsTasksPage() {
       } catch (e) {
         console.error('Task assignee list failed to load', e);
         if (!cancelled) setAssigneeOptionsUsers([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [lcRes, caRes] = await Promise.all([
-          leadCompanyService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 500,
-          }),
-          clientAccountService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 500,
-          }),
-        ]);
-        if (!cancelled) {
-          setLeadCompanyOptions(lcRes.data || []);
-          setClientAccountOptions(caRes.data || []);
-        }
-      } catch (e) {
-        console.error('Lead companies / client accounts failed to load for task form', e);
-        if (!cancelled) {
-          setLeadCompanyOptions([]);
-          setClientAccountOptions([]);
-        }
       }
     })();
     return () => {
@@ -1240,56 +1206,30 @@ export default function ClientsTasksPage() {
               Choose a lead company <span className="font-medium text-gray-600">or</span> a client account, then pick a deal for that record. Selecting one clears the other.
             </p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium text-gray-700">Lead company</span>
-                <select
-                  value={createLeadCompanyId}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setCreateLeadCompanyId(v);
-                    if (v) setCreateClientAccountId('');
-                    setCreateDealId('');
-                  }}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                >
-                  <option value="">— None —</option>
-                  {leadCompanyOptions.map((lc) => {
-                    const id = lc.id ?? lc.documentId;
-                    if (id == null) return null;
-                    const label = leadCompanyLabel(lc) || `Lead ${id}`;
-                    return (
-                      <option key={String(id)} value={String(id)}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium text-gray-700">Client account</span>
-                <select
-                  value={createClientAccountId}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setCreateClientAccountId(v);
-                    if (v) setCreateLeadCompanyId('');
-                    setCreateDealId('');
-                  }}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                >
-                  <option value="">— None —</option>
-                  {clientAccountOptions.map((acc) => {
-                    const id = acc.id ?? acc.documentId;
-                    if (id == null) return null;
-                    const label = accountLabel(acc) || `Account ${id}`;
-                    return (
-                      <option key={String(id)} value={String(id)}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </label>
+              <CompanyPicker
+                type="leadCompany"
+                label="Lead company"
+                value={createLeadCompanyId}
+                onChange={(v) => {
+                  setCreateLeadCompanyId(v || '');
+                  if (v) setCreateClientAccountId('');
+                  setCreateDealId('');
+                }}
+                placeholder="— None —"
+                searchPlaceholder="Search lead companies…"
+              />
+              <CompanyPicker
+                type="clientAccount"
+                label="Client account"
+                value={createClientAccountId}
+                onChange={(v) => {
+                  setCreateClientAccountId(v || '');
+                  if (v) setCreateLeadCompanyId('');
+                  setCreateDealId('');
+                }}
+                placeholder="— None —"
+                searchPlaceholder="Search client accounts…"
+              />
             </div>
             <label className="block space-y-1.5">
               <span className="text-sm font-medium text-gray-700">Deal (optional)</span>

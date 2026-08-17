@@ -6,11 +6,9 @@ import {
   Button, Input, Select, Textarea, FormSectionCard, LoadingSpinner, Badge,
 } from '@webfudge/ui';
 import CRMPageHeader from '../../../../../components/CRMPageHeader';
+import CompanyPicker from '../../../../../components/CompanyPicker';
 import proposalService from '../../../../../lib/api/proposalService';
-import leadCompanyService from '../../../../../lib/api/leadCompanyService';
-import clientAccountService from '../../../../../lib/api/clientAccountService';
-import contactService from '../../../../../lib/api/contactService';
-import { isConvertedLeadCompany, relationEntityId } from '../../../../../lib/dealFormOptions';
+import { relationEntityId } from '../../../../../lib/dealFormOptions';
 import { mapEntityToProposalClientFields } from '../../../../../lib/proposalClientAutofill';
 import { useAuth } from '@webfudge/auth';
 import {
@@ -83,10 +81,6 @@ export default function EditProposalPage() {
 
   const [leadCompanyId, setLeadCompanyId] = useState('');
   const [clientAccountId, setClientAccountId] = useState('');
-  const [leadCompanies, setLeadCompanies] = useState([]);
-  const [clientAccounts, setClientAccounts] = useState([]);
-  const [contacts, setContacts] = useState([]);
-  const [loadingRefs, setLoadingRefs] = useState(true);
 
   // Pre-fill org
   useEffect(() => {
@@ -100,80 +94,6 @@ export default function EditProposalPage() {
       }));
     }
   }, [currentOrg, user]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoadingRefs(true);
-      try {
-        const [lcRes, caRes, cRes] = await Promise.allSettled([
-          leadCompanyService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 500,
-            populate: ['convertedAccount'],
-          }),
-          clientAccountService.getAll({
-            sort: 'companyName:asc',
-            'pagination[pageSize]': 500,
-          }),
-          contactService.getAll({
-            sort: 'createdAt:desc',
-            'pagination[pageSize]': 500,
-            populate: ['leadCompany', 'clientAccount'],
-          }),
-        ]);
-        if (cancelled) return;
-        if (lcRes.status === 'fulfilled') setLeadCompanies(lcRes.value.data || []);
-        else setLeadCompanies([]);
-        if (caRes.status === 'fulfilled') setClientAccounts(caRes.value.data || []);
-        else setClientAccounts([]);
-        if (cRes.status === 'fulfilled') setContacts(cRes.value.data || []);
-        else setContacts([]);
-      } catch {
-        if (!cancelled) {
-          setLeadCompanies([]);
-          setClientAccounts([]);
-          setContacts([]);
-        }
-      } finally {
-        if (!cancelled) setLoadingRefs(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const leadCompanyOptions = useMemo(
-    () =>
-      leadCompanies
-        .filter((c) => !isConvertedLeadCompany(c))
-        .map((c) => {
-          const value = String(c.id ?? c.documentId ?? '');
-          if (!value) return null;
-          return {
-            value,
-            label: c.companyName || c.name || `Lead #${value}`,
-          };
-        })
-        .filter(Boolean),
-    [leadCompanies]
-  );
-
-  const clientAccountOptions = useMemo(
-    () =>
-      clientAccounts
-        .map((a) => {
-          const value = String(a.id ?? a.documentId ?? '');
-          if (!value) return null;
-          return {
-            value,
-            label: a.companyName || a.name || `Account #${value}`,
-          };
-        })
-        .filter(Boolean),
-    [clientAccounts]
-  );
 
   // Load existing proposal
   useEffect(() => {
@@ -243,7 +163,7 @@ export default function EditProposalPage() {
       clientAddress: '',
     }));
 
-  const handleLeadCompanySelect = (value) => {
+  const handleLeadCompanySelect = (value, item) => {
     const v = value ? String(value) : '';
     setLeadCompanyId(v);
     setClientAccountId('');
@@ -252,12 +172,11 @@ export default function EditProposalPage() {
       clearClientDetailFields();
       return;
     }
-    const lead = leadCompanies.find((c) => String(c.id ?? c.documentId) === v);
-    const fields = mapEntityToProposalClientFields('lead', lead || null, contacts);
+    const fields = mapEntityToProposalClientFields('lead', item || null, item?.contacts || []);
     setProposalData((prev) => ({ ...prev, ...fields }));
   };
 
-  const handleClientAccountSelect = (value) => {
+  const handleClientAccountSelect = (value, item) => {
     const v = value ? String(value) : '';
     setClientAccountId(v);
     setLeadCompanyId('');
@@ -266,8 +185,7 @@ export default function EditProposalPage() {
       clearClientDetailFields();
       return;
     }
-    const acc = clientAccounts.find((a) => String(a.id ?? a.documentId) === v);
-    const fields = mapEntityToProposalClientFields('client', acc || null, contacts);
+    const fields = mapEntityToProposalClientFields('client', item || null, item?.contacts || []);
     setProposalData((prev) => ({ ...prev, ...fields }));
   };
 
@@ -380,24 +298,28 @@ export default function EditProposalPage() {
         <FormSectionCard title="Client Details" description="Lead company or client account; contact fields fill from CRM" icon={Building2}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <Select
+              <CompanyPicker
+                type="leadCompany"
                 label="Lead Company"
                 value={leadCompanyId}
                 onChange={handleLeadCompanySelect}
-                options={leadCompanyOptions}
                 placeholder="— Select lead company —"
-                disabled={loadingRefs || Boolean(clientAccountId)}
+                disabled={Boolean(clientAccountId)}
+                hydrateOnSelect
+                searchPlaceholder="Search lead companies…"
               />
               <p className="mt-1.5 text-xs text-gray-500">Converted leads are hidden — use Client Account.</p>
             </div>
             <div>
-              <Select
+              <CompanyPicker
+                type="clientAccount"
                 label="Client Account"
                 value={clientAccountId}
                 onChange={handleClientAccountSelect}
-                options={clientAccountOptions}
                 placeholder="— Select client account —"
-                disabled={loadingRefs || Boolean(leadCompanyId)}
+                disabled={Boolean(leadCompanyId)}
+                hydrateOnSelect
+                searchPlaceholder="Search client accounts…"
               />
             </div>
             <Input
